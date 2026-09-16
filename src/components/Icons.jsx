@@ -86,3 +86,26 @@ export const AppleSparklesIcon = ({ className = "w-4 h-4" }) => (
     <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>
   </svg>
 );
+
+// ==============================================================================
+// ÍCONES DE VISUALIZAÇÃO: GRADE (CARDS) & LISTA (ESTILO APPLE)
+// ==============================================================================
+export const ViewGridIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <rect width="7" height="7" x="3" y="3" rx="1.5" />
+    <rect width="7" height="7" x="14" y="3" rx="1.5" />
+    <rect width="7" height="7" x="14" y="14" rx="1.5" />
+    <rect width="7" height="7" x="3" y="14" rx="1.5" />
+  </svg>
+);
+
+export const ViewListIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="8" x2="21" y1="6" y2="6" />
+    <line x1="8" x2="21" y1="12" y2="12" />
+    <line x1="8" x2="21" y1="18" y2="18" />
+    <line x1="3" x2="3.01" y1="6" y2="6" strokeWidth="2.5" />
+    <line x1="3" x2="3.01" y1="12" y2="12" strokeWidth="2.5" />
+    <line x1="3" x2="3.01" y1="18" y2="18" strokeWidth="2.5" />
+  </svg>
+);

@@ -24,11 +24,26 @@ import ServerConfigView from '@/components/ServerConfigView';
 import DashboardView from '@/components/DashboardView';
 import LoginView from '@/components/LoginView';
 import SupportCompletionModal from '@/components/SupportCompletionModal';
-import { MessageChannelIcon } from '@/components/Icons';
+import { MessageChannelIcon, ViewGridIcon, ViewListIcon } from '@/components/Icons';
 
 export default function Home() {
   // Tema Visual: 'light' (Padrão Apple) | 'dark'
   const [theme, setTheme] = useState('light');
+
+  // Modo de Exibição das Empresas: 'grid' (Cards) | 'list' (Lista/Tabela)
+  const [empresasViewMode, setEmpresasViewMode] = useState('grid');
+
+  useEffect(() => {
+    const saved = localStorage.getItem('rm_empresas_view_mode');
+    if (saved === 'list' || saved === 'grid') {
+      setEmpresasViewMode(saved);
+    }
+  }, []);
+
+  const handleChangeViewMode = (mode) => {
+    setEmpresasViewMode(mode);
+    localStorage.setItem('rm_empresas_view_mode', mode);
+  };
 
   // Estado de Autenticação
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -532,25 +547,58 @@ export default function Home() {
                     </div>
 
                     {/* Controles de Paginação & Densidade */}
-                    <div className="flex items-center justify-between pt-2 border-t border-black/[0.04] dark:border-white/[0.05] text-[11px] text-slate-500 dark:text-zinc-400">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-medium">Itens por página:</span>
-                        {[8, 12, 16, 24].map((size) => (
+                    {/* Controles de Paginação & Densidade & Alternador de Visualização */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-black/[0.04] dark:border-white/[0.05] text-[11px] text-slate-500 dark:text-zinc-400">
+                      <div className="flex items-center gap-4 flex-wrap">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium">Itens por página:</span>
+                          {[8, 12, 16, 24].map((size) => (
+                            <button
+                              key={size}
+                              onClick={() => {
+                                setPageSize(size);
+                                setPage(1);
+                              }}
+                              className={`px-2.5 py-0.5 rounded-full font-medium transition-all cursor-pointer ${
+                                pageSize === size
+                                  ? 'bg-black text-white dark:bg-white dark:text-black font-semibold'
+                                  : 'bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.08]'
+                              }`}
+                            >
+                              {size}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Alternador de Visualização Cards / Lista */}
+                        <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.06]">
                           <button
-                            key={size}
-                            onClick={() => {
-                              setPageSize(size);
-                              setPage(1);
-                            }}
-                            className={`px-2.5 py-0.5 rounded-full font-medium transition-all ${
-                              pageSize === size
-                                ? 'bg-black text-white dark:bg-white dark:text-black font-semibold'
-                                : 'bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.08]'
+                            type="button"
+                            onClick={() => handleChangeViewMode('grid')}
+                            className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
+                              empresasViewMode === 'grid'
+                                ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                                : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
                             }`}
+                            title="Visualização em Grade de Cards"
                           >
-                            {size}
+                            <ViewGridIcon className="w-3.5 h-3.5" />
+                            <span className="text-[11px]">Cards</span>
                           </button>
-                        ))}
+                          <button
+                            type="button"
+                            onClick={() => handleChangeViewMode('list')}
+                            className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
+                              empresasViewMode === 'list'
+                                ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                                : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
+                            }`}
+                            title="Visualização em Lista Detalhada"
+                          >
+                            <ViewListIcon className="w-3.5 h-3.5" />
+                            <span className="text-[11px]">Lista</span>
+                          </button>
+                        </div>
                       </div>
 
                       <span className="font-mono text-slate-500 dark:text-zinc-400 tabular-nums font-medium">
@@ -559,7 +607,7 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Grid de Alta Produtividade Widescreen (Multi-coluna com Motion) */}
+                  {/* Visualização de Empresas (Cards vs Lista) */}
                   {loadingEmpresas ? (
                     <div className="p-16 text-center text-xs text-slate-400 flex flex-col items-center gap-3">
                       <div className="w-7 h-7 border-2 border-[#4d7c0f] dark:border-[#84cc16] border-t-transparent rounded-full animate-spin"></div>
@@ -593,7 +641,7 @@ export default function Home() {
                         </button>
                       </div>
                     </div>
-                  ) : (
+                  ) : empresasViewMode === 'grid' ? (
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -718,6 +766,124 @@ export default function Home() {
                           </motion.div>
                         );
                       })}
+                    </motion.div>
+                  ) : (
+                    /* Visualização em Lista Detalhada (Estilo Apple macOS) */
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.2 }}
+                      className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-sm"
+                    >
+                      {/* Cabeçalho da Tabela Apple */}
+                      <div className="hidden lg:grid grid-cols-12 gap-4 px-5 py-3.5 border-b border-black/[0.05] dark:border-white/[0.06] text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 bg-black/[0.01] dark:bg-white/[0.02]">
+                        <div className="col-span-4">Empresa / E-mail</div>
+                        <div className="col-span-2">Servidor & Formato</div>
+                        <div className="col-span-2">Canais</div>
+                        <div className="col-span-2">Setup Checklist</div>
+                        <div className="col-span-2 text-right">Status / Ação</div>
+                      </div>
+
+                      <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
+                        {empresas.map((emp) => {
+                          const checklistTotal = emp.checklist?.length || 0;
+                          const checklistConcluidos = emp.checklist?.filter((c) => c.concluido).length || 0;
+                          const progressoPct = checklistTotal > 0 ? Math.round((checklistConcluidos / checklistTotal) * 100) : 0;
+                          const temSuporteAtivo = Boolean(getChamadoAtivo(emp.id));
+
+                          return (
+                            <div
+                              key={emp.id}
+                              onClick={() => setEmpresaAcaoModal(emp)}
+                              className="p-4 sm:px-5 sm:py-3.5 flex flex-col lg:grid lg:grid-cols-12 gap-3 lg:gap-4 items-start lg:items-center hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors cursor-pointer group"
+                            >
+                              {/* Empresa / Contato */}
+                              <div className="lg:col-span-4 flex items-center gap-3 min-w-0 w-full">
+                                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-[#4d7c0f]/15 to-[#65a30d]/20 dark:from-[#84cc16]/15 dark:to-[#84cc16]/5 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-xs flex items-center justify-center border border-[#4d7c0f]/20 flex-shrink-0">
+                                  {emp.nome.charAt(0)}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="text-xs font-semibold text-[#1d1d1f] dark:text-white group-hover:text-[#4d7c0f] dark:group-hover:text-[#84cc16] transition-colors truncate">
+                                      {emp.nome}
+                                    </h4>
+                                    {emp.is_mock && (
+                                      <span className="text-[8px] uppercase font-mono px-1.5 py-0.2 rounded-full bg-black/[0.03] dark:bg-white/[0.05] text-slate-400">
+                                        Mock
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono truncate">
+                                    {emp.credenciais?.email_administrador || 'Sem e-mail cadastrado'}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Servidor & Formato */}
+                              <div className="lg:col-span-2 flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-700 dark:text-zinc-300">
+                                  {emp.servidor_alocado === 'servidor_2' ? 'Servidor 2' : 'Servidor 1'}
+                                </span>
+                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                                  emp.formato_atendimento === 'colaborativo'
+                                    ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20'
+                                    : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20'
+                                }`}>
+                                  {emp.formato_atendimento === 'colaborativo' ? 'Colaborativo' : 'Individual'}
+                                </span>
+                              </div>
+
+                              {/* Canais */}
+                              <div className="lg:col-span-2 flex items-center gap-1.5 overflow-hidden">
+                                {(!emp.canais || emp.canais.length === 0) ? (
+                                  <span className="text-[10px] text-slate-400 italic">0 canais</span>
+                                ) : (
+                                  <>
+                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-700 dark:text-zinc-300 font-mono">
+                                      {emp.canais.length} {emp.canais.length === 1 ? 'canal' : 'canais'}
+                                    </span>
+                                    <div className="flex items-center gap-1">
+                                      {emp.canais.slice(0, 2).map((c, i) => (
+                                        <span key={i} className="w-5 h-5 rounded-full bg-black/[0.03] dark:bg-white/[0.05] flex items-center justify-center text-slate-600 dark:text-zinc-400" title={c.nome}>
+                                          <MessageChannelIcon className="w-3 h-3 text-[#4d7c0f] dark:text-[#84cc16]" />
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+
+                              {/* Setup Checklist */}
+                              <div className="lg:col-span-2 space-y-1 w-full lg:w-auto">
+                                <div className="flex items-center justify-between text-[10px] text-slate-500">
+                                  <span>{checklistConcluidos}/{checklistTotal}</span>
+                                  <span className="font-mono tabular-nums">{progressoPct}%</span>
+                                </div>
+                                <div className="w-full lg:w-28 h-1.5 rounded-full bg-black/[0.05] dark:bg-white/[0.08] overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full bg-gradient-to-r from-[#4d7c0f] to-[#84cc16]"
+                                    style={{ width: `${progressoPct}%` }}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Ações / Suporte */}
+                              <div className="lg:col-span-2 flex items-center justify-between lg:justify-end gap-2 w-full lg:w-auto pt-2 lg:pt-0 border-t lg:border-t-0 border-black/[0.04] dark:border-white/[0.05]">
+                                {temSuporteAtivo ? (
+                                  <span className="text-[10px] uppercase font-bold px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                                    Em Suporte
+                                  </span>
+                                ) : (
+                                  <span className="text-xs font-semibold text-[#4d7c0f] dark:text-[#84cc16] group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                                    Gerenciar →
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </motion.div>
                   )}
 

@@ -11,6 +11,7 @@ import {
   finalizarSuporte 
 } from '@/lib/storage';
 import SupportCompletionModal from './SupportCompletionModal';
+import { ViewGridIcon, ViewListIcon } from './Icons';
 
 export default function DashboardView({ onSelectEmpresa, userEmail }) {
   const [metricas, setMetricas] = useState({
@@ -38,6 +39,9 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
 
   // Modal para Finalizar Suporte
   const [chamadoParaFinalizar, setChamadoParaFinalizar] = useState(null);
+
+  // Modo de exibição dos chamados em andamento ('cards' | 'list')
+  const [emAndamentoViewMode, setEmAndamentoViewMode] = useState('cards');
 
   // Timer ao vivo para chamados em andamento
   const [, setTick] = useState(0);
@@ -383,47 +387,126 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
 
       {/* Chamados em Andamento (Ao Vivo) */}
       {metricas.emAndamento.length > 0 && (
-        <div className="rounded-3xl p-6 border border-amber-500/30 bg-amber-500/[0.03] dark:bg-amber-500/[0.06] space-y-3">
-          <div className="flex items-center justify-between">
+        <div className="rounded-3xl p-6 border border-amber-500/30 bg-amber-500/[0.03] dark:bg-amber-500/[0.06] space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
               Suportes Iniciados e em Andamento ({metricas.emAndamento.length})
             </h3>
-            <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono">
-              Tempo correndo ao vivo
-            </span>
-          </div>
+            
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono hidden sm:inline">
+                Tempo correndo ao vivo
+              </span>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5">
-            {metricas.emAndamento.map((ch) => (
-              <div
-                key={ch.id}
-                className="p-4 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] flex items-center justify-between gap-3 shadow-xs"
-              >
-                <div>
-                  <h4 className="text-xs font-semibold text-[#1d1d1f] dark:text-white">
-                    {ch.empresa_nome}
-                  </h4>
-                  <p className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono">
-                    Técnico: {ch.tecnico_email}
-                  </p>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <span className="text-[10px] text-slate-400">Em atendimento há:</span>
-                    <strong className="text-xs font-mono text-[#4d7c0f] dark:text-[#84cc16] tabular-nums">
-                      {calcularTempoDecorrido(ch.iniciado_em)}
-                    </strong>
-                  </div>
-                </div>
-
+              {/* Alternador de Visualização Cards / Lista */}
+              <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.06]">
                 <button
-                  onClick={() => handleAbrirFinalizacao(ch)}
-                  className="px-3.5 py-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-semibold text-[11px] hover:opacity-90 shadow-sm"
+                  type="button"
+                  onClick={() => setEmAndamentoViewMode('cards')}
+                  className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
+                    emAndamentoViewMode === 'cards'
+                      ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                      : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
+                  }`}
+                  title="Exibir em Cards"
                 >
-                  Finalizar
+                  <ViewGridIcon className="w-3.5 h-3.5" />
+                  <span className="text-[11px]">Cards</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEmAndamentoViewMode('list')}
+                  className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
+                    emAndamentoViewMode === 'list'
+                      ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                      : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
+                  }`}
+                  title="Exibir em Lista"
+                >
+                  <ViewListIcon className="w-3.5 h-3.5" />
+                  <span className="text-[11px]">Lista</span>
                 </button>
               </div>
-            ))}
+            </div>
           </div>
+
+          {emAndamentoViewMode === 'cards' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5">
+              {metricas.emAndamento.map((ch) => (
+                <div
+                  key={ch.id}
+                  className="p-4 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] flex items-center justify-between gap-3 shadow-xs"
+                >
+                  <div>
+                    <h4 className="text-xs font-semibold text-[#1d1d1f] dark:text-white">
+                      {ch.empresa_nome}
+                    </h4>
+                    <p className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono">
+                      Técnico: {ch.tecnico_email}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="text-[10px] text-slate-400">Em atendimento há:</span>
+                      <strong className="text-xs font-mono text-[#4d7c0f] dark:text-[#84cc16] tabular-nums">
+                        {calcularTempoDecorrido(ch.iniciado_em)}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleAbrirFinalizacao(ch)}
+                    className="px-3.5 py-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-semibold text-[11px] hover:opacity-90 shadow-sm cursor-pointer"
+                  >
+                    Finalizar
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            /* Visualização em Lista de Chamados em Andamento */
+            <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-xs">
+              <div className="hidden sm:grid grid-cols-12 gap-3 px-4 py-2.5 border-b border-black/[0.05] dark:border-white/[0.06] text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 bg-black/[0.01] dark:bg-white/[0.02]">
+                <div className="col-span-5">Empresa em Suporte</div>
+                <div className="col-span-3">Técnico Operador</div>
+                <div className="col-span-2">Tempo Decorrido</div>
+                <div className="col-span-2 text-right">Ação</div>
+              </div>
+
+              <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
+                {metricas.emAndamento.map((ch) => (
+                  <div key={ch.id} className="p-3.5 sm:px-4 sm:py-3 flex flex-col sm:grid sm:grid-cols-12 gap-2 sm:gap-3 items-start sm:items-center hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors">
+                    <div className="sm:col-span-5 flex items-center gap-2 min-w-0">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping flex-shrink-0"></span>
+                      <h4 className="text-xs font-semibold text-[#1d1d1f] dark:text-white truncate">
+                        {ch.empresa_nome}
+                      </h4>
+                    </div>
+
+                    <div className="sm:col-span-3 min-w-0">
+                      <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono truncate block">
+                        {ch.tecnico_email}
+                      </span>
+                    </div>
+
+                    <div className="sm:col-span-2 flex items-center gap-1.5">
+                      <strong className="text-xs font-mono text-[#4d7c0f] dark:text-[#84cc16] tabular-nums">
+                        {calcularTempoDecorrido(ch.iniciado_em)}
+                      </strong>
+                    </div>
+
+                    <div className="sm:col-span-2 flex items-center justify-end w-full sm:w-auto">
+                      <button
+                        onClick={() => handleAbrirFinalizacao(ch)}
+                        className="px-3 py-1 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-semibold text-[11px] hover:opacity-90 shadow-sm cursor-pointer"
+                      >
+                        Finalizar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

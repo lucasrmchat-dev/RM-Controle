@@ -23,13 +23,44 @@ import {
   isMockDataEnabled
 } from '@/lib/storage';
 import { generateSecurePassword } from '@/lib/security';
-import { MessageChannelIcon, FacebookIcon, InstagramIcon, TelegramIcon, EyeIcon, EyeOffIcon } from './Icons';
+import { 
+  MessageChannelIcon, 
+  FacebookIcon, 
+  InstagramIcon, 
+  TelegramIcon, 
+  EyeIcon, 
+  EyeOffIcon,
+  ViewGridIcon,
+  ViewListIcon 
+} from './Icons';
 import SupportCompletionModal from './SupportCompletionModal';
 
 export default function CompanyManagementView({ empresa, onBack, onUpdated, userEmail }) {
   const [activeTab, setActiveTab] = useState('canais'); // 'canais' | 'credenciais' | 'servidor' | 'observacoes' | 'chamados'
   const [catalogoCanais, setCatalogoCanais] = useState([]);
   
+  // Modos de Exibição (Cards vs Lista)
+  const [canaisViewMode, setCanaisViewMode] = useState('grid'); // 'grid' | 'list'
+  const [credenciaisViewMode, setCredenciaisViewMode] = useState('cards'); // 'cards' | 'list'
+
+  useEffect(() => {
+    const savedC = localStorage.getItem('rm_canais_view_mode');
+    if (savedC === 'list' || savedC === 'grid') setCanaisViewMode(savedC);
+
+    const savedK = localStorage.getItem('rm_credenciais_view_mode');
+    if (savedK === 'list' || savedK === 'cards') setCredenciaisViewMode(savedK);
+  }, []);
+
+  const handleChangeCanaisViewMode = (mode) => {
+    setCanaisViewMode(mode);
+    localStorage.setItem('rm_canais_view_mode', mode);
+  };
+
+  const handleChangeCredenciaisViewMode = (mode) => {
+    setCredenciaisViewMode(mode);
+    localStorage.setItem('rm_credenciais_view_mode', mode);
+  };
+
   // Suporte em Tempo Real
   const [chamadoAtivo, setChamadoAtivo] = useState(null);
   const [tempoSuporteSegundos, setTempoSuporteSegundos] = useState(0);
@@ -719,12 +750,44 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   </p>
                 </div>
 
-                <button
-                  onClick={() => setIsAddCanalOpen(true)}
-                  className="px-4 py-2.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black text-xs font-bold shadow-sm hover:opacity-90 flex items-center gap-2 transition-all self-start sm:self-auto cursor-pointer"
-                >
-                  + Conectar Novo Canal
-                </button>
+                <div className="flex items-center gap-2.5 self-start sm:self-auto flex-wrap">
+                  {/* Alternador de Visualização Cards / Lista */}
+                  <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.06]">
+                    <button
+                      type="button"
+                      onClick={() => handleChangeCanaisViewMode('grid')}
+                      className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
+                        canaisViewMode === 'grid'
+                          ? 'bg-white dark:bg-zinc-800 text-[#0a0a0c] dark:text-white shadow-xs'
+                          : 'text-slate-500 hover:text-[#0a0a0c] dark:hover:text-white'
+                      }`}
+                      title="Exibir canais em Cards"
+                    >
+                      <ViewGridIcon className="w-3.5 h-3.5" />
+                      <span className="text-[11px]">Cards</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleChangeCanaisViewMode('list')}
+                      className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
+                        canaisViewMode === 'list'
+                          ? 'bg-white dark:bg-zinc-800 text-[#0a0a0c] dark:text-white shadow-xs'
+                          : 'text-slate-500 hover:text-[#0a0a0c] dark:hover:text-white'
+                      }`}
+                      title="Exibir canais em Lista Detalhada"
+                    >
+                      <ViewListIcon className="w-3.5 h-3.5" />
+                      <span className="text-[11px]">Lista</span>
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => setIsAddCanalOpen(true)}
+                    className="px-4 py-2.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black text-xs font-bold shadow-sm hover:opacity-90 flex items-center gap-2 transition-all cursor-pointer"
+                  >
+                    + Conectar Novo Canal
+                  </button>
+                </div>
               </div>
 
               {/* Formulário / Drawer de Adicionar Canal */}
@@ -820,7 +883,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   <p className="text-sm font-bold text-[#0a0a0c] dark:text-white">Nenhum canal conectado ainda</p>
                   <p className="text-xs text-slate-500">Vincule a primeira instância ou canal de mensageria da empresa.</p>
                 </div>
-              ) : (
+              ) : canaisViewMode === 'grid' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   {empresa.canais.map((c) => (
                     <div key={c.canal_id} className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] flex items-start justify-between gap-3 shadow-sm hover:shadow-md transition-all">
@@ -854,6 +917,65 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                     </div>
                   ))}
                 </div>
+              ) : (
+                /* Visualização em Lista de Canais (Estilo Tabela Apple) */
+                <div className="rounded-3xl border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] overflow-hidden shadow-sm">
+                  <div className="hidden sm:grid grid-cols-12 gap-3 px-5 py-3 border-b border-black/5 dark:border-white/6 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 bg-black/[0.01] dark:bg-white/[0.02]">
+                    <div className="col-span-4">Canal / Categoria</div>
+                    <div className="col-span-4">Identificador / Número</div>
+                    <div className="col-span-3">Observação Técnica</div>
+                    <div className="col-span-1 text-right">Ação</div>
+                  </div>
+
+                  <div className="divide-y divide-black/5 dark:divide-white/6">
+                    {empresa.canais.map((c) => (
+                      <div key={c.canal_id} className="p-4 sm:px-5 sm:py-3.5 flex flex-col sm:grid sm:grid-cols-12 gap-2 sm:gap-3 items-start sm:items-center hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors">
+                        <div className="sm:col-span-4 flex items-center gap-2.5 min-w-0">
+                          <div className="w-7 h-7 rounded-xl bg-black/5 dark:bg-white/10 flex items-center justify-center flex-shrink-0">
+                            {renderCanalIcon(c)}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-xs font-bold text-[#0a0a0c] dark:text-white block truncate">{c.nome}</span>
+                            <span className="text-[9px] uppercase font-mono font-semibold text-slate-400">
+                              {c.tipo}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="sm:col-span-4 flex items-center gap-2">
+                          <span className="text-xs font-mono font-bold text-slate-800 dark:text-zinc-200 select-all">
+                            {c.identificador_numero || 'Sem identificador'}
+                          </span>
+                          {c.identificador_numero && (
+                            <button
+                              type="button"
+                              onClick={() => handleCopiarTexto(c.identificador_numero, c.canal_id)}
+                              className="text-[10px] text-slate-400 hover:text-black dark:hover:text-white"
+                            >
+                              Copiar
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="sm:col-span-3 min-w-0">
+                          <span className="text-[11px] text-slate-500 italic truncate block">
+                            {c.observacao || '-'}
+                          </span>
+                        </div>
+
+                        <div className="sm:col-span-1 flex items-center justify-end w-full sm:w-auto">
+                          <button
+                            onClick={() => handleRemoverCanal(c.canal_id)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 rounded-full hover:bg-red-500/10 transition-colors"
+                            title="Desconectar canal"
+                          >
+                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/></svg>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           )}
@@ -873,19 +995,51 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   </p>
                 </div>
 
-                <button
-                  onClick={() => {
-                    setEditandoCredId(null);
-                    setCredRotulo('');
-                    setCredUsuario('');
-                    setCredSenha('');
-                    setCredObs('');
-                    setIsAddCredOpen(true);
-                  }}
-                  className="px-4 py-2.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black text-xs font-bold shadow-sm hover:opacity-90 flex items-center gap-2 transition-all cursor-pointer"
-                >
-                  + Adicionar Novo Acesso
-                </button>
+                <div className="flex items-center gap-2.5 self-start sm:self-auto flex-wrap">
+                  {/* Alternador de Visualização Cards / Lista */}
+                  <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.06]">
+                    <button
+                      type="button"
+                      onClick={() => handleChangeCredenciaisViewMode('cards')}
+                      className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
+                        credenciaisViewMode === 'cards'
+                          ? 'bg-white dark:bg-zinc-800 text-[#0a0a0c] dark:text-white shadow-xs'
+                          : 'text-slate-500 hover:text-[#0a0a0c] dark:hover:text-white'
+                      }`}
+                      title="Exibir acessos em Cards"
+                    >
+                      <ViewGridIcon className="w-3.5 h-3.5" />
+                      <span className="text-[11px]">Cards</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleChangeCredenciaisViewMode('list')}
+                      className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
+                        credenciaisViewMode === 'list'
+                          ? 'bg-white dark:bg-zinc-800 text-[#0a0a0c] dark:text-white shadow-xs'
+                          : 'text-slate-500 hover:text-[#0a0a0c] dark:hover:text-white'
+                      }`}
+                      title="Exibir acessos em Lista / Tabela Keychain"
+                    >
+                      <ViewListIcon className="w-3.5 h-3.5" />
+                      <span className="text-[11px]">Lista</span>
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setEditandoCredId(null);
+                      setCredRotulo('');
+                      setCredUsuario('');
+                      setCredSenha('');
+                      setCredObs('');
+                      setIsAddCredOpen(true);
+                    }}
+                    className="px-4 py-2.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black text-xs font-bold shadow-sm hover:opacity-90 flex items-center gap-2 transition-all cursor-pointer"
+                  >
+                    + Adicionar Novo Acesso
+                  </button>
+                </div>
               </div>
 
               {/* Formulário Novo Acesso */}
@@ -991,7 +1145,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   <p className="text-sm font-bold text-[#0a0a0c] dark:text-white">Nenhum acesso cadastrado</p>
                   <p className="text-xs text-slate-500">Adicione credenciais para documentar os acessos desta empresa.</p>
                 </div>
-              ) : (
+              ) : credenciaisViewMode === 'cards' ? (
                 <div className="grid grid-cols-1 gap-3.5">
                   {credenciaisList.map((cred) => {
                     const isRevelada = Boolean(senhasReveladas[cred.id]);
@@ -1020,13 +1174,13 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                           <div className="flex items-center gap-1.5 self-end sm:self-center">
                             <button
                               onClick={() => handleEditarCredencial(cred)}
-                              className="px-3 py-1 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 text-[11px] font-semibold text-slate-700 dark:text-zinc-300 transition-all"
+                              className="px-3 py-1 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 text-[11px] font-semibold text-slate-700 dark:text-zinc-300 transition-all cursor-pointer"
                             >
                               Editar
                             </button>
                             <button
                               onClick={() => handleExcluirCredencial(cred.id)}
-                              className="p-1.5 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors"
+                              className="p-1.5 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer"
                               title="Excluir"
                             >
                               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1045,7 +1199,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                             {cred.usuario_email && (
                               <button
                                 onClick={() => handleCopiarTexto(cred.usuario_email, cred.id + '_u')}
-                                className="text-[10px] font-semibold text-slate-500 hover:text-black dark:hover:text-white"
+                                className="text-[10px] font-semibold text-slate-500 hover:text-black dark:hover:text-white cursor-pointer"
                               >
                                 {copiado ? 'Copiado!' : 'Copiar'}
                               </button>
@@ -1063,14 +1217,14 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={() => handleToggleVerSenha(cred)}
-                                className="text-slate-400 hover:text-black dark:hover:text-white p-1"
+                                className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer"
                                 title={isRevelada ? 'Ocultar' : 'Visualizar senha'}
                               >
                                 {isRevelada ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
                               </button>
                               <button
                                 onClick={() => handleCopiarTexto(cred.senha, cred.id + '_s')}
-                                className="text-[10px] font-semibold text-slate-500 hover:text-black dark:hover:text-white"
+                                className="text-[10px] font-semibold text-slate-500 hover:text-black dark:hover:text-white cursor-pointer"
                               >
                                 Copiar
                               </button>
@@ -1086,6 +1240,108 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                       </div>
                     );
                   })}
+                </div>
+              ) : (
+                /* Visualização em Lista / Tabela Keychain */
+                <div className="rounded-3xl border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] overflow-hidden shadow-sm">
+                  <div className="hidden lg:grid grid-cols-12 gap-3 px-5 py-3 border-b border-black/5 dark:border-white/6 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 bg-black/[0.01] dark:bg-white/[0.02]">
+                    <div className="col-span-3">Rótulo do Acesso</div>
+                    <div className="col-span-3">Login / E-mail</div>
+                    <div className="col-span-3">Senha Protegida</div>
+                    <div className="col-span-2">Observação</div>
+                    <div className="col-span-1 text-right">Ações</div>
+                  </div>
+
+                  <div className="divide-y divide-black/5 dark:divide-white/6">
+                    {credenciaisList.map((cred) => {
+                      const isRevelada = Boolean(senhasReveladas[cred.id]);
+                      const copiadoU = copiadoId === cred.id + '_u';
+                      const copiadoS = copiadoId === cred.id + '_s';
+
+                      return (
+                        <div key={cred.id} className="p-4 sm:px-5 sm:py-3.5 flex flex-col lg:grid lg:grid-cols-12 gap-2 lg:gap-3 items-start lg:items-center hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors">
+                          {/* Rótulo */}
+                          <div className="lg:col-span-3 flex items-center gap-2 min-w-0">
+                            <span className="w-6 h-6 rounded-lg bg-black/5 dark:bg-white/10 flex items-center justify-center text-xs flex-shrink-0">
+                              🔑
+                            </span>
+                            <div className="min-w-0">
+                              <span className="text-xs font-bold text-[#0a0a0c] dark:text-white block truncate">{cred.rotulo}</span>
+                              {cred.ultima_alteracao && (
+                                <span className="text-[9px] text-slate-400 font-mono">
+                                  {new Date(cred.ultima_alteracao).toLocaleDateString('pt-BR')}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Login / E-mail */}
+                          <div className="lg:col-span-3 flex items-center gap-2">
+                            <span className="text-xs font-mono font-semibold text-slate-800 dark:text-zinc-200 select-all truncate">
+                              {cred.usuario_email || 'Não informado'}
+                            </span>
+                            {cred.usuario_email && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopiarTexto(cred.usuario_email, cred.id + '_u')}
+                                className="text-[10px] text-slate-400 hover:text-black dark:hover:text-white"
+                              >
+                                {copiadoU ? 'Copiado!' : 'Copiar'}
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Senha */}
+                          <div className="lg:col-span-3 flex items-center gap-2">
+                            <span className="text-xs font-mono font-bold text-slate-800 dark:text-zinc-200 select-all">
+                              {isRevelada ? cred.senha : '••••••••••••'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleVerSenha(cred)}
+                              className="text-slate-400 hover:text-black dark:hover:text-white p-0.5"
+                              title={isRevelada ? 'Ocultar' : 'Visualizar senha'}
+                            >
+                              {isRevelada ? <EyeOffIcon className="w-3.5 h-3.5" /> : <EyeIcon className="w-3.5 h-3.5" />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCopiarTexto(cred.senha, cred.id + '_s')}
+                              className="text-[10px] text-slate-400 hover:text-black dark:hover:text-white"
+                            >
+                              {copiadoS ? 'Copiado!' : 'Copiar'}
+                            </button>
+                          </div>
+
+                          {/* Obs */}
+                          <div className="lg:col-span-2 min-w-0">
+                            <span className="text-[11px] text-slate-500 italic truncate block">
+                              {cred.observacao || '-'}
+                            </span>
+                          </div>
+
+                          {/* Ações */}
+                          <div className="lg:col-span-1 flex items-center justify-end gap-1.5 w-full lg:w-auto">
+                            <button
+                              type="button"
+                              onClick={() => handleEditarCredencial(cred)}
+                              className="px-2.5 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-[11px] font-semibold text-slate-700 dark:text-zinc-300 hover:bg-black/10 cursor-pointer"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleExcluirCredencial(cred.id)}
+                              className="p-1 text-slate-400 hover:text-red-500 rounded-full cursor-pointer"
+                              title="Excluir"
+                            >
+                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
