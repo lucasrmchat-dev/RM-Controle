@@ -78,7 +78,7 @@ export default function AuditLogsView() {
       case 'adicionou_canal_empresa':
         return { 
           titulo: `Vinculou Canal de Atendimento`,
-          descricao: `Adicionou canal '${log.detalhes?.canal || 'WhatsApp'}' na empresa ${empresa}`,
+          descricao: `Adicionou canal '${log.detalhes?.canal || 'Mensageria'}' na empresa ${empresa}`,
           badge: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
           modulo: 'Canais'
         };

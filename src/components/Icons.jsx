@@ -3,22 +3,31 @@
 import React from 'react';
 
 // ==============================================================================
-// ÍCONE OFICIAL E ELEGANTE DO WHATSAPP (VETOR NATIVO 100% LIMPO, SEM CARA DE IA)
+// ÍCONE DE MENSAGERIA / CANAL DE COMUNICAÇÃO (ESTILO APPLE MESSAGES / LINE SVG)
+// Substitui 100% qualquer logotipo de terceiros (sem logotipo do WhatsApp)
 // ==============================================================================
+export const MessageChannelIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
+    <path d="M8 12h.01" />
+    <path d="M12 12h.01" />
+    <path d="M16 12h.01" />
+  </svg>
+);
+
+// Alias para compatibilidade sem marca
 export const WhatsAppIcon = ({ className = "w-4 h-4" }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M17.472 14.382c-.301-.15-1.78-.878-2.056-.979-.275-.1-.475-.15-.675.15-.2.301-.775.979-.95 1.18-.175.2-.35.225-.651.075-.3-.15-1.27-.468-2.42-1.493-.895-.798-1.5-1.785-1.675-2.085-.175-.3-.019-.462.131-.611.136-.134.301-.35.451-.525.15-.175.2-.3.301-.5.1-.2.05-.375-.025-.525-.075-.15-.675-1.628-.925-2.228-.243-.585-.49-.506-.675-.515-.175-.008-.375-.01-.575-.01s-.525.075-.8.375c-.275.3-1.05 1.027-1.05 2.505 0 1.478 1.075 2.906 1.225 3.106.15.2 2.115 3.23 5.124 4.53 1.547.668 2.179.728 2.97.611.871-.129 1.78-.728 2.032-1.431.252-.703.252-1.305.176-1.43-.075-.125-.276-.2-.577-.35zM12.004 2C6.48 2 2 6.48 2 12.003c0 1.77.463 3.498 1.343 5.027L2 22l5.127-1.344A9.957 9.957 0 0 0 12.004 22C17.525 22 22 17.524 22 12.003 22 6.48 17.525 2 12.004 2zm0 18.258c-1.528 0-3.023-.41-4.327-1.186l-.31-.184-3.219.844.859-3.138-.202-.322A8.204 8.204 0 0 1 3.75 12.003c0-4.552 3.702-8.254 8.254-8.254 4.551 0 8.253 3.702 8.253 8.254 0 4.551-3.702 8.255-8.253 8.255z"/>
-  </svg>
+  <MessageChannelIcon className={className} />
 );
 
-// Meta / Facebook Messenger
+// Meta / Redes Sociais Integradas (Traço Minimalista Apple)
 export const FacebookIcon = ({ className = "w-4 h-4" }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12c0-5.523-4.477-10-10-10z"/>
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
   </svg>
 );
 
-// Instagram
+// Instagram (Traço Minimalista Apple)
 export const InstagramIcon = ({ className = "w-4 h-4" }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
     <rect width="20" height="20" x="2" y="2" rx="5" ry="5"/>
@@ -27,10 +36,11 @@ export const InstagramIcon = ({ className = "w-4 h-4" }) => (
   </svg>
 );
 
-// Telegram
+// Telegram / Mensageria Cloud
 export const TelegramIcon = ({ className = "w-4 h-4" }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.75-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m22 2-7 20-4-9-9-4Z"/>
+    <path d="M22 2 11 13"/>
   </svg>
 );
 
@@ -50,5 +60,29 @@ export const EyeOffIcon = ({ className = "w-4 h-4" }) => (
     <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
     <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
     <line x1="2" x2="22" y1="2" y2="22"/>
+  </svg>
+);
+
+// ==============================================================================
+// ÍCONES DO DESIGN SYSTEM APPLE (SQUIRCLE / CLEAN LINE)
+// ==============================================================================
+export const AppleLockIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+  </svg>
+);
+
+export const AppleKeyIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="7.5" cy="15.5" r="5.5"/>
+    <path d="m21 2-9.6 9.6"/>
+    <path d="m15.5 7.5 3 3L22 7l-3-3"/>
+  </svg>
+);
+
+export const AppleSparklesIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>
   </svg>
 );

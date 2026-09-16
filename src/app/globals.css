@@ -3,60 +3,69 @@
 @tailwind utilities;
 
 /* ==============================================================================
-   TEMA PADRÃO: LIGHT (CLARO, LIMPO, ALTO CONTRASTE)
+   APPLE DESIGN TOKENS: ULTRA-CLEAN, HIGH CONTRAST, LUXURY MINIMALISM
    ============================================================================== */
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #f5f5f7;
+  --foreground: #1d1d1f;
   --card-bg: #ffffff;
-  --card-border: #e2e8f0;
+  --card-border: rgba(0, 0, 0, 0.06);
   --brand-primary: #4d7c0f;
   --brand-secondary: #65a30d;
   --brand-light: #f7fee7;
   --brand-glow: rgba(101, 163, 13, 0.15);
   
-  --glass-bg: rgba(255, 255, 255, 0.82);
-  --glass-border: rgba(226, 232, 240, 0.85);
-  --glass-shadow: 0 20px 40px -12px rgba(15, 23, 42, 0.08);
-  --elevated-bg: rgba(255, 255, 255, 0.95);
-  --elevated-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.12);
+  --glass-bg: rgba(255, 255, 255, 0.78);
+  --glass-border: rgba(0, 0, 0, 0.07);
+  --glass-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.05), 0 0 1px 1px rgba(0, 0, 0, 0.03);
+  --elevated-bg: rgba(255, 255, 255, 0.94);
+  --elevated-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.08);
 }
 
 /* ==============================================================================
-   MODO ESCURO: ALTO CONTRASTE OLED (SEM CINZA MORTO)
+   MODO ESCURO: OLED PURE BLACK & APPLE GRAPHITE
    ============================================================================== */
 .dark {
-  --background: #09090b;
-  --foreground: #f8fafc;
-  --card-bg: #121216;
-  --card-border: #27272a;
+  --background: #000000;
+  --foreground: #f5f5f7;
+  --card-bg: #161618;
+  --card-border: rgba(255, 255, 255, 0.08);
   --brand-primary: #84cc16;
   --brand-secondary: #a3e635;
   --brand-light: rgba(132, 204, 22, 0.12);
   --brand-glow: rgba(132, 204, 22, 0.22);
   
-  --glass-bg: rgba(18, 18, 22, 0.82);
-  --glass-border: rgba(255, 255, 255, 0.12);
-  --glass-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8);
-  --elevated-bg: rgba(24, 24, 28, 0.95);
+  --glass-bg: rgba(22, 22, 24, 0.78);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 1px 1px rgba(255, 255, 255, 0.05);
+  --elevated-bg: rgba(28, 28, 30, 0.94);
   --elevated-shadow: 0 35px 80px -15px rgba(0, 0, 0, 0.9);
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   background-color: var(--background);
   color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro", system-ui, sans-serif;
+  letter-spacing: -0.012em;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   min-height: 100vh;
-  transition: background-color 0.25s ease, color 0.25s ease;
+  transition: background-color 0.25s cubic-bezier(0.16, 1, 0.3, 1), color 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Utilitários Glassmorphism Refinados */
-.floating-island {
+/* ==============================================================================
+   APPLE GLASS & SQUIRCLE SURFACES
+   ============================================================================== */
+.apple-glass {
   background-color: var(--glass-bg);
-  backdrop-filter: blur(24px) saturate(1.8);
-  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  backdrop-filter: blur(30px) saturate(190%);
+  -webkit-backdrop-filter: blur(30px) saturate(190%);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
 }
@@ -64,59 +73,69 @@ body {
 .surface-card {
   background-color: var(--card-bg);
   border: 1px solid var(--card-border);
-  box-shadow: 0 2px 10px -2px rgba(15, 23, 42, 0.04);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 10px -2px rgba(0, 0, 0, 0.03);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .dark .surface-card {
-  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.6);
+}
+
+.surface-card-hover {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .surface-card-hover:hover {
-  border-color: var(--brand-secondary);
-  box-shadow: 0 12px 30px -8px rgba(15, 23, 42, 0.08);
-  transform: translateY(-1px);
+  border-color: rgba(101, 163, 13, 0.4);
+  box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
 }
 
 .dark .surface-card-hover:hover {
-  border-color: rgba(132, 204, 22, 0.4);
-  box-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.7);
+  border-color: rgba(132, 204, 22, 0.35);
+  box-shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.7);
+  transform: translateY(-2px);
 }
 
-/* Scrollbar Discreta */
+/* Tabular figures for timers, dates and numbers */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Scrollbar Discreta macOS Style */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.35);
+  background: rgba(0, 0, 0, 0.15);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.6);
+  background: rgba(0, 0, 0, 0.3);
 }
 .dark ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.18);
 }
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.35);
 }
 
 /* Animações fluidas */
-@keyframes fadeIn {
+@keyframes appleFadeIn {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px) scale(0.995);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: appleFadeIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

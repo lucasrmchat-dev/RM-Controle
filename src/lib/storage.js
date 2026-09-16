@@ -34,8 +34,8 @@ export function setSenhaPadraoRedefinicao(novaSenha) {
 // DADOS DE SEMENTE INICIAIS (SEED) PARA HOMOLOGAÇÃO / MOCK DEV
 // ==============================================================================
 const DEFAULT_CANAIS = [
-  { id: 'canal_1', nome: 'WhatsApp API Oficial', tipo: 'api', descricao: 'Meta Cloud API oficial sem risco de banimento' },
-  { id: 'canal_2', nome: 'WhatsApp QR Code', tipo: 'qrcode', descricao: 'Conexão via escaneamento de QR Code (Evolution/Baileys)' },
+  { id: 'canal_1', nome: 'Canal API Oficial (Meta Cloud)', tipo: 'api', descricao: 'Meta Cloud API oficial sem risco de banimento' },
+  { id: 'canal_2', nome: 'Canal Pareamento QR Code', tipo: 'qrcode', descricao: 'Instância conectada via pareamento de QR Code (Evolution/Baileys)' },
   { id: 'canal_3', nome: 'Facebook Messenger', tipo: 'social', descricao: 'Página comercial integrada para atendimento' },
   { id: 'canal_4', nome: 'Instagram Direct', tipo: 'social', descricao: 'Mensagens diretas comerciais no Instagram' },
   { id: 'canal_5', nome: 'Telegram Bot', tipo: 'api', descricao: 'Automação para suporte via Telegram' },
@@ -53,8 +53,8 @@ const DEFAULT_CHECKLIST_MOCK = [
 
 const DEFAULT_MOTIVOS_SUPORTE = [
   { id: 'mot_1', nome: 'Redefinição de Senha / Acesso', descricao: 'Cliente esqueceu ou solicitou nova senha de suporte ou admin' },
-  { id: 'mot_2', nome: 'Desconexão / Queda de QR Code', descricao: 'Instância de WhatsApp desconectada precisando de novo pareamento' },
-  { id: 'mot_3', nome: 'Bloqueio ou Limite na API Meta', descricao: 'Número bloqueado, limite de mensagens atingido ou falha de pagamento WABA' },
+  { id: 'mot_2', nome: 'Desconexão / Queda de Instância', descricao: 'Instância de mensageria desconectada precisando de novo pareamento' },
+  { id: 'mot_3', nome: 'Bloqueio ou Limite na API Meta', descricao: 'Número com limite de mensagens atingido ou falha de pagamento WABA' },
   { id: 'mot_4', nome: 'Servidor VPS Indisponível / Reinício', descricao: 'Servidor fora do ar, alta carga de CPU ou reinício de processos' },
   { id: 'mot_5', nome: 'Configuração de Novo Atendente / Fila', descricao: 'Criação de usuário para novo funcionário e vinculação à fila' },
   { id: 'mot_6', nome: 'Dúvida Operacional / Treinamento', descricao: 'Orientações de uso do painel e fluxo de conversas' },
@@ -70,7 +70,7 @@ const DEFAULT_EMPRESAS_MOCK = [
     is_mock: true,
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
     canais: [
-      { canal_id: 'canal_1', nome: 'WhatsApp API Oficial', tipo: 'api', identificador_numero: '+55 11 98765-4321', status: 'ativo' },
+      { canal_id: 'canal_1', nome: 'Canal API Oficial (Meta Cloud)', tipo: 'api', identificador_numero: '+55 11 98765-4321', status: 'ativo' },
       { canal_id: 'canal_3', nome: 'Facebook Messenger', tipo: 'social', identificador_numero: 'fb/alphadistribuidora', status: 'ativo' },
     ],
     observacoes: [
@@ -112,7 +112,7 @@ const DEFAULT_EMPRESAS_MOCK = [
     is_mock: true,
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
     canais: [
-      { canal_id: 'canal_2', nome: 'WhatsApp QR Code', tipo: 'qrcode', identificador_numero: '+55 31 99123-8877', status: 'ativo' }
+      { canal_id: 'canal_2', nome: 'Canal Pareamento QR Code', tipo: 'qrcode', identificador_numero: '+55 31 99123-8877', status: 'ativo' }
     ],
     observacoes: [
       { id: 'obs_2', titulo: 'Formato Individual', conteudo: 'Cada atendente visualiza exclusivamente as conversas atribuídas à sua carteira de motoristas.', autor_email: 'suporte@rmcontrole.com', created_at: new Date().toISOString() }

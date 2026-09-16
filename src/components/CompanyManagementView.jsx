@@ -23,7 +23,7 @@ import {
   isMockDataEnabled
 } from '@/lib/storage';
 import { generateSecurePassword, maskPassword } from '@/lib/security';
-import { WhatsAppIcon, FacebookIcon, InstagramIcon, TelegramIcon, EyeIcon, EyeOffIcon } from './Icons';
+import { MessageChannelIcon, FacebookIcon, InstagramIcon, TelegramIcon, EyeIcon, EyeOffIcon } from './Icons';
 
 export default function CompanyManagementView({ empresa, onBack, onUpdated, userEmail }) {
   const [activeTab, setActiveTab] = useState('canais'); // 'canais' | 'credenciais' | 'servidor' | 'observacoes' | 'chamados'
@@ -253,7 +253,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
   // Ícones de Canal
   const renderCanalIcon = (c) => {
     const nomeLower = (c.nome || '').toLowerCase();
-    if (nomeLower.includes('whatsapp')) return <WhatsAppIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />;
+    if (nomeLower.includes('whatsapp') || nomeLower.includes('api') || nomeLower.includes('qrcode')) return <MessageChannelIcon className="w-4 h-4 text-[#4d7c0f] dark:text-[#84cc16]" />;
     if (nomeLower.includes('facebook')) return <FacebookIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
     if (nomeLower.includes('instagram')) return <InstagramIcon className="w-4 h-4 text-pink-600 dark:text-pink-400" />;
     if (nomeLower.includes('telegram')) return <TelegramIcon className="w-4 h-4 text-sky-600 dark:text-sky-400" />;
@@ -649,7 +649,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 Canais de Atendimento Contratados
               </h2>
               <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                WhatsApp API Oficial, WhatsApp QR Code, Facebook Messenger e canais integrados.
+                Canais API Oficial, Instâncias de QR Code e canais de mensageria integrados.
               </p>
             </div>
 
@@ -667,7 +667,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white">Conectar Novo Canal</h3>
-                  <p className="text-xs text-slate-500 dark:text-zinc-400">Informe o tipo e o número de WhatsApp ou ID da página.</p>
+                  <p className="text-xs text-slate-500 dark:text-zinc-400">Informe o tipo e o número ou identificador da instância.</p>
                 </div>
                 <button onClick={() => setIsAddCanalOpen(false)} className="text-xs text-slate-400 hover:text-slate-700">Fechar</button>
               </div>
@@ -688,7 +688,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">Número do WhatsApp / Identificador</label>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">Número / Identificador da Instância</label>
                     <input
                       type="text"
                       value={canalNumero}
@@ -724,7 +724,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
           {(!empresa.canais || empresa.canais.length === 0) ? (
             <div className="surface-card rounded-3xl p-10 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] text-center space-y-2">
               <p className="text-sm font-bold text-slate-800 dark:text-zinc-200">Nenhum canal adicionado ainda</p>
-              <p className="text-xs text-slate-500 dark:text-zinc-400">Clique em "+ Conectar Novo Canal" para vincular o WhatsApp ou redes sociais.</p>
+              <p className="text-xs text-slate-500 dark:text-zinc-400">Clique em "+ Conectar Novo Canal" para vincular instâncias e redes sociais.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
