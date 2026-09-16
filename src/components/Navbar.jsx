@@ -91,7 +91,8 @@ export default function Navbar({
     if (!userEmail) return 'Administrador';
     const namePart = userEmail.split('@')[0];
     return namePart
-      .split(/[._-]+/)\n      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .split(/[._-]+/)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
       .join(' ');
   };
 
