@@ -258,9 +258,30 @@ export async function iniciarSuporte({ empresa_id, empresa_nome, userEmail = 'ad
   return novoChamado;
 }
 
-export async function finalizarSuporte({ chamado_id, motivo, observacoes = '', duracao_segundos = null, userEmail = 'admin@rmcontrole.com' }) {
-  if (!motivo || !motivo.trim()) throw new Error('Selecione ou informe o motivo do suporte.');
-  
+export async function finalizarSuporte({
+  chamado_id,
+  motivo,
+  observacoes = '',
+  colaborador_solicitante = '',
+  atendente = '',
+  duracao_segundos = null,
+  userEmail = 'admin@rmcontrole.com'
+}) {
+  const config = getConfiguracoesSuporte();
+
+  if (config.motivo_obrigatorio && (!motivo || !motivo.trim())) {
+    throw new Error('O motivo do suporte é obrigatório conforme as regras do sistema.');
+  }
+  if (config.solucao_obrigatoria && (!observacoes || !observacoes.trim())) {
+    throw new Error('O resumo da solução aplicada é obrigatório conforme as regras do sistema.');
+  }
+  if (config.colaborador_obrigatorio && (!colaborador_solicitante || !colaborador_solicitante.trim())) {
+    throw new Error('A identificação do colaborador solicitante é obrigatória.');
+  }
+  if (config.atendente_obrigatorio && (!atendente || !atendente.trim())) {
+    throw new Error('O atendente técnico responsável é obrigatório.');
+  }
+
   const chamados = getLocalData('chamados_suporte', []);
   const idx = chamados.findIndex((c) => c.id === chamado_id);
   if (idx === -1) throw new Error('Chamado não encontrado.');
@@ -276,18 +297,23 @@ export async function finalizarSuporte({ chamado_id, motivo, observacoes = '', d
     status: 'finalizado',
     finalizado_em: finalizadoEm.toISOString(),
     duracao_segundos: duracaoFinal,
-    motivo: motivo.trim(),
-    observacoes: observacoes.trim(),
+    motivo: (motivo || 'Geral').trim(),
+    observacoes: (observacoes || '').trim(),
+    colaborador_solicitante: (colaborador_solicitante || '').trim(),
+    atendente: (atendente || userEmail).trim(),
   };
 
   setLocalData('chamados_suporte', chamados);
 
-  // REQUISITO: Observações feitas no fechamento vão automaticamente para a aba "Anotações e Pedidos" da empresa!
+  // Observações feitas no fechamento vão automaticamente para a aba "Anotações e Pedidos" da empresa
   if (observacoes && observacoes.trim()) {
     try {
+      const detalheSol = colaborador_solicitante 
+        ? `${observacoes.trim()} (Solicitante: ${colaborador_solicitante.trim()})`
+        : observacoes.trim();
       await addEmpresaObservacao(chamado.empresa_id, {
-        titulo: `Resolução de Atendimento (${motivo.trim()})`,
-        conteudo: observacoes.trim(),
+        titulo: `Resolução de Atendimento (${(motivo || 'Geral').trim()})`,
+        conteudo: detalheSol,
         tipo: 'suporte',
       }, userEmail);
     } catch (e) {
@@ -302,7 +328,8 @@ export async function finalizarSuporte({ chamado_id, motivo, observacoes = '', d
     detalhes: {
       empresa_nome: chamado.empresa_nome,
       duracao_segundos: duracaoFinal,
-      motivo: motivo.trim(),
+      motivo: (motivo || 'Geral').trim(),
+      colaborador_solicitante: colaborador_solicitante || 'Não informado',
       modulo: 'Suporte em Tempo Real',
     },
   });
@@ -311,12 +338,62 @@ export async function finalizarSuporte({ chamado_id, motivo, observacoes = '', d
   return chamados[idx];
 }
 
+export async function cancelarSuporte({ chamado_id, userEmail = 'admin@rmcontrole.com' }) {
+  const chamados = getLocalData('chamados_suporte', []);
+  const idx = chamados.findIndex((c) => c.id === chamado_id);
+  if (idx === -1) return null;
+  const chamado = chamados[idx];
+
+  // Remove dos chamados em andamento
+  chamados.splice(idx, 1);
+  setLocalData('chamados_suporte', chamados);
+
+  await logAuditoria({
+    empresaId: chamado.empresa_id,
+    usuarioEmail: userEmail,
+    acao: 'cancelou_suporte_tecnico',
+    detalhes: {
+      empresa_nome: chamado.empresa_nome,
+      modulo: 'Suporte em Tempo Real',
+      motivo: 'Cancelado pelo operador',
+    },
+  });
+
+  window.dispatchEvent(new Event('suporte_updated'));
+  return chamado;
+}
+
 export function getChamadoAtivo(empresa_id = null) {
   const chamados = getLocalData('chamados_suporte', []);
   if (empresa_id) {
     return chamados.find((c) => c.empresa_id === empresa_id && c.status === 'em_andamento') || null;
   }
   return chamados.find((c) => c.status === 'em_andamento') || null;
+}
+
+export function getChamadosAtivos() {
+  const chamados = getLocalData('chamados_suporte', []);
+  return chamados.filter((c) => c.status === 'em_andamento');
+}
+
+// Configurações de Obrigatoriedade de Campos de Suporte
+const DEFAULT_CONFIG_SUPORTE = {
+  motivo_obrigatorio: true,
+  solucao_obrigatoria: false,
+  colaborador_obrigatorio: false,
+  atendente_obrigatorio: false,
+};
+
+export function getConfiguracoesSuporte() {
+  return getLocalData('configuracoes_suporte', DEFAULT_CONFIG_SUPORTE);
+}
+
+export function setConfiguracoesSuporte(config) {
+  const atual = getConfiguracoesSuporte();
+  const novo = { ...atual, ...config };
+  setLocalData('configuracoes_suporte', novo);
+  window.dispatchEvent(new Event('config_suporte_updated'));
+  return novo;
 }
 
 export function getChamadosSuporte({ empresa_id = null, status = 'todos' } = {}) {
@@ -330,8 +407,32 @@ export function getChamadosSuporte({ empresa_id = null, status = 'todos' } = {})
   return chamados;
 }
 
-export function getMetricasSuporte() {
-  const chamados = getLocalData('chamados_suporte', []);
+export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim = null } = {}) {
+  let chamados = getLocalData('chamados_suporte', []);
+  const hoje = new Date();
+
+  // Filtro de período dinâmico
+  if (periodo === 'hoje') {
+    const hojeStr = hoje.toISOString().split('T')[0];
+    chamados = chamados.filter((c) => (c.iniciado_em || '').startsWith(hojeStr));
+  } else if (periodo === '7d') {
+    const seteDiasAtras = new Date(hoje.getTime() - 7 * 24 * 60 * 60 * 1000);
+    chamados = chamados.filter((c) => new Date(c.iniciado_em || c.created_at) >= seteDiasAtras);
+  } else if (periodo === '30d') {
+    const trintaDiasAtras = new Date(hoje.getTime() - 30 * 24 * 60 * 60 * 1000);
+    chamados = chamados.filter((c) => new Date(c.iniciado_em || c.created_at) >= trintaDiasAtras);
+  } else if (periodo === 'mes_atual') {
+    const mesAtualPrefix = hoje.toISOString().slice(0, 7);
+    chamados = chamados.filter((c) => (c.iniciado_em || '').startsWith(mesAtualPrefix));
+  } else if (periodo === 'personalizado' && dataInicio && dataFim) {
+    const inicio = new Date(dataInicio + 'T00:00:00');
+    const fim = new Date(dataFim + 'T23:59:59');
+    chamados = chamados.filter((c) => {
+      const dt = new Date(c.iniciado_em || c.created_at);
+      return dt >= inicio && dt <= fim;
+    });
+  }
+
   const finalizados = chamados.filter((c) => c.status === 'finalizado');
   const emAndamento = chamados.filter((c) => c.status === 'em_andamento');
 
@@ -379,7 +480,6 @@ export function getMetricasSuporte() {
 
   // Dados para o Gráfico de Linha do Tempo (Últimos 7 dias)
   const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-  const hoje = new Date();
   const evolucaoUltimos7Dias = [];
 
   for (let i = 6; i >= 0; i--) {

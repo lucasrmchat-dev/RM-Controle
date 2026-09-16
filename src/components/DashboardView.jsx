@@ -10,6 +10,7 @@ import {
   removeMotivoSuporte, 
   finalizarSuporte 
 } from '@/lib/storage';
+import SupportCompletionModal from './SupportCompletionModal';
 
 export default function DashboardView({ onSelectEmpresa, userEmail }) {
   const [metricas, setMetricas] = useState({
@@ -30,30 +31,30 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
   const [novoMotivoNome, setNovoMotivoNome] = useState('');
   const [novoMotivoDesc, setNovoMotivoDesc] = useState('');
 
+  // Períodos e Filtros de Data
+  const [periodo, setPeriodo] = useState('7d'); // 'hoje' | '7d' | '30d' | 'mes_atual' | 'personalizado'
+  const [dataInicio, setDataInicio] = useState('');
+  const [dataFim, setDataFim] = useState('');
+
   // Modal para Finalizar Suporte
   const [chamadoParaFinalizar, setChamadoParaFinalizar] = useState(null);
-  const [motivoSelecionado, setMotivoSelecionado] = useState('');
-  const [obsFinalizacao, setObsFinalizacao] = useState('');
-  const [finalizando, setFinalizando] = useState(false);
-  const [tempoCongelado, setTempoCongelado] = useState(null);
 
   // Timer ao vivo para chamados em andamento
   const [, setTick] = useState(0);
 
   const carregarDados = () => {
-    const met = getMetricasSuporte();
+    const met = getMetricasSuporte({ periodo, dataInicio, dataFim });
     setMetricas(met);
     setChamadosRecentes(getChamadosSuporte().slice(0, 15));
     const mot = getMotivosSuporte();
     setMotivos(mot);
-    if (mot.length > 0 && !motivoSelecionado) {
-      setMotivoSelecionado(mot[0].nome);
-    }
   };
 
   useEffect(() => {
     carregarDados();
+  }, [periodo, dataInicio, dataFim]);
 
+  useEffect(() => {
     const handleUpdate = () => carregarDados();
     window.addEventListener('suporte_updated', handleUpdate);
 
@@ -64,7 +65,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
       window.removeEventListener('suporte_updated', handleUpdate);
       clearInterval(timer);
     };
-  }, []);
+  }, [periodo, dataInicio, dataFim]);
 
   const formatarDuracao = (segundos) => {
     if (!segundos || segundos <= 0) return '0s';
@@ -195,11 +196,55 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => setIsGerenciarMotivosOpen(!isGerenciarMotivosOpen)}
-            className="px-4 py-2 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-xs font-semibold text-slate-700 dark:text-zinc-300 shadow-sm transition-all"
+            className="px-4 py-2 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-xs font-semibold text-slate-700 dark:text-zinc-300 shadow-sm transition-all cursor-pointer"
           >
             ⚙ Configurar Motivos de Chamado
           </motion.button>
         </div>
+      </div>
+
+      {/* Barra de Filtros de Período Estilo Apple */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-2xl border border-black/8 dark:border-white/10 bg-white/80 dark:bg-[#16161a]/80 backdrop-blur-xl">
+        <div className="flex items-center gap-1.5 overflow-x-auto p-0.5">
+          <span className="text-xs font-semibold text-slate-500 dark:text-zinc-400 pl-1 pr-2">Período:</span>
+          {[
+            { id: 'hoje', label: 'Hoje' },
+            { id: '7d', label: 'Últimos 7 dias' },
+            { id: '30d', label: 'Últimos 30 dias' },
+            { id: 'mes_atual', label: 'Mês Atual' },
+            { id: 'personalizado', label: 'Personalizado' },
+          ].map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setPeriodo(p.id)}
+              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                periodo === p.id
+                  ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs'
+                  : 'bg-black/4 dark:bg-white/6 text-slate-600 dark:text-zinc-400 hover:bg-black/8'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {periodo === 'personalizado' && (
+          <div className="flex items-center gap-2 text-xs">
+            <input
+              type="date"
+              value={dataInicio}
+              onChange={(e) => setDataInicio(e.target.value)}
+              className="px-2.5 py-1 rounded-xl bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/15 text-xs text-black dark:text-white"
+            />
+            <span className="text-slate-400">até</span>
+            <input
+              type="date"
+              value={dataFim}
+              onChange={(e) => setDataFim(e.target.value)}
+              className="px-2.5 py-1 rounded-xl bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/15 text-xs text-black dark:text-white"
+            />
+          </div>
+        )}
       </div>
 
       {/* Painel Administrativo de Motivos */}
@@ -679,92 +724,14 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
         </div>
       </div>
 
-      {/* Modal de Finalização do Suporte */}
-      <AnimatePresence>
-        {chamadoParaFinalizar && (
-          <div className="fixed inset-0 w-screen h-screen z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
-              transition={{ duration: 0.2 }}
-              className="w-full max-w-md rounded-[32px] border border-black/[0.08] dark:border-white/[0.1] bg-white/95 dark:bg-[#16161a]/95 backdrop-blur-2xl p-6 sm:p-7 shadow-2xl space-y-4"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-semibold text-[#1d1d1f] dark:text-white">
-                    Finalizar Atendimento de Suporte
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-zinc-400">{chamadoParaFinalizar.empresa_nome}</p>
-                </div>
-                <button
-                  onClick={() => setChamadoParaFinalizar(null)}
-                  className="text-xs font-semibold text-slate-400 hover:text-slate-700 dark:hover:text-white"
-                >
-                  Voltar
-                </button>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] text-xs">
-                <span className="text-slate-500 block mb-0.5">Duração do Chamado:</span>
-                <strong className="text-base font-mono text-[#4d7c0f] dark:text-[#84cc16] tabular-nums">
-                  {formatarDuracao(tempoCongelado)}
-                </strong>
-              </div>
-
-              <form onSubmit={handleConfirmarFinalizacao} className="space-y-3.5">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300 mb-1">
-                    Motivo Principal do Chamado <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={motivoSelecionado}
-                    onChange={(e) => setMotivoSelecionado(e.target.value)}
-                    required
-                    className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs text-[#1d1d1f] dark:text-white font-medium focus:outline-none"
-                  >
-                    {motivos.map((m) => (
-                      <option key={m.id} value={m.nome}>{m.nome}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300 mb-1">
-                    Resumo da Solução Aplicada
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={obsFinalizacao}
-                    onChange={(e) => setObsFinalizacao(e.target.value)}
-                    placeholder="Ex: Pareamento restabelecido com sucesso."
-                    className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none leading-relaxed text-[#1d1d1f] dark:text-white"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2.5 pt-3 border-t border-black/[0.05] dark:border-white/[0.06]">
-                  <button
-                    type="button"
-                    onClick={() => setChamadoParaFinalizar(null)}
-                    className="px-4 py-2 rounded-full text-xs font-medium text-slate-600 dark:text-zinc-400 hover:bg-black/[0.04]"
-                  >
-                    Voltar
-                  </button>
-                  <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="submit"
-                    disabled={finalizando}
-                    className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-semibold text-xs shadow-sm hover:opacity-90 disabled:opacity-50"
-                  >
-                    {finalizando ? 'Gravando...' : 'Confirmar Encerramento'}
-                  </motion.button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* Modal Imersivo de Finalização de Suporte */}
+      <SupportCompletionModal
+        isOpen={Boolean(chamadoParaFinalizar)}
+        chamado={chamadoParaFinalizar}
+        onClose={() => setChamadoParaFinalizar(null)}
+        onFinalizado={carregarDados}
+        userEmail={userEmail}
+      />
     </div>
   );
 }

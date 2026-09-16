@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   getCanaisCatalogo, 
   addCanalEmpresa, 
@@ -16,30 +17,25 @@ import {
   addCustomChecklistItem,
   updateEmpresa,
   iniciarSuporte,
-  finalizarSuporte,
+  cancelarSuporte,
   getChamadoAtivo,
   getChamadosSuporte,
-  getMotivosSuporte,
   isMockDataEnabled
 } from '@/lib/storage';
-import { generateSecurePassword, maskPassword } from '@/lib/security';
+import { generateSecurePassword } from '@/lib/security';
 import { MessageChannelIcon, FacebookIcon, InstagramIcon, TelegramIcon, EyeIcon, EyeOffIcon } from './Icons';
+import SupportCompletionModal from './SupportCompletionModal';
 
 export default function CompanyManagementView({ empresa, onBack, onUpdated, userEmail }) {
   const [activeTab, setActiveTab] = useState('canais'); // 'canais' | 'credenciais' | 'servidor' | 'observacoes' | 'chamados'
   const [catalogoCanais, setCatalogoCanais] = useState([]);
   
-  // Suporte em Tempo Real & Congelamento de Timer
+  // Suporte em Tempo Real
   const [chamadoAtivo, setChamadoAtivo] = useState(null);
   const [tempoSuporteSegundos, setTempoSuporteSegundos] = useState(0);
-  const [tempoCongelado, setTempoCongelado] = useState(null); // Congela tempo ao abrir modal de finalização
   const [isFinalizarModalOpen, setIsFinalizarModalOpen] = useState(false);
-  const [motivosSuporte, setMotivosSuporte] = useState([]);
-  const [motivoFinalizacao, setMotivoFinalizacao] = useState('');
-  const [obsFinalizacao, setObsFinalizacao] = useState('');
-  const [salvandoFinalizacao, setSalvandoFinalizacao] = useState(false);
 
-  // Formato de Atendimento e Servidor Alocado (com botões de salvar explícitos)
+  // Formato de Atendimento e Servidor Alocado
   const [formatoSelecionado, setFormatoSelecionado] = useState(empresa?.formato_atendimento || 'colaborativo');
   const [servidorSelecionado, setServidorSelecionado] = useState(empresa?.servidor_alocado || 'servidor_1');
   const [salvandoFormato, setSalvandoFormato] = useState(false);
@@ -100,9 +96,6 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
       if (data.length > 0) setSelectedCanalId(data[0].id);
       recarregarCredenciais();
       verificarChamadoAtivo();
-      const mot = getMotivosSuporte();
-      setMotivosSuporte(mot);
-      if (mot.length > 0) setMotivoFinalizacao(mot[0].nome);
       setFormatoSelecionado(empresa?.formato_atendimento || 'colaborativo');
       setServidorSelecionado(empresa?.servidor_alocado || 'servidor_1');
     }
@@ -116,16 +109,10 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
     return () => window.removeEventListener('suporte_updated', handleUpdate);
   }, [empresa.id]);
 
-  // Cronômetro do Suporte Ativo (respeita congelamento ao abrir modal)
+  // Cronômetro do Suporte Ativo
   useEffect(() => {
     if (!chamadoAtivo) {
       setTempoSuporteSegundos(0);
-      setTempoCongelado(null);
-      return;
-    }
-
-    if (tempoCongelado !== null) {
-      // Tempo está congelado enquanto o modal de finalização estiver aberto
       return;
     }
 
@@ -138,7 +125,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
     calc();
     const interval = setInterval(calc, 1000);
     return () => clearInterval(interval);
-  }, [chamadoAtivo, tempoCongelado]);
+  }, [chamadoAtivo]);
 
   const formatarTempo = (totalSegundos) => {
     const horas = Math.floor(totalSegundos / 3600);
@@ -159,53 +146,24 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
         userEmail,
       });
       setChamadoAtivo(novo);
-      setTempoCongelado(null);
-      showToast('Suporte técnico iniciado! O tempo está sendo contabilizado.');
+      showToast('Atendimento de suporte iniciado com cronômetro em tempo real!');
       onUpdated();
     } catch (err) {
       showToast(err.message, 'error');
     }
   };
 
-  // Abrir Modal de Finalizar (Congela o Cronômetro)
-  const handleAbrirFinalizar = () => {
-    setTempoCongelado(tempoSuporteSegundos);
-    setIsFinalizarModalOpen(true);
-  };
-
-  // Cancelar e Continuar Atendimento (Descongela e Retoma o Cronômetro)
-  const handleCancelarFinalizacao = () => {
-    setTempoCongelado(null);
-    setIsFinalizarModalOpen(false);
-  };
-
-  // Confirmar Encerramento
-  const handleConfirmarFinalizarSuporte = async (e) => {
-    e.preventDefault();
-    if (!chamadoAtivo || !motivoFinalizacao) return;
-
+  // Cancelar Suporte (sem redundância)
+  const handleCancelarChamado = async () => {
+    if (!chamadoAtivo) return;
+    if (!confirm('Deseja realmente cancelar este atendimento de suporte? O tempo e registro serão descartados.')) return;
     try {
-      setSalvandoFinalizacao(true);
-      const duracaoFinal = tempoCongelado !== null ? tempoCongelado : tempoSuporteSegundos;
-      
-      await finalizarSuporte({
-        chamado_id: chamadoAtivo.id,
-        motivo: motivoFinalizacao,
-        observacoes: obsFinalizacao,
-        duracao_segundos: duracaoFinal,
-        userEmail,
-      });
-
+      await cancelarSuporte({ chamado_id: chamadoAtivo.id, userEmail });
       setChamadoAtivo(null);
-      setTempoCongelado(null);
-      setIsFinalizarModalOpen(false);
-      setObsFinalizacao('');
-      showToast('Atendimento de suporte finalizado com sucesso! A observação foi adicionada ao histórico.');
+      showToast('Chamado de suporte cancelado com sucesso.');
       onUpdated();
     } catch (err) {
       showToast(err.message, 'error');
-    } finally {
-      setSalvandoFinalizacao(false);
     }
   };
 
@@ -215,7 +173,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
       setSalvandoFormato(true);
       await updateEmpresa(empresa.id, { formato_atendimento: formatoSelecionado }, userEmail);
       empresa.formato_atendimento = formatoSelecionado;
-      showToast(`Formato salvo com sucesso: ${formatoSelecionado === 'colaborativo' ? 'Colaborativo' : 'Individual'}`);
+      showToast(`Formato salvo: ${formatoSelecionado === 'colaborativo' ? 'Colaborativo' : 'Individual'}`);
       onUpdated();
     } catch (err) {
       showToast(err.message, 'error');
@@ -239,7 +197,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
     }
   };
 
-  // Checklist de Requisitos (Filtra dados mock se mock dev estiver desligado)
+  // Checklist de Requisitos
   const checklistFiltrado = (empresa.checklist || []).filter((item) => {
     if (!isMockDataEnabled() && item.id.includes('mock')) return false;
     return true;
@@ -250,10 +208,12 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
   const pctChecklist = totalChecklist > 0 ? Math.round((concluidosChecklist / totalChecklist) * 100) : 0;
   const chamadosEmpresa = getChamadosSuporte({ empresa_id: empresa.id });
 
-  // Ícones de Canal
+  // Ícones de Canal (Puro SVG minimalista, zero ícone de WhatsApp)
   const renderCanalIcon = (c) => {
     const nomeLower = (c.nome || '').toLowerCase();
-    if (nomeLower.includes('whatsapp') || nomeLower.includes('api') || nomeLower.includes('qrcode')) return <MessageChannelIcon className="w-4 h-4 text-[#4d7c0f] dark:text-[#84cc16]" />;
+    if (nomeLower.includes('whatsapp') || nomeLower.includes('api') || nomeLower.includes('qrcode')) {
+      return <MessageChannelIcon className="w-4 h-4 text-[#4d7c0f] dark:text-[#84cc16]" />;
+    }
     if (nomeLower.includes('facebook')) return <FacebookIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
     if (nomeLower.includes('instagram')) return <InstagramIcon className="w-4 h-4 text-pink-600 dark:text-pink-400" />;
     if (nomeLower.includes('telegram')) return <TelegramIcon className="w-4 h-4 text-sky-600 dark:text-sky-400" />;
@@ -280,7 +240,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
       setCanalNumero('');
       setCanalObs('');
       setIsAddCanalOpen(false);
-      showToast('Canal adicionado com sucesso!');
+      showToast('Canal vinculado com sucesso!');
       onUpdated();
     } catch (err) {
       showToast(err.message, 'error');
@@ -455,13 +415,13 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
   };
 
   return (
-    <div className="space-y-6 animate-fade-in text-slate-900 dark:text-zinc-100 pb-16">
+    <div className="space-y-6 text-[#0a0a0c] dark:text-[#ffffff] pb-16">
       
-      {/* Barra de Retorno e Ação de Suporte */}
+      {/* Barra de Retorno e Controles de Topo */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <button
           onClick={onBack}
-          className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 shadow-sm transition-all self-start"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-[#16161a] text-xs font-semibold text-slate-700 dark:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5 shadow-xs transition-all self-start"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="19" y1="12" x2="5" y2="12"/>
@@ -470,26 +430,37 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
           <span>Voltar para a lista de empresas</span>
         </button>
 
-        {/* Botão de Suporte em Tempo Real */}
+        {/* Ações de Suporte (Sem redundância: Concluir ou Cancelar se ativo; Iniciar se inativo) */}
         <div className="flex items-center gap-2 self-start sm:self-auto">
           {!chamadoAtivo ? (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
               onClick={handleIniciarSuporte}
-              className="px-4 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-sm hover:opacity-90 flex items-center gap-2 transition-all"
+              className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 flex items-center gap-2 transition-all cursor-pointer"
             >
               <span>▶ Iniciar Atendimento de Suporte</span>
-            </button>
+            </motion.button>
           ) : (
-            <div className="flex items-center gap-2 p-1.5 pl-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700/60 shadow-sm">
+            <div className="flex items-center gap-2 p-1.5 pl-3.5 rounded-full bg-amber-500/15 border border-amber-500/30 shadow-xs">
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
-              <span className="text-xs font-bold text-amber-800 dark:text-amber-300 font-mono">
-                {formatarTempo(tempoCongelado !== null ? tempoCongelado : tempoSuporteSegundos)}
+              <span className="text-xs font-bold text-amber-900 dark:text-amber-200 font-mono tabular-nums">
+                {formatarTempo(tempoSuporteSegundos)}
               </span>
+              
               <button
-                onClick={handleAbrirFinalizar}
-                className="px-3 py-1 rounded-lg bg-red-600 text-white font-bold text-xs hover:bg-red-700 transition-colors shadow-sm ml-1"
+                onClick={() => setIsFinalizarModalOpen(true)}
+                className="px-3.5 py-1.5 rounded-full bg-[#84cc16] text-black font-bold text-xs hover:opacity-90 transition-all shadow-xs ml-1 cursor-pointer"
               >
-                ■ Finalizar Suporte
+                ✓ Concluir Chamado
+              </button>
+
+              <button
+                onClick={handleCancelarChamado}
+                className="px-3 py-1.5 rounded-full bg-red-500/20 hover:bg-red-500/30 text-red-600 dark:text-red-400 font-semibold text-xs transition-all cursor-pointer"
+                title="Cancelar atendimento se foi aberto por engano"
+              >
+                ✖ Cancelar
               </button>
             </div>
           )}
@@ -497,945 +468,924 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
       </div>
 
       {toast.text && (
-        <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-sm ${
+        <div className={`p-3.5 rounded-2xl text-xs font-semibold flex items-center gap-2 shadow-sm ${
           toast.type === 'error'
-            ? 'bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/20 dark:text-red-400'
-            : 'bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-300'
+            ? 'bg-red-500/10 text-red-700 border border-red-500/30 dark:text-red-300'
+            : 'bg-emerald-500/10 text-emerald-800 border border-emerald-500/30 dark:text-emerald-300'
         }`}>
           <span>{toast.text}</span>
         </div>
       )}
 
-      {/* Faixa de Suporte em Andamento */}
-      {chamadoAtivo && (
-        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-amber-500 text-white font-bold flex items-center justify-center text-xs animate-pulse">
-              ⏱
-            </div>
-            <div>
-              <span className="text-xs font-bold text-amber-900 dark:text-amber-200 block">
-                Atendimento de Suporte em Andamento
-              </span>
-              <p className="text-[11px] text-amber-700 dark:text-amber-400 font-mono">
-                Técnico: <strong>{chamadoAtivo.tecnico_email}</strong> • Iniciado às {new Date(chamadoAtivo.iniciado_em).toLocaleTimeString('pt-BR')}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 self-end sm:self-center">
-            <span className="text-sm font-bold font-mono text-amber-800 dark:text-amber-300">
-              Tempo: {formatarTempo(tempoCongelado !== null ? tempoCongelado : tempoSuporteSegundos)}
-            </span>
-            <button
-              onClick={handleAbrirFinalizar}
-              className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all shadow-sm"
-            >
-              Concluir Chamado
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Cartão de Identificação da Empresa */}
-      <div className="surface-card rounded-3xl p-6 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] shadow-sm space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-[#4d7c0f]/15 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-lg flex items-center justify-center border border-[#4d7c0f]/25">
-              {empresa.nome.charAt(0)}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-                  {empresa.nome}
-                </h1>
-                
-                {/* Badge do Servidor Alocado */}
-                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700">
-                  {empresa.servidor_alocado === 'servidor_2' ? 'Servidor 2' : 'Servidor 1'}
-                </span>
-
-                <span className={`text-[11px] uppercase font-bold px-2.5 py-0.5 rounded-full ${
-                  empresa.formato_atendimento === 'colaborativo'
-                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20'
-                    : 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20'
-                }`}>
-                  {empresa.formato_atendimento === 'colaborativo' ? 'Modo Colaborativo' : 'Modo Individual'}
-                </span>
-
-                {empresa.is_mock && (
-                  <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                    Mock Dev
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
-                {empresa.canais?.length || 0} canais conectados • {chamadosEmpresa.length} atendimentos registrados
-              </p>
-            </div>
-          </div>
-
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 text-xs font-semibold self-start sm:self-auto">
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            Empresa Ativa
-          </span>
-        </div>
-
-        {/* 4 Indicadores Rápidos */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100 dark:border-zinc-800">
-          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200/80 dark:border-zinc-800">
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-zinc-400 block mb-0.5">Servidor</span>
-            <span className="text-xs font-bold">{empresa.servidor_alocado === 'servidor_2' ? 'Servidor 2 (Expansão)' : 'Servidor 1 (Principal)'}</span>
-          </div>
-
-          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200/80 dark:border-zinc-800">
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-zinc-400 block mb-0.5">Canais Ativos</span>
-            <span className="text-xs font-bold">{empresa.canais?.length || 0} conectados</span>
-          </div>
-
-          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200/80 dark:border-zinc-800">
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-zinc-400 block mb-0.5">Acessos Técnicos</span>
-            <span className="text-xs font-bold">{credenciaisList.length} cadastrados</span>
-          </div>
-
-          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200/80 dark:border-zinc-800">
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-zinc-400 block mb-0.5">Chamados</span>
-            <span className="text-xs font-bold font-mono">{chamadosEmpresa.length} atendimentos</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Abas */}
-      <div className="flex border-b border-slate-200 dark:border-zinc-800 gap-2 overflow-x-auto">
-        {[
-          { id: 'canais', label: 'Canais do Cliente', count: empresa.canais?.length || 0 },
-          { id: 'credenciais', label: 'Acessos & Senhas Técnicas', count: credenciaisList.length },
-          { id: 'servidor', label: 'Configuração do Servidor', count: `${concluidosChecklist}/${totalChecklist}` },
-          { id: 'observacoes', label: 'Anotações & Pedidos', count: empresa.observacoes?.length || 0 },
-          { id: 'chamados', label: 'Histórico de Suporte', count: chamadosEmpresa.length },
-        ].map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`py-3 px-3.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap flex items-center gap-2 ${
-                isActive
-                  ? 'border-[#4d7c0f] dark:border-[#84cc16] text-[#4d7c0f] dark:text-[#84cc16]'
-                  : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <span>{tab.label}</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                isActive
-                  ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16]'
-                  : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'
-              }`}>
-                {tab.count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
       {/* ============================================================================== */}
-      {/* ABA 1: CANAIS DO CLIENTE */}
+      {/* LAYOUT DIVIDIDO EM 2 COLUNAS (SPLIT-VIEW PARA NOTEBOOKS E TELAS LARGAS) */}
       {/* ============================================================================== */}
-      {activeTab === 'canais' && (
-        <div className="space-y-5 animate-fade-in">
-          <div className="surface-card rounded-3xl p-6 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                Canais de Atendimento Contratados
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                Canais API Oficial, Instâncias de QR Code e canais de mensageria integrados.
-              </p>
-            </div>
-
-            <button
-              onClick={() => setIsAddCanalOpen(true)}
-              className="px-4 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold shadow-sm hover:opacity-90 flex items-center gap-1.5 transition-all self-start sm:self-auto"
-            >
-              + Conectar Novo Canal
-            </button>
-          </div>
-
-          {/* Modal Adicionar Canal */}
-          {isAddCanalOpen && (
-            <div className="surface-card rounded-3xl p-6 border-2 border-[#4d7c0f]/30 dark:border-[#84cc16]/40 bg-slate-50/70 dark:bg-zinc-900/80 space-y-4 animate-fade-in">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Conectar Novo Canal</h3>
-                  <p className="text-xs text-slate-500 dark:text-zinc-400">Informe o tipo e o número ou identificador da instância.</p>
-                </div>
-                <button onClick={() => setIsAddCanalOpen(false)} className="text-xs text-slate-400 hover:text-slate-700">Fechar</button>
-              </div>
-
-              <form onSubmit={handleAdicionarCanal} className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">Tipo de Canal</label>
-                    <select
-                      value={selectedCanalId}
-                      onChange={(e) => setSelectedCanalId(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none"
-                    >
-                      {catalogoCanais.map((c) => (
-                        <option key={c.id} value={c.id}>{c.nome} ({c.tipo.toUpperCase()})</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">Número / Identificador da Instância</label>
-                    <input
-                      type="text"
-                      value={canalNumero}
-                      onChange={(e) => setCanalNumero(e.target.value)}
-                      placeholder="Ex: +55 11 98888-7777"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">Anotação sobre este canal</label>
-                  <input
-                    type="text"
-                    value={canalObs}
-                    onChange={(e) => setCanalObs(e.target.value)}
-                    placeholder="Ex: Número exclusivo para setor comercial"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2 pt-1">
-                  <button type="button" onClick={() => setIsAddCanalOpen(false)} className="px-4 py-2 rounded-xl text-xs text-slate-600 hover:bg-slate-200/60">Cancelar</button>
-                  <button type="submit" disabled={loadingCanal} className="px-4 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-sm">
-                    {loadingCanal ? 'Salvando...' : 'Salvar Canal'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {/* Lista de Canais */}
-          {(!empresa.canais || empresa.canais.length === 0) ? (
-            <div className="surface-card rounded-3xl p-10 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] text-center space-y-2">
-              <p className="text-sm font-bold text-slate-800 dark:text-zinc-200">Nenhum canal adicionado ainda</p>
-              <p className="text-xs text-slate-500 dark:text-zinc-400">Clique em "+ Conectar Novo Canal" para vincular instâncias e redes sociais.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {empresa.canais.map((c) => (
-                <div key={c.canal_id} className="surface-card rounded-2xl p-5 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] flex items-start justify-between gap-3">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-zinc-800 flex items-center justify-center">
-                        {renderCanalIcon(c)}
-                      </div>
-                      <span className="text-xs font-bold text-slate-900 dark:text-white">{c.nome}</span>
-                      <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400">
-                        {c.tipo.toUpperCase()}
-                      </span>
-                    </div>
-                    <p className="text-xs font-mono font-bold text-slate-800 dark:text-zinc-200 select-all">
-                      {c.identificador_numero || 'Sem identificador'}
-                    </p>
-                    {c.observacao && (
-                      <p className="text-[11px] text-slate-500 italic bg-slate-50 dark:bg-zinc-900 p-2 rounded-lg border border-slate-100 dark:border-zinc-800">
-                        {c.observacao}
-                      </p>
-                    )}
-                  </div>
-
-                  <button onClick={() => handleRemoverCanal(c.canal_id)} className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg transition-colors" title="Remover">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/></svg>
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ============================================================================== */}
-      {/* ABA 2: MÚLTIPLOS ACESSOS E SENHAS TÉCNICAS (COM ÍCONE SVG DE OLHO PREMIUM) */}
-      {/* ============================================================================== */}
-      {activeTab === 'credenciais' && (
-        <div className="space-y-5 animate-fade-in">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        {/* COLUNA ESQUERDA: INFORMAÇÕES ENGESSADAS DA EMPRESA (SIDEBAR ~35%) */}
+        <div className="lg:col-span-4 xl:col-span-4 space-y-4 lg:sticky lg:top-20">
           
-          <div className="surface-card rounded-3xl p-6 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                Acessos e Senhas Técnicas ({credenciaisList.length})
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                Múltiplos logins e senhas com rótulo claro de identificação de usuário ou serviço técnico.
-              </p>
+          {/* Cartão de Identidade & Status da Empresa */}
+          <div className="rounded-3xl p-6 border border-black/10 dark:border-white/12 bg-white dark:bg-[#16161a] shadow-sm space-y-5">
+            
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#4d7c0f]/20 to-[#84cc16]/25 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-xl flex items-center justify-center border border-[#4d7c0f]/30 flex-shrink-0">
+                {empresa.nome.charAt(0)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-xl font-bold tracking-tight text-[#0a0a0c] dark:text-white truncate">
+                    {empresa.nome}
+                  </h1>
+                </div>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-semibold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    Empresa Ativa
+                  </span>
+                  {empresa.is_mock && (
+                    <span className="text-[9px] uppercase font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300">
+                      Mock Dev
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
 
-            <button
-              onClick={() => {
-                setEditandoCredId(null);
-                setCredRotulo('');
-                setCredUsuario('');
-                setCredSenha('');
-                setCredObs('');
-                setIsAddCredOpen(true);
-              }}
-              className="px-4 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold shadow-sm hover:opacity-90 flex items-center gap-1.5 self-start sm:self-auto transition-all"
-            >
-              + Adicionar Novo Acesso
-            </button>
-          </div>
-
-          {/* Modal / Formulário de Cadastro/Edição de Acesso */}
-          {isAddCredOpen && (
-            <form onSubmit={handleSalvarNovaCredencial} className="surface-card rounded-3xl p-6 border-2 border-[#4d7c0f]/30 dark:border-[#84cc16]/40 bg-slate-50/70 dark:bg-zinc-900/80 space-y-4 animate-fade-in">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                    {editandoCredId ? 'Editar Acesso Técnico' : 'Novo Acesso de Suporte'}
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-zinc-400">Identifique claramente de quem é este acesso e onde ele é utilizado.</p>
-                </div>
-                <button type="button" onClick={() => setIsAddCredOpen(false)} className="text-xs text-slate-400 hover:text-slate-700">Cancelar</button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
-                    Nome / Rótulo do Acesso <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={credRotulo}
-                    onChange={(e) => setCredRotulo(e.target.value)}
-                    placeholder="Ex: Painel Admin - Marcos / Servidor SSH Root"
-                    required
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
-                    E-mail ou Usuário de Login
-                  </label>
-                  <input
-                    type="text"
-                    value={credUsuario}
-                    onChange={(e) => setCredUsuario(e.target.value)}
-                    placeholder="Ex: marcos@empresa.com.br ou root"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
-                      Senha <span className="text-red-500">*</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setCredSenha(generateSecurePassword(14))}
-                      className="text-[11px] text-[#4d7c0f] dark:text-[#84cc16] font-semibold hover:underline"
-                    >
-                      ⚡ Gerar senha segura
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    value={credSenha}
-                    onChange={(e) => setCredSenha(e.target.value)}
-                    placeholder="Digite ou gere a senha"
-                    required
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs font-mono focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
-                    Observação do Acesso (Opcional)
-                  </label>
-                  <input
-                    type="text"
-                    value={credObs}
-                    onChange={(e) => setCredObs(e.target.value)}
-                    placeholder="Ex: Porta 2222 / 2FA ativo no celular do diretor"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-zinc-800">
-                <button type="button" onClick={() => setIsAddCredOpen(false)} className="px-4 py-2 rounded-xl text-xs text-slate-600 hover:bg-slate-200/60">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-sm">
-                  {editandoCredId ? 'Salvar Alterações' : 'Cadastrar Acesso'}
+            {/* Configuração de Servidor Alocado */}
+            <div className="pt-4 border-t border-black/8 dark:border-white/10 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-700 dark:text-zinc-300">Servidor Alocado</span>
+                <button
+                  type="button"
+                  onClick={handleSalvarServidor}
+                  disabled={salvandoServidor}
+                  className="text-[11px] font-bold text-[#4d7c0f] dark:text-[#84cc16] hover:underline"
+                >
+                  {salvandoServidor ? 'Salvando...' : '💾 Salvar'}
                 </button>
               </div>
-            </form>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setServidorSelecionado('servidor_1')}
+                  className={`p-2.5 rounded-xl border text-center text-xs font-semibold transition-all ${
+                    servidorSelecionado === 'servidor_1'
+                      ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/10 dark:bg-[#84cc16]/10 text-[#0a0a0c] dark:text-white'
+                      : 'border-black/10 dark:border-white/10 text-slate-500'
+                  }`}
+                >
+                  Servidor 1
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setServidorSelecionado('servidor_2')}
+                  className={`p-2.5 rounded-xl border text-center text-xs font-semibold transition-all ${
+                    servidorSelecionado === 'servidor_2'
+                      ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/10 dark:bg-[#84cc16]/10 text-[#0a0a0c] dark:text-white'
+                      : 'border-black/10 dark:border-white/10 text-slate-500'
+                  }`}
+                >
+                  Servidor 2
+                </button>
+              </div>
+            </div>
+
+            {/* Configuração de Formato de Atendimento */}
+            <div className="pt-4 border-t border-black/8 dark:border-white/10 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-700 dark:text-zinc-300">Formato de Conversa</span>
+                <button
+                  type="button"
+                  onClick={handleSalvarFormato}
+                  disabled={salvandoFormato}
+                  className="text-[11px] font-bold text-[#4d7c0f] dark:text-[#84cc16] hover:underline"
+                >
+                  {salvandoFormato ? 'Salvando...' : '💾 Salvar'}
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormatoSelecionado('colaborativo')}
+                  className={`p-2.5 rounded-xl border text-center text-xs font-semibold transition-all ${
+                    formatoSelecionado === 'colaborativo'
+                      ? 'border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-300'
+                      : 'border-black/10 dark:border-white/10 text-slate-500'
+                  }`}
+                >
+                  Colaborativo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormatoSelecionado('individual')}
+                  className={`p-2.5 rounded-xl border text-center text-xs font-semibold transition-all ${
+                    formatoSelecionado === 'individual'
+                      ? 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                      : 'border-black/10 dark:border-white/10 text-slate-500'
+                  }`}
+                >
+                  Individual
+                </button>
+              </div>
+            </div>
+
+            {/* Indicadores Rápidos da Empresa */}
+            <div className="pt-4 border-t border-black/8 dark:border-white/10 space-y-2.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 dark:text-zinc-400">Canais Ativos:</span>
+                <span className="font-bold text-[#0a0a0c] dark:text-white">{empresa.canais?.length || 0}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 dark:text-zinc-400">Acessos Técnicos:</span>
+                <span className="font-bold text-[#0a0a0c] dark:text-white">{credenciaisList.length}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 dark:text-zinc-400">Chamados Registrados:</span>
+                <span className="font-mono font-bold text-[#0a0a0c] dark:text-white">{chamadosEmpresa.length}</span>
+              </div>
+              <div className="pt-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-slate-500 dark:text-zinc-400">Progresso do Setup:</span>
+                  <span className="font-mono font-bold text-[#0a0a0c] dark:text-white tabular-nums">
+                    {concluidosChecklist}/{totalChecklist} ({pctChecklist}%)
+                  </span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-black/5 dark:bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[#4d7c0f] to-[#84cc16] transition-all duration-500"
+                    style={{ width: `${pctChecklist}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Cartão de Suporte Ativo em Tempo Real (se houver para esta empresa) */}
+          {chamadoAtivo && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="rounded-3xl p-5 border-2 border-amber-500/40 bg-amber-500/10 dark:bg-amber-500/15 space-y-3.5 shadow-sm"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping"></span>
+                  <span className="text-xs font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wide">
+                    Suporte em Aberto
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-400 font-mono">Ao Vivo</span>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-amber-500/20 text-center">
+                <span className="text-[11px] text-slate-500 block mb-0.5">Tempo Decorrido:</span>
+                <span className="text-2xl font-bold font-mono text-amber-600 dark:text-amber-400 tabular-nums">
+                  {formatarTempo(tempoSuporteSegundos)}
+                </span>
+                <p className="text-[10px] text-slate-400 font-mono mt-1">
+                  Operador: {chamadoAtivo.tecnico_email}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  onClick={() => setIsFinalizarModalOpen(true)}
+                  className="py-2.5 px-3 rounded-2xl bg-[#84cc16] hover:bg-[#65a30d] text-black font-bold text-xs transition-all text-center shadow-xs"
+                >
+                  ✓ Concluir
+                </button>
+                <button
+                  onClick={handleCancelarChamado}
+                  className="py-2.5 px-3 rounded-2xl bg-red-500/20 hover:bg-red-500/30 text-red-600 dark:text-red-400 font-semibold text-xs transition-all text-center"
+                >
+                  ✖ Cancelar
+                </button>
+              </div>
+            </motion.div>
           )}
 
-          {/* Cards de Múltiplos Acessos */}
-          {credenciaisList.length === 0 ? (
-            <div className="surface-card rounded-3xl p-10 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] text-center space-y-2">
-              <p className="text-sm font-bold text-slate-800 dark:text-zinc-200">Nenhum acesso técnico cadastrado</p>
-              <p className="text-xs text-slate-500 dark:text-zinc-400">Clique em "+ Adicionar Novo Acesso" para salvar as credenciais de administradores e servidores.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3.5">
-              {credenciaisList.map((cred) => {
-                const isRevelada = Boolean(senhasReveladas[cred.id]);
-                const copiado = copiadoId === cred.id;
+        </div>
 
-                return (
-                  <div
-                    key={cred.id}
-                    className="surface-card rounded-2xl p-5 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] space-y-3 shadow-sm"
+        {/* COLUNA DIREITA: CONTEÚDO DINÂMICO EM ABAS (~65%) */}
+        <div className="lg:col-span-8 xl:col-span-8 space-y-5">
+          
+          {/* Abas Apple Minimalistas */}
+          <div className="flex border-b border-black/8 dark:border-white/10 gap-1.5 overflow-x-auto pb-1">
+            {[
+              { id: 'canais', label: 'Canais de Atendimento', count: empresa.canais?.length || 0 },
+              { id: 'credenciais', label: 'Acessos & Senhas Técnicas', count: credenciaisList.length },
+              { id: 'servidor', label: 'Configuração do Servidor', count: `${concluidosChecklist}/${totalChecklist}` },
+              { id: 'observacoes', label: 'Anotações & Pedidos', count: empresa.observacoes?.length || 0 },
+              { id: 'chamados', label: 'Histórico de Suporte', count: chamadosEmpresa.length },
+            ].map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`py-2.5 px-3.5 text-xs font-semibold rounded-2xl transition-all whitespace-nowrap flex items-center gap-2 ${
+                    isActive
+                      ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs'
+                      : 'text-slate-600 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                    isActive
+                      ? 'bg-white/20 dark:bg-black/20 text-white dark:text-black'
+                      : 'bg-black/5 dark:bg-white/10 text-slate-500 dark:text-zinc-400'
+                  }`}>
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* ============================================================================== */}
+          {/* ABA 1: CANAIS DE ATENDIMENTO (REDESENHADA, LUXUOSA E SEM ÍCONES DE WHATSAPP) */}
+          {/* ============================================================================== */}
+          {activeTab === 'canais' && (
+            <div className="space-y-4">
+              <div className="rounded-3xl p-6 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+                <div>
+                  <h2 className="text-base font-bold text-[#0a0a0c] dark:text-white">
+                    Canais de Mensageria Contratados
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                    Canais API Oficial Cloud, instâncias pareadas por QR Code e redes sociais.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setIsAddCanalOpen(true)}
+                  className="px-4 py-2.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black text-xs font-bold shadow-sm hover:opacity-90 flex items-center gap-2 transition-all self-start sm:self-auto cursor-pointer"
+                >
+                  + Conectar Novo Canal
+                </button>
+              </div>
+
+              {/* Formulário / Drawer de Adicionar Canal */}
+              <AnimatePresence>
+                {isAddCanalOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="rounded-3xl p-6 border border-black/10 dark:border-white/15 bg-slate-50/90 dark:bg-zinc-900/90 space-y-4 shadow-sm"
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-zinc-800 pb-3">
+                    <div className="flex items-center justify-between">
                       <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                          Função / Rótulo do Acesso
-                        </span>
-                        <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                          <span>{cred.rotulo}</span>
-                        </h3>
+                        <h3 className="text-sm font-bold text-[#0a0a0c] dark:text-white">Conectar Novo Canal</h3>
+                        <p className="text-xs text-slate-500">Selecione o tipo técnico e insira o número ou identificador.</p>
                       </div>
-
-                      <div className="flex items-center gap-1.5 self-start sm:self-auto">
-                        <button
-                          onClick={() => handleEditarCredencial(cred)}
-                          className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 transition-all"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => handleExcluirCredencial(cred.id)}
-                          className="px-2.5 py-1 rounded-lg border border-red-200 dark:border-red-900/30 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 text-xs font-semibold transition-all"
-                        >
-                          Excluir
-                        </button>
-                      </div>
+                      <button onClick={() => setIsAddCanalOpen(false)} className="text-xs text-slate-400 hover:text-black dark:hover:text-white">✕ Fechar</button>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                      {/* Usuário / E-mail */}
-                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200/80 dark:border-zinc-800 flex items-center justify-between gap-2">
-                        <div>
-                          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">
-                            Login / E-mail
-                          </span>
-                          <span className="text-xs font-mono font-bold text-slate-800 dark:text-zinc-200 select-all">
-                            {cred.usuario_email || 'Não informado'}
-                          </span>
+                    <form onSubmit={handleAdicionarCanal} className="space-y-4">
+                      {/* Seleção Visual de Tipo */}
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                          Selecione o Tipo de Canal
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {catalogoCanais.map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => setSelectedCanalId(c.id)}
+                              className={`p-3 rounded-2xl border text-left flex items-center gap-3 transition-all ${
+                                selectedCanalId === c.id
+                                  ? 'border-black dark:border-white bg-white dark:bg-zinc-800 shadow-sm'
+                                  : 'border-black/8 dark:border-white/10 bg-white/50 dark:bg-zinc-900/50 text-slate-600 dark:text-zinc-400'
+                              }`}
+                            >
+                              <div className="w-8 h-8 rounded-xl bg-black/5 dark:bg-white/10 flex items-center justify-center flex-shrink-0">
+                                {renderCanalIcon(c)}
+                              </div>
+                              <div className="min-w-0">
+                                <span className="text-xs font-bold block truncate">{c.nome}</span>
+                                <span className="text-[10px] text-slate-400 uppercase font-mono">{c.tipo}</span>
+                              </div>
+                            </button>
+                          ))}
                         </div>
-                        {cred.usuario_email && (
-                          <button
-                            onClick={() => handleCopiarTexto(cred.usuario_email, `usr_${cred.id}`)}
-                            className="text-[11px] font-semibold text-slate-600 dark:text-zinc-400 hover:underline"
-                          >
-                            {copiadoId === `usr_${cred.id}` ? '✓ Copiado' : 'Copiar'}
-                          </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                            Número / Identificador da Instância
+                          </label>
+                          <input
+                            type="text"
+                            value={canalNumero}
+                            onChange={(e) => setCanalNumero(e.target.value)}
+                            placeholder="Ex: +55 11 98888-7777"
+                            required
+                            className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs font-mono focus:outline-none"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                            Observação (Opcional)
+                          </label>
+                          <input
+                            type="text"
+                            value={canalObs}
+                            onChange={(e) => setCanalObs(e.target.value)}
+                            placeholder="Ex: Instância exclusiva do setor de vendas"
+                            className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-2">
+                        <button type="button" onClick={() => setIsAddCanalOpen(false)} className="px-4 py-2 rounded-full text-xs text-slate-600 hover:bg-black/5">Cancelar</button>
+                        <button type="submit" disabled={loadingCanal} className="px-5 py-2 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs shadow-sm hover:opacity-90">
+                          {loadingCanal ? 'Vinculando...' : 'Salvar Canal'}
+                        </button>
+                      </div>
+                    </form>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Lista de Canais Ativos */}
+              {(!empresa.canais || empresa.canais.length === 0) ? (
+                <div className="rounded-3xl p-10 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] text-center space-y-2">
+                  <p className="text-sm font-bold text-[#0a0a0c] dark:text-white">Nenhum canal conectado ainda</p>
+                  <p className="text-xs text-slate-500">Vincule a primeira instância ou canal de mensageria da empresa.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {empresa.canais.map((c) => (
+                    <div key={c.canal_id} className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] flex items-start justify-between gap-3 shadow-sm hover:shadow-md transition-all">
+                      <div className="space-y-2 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-xl bg-black/5 dark:bg-white/10 flex items-center justify-center flex-shrink-0">
+                            {renderCanalIcon(c)}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-xs font-bold text-[#0a0a0c] dark:text-white block truncate">{c.nome}</span>
+                            <span className="text-[9px] uppercase font-mono font-bold px-1.5 py-0.2 rounded bg-black/5 dark:bg-white/10 text-slate-600 dark:text-zinc-400">
+                              {c.tipo}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <p className="text-xs font-mono font-bold text-slate-800 dark:text-zinc-200 select-all pl-1">
+                          {c.identificador_numero || 'Sem identificador'}
+                        </p>
+
+                        {c.observacao && (
+                          <p className="text-[11px] text-slate-500 italic bg-black/[0.02] dark:bg-white/[0.04] p-2.5 rounded-xl border border-black/5 dark:border-white/5">
+                            {c.observacao}
+                          </p>
                         )}
                       </div>
 
-                      {/* Senha Protegida com Ícone SVG de Olho Premium */}
-                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200/80 dark:border-zinc-800 flex items-center justify-between gap-2">
-                        <div>
-                          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">
-                            Senha
-                          </span>
-                          <span className="text-xs font-mono font-bold text-slate-900 dark:text-white select-all">
-                            {isRevelada ? (
-                              <span className="text-[#4d7c0f] dark:text-[#84cc16] font-bold">{cred.senha}</span>
-                            ) : (
-                              <span>{maskPassword(cred.senha)}</span>
-                            )}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleVerSenha(cred)}
-                            className="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-zinc-800 text-[11px] font-semibold text-slate-700 dark:text-zinc-300 hover:bg-slate-300 flex items-center gap-1.5"
-                            title={isRevelada ? 'Ocultar Senha' : 'Ver Senha (Registra Auditoria LGPD)'}
-                          >
-                            {isRevelada ? (
-                              <>
-                                <EyeOffIcon className="w-3.5 h-3.5 text-slate-600 dark:text-zinc-400" />
-                                <span>Ocultar</span>
-                              </>
-                            ) : (
-                              <>
-                                <EyeIcon className="w-3.5 h-3.5 text-slate-600 dark:text-zinc-400" />
-                                <span>Ver</span>
-                              </>
-                            )}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleCopiarTexto(cred.senha, cred.id)}
-                            className="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-zinc-800 text-[11px] font-semibold text-slate-700 dark:text-zinc-300 hover:bg-slate-300"
-                          >
-                            {copiado ? '✓ Copiado' : 'Copiar'}
-                          </button>
-                        </div>
-                      </div>
+                      <button onClick={() => handleRemoverCanal(c.canal_id)} className="p-2 text-slate-400 hover:text-red-600 rounded-full hover:bg-red-500/10 transition-colors" title="Desconectar canal">
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/></svg>
+                      </button>
                     </div>
-
-                    {cred.observacao && (
-                      <p className="text-[11px] text-slate-500 dark:text-zinc-400 italic bg-slate-50 dark:bg-zinc-900 p-2 rounded-lg border border-slate-100 dark:border-zinc-800">
-                        Observação: {cred.observacao}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-        </div>
-      )}
-
-      {/* ============================================================================== */}
-      {/* ABA 3: CONFIGURAÇÃO DO SERVIDOR & FORMATO COM BOTÃO SALVAR */}
-      {/* ============================================================================== */}
-      {activeTab === 'servidor' && (
-        <div className="space-y-6 animate-fade-in">
-          
-          {/* Seção 1: Formato de Atendimento */}
-          <div className="surface-card rounded-3xl p-6 sm:p-7 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                  1. Formato de Conversa com Clientes
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-zinc-400">
-                  Defina se as mensagens serão compartilhadas entre todos ou isoladas por atendente.
-                </p>
-              </div>
-
-              <button
-                onClick={handleSalvarFormato}
-                disabled={salvandoFormato}
-                className="px-4 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-sm hover:opacity-90 transition-all self-start sm:self-auto"
-              >
-                {salvandoFormato ? 'Salvando...' : '💾 Salvar Formato de Atendimento'}
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div
-                onClick={() => setFormatoSelecionado('colaborativo')}
-                className={`p-5 rounded-2xl border-2 cursor-pointer transition-all ${
-                  formatoSelecionado === 'colaborativo'
-                    ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#f7fee7]/80 dark:bg-[#84cc16]/10 text-slate-900 dark:text-white shadow-sm'
-                    : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 text-slate-600 dark:text-zinc-400 hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-sm font-bold">Formato Colaborativo</span>
-                  {formatoSelecionado === 'colaborativo' && (
-                    <span className="text-xs font-bold text-[#4d7c0f] dark:text-[#84cc16]">✓ Selecionado</span>
-                  )}
+          {/* ============================================================================== */}
+          {/* ABA 2: ACESSOS & SENHAS TÉCNICAS (ESTILO APPLE KEYCHAIN) */}
+          {/* ============================================================================== */}
+          {activeTab === 'credenciais' && (
+            <div className="space-y-4">
+              <div className="rounded-3xl p-6 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+                <div>
+                  <h2 className="text-base font-bold text-[#0a0a0c] dark:text-white">
+                    Acessos e Senhas Técnicas ({credenciaisList.length})
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                    Chaves de acesso criptografadas com auditoria de visualização LGPD.
+                  </p>
                 </div>
-                <p className="text-xs text-slate-600 dark:text-zinc-300 leading-relaxed">
-                  Fila única onde todos os atendentes compartilham e visualizam as conversas da empresa.
-                </p>
+
+                <button
+                  onClick={() => {
+                    setEditandoCredId(null);
+                    setCredRotulo('');
+                    setCredUsuario('');
+                    setCredSenha('');
+                    setCredObs('');
+                    setIsAddCredOpen(true);
+                  }}
+                  className="px-4 py-2.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black text-xs font-bold shadow-sm hover:opacity-90 flex items-center gap-2 transition-all cursor-pointer"
+                >
+                  + Adicionar Novo Acesso
+                </button>
               </div>
 
-              <div
-                onClick={() => setFormatoSelecionado('individual')}
-                className={`p-5 rounded-2xl border-2 cursor-pointer transition-all ${
-                  formatoSelecionado === 'individual'
-                    ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#f7fee7]/80 dark:bg-[#84cc16]/10 text-slate-900 dark:text-white shadow-sm'
-                    : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 text-slate-600 dark:text-zinc-400 hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-sm font-bold">Formato Individual</span>
-                  {formatoSelecionado === 'individual' && (
-                    <span className="text-xs font-bold text-[#4d7c0f] dark:text-[#84cc16]">✓ Selecionado</span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-600 dark:text-zinc-300 leading-relaxed">
-                  Cada atendente acessa em sigilo apenas as conversas dos clientes sob sua responsabilidade.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Seção 2: Classificação de Servidor (Servidor 1 vs Servidor 2) */}
-          <div className="surface-card rounded-3xl p-6 sm:p-7 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                  2. Servidor Alocado
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-zinc-400">
-                  Classifique a empresa entre Servidor 1 (Principal) ou Servidor 2 (Expansão).
-                </p>
-              </div>
-
-              <button
-                onClick={handleSalvarServidor}
-                disabled={salvandoServidor}
-                className="px-4 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-sm hover:opacity-90 transition-all self-start sm:self-auto"
-              >
-                {salvandoServidor ? 'Salvando...' : '💾 Salvar Servidor'}
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div
-                onClick={() => setServidorSelecionado('servidor_1')}
-                className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${
-                  servidorSelecionado === 'servidor_1'
-                    ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#f7fee7]/80 dark:bg-[#84cc16]/10 text-slate-900 dark:text-white shadow-sm'
-                    : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 text-slate-600 dark:text-zinc-400'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-bold">Servidor 1 (Principal)</span>
-                  {servidorSelecionado === 'servidor_1' && <span className="text-xs font-bold text-[#4d7c0f] dark:text-[#84cc16]">✓ Selecionado</span>}
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-zinc-400">Cluster primário de alta disponibilidade.</p>
-              </div>
-
-              <div
-                onClick={() => setServidorSelecionado('servidor_2')}
-                className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${
-                  servidorSelecionado === 'servidor_2'
-                    ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#f7fee7]/80 dark:bg-[#84cc16]/10 text-slate-900 dark:text-white shadow-sm'
-                    : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 text-slate-600 dark:text-zinc-400'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-bold">Servidor 2 (Expansão)</span>
-                  {servidorSelecionado === 'servidor_2' && <span className="text-xs font-bold text-[#4d7c0f] dark:text-[#84cc16]">✓ Selecionado</span>}
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-zinc-400">Cluster secundário para grandes contas e expansão.</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Seção 3: Checklist de Requisitos do Servidor */}
-          <div className="surface-card rounded-3xl p-6 sm:p-7 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                  3. Checklist de Requisitos do Servidor
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-zinc-400">
-                  Requisitos técnicos aplicados a esta empresa.
-                </p>
-              </div>
-              <span className="text-xs font-bold font-mono">
-                {concluidosChecklist} / {totalChecklist} ({pctChecklist}%)
-              </span>
-            </div>
-
-            <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden">
-              <div className="h-full bg-[#4d7c0f] dark:bg-[#84cc16]" style={{ width: `${pctChecklist}%` }}></div>
-            </div>
-
-            <div className="space-y-2.5 pt-2">
-              {checklistFiltrado.length === 0 ? (
-                <div className="p-8 text-center text-xs text-slate-500">
-                  Nenhum requisito cadastrado ainda. O administrador pode cadastrar os requisitos na aba "Servidores" ou adicionar um novo abaixo.
-                </div>
-              ) : (
-                checklistFiltrado.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`p-3.5 rounded-xl border transition-all ${
-                      item.concluido
-                        ? 'border-emerald-200 bg-emerald-50/20 dark:border-emerald-800/40 dark:bg-emerald-950/10'
-                        : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40'
-                    }`}
+              {/* Formulário Novo Acesso */}
+              <AnimatePresence>
+                {isAddCredOpen && (
+                  <motion.form
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    onSubmit={handleSalvarNovaCredencial}
+                    className="rounded-3xl p-6 border border-black/10 dark:border-white/15 bg-slate-50/90 dark:bg-zinc-900/90 space-y-4 shadow-sm"
                   >
-                    <div className="flex items-start gap-2.5">
-                      <input
-                        type="checkbox"
-                        checked={item.concluido}
-                        onChange={() => handleToggleChecklist(item)}
-                        className="mt-1 w-4 h-4 accent-[#4d7c0f] dark:accent-[#84cc16] cursor-pointer"
-                      />
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className={`text-xs font-bold ${item.concluido ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`}>
-                            {item.titulo}
-                          </span>
-                          <span className="text-[10px] text-slate-400 uppercase font-mono">{item.categoria || 'Servidor'}</span>
-                        </div>
-                        {item.descricao && <p className="text-[11px] text-slate-500 dark:text-zinc-400">{item.descricao}</p>}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-bold text-[#0a0a0c] dark:text-white">
+                          {editandoCredId ? 'Editar Acesso Técnico' : 'Novo Acesso de Suporte'}
+                        </h3>
+                        <p className="text-xs text-slate-500">Defina o rótulo do serviço e as credenciais.</p>
+                      </div>
+                      <button type="button" onClick={() => setIsAddCredOpen(false)} className="text-xs text-slate-400 hover:text-black dark:hover:text-white">✕ Cancelar</button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <div className="space-y-1">
+                        <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                          Rótulo / Nome do Acesso <span className="text-red-500">*</span>
+                        </label>
                         <input
                           type="text"
-                          defaultValue={item.observacao || ''}
-                          onBlur={(e) => handleSalvarObsChecklist(item, e.target.value)}
-                          placeholder="Anotação deste requisito (ex: IP, porta, credencial)..."
-                          className="w-full px-2.5 py-1 rounded bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-[11px] focus:outline-none"
+                          value={credRotulo}
+                          onChange={(e) => setCredRotulo(e.target.value)}
+                          placeholder="Ex: Painel Admin - Diretor / Servidor SSH"
+                          required
+                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                          E-mail ou Usuário de Login
+                        </label>
+                        <input
+                          type="text"
+                          value={credUsuario}
+                          onChange={(e) => setCredUsuario(e.target.value)}
+                          placeholder="Ex: admin@empresa.com.br"
+                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs focus:outline-none font-mono"
                         />
                       </div>
                     </div>
-                  </div>
-                ))
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between pl-1">
+                          <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                            Senha <span className="text-red-500">*</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setCredSenha(generateSecurePassword(14))}
+                            className="text-[10px] text-[#4d7c0f] dark:text-[#84cc16] font-semibold hover:underline"
+                          >
+                            ⚡ Gerar Segura
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          value={credSenha}
+                          onChange={(e) => setCredSenha(e.target.value)}
+                          placeholder="Senha de acesso"
+                          required
+                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs font-mono focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                          Observação Técnica (Opcional)
+                        </label>
+                        <input
+                          type="text"
+                          value={credObs}
+                          onChange={(e) => setCredObs(e.target.value)}
+                          placeholder="Ex: Requer 2FA no celular do cliente"
+                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2">
+                      <button type="button" onClick={() => setIsAddCredOpen(false)} className="px-4 py-2 rounded-full text-xs text-slate-600 hover:bg-black/5">Cancelar</button>
+                      <button type="submit" className="px-5 py-2 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs shadow-sm hover:opacity-90">
+                        {editandoCredId ? 'Salvar Alterações' : 'Cadastrar Acesso'}
+                      </button>
+                    </div>
+                  </motion.form>
+                )}
+              </AnimatePresence>
+
+              {/* Cards de Acessos Apple Style */}
+              {credenciaisList.length === 0 ? (
+                <div className="rounded-3xl p-10 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] text-center space-y-2">
+                  <p className="text-sm font-bold text-[#0a0a0c] dark:text-white">Nenhum acesso cadastrado</p>
+                  <p className="text-xs text-slate-500">Adicione credenciais para documentar os acessos desta empresa.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3.5">
+                  {credenciaisList.map((cred) => {
+                    const isRevelada = Boolean(senhasReveladas[cred.id]);
+                    const copiado = copiadoId === cred.id;
+
+                    return (
+                      <div
+                        key={cred.id}
+                        className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] space-y-3 shadow-sm hover:shadow-md transition-all"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-black/5 dark:border-white/5 pb-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-black/5 dark:bg-white/10 flex items-center justify-center text-slate-700 dark:text-zinc-200 font-bold text-xs">
+                              🔑
+                            </div>
+                            <div>
+                              <h3 className="text-sm font-bold text-[#0a0a0c] dark:text-white">{cred.rotulo}</h3>
+                              {cred.ultima_alteracao && (
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  Atualizado em {new Date(cred.ultima_alteracao).toLocaleDateString('pt-BR')}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 self-end sm:self-center">
+                            <button
+                              onClick={() => handleEditarCredencial(cred)}
+                              className="px-3 py-1 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 text-[11px] font-semibold text-slate-700 dark:text-zinc-300 transition-all"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => handleExcluirCredencial(cred.id)}
+                              className="p-1.5 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors"
+                              title="Excluir"
+                            >
+                              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                          <div className="p-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/5 dark:border-white/5 flex items-center justify-between">
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Usuário / E-mail:</span>
+                              <span className="font-mono font-bold text-slate-800 dark:text-zinc-200 select-all">
+                                {cred.usuario_email || 'Não informado'}
+                              </span>
+                            </div>
+                            {cred.usuario_email && (
+                              <button
+                                onClick={() => handleCopiarTexto(cred.usuario_email, cred.id + '_u')}
+                                className="text-[10px] font-semibold text-slate-500 hover:text-black dark:hover:text-white"
+                              >
+                                {copiado ? 'Copiado!' : 'Copiar'}
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="p-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/5 dark:border-white/5 flex items-center justify-between">
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Senha:</span>
+                              <span className="font-mono font-bold text-slate-800 dark:text-zinc-200 select-all">
+                                {isRevelada ? cred.senha : '••••••••••••'}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleToggleVerSenha(cred)}
+                                className="text-slate-400 hover:text-black dark:hover:text-white p-1"
+                                title={isRevelada ? 'Ocultar' : 'Visualizar senha'}
+                              >
+                                {isRevelada ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                              </button>
+                              <button
+                                onClick={() => handleCopiarTexto(cred.senha, cred.id + '_s')}
+                                className="text-[10px] font-semibold text-slate-500 hover:text-black dark:hover:text-white"
+                              >
+                                Copiar
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {cred.observacao && (
+                          <p className="text-[11px] text-slate-500 italic bg-black/[0.01] dark:bg-white/[0.02] p-2.5 rounded-xl border border-black/5 dark:border-white/5">
+                            {cred.observacao}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
-
-            {!isAddReqOpen ? (
-              <button onClick={() => setIsAddReqOpen(true)} className="text-xs font-semibold text-[#4d7c0f] dark:text-[#84cc16] hover:underline pt-1">
-                + Adicionar requisito específico para esta empresa
-              </button>
-            ) : (
-              <form onSubmit={handleAdicionarRequisito} className="p-4 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-900 space-y-2.5">
-                <input
-                  type="text"
-                  value={novoReqTitulo}
-                  onChange={(e) => setNovoReqTitulo(e.target.value)}
-                  placeholder="Nome do requisito (ex: Instalar Redis / Webhook secundário)"
-                  required
-                  className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none"
-                />
-                <div className="flex justify-end gap-2">
-                  <button type="button" onClick={() => setIsAddReqOpen(false)} className="text-xs text-slate-500">Cancelar</button>
-                  <button type="submit" disabled={loadingChecklist} className="px-3 py-1 bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs rounded-lg">
-                    Salvar
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-
-        </div>
-      )}
-
-      {/* ============================================================================== */}
-      {/* ABA 4: OBSERVAÇÕES & ANOTAÇÕES (COM INTEGRAÇÃO AUTOMÁTICA DE SUPORTE) */}
-      {/* ============================================================================== */}
-      {activeTab === 'observacoes' && (
-        <div className="space-y-5 animate-fade-in">
-          
-          {/* Banner Informativo */}
-          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 text-xs text-slate-600 dark:text-zinc-400">
-            <span className="font-bold text-slate-900 dark:text-white block mb-0.5">
-              Histórico Central de Observações & Chamados
-            </span>
-            <p className="text-[11px] leading-relaxed">
-              Toda observação ou solução informada ao finalizar um chamado de suporte é registrada automaticamente neste histórico para acompanhamento da equipe.
-            </p>
-          </div>
-
-          <div className="surface-card rounded-3xl p-6 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">Anotações e Histórico Geral</h2>
-              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">Cadastre avisos manuais ou consulte as resoluções de suporte.</p>
-            </div>
-            <button onClick={() => setIsAddObsOpen(true)} className="px-4 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold shadow-sm">
-              + Nova Anotação
-            </button>
-          </div>
-
-          {isAddObsOpen && (
-            <form onSubmit={handleSalvarObservacao} className="surface-card rounded-3xl p-6 border-2 border-[#4d7c0f]/30 dark:border-[#84cc16]/40 bg-slate-50/70 dark:bg-zinc-900/80 space-y-3 animate-fade-in">
-              <input
-                type="text"
-                value={novaObsTitulo}
-                onChange={(e) => setNovaObsTitulo(e.target.value)}
-                placeholder="Título do aviso"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none"
-              />
-              <textarea
-                rows={4}
-                value={novaObsConteudo}
-                onChange={(e) => setNovaObsConteudo(e.target.value)}
-                placeholder="Detalhes da anotação..."
-                required
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none leading-relaxed"
-              />
-              <div className="flex justify-end gap-2 pt-1">
-                <button type="button" onClick={() => setIsAddObsOpen(false)} className="px-4 py-2 text-xs text-slate-600">Cancelar</button>
-                <button type="submit" disabled={loadingObs} className="px-4 py-2 bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs rounded-xl shadow-sm">
-                  {loadingObs ? 'Salvando...' : 'Salvar Anotação'}
-                </button>
-              </div>
-            </form>
           )}
 
-          {(!empresa.observacoes || empresa.observacoes.length === 0) ? (
-            <div className="surface-card rounded-3xl p-10 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] text-center text-xs text-slate-500">
-              Nenhuma anotação registrada ainda.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {empresa.observacoes.map((obs) => (
-                <div key={obs.id} className="surface-card rounded-2xl p-5 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">{obs.titulo || 'Anotação'}</h3>
-                      {obs.tipo === 'suporte' && (
-                        <span className="text-[9px] uppercase font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">
-                          Resolução de Suporte
+          {/* ============================================================================== */}
+          {/* ABA 3: CONFIGURAÇÃO DO SERVIDOR & CHECKLIST */}
+          {/* ============================================================================== */}
+          {activeTab === 'servidor' && (
+            <div className="space-y-4">
+              <div className="rounded-3xl p-6 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] flex items-center justify-between gap-4 shadow-sm">
+                <div>
+                  <h2 className="text-base font-bold text-[#0a0a0c] dark:text-white">
+                    Checklist de Setup do Servidor
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Validação de portas, DNS, SSL e diretrizes técnicas para operação contínua.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsAddReqOpen(true)}
+                  className="px-4 py-2 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 text-xs font-bold text-slate-800 dark:text-zinc-200"
+                >
+                  + Novo Requisito
+                </button>
+              </div>
+
+              {/* Form Novo Requisito */}
+              <AnimatePresence>
+                {isAddReqOpen && (
+                  <motion.form
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    onSubmit={handleAdicionarRequisito}
+                    className="rounded-3xl p-6 border border-black/10 dark:border-white/15 bg-slate-50/90 dark:bg-zinc-900/90 space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300">Adicionar Requisito Customizado</h3>
+                      <button type="button" onClick={() => setIsAddReqOpen(false)} className="text-xs text-slate-400">✕</button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        value={novoReqTitulo}
+                        onChange={(e) => setNovoReqTitulo(e.target.value)}
+                        placeholder="Título do requisito"
+                        required
+                        className="px-4 py-2 rounded-2xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs focus:outline-none"
+                      />
+                      <input
+                        type="text"
+                        value={novoReqObs}
+                        onChange={(e) => setNovoReqObs(e.target.value)}
+                        placeholder="Observação técnica (opcional)"
+                        className="px-4 py-2 rounded-2xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs focus:outline-none"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button type="button" onClick={() => setIsAddReqOpen(false)} className="px-4 py-1.5 text-xs text-slate-500">Cancelar</button>
+                      <button type="submit" disabled={loadingChecklist} className="px-4 py-1.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs">
+                        Adicionar
+                      </button>
+                    </div>
+                  </motion.form>
+                )}
+              </AnimatePresence>
+
+              {/* Lista de Itens do Checklist */}
+              <div className="space-y-2.5">
+                {checklistFiltrado.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`rounded-2xl p-4 border transition-all flex items-start gap-3.5 ${
+                      item.concluido
+                        ? 'border-emerald-500/30 bg-emerald-500/[0.04]'
+                        : 'border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a]'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={Boolean(item.concluido)}
+                      onChange={() => handleToggleChecklist(item)}
+                      className="w-5 h-5 accent-[#4d7c0f] dark:accent-[#84cc16] cursor-pointer rounded mt-0.5"
+                    />
+
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-xs font-bold ${item.concluido ? 'text-emerald-700 dark:text-emerald-400 line-through' : 'text-[#0a0a0c] dark:text-white'}`}>
+                          {item.titulo}
                         </span>
+                        {item.categoria && (
+                          <span className="text-[9px] uppercase font-mono px-2 py-0.2 rounded-full bg-black/5 dark:bg-white/10 text-slate-500">
+                            {item.categoria}
+                          </span>
+                        )}
+                      </div>
+
+                      {item.descricao && (
+                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                          {item.descricao}
+                        </p>
                       )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-slate-400 font-mono">{new Date(obs.created_at).toLocaleDateString('pt-BR')}</span>
-                      <button onClick={() => handleRemoverObservacao(obs.id)} className="text-slate-400 hover:text-red-500">×</button>
+
+                      <input
+                        type="text"
+                        defaultValue={item.observacao || ''}
+                        onBlur={(e) => handleSalvarObsChecklist(item, e.target.value)}
+                        placeholder="Adicionar nota técnica sobre este requisito..."
+                        className="w-full text-[11px] bg-transparent border-b border-black/10 dark:border-white/10 pb-0.5 focus:outline-none focus:border-[#4d7c0f] dark:focus:border-[#84cc16] font-mono mt-1 text-slate-700 dark:text-zinc-300"
+                      />
                     </div>
                   </div>
-                  <p className="text-xs text-slate-600 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">{obs.conteudo}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ============================================================================== */}
-      {/* ABA 5: HISTÓRICO DE SUPORTE */}
-      {/* ============================================================================== */}
-      {activeTab === 'chamados' && (
-        <div className="space-y-5 animate-fade-in">
-          <div className="surface-card rounded-3xl p-6 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                Histórico de Atendimentos ({chamadosEmpresa.length})
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                Todos os atendimentos realizados para {empresa.nome}.
-              </p>
-            </div>
-
-            {!chamadoAtivo && (
-              <button
-                onClick={handleIniciarSuporte}
-                className="px-4 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold shadow-sm"
-              >
-                + Iniciar Novo Atendimento
-              </button>
-            )}
-          </div>
-
-          {chamadosEmpresa.length === 0 ? (
-            <div className="surface-card rounded-3xl p-10 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] text-center text-xs text-slate-500">
-              Nenhum suporte registrado para esta empresa ainda. Clique em "Iniciar Atendimento de Suporte" no topo para começar.
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100 dark:divide-zinc-800 surface-card rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] overflow-hidden">
-              {chamadosEmpresa.map((ch) => (
-                <div key={ch.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
-                        ch.status === 'finalizado' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-                      }`}>
-                        {ch.status === 'finalizado' ? 'Finalizado' : 'Em Andamento'}
-                      </span>
-                      {ch.motivo && <span className="text-xs font-bold text-slate-900 dark:text-white">{ch.motivo}</span>}
-                    </div>
-                    <p className="text-[11px] text-slate-500 font-mono">
-                      Por: {ch.tecnico_email} • Início: {new Date(ch.iniciado_em).toLocaleString('pt-BR')}
-                    </p>
-                    {ch.observacoes && <p className="text-xs text-slate-600 dark:text-zinc-400 italic mt-1">{ch.observacoes}</p>}
-                  </div>
-
-                  <div className="text-right font-mono self-end sm:self-center">
-                    <span className="text-xs font-bold text-slate-800 dark:text-zinc-200 block">
-                      {ch.status === 'finalizado' ? formatarTempo(ch.duracao_segundos) : 'Em andamento'}
-                    </span>
-                    <span className="text-[10px] text-slate-400">Duração</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ============================================================================== */}
-      {/* MODAL DE ENCERRAMENTO LIMPO (SEM BORRÃO QUADRADO RECORTADO) */}
-      {/* ============================================================================== */}
-      {isFinalizarModalOpen && (
-        <div className="fixed inset-0 w-screen h-screen z-50 bg-black/60 flex items-center justify-center p-4 animate-fade-in">
-          <div className="w-full max-w-md rounded-3xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] p-6 sm:p-7 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Finalizar Suporte Técnico
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-zinc-400">{empresa.nome}</p>
+                ))}
               </div>
-              <button onClick={handleCancelarFinalizacao} className="text-xs font-semibold text-slate-400 hover:text-slate-700">
-                Voltar
-              </button>
             </div>
+          )}
 
-            {/* Duração Congelada com Clareza */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs">
-              <span className="text-slate-500 block mb-0.5">Duração do Atendimento:</span>
-              <strong className="text-lg font-mono text-[#4d7c0f] dark:text-[#84cc16]">
-                {formatarTempo(tempoCongelado !== null ? tempoCongelado : tempoSuporteSegundos)}
-              </strong>
-            </div>
-
-            <form onSubmit={handleConfirmarFinalizarSuporte} className="space-y-3.5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
-                  Motivo Principal do Chamado <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={motivoFinalizacao}
-                  onChange={(e) => setMotivoFinalizacao(e.target.value)}
-                  required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs text-slate-900 dark:text-white font-medium focus:outline-none"
+          {/* ============================================================================== */}
+          {/* ABA 4: ANOTAÇÕES & PEDIDOS */}
+          {/* ============================================================================== */}
+          {activeTab === 'observacoes' && (
+            <div className="space-y-4">
+              <div className="rounded-3xl p-6 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] flex items-center justify-between gap-4 shadow-sm">
+                <div>
+                  <h2 className="text-base font-bold text-[#0a0a0c] dark:text-white">
+                    Anotações & Pedidos Especiais
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Histórico de observações técnicas e resoluções gravadas no encerramento de chamados.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsAddObsOpen(true)}
+                  className="px-4 py-2.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black text-xs font-bold shadow-sm"
                 >
-                  {motivosSuporte.map((m) => (
-                    <option key={m.id} value={m.nome}>{m.nome}</option>
+                  + Nova Anotação
+                </button>
+              </div>
+
+              {/* Form Nova Anotação */}
+              <AnimatePresence>
+                {isAddObsOpen && (
+                  <motion.form
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    onSubmit={handleSalvarObservacao}
+                    className="rounded-3xl p-6 border border-black/10 dark:border-white/15 bg-slate-50/90 dark:bg-zinc-900/90 space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold uppercase text-slate-700 dark:text-zinc-300">Nova Anotação Técnica</h3>
+                      <button type="button" onClick={() => setIsAddObsOpen(false)} className="text-xs text-slate-400">✕</button>
+                    </div>
+                    <input
+                      type="text"
+                      value={novaObsTitulo}
+                      onChange={(e) => setNovaObsTitulo(e.target.value)}
+                      placeholder="Título da anotação (ex: Particularidade no Horário)"
+                      className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs focus:outline-none"
+                    />
+                    <textarea
+                      rows={3}
+                      value={novaObsConteudo}
+                      onChange={(e) => setNovaObsConteudo(e.target.value)}
+                      placeholder="Conteúdo detalhado da anotação..."
+                      required
+                      className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs focus:outline-none leading-relaxed"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button type="button" onClick={() => setIsAddObsOpen(false)} className="px-4 py-1.5 text-xs text-slate-500">Cancelar</button>
+                      <button type="submit" disabled={loadingObs} className="px-4 py-1.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs">
+                        Salvar Anotação
+                      </button>
+                    </div>
+                  </motion.form>
+                )}
+              </AnimatePresence>
+
+              {/* Lista de Anotações */}
+              {(!empresa.observacoes || empresa.observacoes.length === 0) ? (
+                <div className="rounded-3xl p-10 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] text-center space-y-2">
+                  <p className="text-sm font-bold text-[#0a0a0c] dark:text-white">Nenhuma anotação cadastrada</p>
+                  <p className="text-xs text-slate-500">Adicione observações ou encerre atendimentos para preencher esta lista.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {empresa.observacoes.map((obs) => (
+                    <div
+                      key={obs.id}
+                      className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] space-y-2 shadow-xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-bold text-[#0a0a0c] dark:text-white">{obs.titulo}</h4>
+                          {obs.tipo === 'suporte' && (
+                            <span className="text-[9px] uppercase font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                              Resolução de Suporte
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleRemoverObservacao(obs.id)}
+                          className="text-slate-400 hover:text-red-500 text-xs"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">
+                        {obs.conteudo}
+                      </p>
+                      <div className="text-[10px] text-slate-400 font-mono pt-1">
+                        Registrado por {obs.autor_email} em {new Date(obs.created_at).toLocaleString('pt-BR')}
+                      </div>
+                    </div>
                   ))}
-                </select>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ============================================================================== */}
+          {/* ABA 5: HISTÓRICO DE SUPORTE */}
+          {/* ============================================================================== */}
+          {activeTab === 'chamados' && (
+            <div className="space-y-4">
+              <div className="rounded-3xl p-6 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] shadow-sm">
+                <h2 className="text-base font-bold text-[#0a0a0c] dark:text-white">
+                  Histórico de Atendimentos ({chamadosEmpresa.length})
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Registro cronológico dos chamados técnicos abertos para esta empresa.
+                </p>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
-                  Resumo da Solução ou Providência (Opcional)
-                </label>
-                <textarea
-                  rows={3}
-                  value={obsFinalizacao}
-                  onChange={(e) => setObsFinalizacao(e.target.value)}
-                  placeholder="Ex: Senha redefinida e entregue para o cliente / QR Code reconectado."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none leading-relaxed"
-                />
-              </div>
+              {chamadosEmpresa.length === 0 ? (
+                <div className="rounded-3xl p-10 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] text-center text-xs text-slate-500">
+                  Nenhum atendimento realizado para esta empresa ainda.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {chamadosEmpresa.map((ch) => (
+                    <div
+                      key={ch.id}
+                      className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${
+                            ch.status === 'finalizado'
+                              ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'
+                              : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20'
+                          }`}>
+                            {ch.status}
+                          </span>
+                          <strong className="text-xs text-[#0a0a0c] dark:text-white">{ch.motivo || 'Sem motivo'}</strong>
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-mono">
+                          Técnico: {ch.tecnico_email} • Início: {new Date(ch.iniciado_em).toLocaleString('pt-BR')}
+                        </p>
+                        {ch.colaborador_solicitante && (
+                          <p className="text-[11px] text-slate-600 dark:text-zinc-400">
+                            Solicitante: <strong>{ch.colaborador_solicitante}</strong>
+                          </p>
+                        )}
+                        {ch.observacoes && (
+                          <p className="text-[11px] text-slate-600 dark:text-zinc-400 italic">
+                            Solução: {ch.observacoes}
+                          </p>
+                        )}
+                      </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-zinc-800">
-                <button
-                  type="button"
-                  onClick={handleCancelarFinalizacao}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800"
-                >
-                  Voltar e Continuar Atendimento
-                </button>
-                <button
-                  type="submit"
-                  disabled={salvandoFinalizacao}
-                  className="px-5 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-sm hover:opacity-90"
-                >
-                  {salvandoFinalizacao ? 'Salvando...' : 'Confirmar e Encerrar'}
-                </button>
-              </div>
-            </form>
-          </div>
+                      <div className="text-right font-mono self-end sm:self-center">
+                        <span className="text-xs font-bold text-slate-800 dark:text-zinc-200 block tabular-nums">
+                          {formatarTempo(ch.duracao_segundos)}
+                        </span>
+                        <span className="text-[10px] text-slate-400">Duração</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
-      )}
+
+      </div>
+
+      {/* Modal Imersivo de Finalização de Suporte */}
+      <SupportCompletionModal
+        isOpen={isFinalizarModalOpen}
+        chamado={chamadoAtivo}
+        onClose={() => setIsFinalizarModalOpen(false)}
+        onFinalizado={() => {
+          verificarChamadoAtivo();
+          onUpdated();
+        }}
+        userEmail={userEmail}
+      />
 
     </div>
   );

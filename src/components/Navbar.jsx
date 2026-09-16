@@ -3,10 +3,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  getChamadoAtivo, 
+  getChamadosAtivos, 
   getAbasPermitidas, 
   getCurrentUserRole, 
-  setCurrentUserRole 
+  setCurrentUserRole,
+  cancelarSuporte 
 } from '@/lib/storage';
 
 export default function Navbar({ 
@@ -22,15 +23,17 @@ export default function Navbar({
   onOpenChamadoAtivo
 }) {
   const [profileOpen, setProfileOpen] = useState(false);
+  const [islandExpanded, setIslandExpanded] = useState(false);
   const dropdownRef = useRef(null);
-  const [chamadoAtivo, setChamadoAtivo] = useState(null);
-  const [tempoAtivoSegundos, setTempoAtivoSegundos] = useState(0);
+  const islandRef = useRef(null);
+  const [chamadosAtivos, setChamadosAtivos] = useState([]);
   const [userRole, setUserRole] = useState('administrador');
+  const [, setTick] = useState(0);
 
-  // Atualiza chamado ativo e permissões
+  // Atualiza chamados ativos e permissões
   const checarEstado = () => {
-    const ativo = getChamadoAtivo();
-    setChamadoAtivo(ativo);
+    const ativos = getChamadosAtivos();
+    setChamadosAtivos(ativos);
     setUserRole(getCurrentUserRole());
   };
 
@@ -39,41 +42,34 @@ export default function Navbar({
     const handleUpdate = () => checarEstado();
     window.addEventListener('suporte_updated', handleUpdate);
     window.addEventListener('user_role_updated', handleUpdate);
+
+    // Ticker a cada segundo para atualizar cronômetros ao vivo
+    const timer = setInterval(() => setTick((t) => t + 1), 1000);
+
     return () => {
       window.removeEventListener('suporte_updated', handleUpdate);
       window.removeEventListener('user_role_updated', handleUpdate);
+      clearInterval(timer);
     };
   }, []);
 
-  // Cronômetro do Suporte no Header
-  useEffect(() => {
-    if (!chamadoAtivo) {
-      setTempoAtivoSegundos(0);
-      return;
-    }
-
-    const calc = () => {
-      const inicio = new Date(chamadoAtivo.iniciado_em).getTime();
-      const agora = Date.now();
-      setTempoAtivoSegundos(Math.max(0, Math.round((agora - inicio) / 1000)));
-    };
-
-    calc();
-    const interval = setInterval(calc, 1000);
-    return () => clearInterval(interval);
-  }, [chamadoAtivo]);
-
-  const formatarTempo = (totalSegundos) => {
-    const minutos = Math.floor(totalSegundos / 60);
-    const segundos = totalSegundos % 60;
+  const formatarTempo = (iniciadoEm) => {
+    if (!iniciadoEm) return '00:00';
+    const inicio = new Date(iniciadoEm).getTime();
+    const diff = Math.max(0, Math.round((Date.now() - inicio) / 1000));
+    const minutos = Math.floor(diff / 60);
+    const segundos = diff % 60;
     return `${minutos.toString().padStart(2, '0')}:${segundos.toString().padStart(2, '0')}`;
   };
 
-  // Fecha dropdown ao clicar fora
+  // Fecha dropdowns ao clicar fora
   useEffect(() => {
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setProfileOpen(false);
+      }
+      if (islandRef.current && !islandRef.current.contains(event.target)) {
+        setIslandExpanded(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -152,43 +148,187 @@ export default function Navbar({
     },
   ];
 
-  // Filtra abas pelas permissões do papel atual
   const abasPermitidasIds = getAbasPermitidas(userRole);
   const abasFiltradas = todasAsAbas.filter((t) => abasPermitidasIds.includes(t.id));
 
+  const totalAtivos = chamadosAtivos.length;
+
   return (
     <>
-      {/* NAVBAR FLUTUANTE ESTILO MACOS / DYNAMIC ISLAND EXPANSIVA */}
+      {/* NAVBAR FLUTUANTE COM DYNAMIC ISLAND APPLE DE MOTION DESIGN AVANÇADO */}
       <header className="fixed top-3 sm:top-4 left-1/2 -translate-x-1/2 w-[96%] max-w-[1720px] z-40 transition-all duration-300">
-        <div className="backdrop-blur-2xl bg-white/80 dark:bg-[#161618]/85 border border-black/[0.06] dark:border-white/[0.08] shadow-[0_12px_36px_-10px_rgba(0,0,0,0.06)] dark:shadow-[0_16px_45px_-10px_rgba(0,0,0,0.7)] rounded-full px-3 sm:px-5 py-2 flex items-center justify-between gap-2 sm:gap-4">
+        <div className="backdrop-blur-2xl bg-white/85 dark:bg-[#121215]/90 border border-black/8 dark:border-white/10 shadow-[0_12px_36px_-10px_rgba(0,0,0,0.07)] dark:shadow-[0_16px_45px_-10px_rgba(0,0,0,0.8)] rounded-full px-3 sm:px-5 py-2 flex items-center justify-between gap-2 sm:gap-4 relative">
           
-          {/* Logo & Indicador de Chamado Ativo */}
-          <div className="flex items-center gap-2.5 pl-1 flex-shrink-0">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-b from-[#4d7c0f] to-[#3f660c] dark:from-[#84cc16] dark:to-[#65a30d] text-white dark:text-zinc-950 flex items-center justify-center font-bold text-xs shadow-sm">
+          {/* Lado Esquerdo: Logo & Dynamic Island */}
+          <div className="flex items-center gap-2.5 pl-1 flex-shrink-0" ref={islandRef}>
+            
+            {/* Logo Monograma RM */}
+            <div className="w-7 h-7 rounded-full bg-gradient-to-b from-[#0f172a] to-[#020617] dark:from-[#27272a] dark:to-[#09090b] text-white flex items-center justify-center font-bold text-[11px] border border-white/20 shadow-xs">
               RM
             </div>
 
-            <span className="font-semibold text-xs tracking-tight text-[#1d1d1f] dark:text-[#f5f5f7] hidden lg:inline">
+            <span className="font-semibold text-xs tracking-tight text-[#0a0a0c] dark:text-[#f5f5f7] hidden xl:inline">
               RM Controle
             </span>
             
-            {/* Pill de Suporte Ativo em Tempo Real com Ping */}
-            {chamadoAtivo && (
-              <button
-                onClick={() => onOpenChamadoAtivo && onOpenChamadoAtivo(chamadoAtivo.empresa_id)}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-[11px] font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-500/15 transition-all"
-                title="Clique para abrir o atendimento desta empresa"
-              >
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
-                <span className="hidden sm:inline font-medium text-slate-700 dark:text-zinc-300">Suporte:</span>
-                <strong className="truncate max-w-[130px]">{chamadoAtivo.empresa_nome}</strong>
-                <span className="font-mono font-bold text-[#4d7c0f] dark:text-[#84cc16] tabular-nums">({formatarTempo(tempoAtivoSegundos)})</span>
-              </button>
+            {/* ============================================================================== */}
+            {/* DYNAMIC ISLAND DA APPLE COM TRANSIÇÃO EXPANSÍVEL E SUPORTE A MÚLTIPLOS CHAMADOS */}
+            {/* ============================================================================== */}
+            {totalAtivos > 0 && (
+              <div className="relative">
+                <motion.div
+                  layoutId="apple-dynamic-island"
+                  transition={{ type: "spring", stiffness: 450, damping: 32 }}
+                  className="cursor-pointer"
+                  onClick={() => setIslandExpanded(!islandExpanded)}
+                >
+                  {/* Cenário com 1 Chamado */}
+                  {totalAtivos === 1 && (
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 dark:bg-amber-500/20 border border-amber-500/30 text-[11px] font-semibold text-amber-900 dark:text-amber-200 hover:bg-amber-500/25 transition-all shadow-xs">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                      <strong className="truncate max-w-[120px] sm:max-w-[150px]">
+                        {chamadosAtivos[0].empresa_nome}
+                      </strong>
+                      <span className="font-mono font-bold text-[#4d7c0f] dark:text-[#84cc16] tabular-nums">
+                        {formatarTempo(chamadosAtivos[0].iniciado_em)}
+                      </span>
+                      <span className="text-[10px] text-amber-700 dark:text-amber-300 ml-0.5">▼</span>
+                    </div>
+                  )}
+
+                  {/* Cenário com 2 Chamados (Lado a Lado Compacto) */}
+                  {totalAtivos === 2 && (
+                    <div className="flex items-center gap-1.5">
+                      {chamadosAtivos.map((ch) => (
+                        <div
+                          key={ch.id}
+                          className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/15 dark:bg-amber-500/20 border border-amber-500/30 text-[10px] font-semibold text-amber-900 dark:text-amber-200 hover:bg-amber-500/25 transition-all"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                          <span className="truncate max-w-[75px] sm:max-w-[110px]">{ch.empresa_nome}</span>
+                          <span className="font-mono font-bold text-[#4d7c0f] dark:text-[#84cc16] tabular-nums">
+                            {formatarTempo(ch.iniciado_em)}
+                          </span>
+                        </div>
+                      ))}
+                      <span className="text-[10px] text-amber-700 dark:text-amber-300">▼</span>
+                    </div>
+                  )}
+
+                  {/* Cenário com 3 ou mais Chamados */}
+                  {totalAtivos >= 3 && (
+                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 dark:bg-amber-500/20 border border-amber-500/40 text-[11px] font-bold text-amber-900 dark:text-amber-200 hover:bg-amber-500/25 transition-all shadow-xs">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                      <span>{totalAtivos} Suportes Ativos</span>
+                      <span className="text-[10px] font-mono text-slate-500">
+                        ({formatarTempo(chamadosAtivos[0].iniciado_em)})
+                      </span>
+                      <span className="text-[10px] text-amber-700 dark:text-amber-300">▼</span>
+                    </div>
+                  )}
+                </motion.div>
+
+                {/* MODAL EXPANDIDO DA DYNAMIC ISLAND (ESTILO APPLE CAPSULE) */}
+                <AnimatePresence>
+                  {islandExpanded && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 12, scale: 0.94 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 12, scale: 0.94 }}
+                      transition={{ type: "spring", stiffness: 450, damping: 32 }}
+                      className="absolute left-0 mt-3 w-[330px] sm:w-[380px] rounded-[30px] bg-[#09090c]/95 dark:bg-[#000000]/95 backdrop-blur-3xl text-white border border-white/15 p-5 shadow-[0_25px_80px_-15px_rgba(0,0,0,0.8)] z-50 space-y-3.5"
+                    >
+                      {/* Topo da Ilha */}
+                      <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                          <span className="text-xs font-bold tracking-tight">Ilha Dinâmica de Suporte</span>
+                          <span className="text-[10px] font-mono px-2 py-0.2 rounded-full bg-white/10 text-emerald-300">
+                            {totalAtivos} {totalAtivos === 1 ? 'chamado ativo' : 'chamados ativos'}
+                          </span>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIslandExpanded(false);
+                          }}
+                          className="text-slate-400 hover:text-white text-xs font-bold p-1"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      {/* Lista de Chamados com Ações Diretas */}
+                      <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+                        {chamadosAtivos.map((ch) => (
+                          <div
+                            key={ch.id}
+                            className="p-3.5 rounded-2xl bg-white/[0.06] border border-white/10 hover:border-white/20 transition-all space-y-2.5"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h4 className="text-xs font-bold text-white truncate max-w-[200px]">
+                                  {ch.empresa_nome}
+                                </h4>
+                                <p className="text-[10px] text-slate-400 font-mono">
+                                  Técnico: {ch.tecnico_email}
+                                </p>
+                              </div>
+
+                              <div className="text-right font-mono">
+                                <span className="text-xs font-bold text-emerald-400 tabular-nums">
+                                  {formatarTempo(ch.iniciado_em)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Botões de Ação Rápida */}
+                            <div className="flex items-center gap-1.5 pt-1">
+                              <button
+                                onClick={() => {
+                                  setIslandExpanded(false);
+                                  onOpenChamadoAtivo && onOpenChamadoAtivo(ch.empresa_id);
+                                }}
+                                className="flex-1 py-1.5 px-2 rounded-xl bg-white/10 hover:bg-white/15 text-[10px] font-semibold text-white transition-all text-center"
+                              >
+                                Abrir Empresa
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setIslandExpanded(false);
+                                  window.dispatchEvent(new CustomEvent('abrir_conclusao_chamado', { detail: ch }));
+                                }}
+                                className="py-1.5 px-3 rounded-xl bg-[#84cc16] hover:bg-[#65a30d] text-black text-[10px] font-bold transition-all"
+                              >
+                                Concluir
+                              </button>
+
+                              <button
+                                onClick={async () => {
+                                  if (confirm(`Deseja cancelar o suporte de ${ch.empresa_nome}?`)) {
+                                    await cancelarSuporte({ chamado_id: ch.id, userEmail });
+                                  }
+                                }}
+                                className="py-1.5 px-2.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 text-[10px] font-semibold transition-all"
+                                title="Cancelar chamado"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             )}
           </div>
 
-          {/* Abas Dinâmicas com Sliding Pill (Framer Motion) */}
-          <nav className="flex items-center gap-1 p-1 bg-black/[0.03] dark:bg-white/[0.04] rounded-full border border-black/[0.04] dark:border-white/[0.06] relative">
+          {/* Abas Centrais com Sliding Pill Apple */}
+          <nav className="flex items-center gap-1 p-1 bg-black/[0.04] dark:bg-white/[0.04] rounded-full border border-black/[0.04] dark:border-white/[0.06] relative">
             {abasFiltradas.map((tab) => {
               const isActive = activeTab === tab.id;
               return (
@@ -197,14 +337,14 @@ export default function Navbar({
                   onClick={() => setActiveTab(tab.id)}
                   className={`relative flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-full text-xs font-medium transition-colors duration-200 z-10 ${
                     isActive
-                      ? 'text-[#1d1d1f] dark:text-white font-semibold'
+                      ? 'text-[#0a0a0c] dark:text-white font-semibold'
                       : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
                   }`}
                 >
                   {isActive && (
                     <motion.div
                       layoutId="active-navbar-pill"
-                      transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                      transition={{ type: "spring", stiffness: 380, damping: 32 }}
                       className="absolute inset-0 rounded-full bg-white dark:bg-zinc-800 shadow-sm border border-black/[0.04] dark:border-white/[0.06] -z-10"
                     />
                   )}
@@ -217,7 +357,7 @@ export default function Navbar({
             })}
           </nav>
 
-          {/* Timer de Inatividade + Menu Perfil */}
+          {/* Lado Direito: Timer LGPD + Perfil */}
           <div className="flex items-center gap-2 pr-1">
             
             {/* Timer de 30 minutos (Proteção LGPD) */}
@@ -229,13 +369,13 @@ export default function Navbar({
               <span>{formatTimer(inactivityTimeLeft)}</span>
             </div>
 
-            {/* Perfil & Configurações */}
+            {/* Menu de Perfil */}
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setProfileOpen(!profileOpen)}
                 className="flex items-center gap-2 pl-1 pr-2.5 py-1 rounded-full hover:bg-black/[0.04] dark:hover:bg-white/[0.05] border border-transparent hover:border-black/[0.06] dark:hover:border-white/[0.08] transition-all text-xs font-medium"
               >
-                <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-slate-200 to-slate-100 dark:from-zinc-800 dark:to-zinc-700 text-slate-800 dark:text-zinc-200 flex items-center justify-center font-bold text-[11px] shadow-xs">
+                <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-slate-300 to-slate-100 dark:from-zinc-700 dark:to-zinc-800 text-slate-900 dark:text-zinc-100 flex items-center justify-center font-bold text-[11px] shadow-xs">
                   {getUserDisplayName().charAt(0)}
                 </div>
                 <span className="hidden lg:inline font-semibold text-slate-800 dark:text-zinc-200 max-w-[120px] truncate">{getUserDisplayName()}</span>
@@ -253,10 +393,9 @@ export default function Navbar({
                     transition={{ duration: 0.18 }}
                     className="absolute right-0 mt-3 w-80 rounded-2xl bg-white/95 dark:bg-[#16161a]/95 backdrop-blur-3xl border border-black/[0.08] dark:border-white/[0.1] shadow-2xl p-4 text-xs text-slate-800 dark:text-zinc-200 z-50"
                   >
-                    
                     {/* Dados do Usuário */}
                     <div className="pb-3 border-b border-black/[0.05] dark:border-white/[0.06] mb-3 space-y-1">
-                      <p className="font-semibold text-[#1d1d1f] dark:text-white text-xs">
+                      <p className="font-semibold text-[#0a0a0c] dark:text-white text-xs">
                         {getUserDisplayName()}
                       </p>
                       <p className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono truncate">
@@ -270,10 +409,9 @@ export default function Navbar({
                       </div>
                     </div>
 
-                    {/* Controles exclusivos do Administrador Principal (Lucas Amorim) */}
+                    {/* Controles exclusivos do Administrador Principal */}
                     {((userEmail || '').toLowerCase() === 'admin@rmcontrole.com' || (userEmail || '').toLowerCase().includes('admin')) && (
                       <>
-                        {/* Seletor Rápido de Papel (Permissões de Abas) */}
                         <div className="py-2 border-b border-black/[0.05] dark:border-white/[0.06] space-y-1.5">
                           <span className="text-[11px] font-medium text-slate-600 dark:text-zinc-400 block">
                             Permissão de Acesso (Setor):
@@ -298,11 +436,10 @@ export default function Navbar({
                           </div>
                         </div>
 
-                        {/* Configuração: Habilitar/Desabilitar Mock Dev */}
                         <div className="py-2">
                           <div className="p-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.05] dark:border-white/[0.06]">
                             <div className="flex items-center justify-between mb-0.5">
-                              <span className="font-semibold text-[#1d1d1f] dark:text-zinc-200 text-[11px]">
+                              <span className="font-semibold text-[#0a0a0c] dark:text-zinc-200 text-[11px]">
                                 Dados Simulados (Mock Dev)
                               </span>
                               <input
@@ -320,7 +457,7 @@ export default function Navbar({
                       </>
                     )}
 
-                    {/* Configuração de Tema */}
+                    {/* Tema */}
                     <div className="py-2">
                       <div className="flex items-center justify-between">
                         <span className="text-slate-600 dark:text-zinc-400 font-medium">Tema Visual</span>

@@ -11,6 +11,7 @@ import {
   setMockDataEnabled,
   getChamadoAtivo,
   iniciarSuporte,
+  cancelarSuporte,
   finalizarSuporte,
   getMotivosSuporte
 } from '@/lib/storage';
@@ -22,6 +23,7 @@ import AuditLogsView from '@/components/AuditLogsView';
 import ServerConfigView from '@/components/ServerConfigView';
 import DashboardView from '@/components/DashboardView';
 import LoginView from '@/components/LoginView';
+import SupportCompletionModal from '@/components/SupportCompletionModal';
 import { MessageChannelIcon } from '@/components/Icons';
 
 export default function Home() {
@@ -224,6 +226,15 @@ export default function Home() {
       carregarEmpresas();
     }
   }, [isAuthenticated, page, pageSize, searchTerm, filtroCanal, filtroFormato, filtroServidor, showMockData]);
+
+  // Listener para abertura de conclusão disparada pela Dynamic Island ou outros componentes
+  useEffect(() => {
+    const handleAbrirConclusao = (e) => {
+      if (e.detail) setModalEncerrarChamado(e.detail);
+    };
+    window.addEventListener('abrir_conclusao_chamado', handleAbrirConclusao);
+    return () => window.removeEventListener('abrir_conclusao_chamado', handleAbrirConclusao);
+  }, []);
 
   // ==============================================================================
   // AUTENTICAÇÃO NO SUPABASE
@@ -814,7 +825,7 @@ export default function Home() {
                         setSelectedEmpresa(empresaAcaoModal);
                         setEmpresaAcaoModal(null);
                       }}
-                      className="w-full py-2.5 px-4 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold shadow-sm hover:opacity-95 flex items-center justify-center gap-2"
+                      className="w-full py-2.5 px-4 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold shadow-sm hover:opacity-95 flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <span>▶ Continuar Chamado em Andamento</span>
                     </motion.button>
@@ -822,25 +833,18 @@ export default function Home() {
                     <motion.button
                       whileHover={{ scale: 1.01 }}
                       whileTap={{ scale: 0.98 }}
-                      onClick={() => {
+                      onClick={async () => {
                         const ativo = getChamadoAtivo(empresaAcaoModal.id);
-                        setModalEncerrarChamado(ativo);
-                        setEmpresaAcaoModal(null);
+                        if (confirm(`Deseja cancelar o atendimento de ${empresaAcaoModal.nome}?`)) {
+                          await cancelarSuporte({ chamado_id: ativo.id, userEmail });
+                          setEmpresaAcaoModal(null);
+                          carregarEmpresas();
+                        }
                       }}
-                      className="w-full py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-sm flex items-center justify-center gap-2 transition-all"
+                      className="w-full py-2.5 px-4 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-600 dark:text-red-400 text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer"
                     >
-                      <span>■ Encerrar Atendimento</span>
+                      <span>✖ Cancelar Chamado</span>
                     </motion.button>
-
-                    <button
-                      onClick={() => {
-                        setSelectedEmpresa(empresaAcaoModal);
-                        setEmpresaAcaoModal(null);
-                      }}
-                      className="w-full py-2.5 px-4 rounded-xl border border-black/[0.08] dark:border-white/[0.1] text-slate-700 dark:text-zinc-300 text-xs font-medium hover:bg-black/[0.03] dark:hover:bg-white/[0.05] transition-all"
-                    >
-                      Ver Detalhes da Empresa
-                    </button>
                   </>
                 ) : (
                   <>
@@ -856,26 +860,16 @@ export default function Home() {
                         setSelectedEmpresa(empresaAcaoModal);
                         setEmpresaAcaoModal(null);
                       }}
-                      className="w-full py-2.5 px-4 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold shadow-sm hover:opacity-95 flex items-center justify-center gap-2"
+                      className="w-full py-2.5 px-4 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold shadow-sm hover:opacity-95 flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <span>▶ Iniciar Atendimento</span>
                     </motion.button>
-
-                    <button
-                      onClick={() => {
-                        setSelectedEmpresa(empresaAcaoModal);
-                        setEmpresaAcaoModal(null);
-                      }}
-                      className="w-full py-2.5 px-4 rounded-xl border border-black/[0.08] dark:border-white/[0.1] text-slate-700 dark:text-zinc-300 text-xs font-medium hover:bg-black/[0.03] dark:hover:bg-white/[0.05] transition-all"
-                    >
-                      Ver Detalhes / Gerenciar
-                    </button>
                   </>
                 )}
 
                 <button
                   onClick={() => setEmpresaAcaoModal(null)}
-                  className="w-full py-2 text-center text-xs text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 transition-colors"
+                  className="w-full py-2 text-center text-xs text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 transition-colors cursor-pointer"
                 >
                   Voltar
                 </button>
@@ -885,98 +879,14 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* Modal Rápido de Encerramento */}
-      <AnimatePresence>
-        {modalEncerrarChamado && (
-          <div className="fixed inset-0 w-screen h-screen z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              transition={{ duration: 0.2 }}
-              className="w-full max-w-md rounded-[28px] border border-black/[0.08] dark:border-white/[0.1] bg-white/95 dark:bg-[#16161a]/95 backdrop-blur-2xl p-6 shadow-2xl space-y-4 text-[#1d1d1f] dark:text-[#f5f5f7]"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-semibold text-[#1d1d1f] dark:text-white">
-                    Encerrar Atendimento de Suporte
-                  </h3>
-                  <p className="text-xs text-slate-500">{modalEncerrarChamado.empresa_nome}</p>
-                </div>
-                <button
-                  onClick={() => setModalEncerrarChamado(null)}
-                  className="text-xs text-slate-400 hover:text-slate-700 dark:hover:text-white"
-                >
-                  Voltar
-                </button>
-              </div>
-
-              <form
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  const motivoFinal = fecharMotivo || (motivosDisponiveis[0]?.nome || 'Redefinição de Senha / Acesso');
-                  await finalizarSuporte({
-                    chamado_id: modalEncerrarChamado.id,
-                    motivo: motivoFinal,
-                    observacoes: fecharObs,
-                    userEmail,
-                  });
-                  setModalEncerrarChamado(null);
-                  setFecharObs('');
-                  setFecharMotivo('');
-                  carregarEmpresas();
-                }}
-                className="space-y-3.5"
-              >
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300 mb-1">
-                    Motivo Principal do Chamado <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={fecharMotivo || (motivosDisponiveis[0]?.nome || '')}
-                    onChange={(e) => setFecharMotivo(e.target.value)}
-                    required
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.08] dark:border-white/[0.1] text-xs text-[#1d1d1f] dark:text-white font-medium focus:outline-none"
-                  >
-                    {motivosDisponiveis.map((m) => (
-                      <option key={m.id} value={m.nome}>{m.nome}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300 mb-1">
-                    Resumo da Solução Aplicada
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={fecharObs}
-                    onChange={(e) => setFecharObs(e.target.value)}
-                    placeholder="Ex: Senha redefinida e informada ao cliente."
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none leading-relaxed text-[#1d1d1f] dark:text-white"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2 border-t border-black/[0.05] dark:border-white/[0.06]">
-                  <button
-                    type="button"
-                    onClick={() => setModalEncerrarChamado(null)}
-                    className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 dark:text-zinc-400 hover:bg-black/[0.04]"
-                  >
-                    Voltar
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-semibold text-xs shadow-sm hover:opacity-90"
-                  >
-                    Confirmar e Encerrar
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* Modal Imersivo de Finalização de Suporte */}
+      <SupportCompletionModal
+        isOpen={Boolean(modalEncerrarChamado)}
+        chamado={modalEncerrarChamado}
+        onClose={() => setModalEncerrarChamado(null)}
+        onFinalizado={carregarEmpresas}
+        userEmail={userEmail}
+      />
     </div>
   );
 }

@@ -13,7 +13,9 @@ import {
   setCurrentUserRole,
   PERMISSOES_PADRAO,
   getSenhaPadraoRedefinicao,
-  setSenhaPadraoRedefinicao
+  setSenhaPadraoRedefinicao,
+  getConfiguracoesSuporte,
+  setConfiguracoesSuporte
 } from '@/lib/storage';
 import { EyeIcon, EyeOffIcon } from './Icons';
 import { generateSecurePassword } from '@/lib/security';
@@ -38,15 +40,22 @@ export default function ServerConfigView() {
   const [senhasEquipeReveladas, setSenhasEquipeReveladas] = useState({});
   const [userRole, setUserRole] = useState('administrador');
 
-  // Configurações Gerais: Senha Padrão
+  // Configurações Gerais: Senha Padrão & Regras de Suporte
   const [senhaPadrao, setSenhaPadrao] = useState('');
   const [senhaPadraoSalva, setSenhaPadraoSalva] = useState(false);
+  const [configSuporte, setConfigSuporte] = useState({
+    motivo_obrigatorio: true,
+    solucao_obrigatoria: false,
+    colaborador_obrigatorio: false,
+    atendente_obrigatorio: false,
+  });
 
   const recarregar = () => {
     setChecklistItems(getServerChecklistTemplate());
     setEquipe(getEquipeUsuarios());
     setUserRole(getCurrentUserRole());
     setSenhaPadrao(getSenhaPadraoRedefinicao());
+    setConfigSuporte(getConfiguracoesSuporte());
   };
 
   useEffect(() => {
@@ -55,17 +64,29 @@ export default function ServerConfigView() {
     const handleMockUpdate = () => recarregar();
     const handleRoleUpdate = () => setUserRole(getCurrentUserRole());
     const handleSenhaUpdate = () => setSenhaPadrao(getSenhaPadraoRedefinicao());
+    const handleConfigUpdate = () => setConfigSuporte(getConfiguracoesSuporte());
 
     window.addEventListener('storage_mock_updated', handleMockUpdate);
     window.addEventListener('user_role_updated', handleRoleUpdate);
     window.addEventListener('senha_padrao_updated', handleSenhaUpdate);
+    window.addEventListener('config_suporte_updated', handleConfigUpdate);
 
     return () => {
       window.removeEventListener('storage_mock_updated', handleMockUpdate);
       window.removeEventListener('user_role_updated', handleRoleUpdate);
       window.removeEventListener('senha_padrao_updated', handleSenhaUpdate);
+      window.removeEventListener('config_suporte_updated', handleConfigUpdate);
     };
   }, []);
+
+  const handleToggleRegraSuporte = (chave) => {
+    const novoValor = !configSuporte[chave];
+    const atualizada = { ...configSuporte, [chave]: novoValor };
+    setConfigSuporte(atualizada);
+    setConfiguracoesSuporte(atualizada);
+    setFeedback(`Regra de suporte atualizada: ${novoValor ? 'OBRIGATÓRIO' : 'OPCIONAL'}`);
+    setTimeout(() => setFeedback(''), 3500);
+  };
 
   const handleSalvarItemChecklist = (e) => {
     e.preventDefault();
@@ -605,6 +626,54 @@ export default function ServerConfigView() {
             <p className="text-[11px] leading-relaxed">
               Sempre que um cliente solicitar redefinição de senha e esquecer seus dados, o atendente pode aplicar esta senha padrão e orientar o cliente a alterá-la após o primeiro login.
             </p>
+          </div>
+
+          {/* Regras de Encerramento de Suporte (Campos Obrigatórios) */}
+          <div className="pt-6 border-t border-slate-200 dark:border-zinc-800 space-y-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                Regras de Encerramento de Chamado (Campos Obrigatórios)
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                Defina quais dados o técnico é obrigado a informar ao concluir um atendimento de suporte.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {[
+                { chave: 'motivo_obrigatorio', label: 'Motivo / Categoria do Chamado', desc: 'Exige classificar o motivo da solicitação' },
+                { chave: 'solucao_obrigatoria', label: 'Resumo da Solução Aplicada', desc: 'Exige descrever o procedimento de resolução' },
+                { chave: 'colaborador_obrigatorio', label: 'Colaborador Solicitante', desc: 'Exige selecionar quem solicitou o suporte na empresa' },
+                { chave: 'atendente_obrigatorio', label: 'Atendente Técnico Responsável', desc: 'Exige identificar o operador que atendeu a demanda' },
+              ].map((item) => (
+                <div
+                  key={item.chave}
+                  onClick={() => handleToggleRegraSuporte(item.chave)}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                    configSuporte[item.chave]
+                      ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/10 dark:bg-[#84cc16]/10'
+                      : 'border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-900/50'
+                  }`}
+                >
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                      {item.label}
+                    </h4>
+                    <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-0.5 leading-tight">
+                      {item.desc}
+                    </p>
+                  </div>
+
+                  <span className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full ${
+                    configSuporte[item.chave]
+                      ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950'
+                      : 'bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'
+                  }`}>
+                    {configSuporte[item.chave] ? 'Obrigatório' : 'Opcional'}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
