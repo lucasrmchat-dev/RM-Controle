@@ -452,8 +452,12 @@ export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim 
     .sort((a, b) => b.count - a.count);
 
   // Métricas por empresa
+  // Métricas detalhadas por empresa (empresas que mais demandam suporte)
   const empresasStats = {};
+  const motivosPorEmpresa = {};
+
   chamados.forEach((c) => {
+    if (!c.empresa_id) return;
     if (!empresasStats[c.empresa_id]) {
       empresasStats[c.empresa_id] = {
         empresa_id: c.empresa_id,
@@ -463,33 +467,115 @@ export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim 
         em_andamento: 0,
         duracao_total: 0,
       };
+      motivosPorEmpresa[c.empresa_id] = {};
     }
     empresasStats[c.empresa_id].total_chamados += 1;
     if (c.status === 'finalizado') {
       empresasStats[c.empresa_id].concluidos += 1;
       empresasStats[c.empresa_id].duracao_total += (c.duracao_segundos || 0);
+      const mot = c.motivo || 'Geral';
+      motivosPorEmpresa[c.empresa_id][mot] = (motivosPorEmpresa[c.empresa_id][mot] || 0) + 1;
     } else {
       empresasStats[c.empresa_id].em_andamento += 1;
     }
   });
 
-  const metricasEmpresas = Object.values(empresasStats).map((e) => ({
-    ...e,
-    tempo_medio_minutos: e.concluidos > 0 ? Math.round((e.duracao_total / e.concluidos) / 60) : 0,
-  })).sort((a, b) => b.total_chamados - a.total_chamados);
+  const totalGeralChamados = Math.max(1, chamados.length);
+  const metricasEmpresas = Object.values(empresasStats).map((e) => {
+    // Motivo mais frequente
+    const motivosEmp = motivosPorEmpresa[e.empresa_id] || {};
+    const motivoMaisFrequente = Object.entries(motivosEmp).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Atendimento Geral';
 
-  // Dados para o Gráfico de Linha do Tempo (Últimos 7 dias)
+    return {
+      ...e,
+      motivo_mais_frequente: motivoMaisFrequente,
+      tempo_medio_minutos: e.concluidos > 0 ? Math.round((e.duracao_total / e.concluidos) / 60) : 0,
+      percentual_do_total: Math.round((e.total_chamados / totalGeralChamados) * 100),
+    };
+  }).sort((a, b) => b.total_chamados - a.total_chamados);
+
+  // Métricas por Membro da Equipe / Colaborador (Suportes realizados e resolvidos)
+  const equipeUsuarios = getEquipeUsuarios();
+  const colaboradoresStats = {};
+
+  // Inicializa com todos os membros cadastrados na equipe
+  equipeUsuarios.forEach((u) => {
+    const emailNorm = (u.email || '').toLowerCase().trim();
+    if (!emailNorm) return;
+    colaboradoresStats[emailNorm] = {
+      id: u.id,
+      nome: u.nome,
+      email: u.email,
+      papel: u.papel || 'suporte',
+      total_chamados: 0,
+      resolvidos: 0,
+      em_andamento: 0,
+      duracao_total_segundos: 0,
+    };
+  });
+
+  // Agrega chamados realizados
+  chamados.forEach((c) => {
+    const atendenteEmail = (c.atendente || c.tecnico_email || '').toLowerCase().trim();
+    if (!atendenteEmail) return;
+
+    if (!colaboradoresStats[atendenteEmail]) {
+      const nomeAmigavel = atendenteEmail.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+      colaboradoresStats[atendenteEmail] = {
+        id: 'usr_' + Math.random().toString(36).substr(2, 6),
+        nome: nomeAmigavel,
+        email: atendenteEmail,
+        papel: 'suporte',
+        total_chamados: 0,
+        resolvidos: 0,
+        em_andamento: 0,
+        duracao_total_segundos: 0,
+      };
+    }
+
+    colaboradoresStats[atendenteEmail].total_chamados += 1;
+    if (c.status === 'finalizado') {
+      colaboradoresStats[atendenteEmail].resolvidos += 1;
+      colaboradoresStats[atendenteEmail].duracao_total_segundos += (c.duracao_segundos || 0);
+    } else if (c.status === 'em_andamento') {
+      colaboradoresStats[atendenteEmail].em_andamento += 1;
+    }
+  });
+
+  const maxResolvidos = Math.max(1, ...Object.values(colaboradoresStats).map((col) => col.resolvidos));
+
+  const metricasColaboradores = Object.values(colaboradoresStats).map((col) => {
+    const tempoMedioSeg = col.resolvidos > 0 ? Math.round(col.duracao_total_segundos / col.resolvidos) : 0;
+    const taxaResolucao = col.total_chamados > 0 ? Math.round((col.resolvidos / col.total_chamados) * 100) : 0;
+    const percentualLideranca = Math.round((col.resolvidos / maxResolvidos) * 100);
+
+    return {
+      ...col,
+      tempo_medio_segundos: tempoMedioSeg,
+      tempo_medio_minutos: Math.round(tempoMedioSeg / 60),
+      taxa_resolucao: taxaResolucao,
+      percentual_lideranca: percentualLideranca,
+    };
+  }).sort((a, b) => {
+    if (b.resolvidos !== a.resolvidos) return b.resolvidos - a.resolvidos;
+    return b.total_chamados - a.total_chamados;
+  });
+
+  // Dados para o Gráfico de Linha do Tempo (Últimos 7 dias em data local)
   const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   const evolucaoUltimos7Dias = [];
 
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(hoje.getDate() - i);
-    const dStr = d.toISOString().split('T')[0];
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const dStr = `${y}-${m}-${day}`;
     const diaNome = diasSemana[d.getDay()];
 
     const count = chamados.filter((c) => {
-      const dataChamado = (c.iniciado_em || '').split('T')[0];
+      const dataChamado = (c.iniciado_em || c.created_at || '').split('T')[0];
       return dataChamado === dStr;
     }).length;
 
@@ -508,6 +594,7 @@ export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim 
     tempoMedioMinutos: Math.round(tempoMedioSegundos / 60),
     topMotivos,
     metricasEmpresas,
+    metricasColaboradores,
     emAndamento,
     evolucaoUltimos7Dias,
   };
@@ -1291,20 +1378,47 @@ export async function addCustomChecklistItem(empresaId, { titulo, observacao = '
 // AUDITORIA E LGPD COM IDENTIFICAÇÃO DETALHADA E IP
 // ==============================================================================
 export async function getAuditoriaLogs() {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('auditoria_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(300);
+      if (!error && data && data.length > 0) {
+        return data.map((item) => ({
+          ...item,
+          criado_em: item.created_at || item.criado_em,
+          created_at: item.created_at || item.criado_em,
+          operador_nome: item.usuario_nome || item.operador_nome || 'Operador',
+        }));
+      }
+    } catch (err) {
+      console.warn('Falha ao consultar auditoria no Supabase:', err);
+    }
+  }
+
   const logsLocais = getLocalData('auditoria_logs', [
     {
       id: 'log_seed_1',
-      usuario_nome: 'Lucas Amorim',
+      usuario_nome: 'Lucas Amorim (Administrador)',
+      operador_nome: 'Lucas Amorim (Administrador)',
       usuario_email: 'admin@rmcontrole.com',
-      ip_origem: '192.168.15.2 (Local)',
+      ip_origem: '192.168.15.2 (Rede Local)',
       acao: 'sistema_iniciado',
       empresa_nome: 'Sistema Geral',
       detalhes: { modulo: 'Inicialização & Segurança' },
       created_at: new Date().toISOString(),
+      criado_em: new Date().toISOString(),
     },
   ]);
 
-  return logsLocais;
+  return logsLocais.map((item) => ({
+    ...item,
+    criado_em: item.created_at || item.criado_em || new Date().toISOString(),
+    created_at: item.created_at || item.criado_em || new Date().toISOString(),
+    operador_nome: item.usuario_nome || item.operador_nome || 'Administrador',
+  }));
 }
 
 export async function logVisualizacaoSenha(empresaId, userEmail = 'admin@rmcontrole.com', detalhes = {}) {

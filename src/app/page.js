@@ -24,7 +24,14 @@ import ServerConfigView from '@/components/ServerConfigView';
 import DashboardView from '@/components/DashboardView';
 import LoginView from '@/components/LoginView';
 import SupportCompletionModal from '@/components/SupportCompletionModal';
-import { MessageChannelIcon, ViewGridIcon, ViewListIcon } from '@/components/Icons';
+import { 
+  MessageChannelIcon, 
+  ViewGridIcon, 
+  ViewListIcon,
+  PlayIcon,
+  XMarkIcon,
+  CheckIcon 
+} from '@/components/Icons';
 
 export default function Home() {
   // Tema Visual: 'light' (Padrão Apple) | 'dark'
@@ -975,9 +982,10 @@ export default function Home() {
                 </div>
                 <button
                   onClick={() => setEmpresaAcaoModal(null)}
-                  className="text-slate-400 hover:text-slate-700 dark:hover:text-white text-sm font-bold p-1 rounded-full"
+                  className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 rounded-full cursor-pointer"
+                  title="Fechar"
                 >
-                  ✕
+                  <XMarkIcon className="w-4 h-4" />
                 </button>
               </div>
 
@@ -993,7 +1001,8 @@ export default function Home() {
                       }}
                       className="w-full py-2.5 px-4 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold shadow-sm hover:opacity-95 flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      <span>▶ Continuar Chamado em Andamento</span>
+                      <PlayIcon className="w-3.5 h-3.5 fill-current" />
+                      <span>Continuar Chamado em Andamento</span>
                     </motion.button>
 
                     <motion.button
@@ -1009,7 +1018,8 @@ export default function Home() {
                       }}
                       className="w-full py-2.5 px-4 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-600 dark:text-red-400 text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer"
                     >
-                      <span>✖ Cancelar Chamado</span>
+                      <XMarkIcon className="w-3.5 h-3.5" />
+                      <span>Cancelar Chamado</span>
                     </motion.button>
                   </>
                 ) : (
@@ -1028,7 +1038,8 @@ export default function Home() {
                       }}
                       className="w-full py-2.5 px-4 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold shadow-sm hover:opacity-95 flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      <span>▶ Iniciar Atendimento</span>
+                      <PlayIcon className="w-3.5 h-3.5 fill-current" />
+                      <span>Iniciar Atendimento</span>
                     </motion.button>
                   </>
                 )}

@@ -31,7 +31,16 @@ import {
   EyeIcon, 
   EyeOffIcon,
   ViewGridIcon,
-  ViewListIcon 
+  ViewListIcon,
+  SaveIcon,
+  CopyIcon,
+  AppleKeyIcon,
+  SparklesIcon,
+  PlayIcon,
+  CheckIcon,
+  XMarkIcon,
+  TrashIcon,
+  EditIcon
 } from './Icons';
 import SupportCompletionModal from './SupportCompletionModal';
 
@@ -470,7 +479,8 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
               onClick={handleIniciarSuporte}
               className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 flex items-center gap-2 transition-all cursor-pointer"
             >
-              <span>▶ Iniciar Atendimento de Suporte</span>
+              <PlayIcon className="w-3.5 h-3.5" />
+              <span>Iniciar Atendimento de Suporte</span>
             </motion.button>
           ) : (
             <div className="flex items-center gap-2 p-1.5 pl-3.5 rounded-full bg-amber-500/15 border border-amber-500/30 shadow-xs">
@@ -481,17 +491,18 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
               
               <button
                 onClick={() => setIsFinalizarModalOpen(true)}
-                className="px-3.5 py-1.5 rounded-full bg-[#84cc16] text-black font-bold text-xs hover:opacity-90 transition-all shadow-xs ml-1 cursor-pointer"
+                className="px-4 py-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs hover:opacity-95 transition-all shadow-xs ml-1 flex items-center gap-1.5 cursor-pointer"
               >
-                ✓ Concluir Chamado
+                <CheckIcon className="w-3.5 h-3.5" />
+                <span>Concluir Chamado</span>
               </button>
 
               <button
                 onClick={handleCancelarChamado}
-                className="px-3 py-1.5 rounded-full bg-red-500/20 hover:bg-red-500/30 text-red-600 dark:text-red-400 font-semibold text-xs transition-all cursor-pointer"
-                title="Cancelar atendimento se foi aberto por engano"
+                className="p-1.5 rounded-full hover:bg-red-500/20 text-slate-400 hover:text-red-500 transition-all cursor-pointer"
+                title="Cancelar atendimento"
               >
-                ✖ Cancelar
+                <XMarkIcon className="w-3.5 h-3.5" />
               </button>
             </div>
           )}
@@ -551,9 +562,14 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   type="button"
                   onClick={handleSalvarServidor}
                   disabled={salvandoServidor}
-                  className="text-[11px] font-bold text-[#4d7c0f] dark:text-[#84cc16] hover:underline"
+                  className="text-[11px] font-bold text-[#4d7c0f] dark:text-[#84cc16] hover:underline flex items-center gap-1 cursor-pointer"
                 >
-                  {salvandoServidor ? 'Salvando...' : '💾 Salvar'}
+                  {salvandoServidor ? 'Salvando...' : (
+                    <>
+                      <SaveIcon className="w-3 h-3" />
+                      <span>Salvar</span>
+                    </>
+                  )}
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -590,9 +606,14 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   type="button"
                   onClick={handleSalvarFormato}
                   disabled={salvandoFormato}
-                  className="text-[11px] font-bold text-[#4d7c0f] dark:text-[#84cc16] hover:underline"
+                  className="text-[11px] font-bold text-[#4d7c0f] dark:text-[#84cc16] hover:underline flex items-center gap-1 cursor-pointer"
                 >
-                  {salvandoFormato ? 'Salvando...' : '💾 Salvar'}
+                  {salvandoFormato ? 'Salvando...' : (
+                    <>
+                      <SaveIcon className="w-3 h-3" />
+                      <span>Salvar</span>
+                    </>
+                  )}
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -680,20 +701,9 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button
-                  onClick={() => setIsFinalizarModalOpen(true)}
-                  className="py-2.5 px-3 rounded-2xl bg-[#84cc16] hover:bg-[#65a30d] text-black font-bold text-xs transition-all text-center shadow-xs"
-                >
-                  ✓ Concluir
-                </button>
-                <button
-                  onClick={handleCancelarChamado}
-                  className="py-2.5 px-3 rounded-2xl bg-red-500/20 hover:bg-red-500/30 text-red-600 dark:text-red-400 font-semibold text-xs transition-all text-center"
-                >
-                  ✖ Cancelar
-                </button>
-              </div>
+              <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80 text-center font-medium leading-relaxed pt-1">
+                Atendimento ativo. Utilize o botão <span className="font-bold underline">Concluir Chamado</span> no topo para finalizar.
+              </p>
             </motion.div>
           )}
 
@@ -804,7 +814,10 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                         <h3 className="text-sm font-bold text-[#0a0a0c] dark:text-white">Conectar Novo Canal</h3>
                         <p className="text-xs text-slate-500">Selecione o tipo técnico e insira o número ou identificador.</p>
                       </div>
-                      <button onClick={() => setIsAddCanalOpen(false)} className="text-xs text-slate-400 hover:text-black dark:hover:text-white">✕ Fechar</button>
+                      <button onClick={() => setIsAddCanalOpen(false)} className="text-xs text-slate-400 hover:text-black dark:hover:text-white flex items-center gap-1 cursor-pointer">
+                        <XMarkIcon className="w-3.5 h-3.5" />
+                        <span>Fechar</span>
+                      </button>
                     </div>
 
                     <form onSubmit={handleAdicionarCanal} className="space-y-4">
@@ -1059,7 +1072,10 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                         </h3>
                         <p className="text-xs text-slate-500">Defina o rótulo do serviço e as credenciais.</p>
                       </div>
-                      <button type="button" onClick={() => setIsAddCredOpen(false)} className="text-xs text-slate-400 hover:text-black dark:hover:text-white">✕ Cancelar</button>
+                      <button type="button" onClick={() => setIsAddCredOpen(false)} className="text-xs text-slate-400 hover:text-black dark:hover:text-white flex items-center gap-1 cursor-pointer">
+                        <XMarkIcon className="w-3.5 h-3.5" />
+                        <span>Cancelar</span>
+                      </button>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -1100,9 +1116,10 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                           <button
                             type="button"
                             onClick={() => setCredSenha(generateSecurePassword(14))}
-                            className="text-[10px] text-[#4d7c0f] dark:text-[#84cc16] font-semibold hover:underline"
+                            className="text-[10px] text-[#4d7c0f] dark:text-[#84cc16] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                           >
-                            ⚡ Gerar Segura
+                            <SparklesIcon className="w-3 h-3" />
+                            <span>Gerar Senha Segura</span>
                           </button>
                         </div>
                         <input
@@ -1130,9 +1147,10 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                     </div>
 
                     <div className="flex justify-end gap-2 pt-2">
-                      <button type="button" onClick={() => setIsAddCredOpen(false)} className="px-4 py-2 rounded-full text-xs text-slate-600 hover:bg-black/5">Cancelar</button>
-                      <button type="submit" className="px-5 py-2 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs shadow-sm hover:opacity-90">
-                        {editandoCredId ? 'Salvar Alterações' : 'Cadastrar Acesso'}
+                      <button type="button" onClick={() => setIsAddCredOpen(false)} className="px-4 py-2 rounded-full text-xs text-slate-600 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer">Cancelar</button>
+                      <button type="submit" className="px-5 py-2 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs shadow-sm hover:opacity-90 flex items-center gap-1.5 cursor-pointer">
+                        <SaveIcon className="w-3.5 h-3.5" />
+                        <span>{editandoCredId ? 'Salvar Alterações' : 'Cadastrar Acesso'}</span>
                       </button>
                     </div>
                   </motion.form>
@@ -1158,8 +1176,8 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                       >
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-black/5 dark:border-white/5 pb-3">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-xl bg-black/5 dark:bg-white/10 flex items-center justify-center text-slate-700 dark:text-zinc-200 font-bold text-xs">
-                              🔑
+                            <div className="w-8 h-8 rounded-xl bg-[#4d7c0f]/10 dark:bg-[#84cc16]/10 flex items-center justify-center text-[#4d7c0f] dark:text-[#84cc16] font-bold text-xs border border-[#4d7c0f]/20">
+                              <AppleKeyIcon className="w-4 h-4" />
                             </div>
                             <div>
                               <h3 className="text-sm font-bold text-[#0a0a0c] dark:text-white">{cred.rotulo}</h3>
@@ -1262,8 +1280,8 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                         <div key={cred.id} className="p-4 sm:px-5 sm:py-3.5 flex flex-col lg:grid lg:grid-cols-12 gap-2 lg:gap-3 items-start lg:items-center hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors">
                           {/* Rótulo */}
                           <div className="lg:col-span-3 flex items-center gap-2 min-w-0">
-                            <span className="w-6 h-6 rounded-lg bg-black/5 dark:bg-white/10 flex items-center justify-center text-xs flex-shrink-0">
-                              🔑
+                            <span className="w-6 h-6 rounded-lg bg-[#4d7c0f]/10 dark:bg-[#84cc16]/10 flex items-center justify-center text-xs flex-shrink-0 border border-[#4d7c0f]/20">
+                              <AppleKeyIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16]" />
                             </span>
                             <div className="min-w-0">
                               <span className="text-xs font-bold text-[#0a0a0c] dark:text-white block truncate">{cred.rotulo}</span>
@@ -1381,7 +1399,9 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   >
                     <div className="flex items-center justify-between">
                       <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300">Adicionar Requisito Customizado</h3>
-                      <button type="button" onClick={() => setIsAddReqOpen(false)} className="text-xs text-slate-400">✕</button>
+                      <button type="button" onClick={() => setIsAddReqOpen(false)} className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer">
+                        <XMarkIcon className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <input
@@ -1494,7 +1514,9 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   >
                     <div className="flex items-center justify-between">
                       <h3 className="text-xs font-bold uppercase text-slate-700 dark:text-zinc-300">Nova Anotação Técnica</h3>
-                      <button type="button" onClick={() => setIsAddObsOpen(false)} className="text-xs text-slate-400">✕</button>
+                      <button type="button" onClick={() => setIsAddObsOpen(false)} className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer">
+                        <XMarkIcon className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                     <input
                       type="text"
@@ -1512,8 +1534,8 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                       className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs focus:outline-none leading-relaxed"
                     />
                     <div className="flex justify-end gap-2">
-                      <button type="button" onClick={() => setIsAddObsOpen(false)} className="px-4 py-1.5 text-xs text-slate-500">Cancelar</button>
-                      <button type="submit" disabled={loadingObs} className="px-4 py-1.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs">
+                      <button type="button" onClick={() => setIsAddObsOpen(false)} className="px-4 py-1.5 text-xs text-slate-500 cursor-pointer">Cancelar</button>
+                      <button type="submit" disabled={loadingObs} className="px-4 py-1.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs cursor-pointer">
                         Salvar Anotação
                       </button>
                     </div>
@@ -1545,9 +1567,10 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                         </div>
                         <button
                           onClick={() => handleRemoverObservacao(obs.id)}
-                          className="text-slate-400 hover:text-red-500 text-xs"
+                          className="text-slate-400 hover:text-red-500 p-1 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer"
+                          title="Remover anotação"
                         >
-                          ✕
+                          <TrashIcon className="w-3.5 h-3.5" />
                         </button>
                       </div>
                       <p className="text-xs text-slate-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">

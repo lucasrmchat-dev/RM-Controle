@@ -9,6 +9,7 @@ import {
   setCurrentUserRole,
   cancelarSuporte 
 } from '@/lib/storage';
+import { XMarkIcon } from './Icons';
 
 export default function Navbar({ 
   activeTab, 

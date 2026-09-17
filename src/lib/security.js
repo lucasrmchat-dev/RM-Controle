@@ -38,10 +38,12 @@ export async function logAuditoria({
     usuario_id: usuarioId,
     usuario_email: usuarioEmail,
     usuario_nome: nomeFinal,
+    operador_nome: nomeFinal,
     ip_origem: ipOrigem,
     acao,
     detalhes,
     created_at: new Date().toISOString(),
+    criado_em: new Date().toISOString(),
   };
 
   try {

@@ -3,6 +3,33 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAuditoriaLogs } from '@/lib/storage';
+import { CalendarIcon, RefreshIcon, ShieldCheckIcon, UserIcon } from './Icons';
+
+// Função para extrair data no formato local YYYY-MM-DD
+function extrairDataLocal(val) {
+  if (!val) return '';
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Formatação segura de Data e Hora no padrão pt-BR
+function formatarDataHora(val) {
+  if (!val) return 'Data não informada';
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return 'Data não informada';
+  return d.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+}
 
 export default function AuditLogsView() {
   const [logs, setLogs] = useState([]);
@@ -128,7 +155,7 @@ export default function AuditLogsView() {
     for (let i = -5; i <= 3; i++) {
       const d = new Date();
       d.setDate(hoje.getDate() + i);
-      const isoStr = d.toISOString().split('T')[0];
+      const isoStr = extrairDataLocal(d);
       const isHoje = i === 0;
       const isFuturo = i > 0;
 
@@ -147,7 +174,7 @@ export default function AuditLogsView() {
   // Filtragem dos Logs por Texto, Linha do Tempo e Filtro Avançado
   const logsFiltrados = useMemo(() => {
     return logs.filter((log) => {
-      const dataLog = (log.criado_em || '').split('T')[0];
+      const dataLog = extrairDataLocal(log.created_at || log.criado_em || log.detalhes?.timestamp || log.iniciado_em);
 
       // Filtro da Linha do Tempo
       if (diaSelecionado && dataLog !== diaSelecionado) {
@@ -165,7 +192,7 @@ export default function AuditLogsView() {
       // Filtro de Texto
       if (filtroTexto) {
         const termo = filtroTexto.toLowerCase();
-        const opNome = (log.operador_nome || '').toLowerCase();
+        const opNome = (log.usuario_nome || log.operador_nome || '').toLowerCase();
         const opEmail = (log.usuario_email || '').toLowerCase();
         const empNome = (log.empresa_nome || log.detalhes?.empresa_nome || '').toLowerCase();
         const ipOrigem = (log.ip_origem || '').toLowerCase();
@@ -207,17 +234,19 @@ export default function AuditLogsView() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setMostrarFiltroAvancado(!mostrarFiltroAvancado)}
-            className="px-4 py-2 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-[#16161a] hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-slate-700 dark:text-zinc-300 transition-all shadow-xs"
+            className="px-4 py-2 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-[#16161a] hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-slate-700 dark:text-zinc-300 transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
           >
-            🗓️ {mostrarFiltroAvancado ? 'Ocultar Filtro Avançado' : 'Filtro de Data Avançado'}
+            <CalendarIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16]" />
+            <span>{mostrarFiltroAvancado ? 'Ocultar Filtro Avançado' : 'Filtro por Período'}</span>
           </button>
 
           <button
             onClick={carregarLogs}
             disabled={loading}
-            className="px-4 py-2 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black text-xs font-semibold shadow-xs hover:opacity-90 transition-all"
+            className="px-4 py-2 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black text-xs font-semibold shadow-xs hover:opacity-90 transition-all flex items-center gap-1.5 cursor-pointer"
           >
-            {loading ? 'Atualizando...' : 'Atualizar Rastro'}
+            <RefreshIcon className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>{loading ? 'Atualizando...' : 'Atualizar Rastro'}</span>
           </button>
         </div>
       </div>
@@ -387,7 +416,7 @@ export default function AuditLogsView() {
           ) : (
             logsPaginados.map((log) => {
               const infoAcao = formatarAcao(log);
-              const dataFormatada = new Date(log.criado_em).toLocaleString('pt-BR');
+              const dataFormatada = formatarDataHora(log.created_at || log.criado_em);
 
               return (
                 <div key={log.id} className="p-4 sm:p-5 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors space-y-2">
@@ -419,7 +448,7 @@ export default function AuditLogsView() {
 
                   <div className="flex items-center gap-4 text-[11px] text-slate-500 dark:text-zinc-400 font-mono pt-1 flex-wrap">
                     <span>
-                      Operador: <strong className="text-slate-800 dark:text-zinc-200">{log.operador_nome || 'Administrador'}</strong> ({log.usuario_email})
+                      Operador: <strong className="text-slate-800 dark:text-zinc-200">{log.usuario_nome || log.operador_nome || 'Administrador'}</strong> ({log.usuario_email})
                     </span>
                     <span>•</span>
                     <span>

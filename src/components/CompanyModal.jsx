@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { generateSecurePassword } from '@/lib/security';
 import { getSenhaPadraoRedefinicao } from '@/lib/storage';
+import { CheckIcon, SparklesIcon, XMarkIcon } from './Icons';
 
 export default function CompanyModal({ isOpen, onClose, onCreated }) {
   const [mode, setMode] = useState('manual'); // 'manual' | 'massa'
@@ -186,7 +187,7 @@ export default function CompanyModal({ isOpen, onClose, onCreated }) {
                   >
                     <div className="flex items-center justify-between mb-0.5">
                       <span className="text-xs font-semibold">Servidor 1</span>
-                      {servidor === 'servidor_1' && <span className="text-xs font-bold text-[#4d7c0f] dark:text-[#84cc16]">✓</span>}
+                      {servidor === 'servidor_1' && <CheckIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16]" />}
                     </div>
                     <p className="text-[11px] text-slate-500 leading-tight">Cluster primário</p>
                   </button>
@@ -202,7 +203,7 @@ export default function CompanyModal({ isOpen, onClose, onCreated }) {
                   >
                     <div className="flex items-center justify-between mb-0.5">
                       <span className="text-xs font-semibold">Servidor 2</span>
-                      {servidor === 'servidor_2' && <span className="text-xs font-bold text-[#4d7c0f] dark:text-[#84cc16]">✓</span>}
+                      {servidor === 'servidor_2' && <CheckIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16]" />}
                     </div>
                     <p className="text-[11px] text-slate-500 leading-tight">Cluster de expansão</p>
                   </button>
@@ -226,7 +227,7 @@ export default function CompanyModal({ isOpen, onClose, onCreated }) {
                   >
                     <div className="flex items-center justify-between mb-0.5">
                       <span className="text-xs font-semibold">Colaborativo</span>
-                      {formato === 'colaborativo' && <span className="text-xs font-bold text-[#4d7c0f] dark:text-[#84cc16]">✓</span>}
+                      {formato === 'colaborativo' && <CheckIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16]" />}
                     </div>
                     <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-tight">
                       Fila única compartilhada entre os atendentes.
@@ -244,7 +245,7 @@ export default function CompanyModal({ isOpen, onClose, onCreated }) {
                   >
                     <div className="flex items-center justify-between mb-0.5">
                       <span className="text-xs font-semibold">Individual</span>
-                      {formato === 'individual' && <span className="text-xs font-bold text-[#4d7c0f] dark:text-[#84cc16]">✓</span>}
+                      {formato === 'individual' && <CheckIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16]" />}
                     </div>
                     <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-tight">
                       Cada atendente opera sua própria carteira isolada.
@@ -276,9 +277,10 @@ export default function CompanyModal({ isOpen, onClose, onCreated }) {
                     <button
                       type="button"
                       onClick={handleGerarSenha}
-                      className="text-[10px] text-[#4d7c0f] dark:text-[#84cc16] font-semibold hover:underline"
+                      className="text-[10px] text-[#4d7c0f] dark:text-[#84cc16] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                     >
-                      ⚡ Gerar Senha
+                      <SparklesIcon className="w-3 h-3" />
+                      <span>Gerar Senha</span>
                     </button>
                   </div>
                   <input

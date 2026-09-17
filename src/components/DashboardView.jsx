@@ -1,17 +1,30 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   getMetricasSuporte, 
   getChamadosSuporte, 
-  getMotivosSuporte, 
-  addMotivoSuporte, 
-  removeMotivoSuporte, 
-  finalizarSuporte 
+  finalizarSuporte,
+  getEmpresas
 } from '@/lib/storage';
 import SupportCompletionModal from './SupportCompletionModal';
-import { ViewGridIcon, ViewListIcon } from './Icons';
+import { 
+  ViewGridIcon, 
+  ViewListIcon, 
+  TrophyIcon, 
+  MedalIcon, 
+  SparklesIcon, 
+  ClockIcon, 
+  CheckIcon, 
+  BuildingIcon, 
+  CrownIcon, 
+  WrenchIcon, 
+  BriefcaseIcon,
+  PlayIcon,
+  UsersIcon,
+  ChartBarIcon
+} from './Icons';
 
 export default function DashboardView({ onSelectEmpresa, userEmail }) {
   const [metricas, setMetricas] = useState({
@@ -22,15 +35,13 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
     tempoMedioSegundos: 0,
     topMotivos: [],
     metricasEmpresas: [],
+    metricasColaboradores: [],
     emAndamento: [],
     evolucaoUltimos7Dias: [],
   });
 
   const [chamadosRecentes, setChamadosRecentes] = useState([]);
-  const [motivos, setMotivos] = useState([]);
-  const [isGerenciarMotivosOpen, setIsGerenciarMotivosOpen] = useState(false);
-  const [novoMotivoNome, setNovoMotivoNome] = useState('');
-  const [novoMotivoDesc, setNovoMotivoDesc] = useState('');
+  const [empresasLista, setEmpresasLista] = useState([]);
 
   // Períodos e Filtros de Data
   const [periodo, setPeriodo] = useState('7d'); // 'hoje' | '7d' | '30d' | 'mes_atual' | 'personalizado'
@@ -46,12 +57,12 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
   // Timer ao vivo para chamados em andamento
   const [, setTick] = useState(0);
 
-  const carregarDados = () => {
+  const carregarDados = async () => {
     const met = getMetricasSuporte({ periodo, dataInicio, dataFim });
     setMetricas(met);
     setChamadosRecentes(getChamadosSuporte().slice(0, 15));
-    const mot = getMotivosSuporte();
-    setMotivos(mot);
+    const emp = await getEmpresas();
+    setEmpresasLista(emp);
   };
 
   useEffect(() => {
@@ -79,138 +90,81 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
     return `${mins}m ${secs.toString().padStart(2, '0')}s`;
   };
 
-  const calcularTempoDecorrido = (iniciadoEm) => {
-    const inicio = new Date(iniciadoEm).getTime();
+  const calcularTempoDecorrido = (inicioIso) => {
+    if (!inicioIso) return '00:00';
     const agora = Date.now();
-    const diff = Math.max(0, Math.round((agora - inicio) / 1000));
-    return formatarDuracao(diff);
+    const inicio = new Date(inicioIso).getTime();
+    const diffSeg = Math.max(0, Math.floor((agora - inicio) / 1000));
+    const mins = Math.floor(diffSeg / 60);
+    const secs = diffSeg % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleSalvarNovoMotivo = (e) => {
-    e.preventDefault();
-    if (!novoMotivoNome.trim()) return;
-    addMotivoSuporte({ nome: novoMotivoNome.trim(), descricao: novoMotivoDesc.trim() });
-    setNovoMotivoNome('');
-    setNovoMotivoDesc('');
-    setMotivos(getMotivosSuporte());
+  const handleAbrirFinalizacao = (chamado) => {
+    setChamadoParaFinalizar(chamado);
   };
 
-  const handleRemoverMotivo = (id) => {
-    removeMotivoSuporte(id);
-    setMotivos(getMotivosSuporte());
-  };
-
-  const handleAbrirFinalizacao = (ch) => {
-    const inicio = new Date(ch.iniciado_em).getTime();
-    const diff = Math.max(1, Math.round((Date.now() - inicio) / 1000));
-    setTempoCongelado(diff);
-    setChamadoParaFinalizar(ch);
-  };
-
-  const handleConfirmarFinalizacao = async (e) => {
-    e.preventDefault();
-    if (!chamadoParaFinalizar || !motivoSelecionado) return;
-
-    try {
-      setFinalizando(true);
-      await finalizarSuporte({
-        chamado_id: chamadoParaFinalizar.id,
-        motivo: motivoSelecionado,
-        observacoes: obsFinalizacao,
-        duracao_segundos: tempoCongelado,
-        userEmail,
-      });
-      setChamadoParaFinalizar(null);
-      setTempoCongelado(null);
-      setObsFinalizacao('');
-      carregarDados();
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setFinalizando(false);
-    }
-  };
-
-  // Cores harmoniosas Apple para os gráficos
-  const paletaCores = [
-    '#4d7c0f', // Verde Oliva
-    '#3b82f6', // Azul
-    '#8b5cf6', // Roxo
-    '#f59e0b', // Âmbar
-    '#ec4899', // Rosa
-    '#06b6d4', // Ciano
-    '#64748b', // Grafite
-  ];
-
-  // Cálculo para o Gráfico de Evolução (Linha SVG dos 7 dias)
-  const evolucao = metricas.evolucaoUltimos7Dias || [];
-  const maxChamadosEvolucao = Math.max(3, ...evolucao.map((d) => d.chamados));
-  const svgWidth = 600;
-  const svgHeight = 170;
-  const paddingX = 40;
+  // Cálculos do Gráfico SVG de Evolução Temporal
+  const maxChamadosDia = Math.max(1, ...metricas.evolucaoUltimos7Dias.map((d) => d.chamados));
+  const svgWidth = 500;
+  const svgHeight = 160;
+  const paddingX = 35;
   const paddingY = 25;
 
-  const points = evolucao.map((d, index) => {
-    const x = paddingX + (index * (svgWidth - 2 * paddingX)) / Math.max(1, evolucao.length - 1);
-    const y = svgHeight - paddingY - (d.chamados / maxChamadosEvolucao) * (svgHeight - 2 * paddingY);
-    return { x, y, ...d };
+  const pontosGrafico = metricas.evolucaoUltimos7Dias.map((d, index) => {
+    const totalPontos = metricas.evolucaoUltimos7Dias.length;
+    const x = paddingX + (index / (totalPontos - 1 || 1)) * (svgWidth - 2 * paddingX);
+    const y = svgHeight - paddingY - (d.chamados / maxChamadosDia) * (svgHeight - 2 * paddingY);
+    return { x, y, valor: d.chamados, label: d.label, data: d.data };
   });
 
-  const pathD = points.length > 0 ? points.reduce((acc, p, i) => {
+  const pathD = pontosGrafico.reduce((acc, p, i) => {
     return i === 0 ? `M ${p.x} ${p.y}` : `${acc} L ${p.x} ${p.y}`;
-  }, '') : '';
+  }, '');
 
-  const areaD = points.length > 0 
-    ? `${pathD} L ${points[points.length - 1].x} ${svgHeight - paddingY} L ${points[0].x} ${svgHeight - paddingY} Z` 
+  const areaD = pontosGrafico.length > 0
+    ? `${pathD} L ${pontosGrafico[pontosGrafico.length - 1].x} ${svgHeight - paddingY} L ${pontosGrafico[0].x} ${svgHeight - paddingY} Z`
     : '';
 
-  // Cálculo para o Donut Chart de Motivos
+  // Cores da Apple para Distribuição de Motivos (Donut)
+  const coresApple = ['#4d7c0f', '#0ea5e9', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b'];
   const totalMotivosCount = metricas.topMotivos.reduce((acc, m) => acc + m.count, 0);
-  let accumulatedAngle = 0;
-  const donutSegments = metricas.topMotivos.map((m, index) => {
-    const fraction = totalMotivosCount > 0 ? m.count / totalMotivosCount : 0;
-    const strokeDasharray = `${fraction * 283} ${283}`;
-    const strokeDashoffset = -accumulatedAngle;
-    accumulatedAngle += fraction * 283;
-    return {
-      ...m,
-      color: paletaCores[index % paletaCores.length],
-      strokeDasharray,
-      strokeDashoffset,
-      fraction,
-    };
+
+  let acumuladorOffset = 0;
+  const donutSegments = metricas.topMotivos.map((m, idx) => {
+    const color = coresApple[idx % coresApple.length];
+    const percentual = totalMotivosCount > 0 ? (m.count / totalMotivosCount) : 0;
+    const dashArray = `${percentual * 283} ${283 - percentual * 283}`;
+    const dashOffset = -acumuladorOffset * 283;
+    acumuladorOffset += percentual;
+    return { ...m, color, strokeDasharray: dashArray, strokeDashoffset: dashOffset };
   });
 
+  const taxaResolucaoGeral = metricas.totalChamados > 0 
+    ? Math.round((metricas.finalizadosCount / metricas.totalChamados) * 100) 
+    : 100;
+
   return (
-    <div className="space-y-6 text-[#1d1d1f] dark:text-[#f5f5f7]">
+    <div className="space-y-7 text-[#1d1d1f] dark:text-[#f5f5f7]">
       
-      {/* Cabeçalho */}
+      {/* ============================================================================== */}
+      {/* CABEÇALHO DO DASHBOARD (ESTRITAMENTE MÉTRICAS E INDICADORES) */}
+      {/* ============================================================================== */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#1d1d1f] dark:text-white">
             Dashboard de Atendimentos & Métricas
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-0.5">
-            Visão executiva, tendências temporais, distribuição de demandas e tempo médio de atendimento (TMA).
+            Métricas consolidadas, produtividade da equipe, clientes mais demandantes e análise temporal de suporte.
           </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <motion.button
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setIsGerenciarMotivosOpen(!isGerenciarMotivosOpen)}
-            className="px-4 py-2 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-xs font-semibold text-slate-700 dark:text-zinc-300 shadow-sm transition-all cursor-pointer"
-          >
-            ⚙ Configurar Motivos de Chamado
-          </motion.button>
         </div>
       </div>
 
       {/* Barra de Filtros de Período Estilo Apple */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-2xl border border-black/8 dark:border-white/10 bg-white/80 dark:bg-[#16161a]/80 backdrop-blur-xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2.5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/80 backdrop-blur-xl shadow-xs">
         <div className="flex items-center gap-1.5 overflow-x-auto p-0.5">
-          <span className="text-xs font-semibold text-slate-500 dark:text-zinc-400 pl-1 pr-2">Período:</span>
+          <span className="text-xs font-semibold text-slate-500 dark:text-zinc-400 pl-2 pr-1">Período:</span>
           {[
             { id: 'hoje', label: 'Hoje' },
             { id: '7d', label: 'Últimos 7 dias' },
@@ -221,10 +175,10 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
             <button
               key={p.id}
               onClick={() => setPeriodo(p.id)}
-              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                 periodo === p.id
-                  ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs'
-                  : 'bg-black/4 dark:bg-white/6 text-slate-600 dark:text-zinc-400 hover:bg-black/8'
+                  ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs font-bold'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'
               }`}
             >
               {p.label}
@@ -233,159 +187,123 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
         </div>
 
         {periodo === 'personalizado' && (
-          <div className="flex items-center gap-2 text-xs">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex items-center gap-2 px-2"
+          >
             <input
               type="date"
               value={dataInicio}
               onChange={(e) => setDataInicio(e.target.value)}
-              className="px-2.5 py-1 rounded-xl bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/15 text-xs text-black dark:text-white"
+              className="px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.02] dark:bg-white/[0.04] text-xs text-[#1d1d1f] dark:text-white font-mono"
             />
-            <span className="text-slate-400">até</span>
+            <span className="text-xs text-slate-400">até</span>
             <input
               type="date"
               value={dataFim}
               onChange={(e) => setDataFim(e.target.value)}
-              className="px-2.5 py-1 rounded-xl bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/15 text-xs text-black dark:text-white"
+              className="px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.02] dark:bg-white/[0.04] text-xs text-[#1d1d1f] dark:text-white font-mono"
             />
-          </div>
-        )}
-      </div>
-
-      {/* Painel Administrativo de Motivos */}
-      <AnimatePresence>
-        {isGerenciarMotivosOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-4 shadow-sm"
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
-                Gerenciar Categorias & Causas de Suporte
-              </h3>
-              <button
-                onClick={() => setIsGerenciarMotivosOpen(false)}
-                className="text-xs text-slate-400 hover:text-slate-700 dark:hover:text-white"
-              >
-                Fechar
-              </button>
-            </div>
-
-            <form onSubmit={handleSalvarNovoMotivo} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <input
-                type="text"
-                value={novoMotivoNome}
-                onChange={(e) => setNovoMotivoNome(e.target.value)}
-                placeholder="Nome do motivo (ex: Queda de Instância)"
-                required
-                className="px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none"
-              />
-              <input
-                type="text"
-                value={novoMotivoDesc}
-                onChange={(e) => setNovoMotivoDesc(e.target.value)}
-                placeholder="Descrição ou procedimento (opcional)"
-                className="px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none"
-              />
-              <button
-                type="submit"
-                className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-semibold text-xs shadow-sm"
-              >
-                + Adicionar Motivo
-              </button>
-            </form>
-
-            <div className="flex flex-wrap gap-2 pt-3 border-t border-black/[0.04] dark:border-white/[0.05]">
-              {motivos.map((m) => (
-                <span
-                  key={m.id}
-                  className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/[0.03] dark:bg-white/[0.05] text-slate-700 dark:text-zinc-300 text-xs border border-black/[0.05] dark:border-white/[0.06]"
-                >
-                  <span>{m.nome}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoverMotivo(m.id)}
-                    className="text-slate-400 hover:text-red-500 font-bold ml-1"
-                    title="Remover"
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
           </motion.div>
         )}
-      </AnimatePresence>
-
-      {/* 4 Cards de Métricas Principais Widescreen */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        
-        <motion.div whileHover={{ y: -2 }} className="rounded-3xl p-5 sm:p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-sm">
-          <span className="text-xs font-medium text-slate-500 dark:text-zinc-400 block mb-1">
-            Total de Atendimentos
-          </span>
-          <span className="text-3xl font-bold text-[#1d1d1f] dark:text-white font-mono tabular-nums">
-            {metricas.totalChamados}
-          </span>
-          <p className="text-[11px] text-slate-400 dark:text-zinc-500 mt-1 font-medium">
-            {metricas.finalizadosCount} finalizados
-          </p>
-        </motion.div>
-
-        <motion.div
-          whileHover={{ y: -2 }}
-          className={`rounded-3xl p-5 sm:p-6 border transition-all ${
-            metricas.emAndamentoCount > 0
-              ? 'border-amber-500/40 bg-amber-500/[0.04] dark:bg-amber-500/[0.08]'
-              : 'border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a]'
-          } shadow-sm`}
-        >
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium text-slate-500 dark:text-zinc-400">
-              Em Andamento
-            </span>
-            {metricas.emAndamentoCount > 0 && (
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping"></span>
-            )}
-          </div>
-          <span className={`text-3xl font-bold font-mono tabular-nums ${
-            metricas.emAndamentoCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-[#1d1d1f] dark:text-white'
-          }`}>
-            {metricas.emAndamentoCount}
-          </span>
-          <p className="text-[11px] text-slate-400 dark:text-zinc-500 mt-1 font-medium">
-            {metricas.emAndamentoCount > 0 ? 'Chamados ativos agora' : 'Nenhum chamado aberto'}
-          </p>
-        </motion.div>
-
-        <motion.div whileHover={{ y: -2 }} className="rounded-3xl p-5 sm:p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-sm">
-          <span className="text-xs font-medium text-slate-500 dark:text-zinc-400 block mb-1">
-            Tempo Médio Geral (TMA)
-          </span>
-          <span className="text-3xl font-bold text-[#1d1d1f] dark:text-white font-mono tabular-nums">
-            {formatarDuracao(metricas.tempoMedioSegundos)}
-          </span>
-          <p className="text-[11px] text-slate-400 dark:text-zinc-500 mt-1 font-medium">
-            Média por atendimento
-          </p>
-        </motion.div>
-
-        <motion.div whileHover={{ y: -2 }} className="rounded-3xl p-5 sm:p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-sm">
-          <span className="text-xs font-medium text-slate-500 dark:text-zinc-400 block mb-1">
-            Principal Demanda
-          </span>
-          <span className="text-sm font-semibold text-[#4d7c0f] dark:text-[#84cc16] truncate block mt-1" title={metricas.topMotivos[0]?.nome}>
-            {metricas.topMotivos[0]?.nome || 'Sem dados'}
-          </span>
-          <p className="text-[11px] text-slate-400 dark:text-zinc-500 mt-1 font-medium">
-            {metricas.topMotivos[0]?.count ? `${metricas.topMotivos[0]?.count} chamados` : 'Nenhum registro'}
-          </p>
-        </motion.div>
-
       </div>
 
-      {/* Chamados em Andamento (Ao Vivo) */}
+      {/* ============================================================================== */}
+      {/* 4 CARDS DE KPI DE ALTA FIDELIDADE (APPLE HIG) */}
+      {/* ============================================================================== */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* KPI 1: Total de Chamados */}
+        <motion.div 
+          whileHover={{ y: -2 }}
+          transition={{ duration: 0.2 }}
+          className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2"
+        >
+          <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
+            <span className="text-xs font-semibold uppercase tracking-wider">Total de Chamados</span>
+            <span className="p-2 rounded-2xl bg-black/[0.03] dark:bg-white/[0.05]">
+              <ChartBarIcon className="w-4 h-4 text-[#4d7c0f] dark:text-[#84cc16]" />
+            </span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
+              {metricas.totalChamados}
+            </span>
+            <span className="text-[11px] text-slate-400">no período</span>
+          </div>
+        </motion.div>
+
+        {/* KPI 2: Suportes Finalizados */}
+        <motion.div 
+          whileHover={{ y: -2 }}
+          transition={{ duration: 0.2 }}
+          className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2"
+        >
+          <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
+            <span className="text-xs font-semibold uppercase tracking-wider">Resolvidos</span>
+            <span className="p-2 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <CheckIcon className="w-4 h-4" />
+            </span>
+          </div>
+          <div className="flex items-baseline justify-between">
+            <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
+              {metricas.finalizadosCount}
+            </span>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+              {taxaResolucaoGeral}% resolvidos
+            </span>
+          </div>
+        </motion.div>
+
+        {/* KPI 3: Chamados em Andamento */}
+        <motion.div 
+          whileHover={{ y: -2 }}
+          transition={{ duration: 0.2 }}
+          className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2"
+        >
+          <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
+            <span className="text-xs font-semibold uppercase tracking-wider">Em Andamento</span>
+            <span className="p-2 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <ClockIcon className="w-4 h-4" />
+            </span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
+              {metricas.emAndamentoCount}
+            </span>
+            {metricas.emAndamentoCount > 0 && (
+              <span className="flex items-center gap-1.5 text-[11px] font-bold text-amber-700 dark:text-amber-400">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                ao vivo agora
+              </span>
+            )}
+          </div>
+        </motion.div>
+
+        {/* KPI 4: Tempo Médio de Atendimento (TMA) */}
+        <motion.div 
+          whileHover={{ y: -2 }}
+          transition={{ duration: 0.2 }}
+          className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2"
+        >
+          <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
+            <span className="text-xs font-semibold uppercase tracking-wider">Tempo Médio (TMA)</span>
+            <span className="p-2 rounded-2xl bg-[#4d7c0f]/10 text-[#4d7c0f] dark:text-[#84cc16]">
+              <ClockIcon className="w-4 h-4" />
+            </span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
+              {metricas.tempoMedioMinutos}
+            </span>
+            <span className="text-xs text-slate-400 font-medium">minutos / chamado</span>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* ============================================================================== */}
+      {/* CHAMADOS EM ANDAMENTO (AO VIVO COM CRONÔMETRO) */}
+      {/* ============================================================================== */}
       {metricas.emAndamento.length > 0 && (
         <div className="rounded-3xl p-6 border border-amber-500/30 bg-amber-500/[0.03] dark:bg-amber-500/[0.06] space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -438,11 +356,11 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
                   key={ch.id}
                   className="p-4 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] flex items-center justify-between gap-3 shadow-xs"
                 >
-                  <div>
-                    <h4 className="text-xs font-semibold text-[#1d1d1f] dark:text-white">
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-semibold text-[#1d1d1f] dark:text-white truncate">
                       {ch.empresa_nome}
                     </h4>
-                    <p className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono">
+                    <p className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono truncate">
                       Técnico: {ch.tecnico_email}
                     </p>
                     <div className="flex items-center gap-1.5 mt-1">
@@ -455,7 +373,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
 
                   <button
                     onClick={() => handleAbrirFinalizacao(ch)}
-                    className="px-3.5 py-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-semibold text-[11px] hover:opacity-90 shadow-sm cursor-pointer"
+                    className="px-3.5 py-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-semibold text-[11px] hover:opacity-90 shadow-sm cursor-pointer flex-shrink-0"
                   >
                     Finalizar
                   </button>
@@ -463,7 +381,6 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
               ))}
             </div>
           ) : (
-            /* Visualização em Lista de Chamados em Andamento */
             <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-xs">
               <div className="hidden sm:grid grid-cols-12 gap-3 px-4 py-2.5 border-b border-black/[0.05] dark:border-white/[0.06] text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 bg-black/[0.01] dark:bg-white/[0.02]">
                 <div className="col-span-5">Empresa em Suporte</div>
@@ -511,6 +428,238 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
       )}
 
       {/* ============================================================================== */}
+      {/* SEÇÃO LÚDICA COM MOTION: DESEMPENHO E PRODUTIVIDADE DA EQUIPE */}
+      {/* ============================================================================== */}
+      <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-5 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-xl bg-[#4d7c0f]/10 dark:bg-[#84cc16]/10 flex items-center justify-center text-[#4d7c0f] dark:text-[#84cc16]">
+                <UsersIcon className="w-4 h-4" />
+              </div>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                Produtividade & Resoluções da Equipe
+              </h3>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Acompanhe os chamados atendidos e o volume de problemas solucionados por cada colaborador.
+            </p>
+          </div>
+
+          <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono self-start sm:self-auto">
+            {metricas.metricasColaboradores.length} membros mapeados
+          </span>
+        </div>
+
+        {metricas.metricasColaboradores.length === 0 ? (
+          <p className="text-xs text-slate-400 italic py-6 text-center">
+            Nenhum membro com chamados registrados no período selecionado.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {metricas.metricasColaboradores.map((col, idx) => {
+              const isTopPerformer = idx === 0 && col.resolvidos > 0;
+
+              return (
+                <motion.div
+                  key={col.email}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: idx * 0.06 }}
+                  whileHover={{ y: -3 }}
+                  className={`rounded-3xl p-5 border transition-all relative overflow-hidden flex flex-col justify-between ${
+                    isTopPerformer
+                      ? 'border-[#4d7c0f]/40 dark:border-[#84cc16]/40 bg-gradient-to-b from-[#4d7c0f]/[0.05] to-transparent dark:from-[#84cc16]/[0.08] shadow-apple-hover'
+                      : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.01] dark:bg-white/[0.02] hover:bg-white dark:hover:bg-[#16161a] hover:shadow-apple-hover'
+                  }`}
+                >
+                  <div>
+                    {/* Header do Membro com Avatar e Badge */}
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#4d7c0f]/20 to-[#84cc16]/25 dark:from-[#84cc16]/20 dark:to-[#4d7c0f]/10 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-sm flex items-center justify-center border border-[#4d7c0f]/20 flex-shrink-0">
+                          {col.nome.charAt(0)}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white truncate">
+                            {col.nome}
+                          </h4>
+                          <span className="text-[10px] text-slate-400 font-mono truncate block">
+                            {col.email}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Distintivo de Liderança / Destaque */}
+                      {isTopPerformer ? (
+                        <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#4d7c0f]/15 dark:bg-[#84cc16]/15 border border-[#4d7c0f]/30 dark:border-[#84cc16]/30 text-[#4d7c0f] dark:text-[#84cc16] text-[10px] font-bold shadow-xs flex-shrink-0">
+                          <TrophyIcon className="w-3.5 h-3.5" />
+                          <span>Destaque</span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-500 dark:text-zinc-400 flex-shrink-0">
+                          #{idx + 1}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Bloco de Suportes Resolvidos */}
+                    <div className="grid grid-cols-2 gap-2.5 p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-black/[0.04] dark:border-white/[0.06] mb-3">
+                      <div>
+                        <span className="text-[10px] font-medium text-slate-400 block">Resolvidos</span>
+                        <div className="flex items-baseline gap-1.5 mt-0.5">
+                          <span className="text-xl font-bold font-mono text-[#4d7c0f] dark:text-[#84cc16] tabular-nums">
+                            {col.resolvidos}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            / {col.total_chamados} total
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="border-l border-black/[0.04] dark:border-white/[0.06] pl-2.5">
+                        <span className="text-[10px] font-medium text-slate-400 block">Tempo Médio</span>
+                        <div className="flex items-baseline gap-1 mt-0.5">
+                          <span className="text-xl font-bold font-mono text-[#1d1d1f] dark:text-white tabular-nums">
+                            {col.tempo_medio_minutos}
+                          </span>
+                          <span className="text-[10px] text-slate-400">min</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Barra de Progresso Relativo */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-zinc-400">
+                        <span>Taxa de Resolução</span>
+                        <span className="font-mono font-bold text-slate-700 dark:text-zinc-300">{col.taxa_resolucao}%</span>
+                      </div>
+                      <div className="w-full h-1.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-[#4d7c0f] to-[#84cc16] transition-all duration-500"
+                          style={{ width: `${col.taxa_resolucao}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Rodapé do Card */}
+                  <div className="pt-3 mt-3 border-t border-black/[0.04] dark:border-white/[0.05] flex items-center justify-between text-[11px] text-slate-400">
+                    <span className="capitalize">{col.papel}</span>
+                    {col.em_andamento > 0 ? (
+                      <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                        {col.em_andamento} em atendimento
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">Disponível</span>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ============================================================================== */}
+      {/* SEÇÃO: EMPRESAS QUE MAIS DEMANDAM SUPORTE */}
+      {/* ============================================================================== */}
+      <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-5 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-xl bg-blue-500/10 dark:bg-blue-400/10 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                <BuildingIcon className="w-4 h-4" />
+              </div>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                Empresas com Maior Demanda de Suporte
+              </h3>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Identifique as contas com maior volume de chamados, causas recorrentes e tempo dedicado pela equipe.
+            </p>
+          </div>
+
+          <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono self-start sm:self-auto">
+            {metricas.metricasEmpresas.length} empresas com chamados
+          </span>
+        </div>
+
+        {metricas.metricasEmpresas.length === 0 ? (
+          <p className="text-xs text-slate-400 italic py-6 text-center">
+            Nenhuma empresa com registros de suporte no período selecionado.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {metricas.metricasEmpresas.slice(0, 8).map((emp, idx) => {
+              const maxChamados = Math.max(1, ...metricas.metricasEmpresas.map((e) => e.total_chamados));
+              const barWidth = Math.max(8, Math.round((emp.total_chamados / maxChamados) * 100));
+              const empresaObj = empresasLista.find((e) => e.id === emp.empresa_id);
+
+              return (
+                <div
+                  key={emp.empresa_id}
+                  className="p-4 sm:p-5 rounded-2xl border border-black/[0.04] dark:border-white/[0.06] bg-black/[0.01] dark:bg-white/[0.02] hover:bg-white dark:hover:bg-zinc-900/60 hover:shadow-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                >
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <span className="w-6 h-6 rounded-lg bg-black/[0.04] dark:bg-white/[0.06] font-mono text-xs font-bold flex items-center justify-center text-slate-600 dark:text-zinc-400 flex-shrink-0">
+                        #{idx + 1}
+                      </span>
+                      <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white truncate">
+                        {emp.empresa_nome}
+                      </h4>
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
+                        {emp.total_chamados} {emp.total_chamados === 1 ? 'chamado' : 'chamados'} ({emp.percentual_do_total}%)
+                      </span>
+                      {emp.em_andamento > 0 && (
+                        <span className="text-[9px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                          {emp.em_andamento} em aberto
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Barra de Proporção de Demanda */}
+                    <div className="w-full h-1.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-blue-500 to-[#4d7c0f] dark:to-[#84cc16] transition-all duration-500"
+                        style={{ width: `${barWidth}%` }}
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-4 text-[11px] text-slate-500 dark:text-zinc-400 font-mono flex-wrap">
+                      <span>
+                        Principal Motivo: <strong className="text-slate-800 dark:text-zinc-200">{emp.motivo_mais_frequente}</strong>
+                      </span>
+                      <span>•</span>
+                      <span>
+                        TMA: <strong className="text-slate-800 dark:text-zinc-200">{emp.tempo_medio_minutos} min</strong>
+                      </span>
+                      <span>•</span>
+                      <span>
+                        Tempo Total: <strong className="text-slate-800 dark:text-zinc-200">{Math.round((emp.duracao_total || 0) / 60)} min</strong>
+                      </span>
+                    </div>
+                  </div>
+
+                  {empresaObj && onSelectEmpresa && (
+                    <button
+                      onClick={() => onSelectEmpresa(empresaObj)}
+                      className="px-4 py-2 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-[#1d1d1f] dark:text-white transition-all self-start sm:self-center flex-shrink-0 cursor-pointer"
+                    >
+                      Ver Empresa →
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ============================================================================== */}
       {/* SEÇÃO DE GRÁFICOS WIDESCREEN ESTILO APPLE */}
       {/* ============================================================================== */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
@@ -551,18 +700,15 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
                     y2={y}
                     stroke="currentColor"
                     className="text-black/[0.04] dark:text-white/[0.05]"
-                    strokeDasharray="3 3"
-                    strokeWidth="1"
+                    strokeDasharray="4 4"
                   />
                 );
               })}
 
               {/* Área preenchida */}
-              {areaD && (
-                <path d={areaD} fill="url(#areaGradient)" />
-              )}
+              {areaD && <path d={areaD} fill="url(#areaGradient)" />}
 
-              {/* Linha Principal da Curva */}
+              {/* Linha principal com sombra suave */}
               {pathD && (
                 <path
                   d={pathD}
@@ -574,25 +720,16 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
                 />
               )}
 
-              {/* Pontos de Dados com Rótulos */}
-              {points.map((p, i) => (
+              {/* Pontos de dados */}
+              {pontosGrafico.map((p, i) => (
                 <g key={i}>
                   <circle
                     cx={p.x}
                     cy={p.y}
-                    r="4.5"
-                    fill="#4d7c0f"
-                    className="stroke-white dark:stroke-zinc-900"
+                    r="4"
+                    className="fill-white dark:fill-zinc-900 stroke-[#4d7c0f] dark:stroke-[#84cc16]"
                     strokeWidth="2.5"
                   />
-                  <text
-                    x={p.x}
-                    y={p.y - 8}
-                    textAnchor="middle"
-                    className="text-[10px] font-mono font-bold fill-slate-700 dark:fill-zinc-300"
-                  >
-                    {p.chamados}
-                  </text>
                   <text
                     x={p.x}
                     y={svgHeight - 6}
@@ -673,13 +810,13 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
                   return (
                     <div key={idx} className="space-y-1">
                       <div className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
                           <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: seg.color }}></span>
-                          <span className="font-medium text-slate-800 dark:text-zinc-200 truncate max-w-[200px]" title={seg.nome}>
+                          <span className="font-medium text-slate-800 dark:text-zinc-200 truncate" title={seg.nome}>
                             {seg.nome}
                           </span>
                         </div>
-                        <span className="font-mono text-slate-500 font-semibold text-[11px] tabular-nums">
+                        <span className="font-mono text-slate-500 font-semibold text-[11px] tabular-nums flex-shrink-0 ml-2">
                           {seg.count} ({pct}%)
                         </span>
                       </div>
@@ -697,63 +834,12 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
 
       </div>
 
-      {/* GRÁFICO 3: COMPARATIVO DE TMA POR EMPRESA */}
-      <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
-              Tempo Médio de Atendimento (TMA) por Empresa
-            </h3>
-            <p className="text-[11px] text-slate-400">Comparação da média de resolução em minutos por cliente</p>
-          </div>
-          <span className="text-xs font-mono font-bold text-[#4d7c0f] dark:text-[#84cc16] tabular-nums">
-            Média Geral: {metricas.tempoMedioMinutos} min
-          </span>
-        </div>
-
-        {metricas.metricasEmpresas.length === 0 ? (
-          <p className="text-xs text-slate-400 italic py-6 text-center">
-            Nenhum registro de atendimento finalizado ainda para comparar TMA entre empresas.
-          </p>
-        ) : (
-          <div className="space-y-3.5 pt-1">
-            {metricas.metricasEmpresas.map((emp) => {
-              const maxTMA = Math.max(1, ...metricas.metricasEmpresas.map((e) => e.tempo_medio_minutos));
-              const barWidth = Math.max(5, Math.round((emp.tempo_medio_minutos / maxTMA) * 100));
-
-              return (
-                <div key={emp.empresa_id} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-[#1d1d1f] dark:text-white">
-                      {emp.empresa_nome}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-[11px] text-slate-400 font-mono tabular-nums">
-                        {emp.total_chamados} chamados ({emp.concluidos} concluídos)
-                      </span>
-                      <strong className="font-mono text-slate-800 dark:text-zinc-200 tabular-nums">
-                        {emp.tempo_medio_minutos} min
-                      </strong>
-                    </div>
-                  </div>
-
-                  <div className="w-full h-2 rounded-full bg-black/[0.04] dark:bg-white/[0.06] overflow-hidden flex items-center">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-[#4d7c0f] to-[#84cc16] transition-all duration-500"
-                      style={{ width: `${barWidth}%` }}
-                    ></div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Histórico Recente de Atendimentos */}
+      {/* ============================================================================== */}
+      {/* HISTÓRICO RECENTE DE ATENDIMENTOS */}
+      {/* ============================================================================== */}
       <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-sm">
         <div className="p-5 border-b border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-zinc-300">
-          <span>Histórico Recente de Suporte ({chamadosRecentes.length})</span>
+          <span>Histórico Recente de Atendimentos ({chamadosRecentes.length})</span>
           <span className="text-[10px] text-slate-400 font-mono">Registrado com operador e data</span>
         </div>
 
@@ -766,7 +852,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
             chamadosRecentes.map((ch) => (
               <div key={ch.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
                 <div>
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <span className="text-xs font-semibold text-[#1d1d1f] dark:text-white">
                       {ch.empresa_nome}
                     </span>

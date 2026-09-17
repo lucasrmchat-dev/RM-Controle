@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   getServerChecklistTemplate, 
   addServerChecklistTemplateItem, 
@@ -15,13 +16,31 @@ import {
   getSenhaPadraoRedefinicao,
   setSenhaPadraoRedefinicao,
   getConfiguracoesSuporte,
-  setConfiguracoesSuporte
+  setConfiguracoesSuporte,
+  getMotivosSuporte,
+  addMotivoSuporte,
+  removeMotivoSuporte
 } from '@/lib/storage';
-import { EyeIcon, EyeOffIcon } from './Icons';
+import { 
+  EyeIcon, 
+  EyeOffIcon, 
+  SparklesIcon, 
+  SaveIcon, 
+  CopyIcon, 
+  TrashIcon, 
+  CheckIcon, 
+  WrenchIcon, 
+  BriefcaseIcon, 
+  CrownIcon, 
+  ShieldCheckIcon, 
+  ServerIcon, 
+  UsersIcon,
+  XMarkIcon
+} from './Icons';
 import { generateSecurePassword } from '@/lib/security';
 
 export default function ServerConfigView() {
-  const [subTab, setSubTab] = useState('checklist'); // 'checklist' | 'usuarios' | 'geral' | 'formatos'
+  const [subTab, setSubTab] = useState('checklist'); // 'checklist' | 'usuarios' | 'motivos' | 'geral' | 'formatos'
   
   // Checklist Template
   const [checklistItems, setChecklistItems] = useState([]);
@@ -38,7 +57,13 @@ export default function ServerConfigView() {
   const [novoUsuarioSenha, setNovoUsuarioSenha] = useState('');
   const [novoUsuarioPapel, setNovoUsuarioPapel] = useState('suporte');
   const [senhasEquipeReveladas, setSenhasEquipeReveladas] = useState({});
+  const [copiadoId, setCopiadoId] = useState(null);
   const [userRole, setUserRole] = useState('administrador');
+
+  // Motivos de Atendimento / Suporte
+  const [motivosList, setMotivosList] = useState([]);
+  const [novoMotivoNome, setNovoMotivoNome] = useState('');
+  const [novoMotivoDesc, setNovoMotivoDesc] = useState('');
 
   // Configurações Gerais: Senha Padrão & Regras de Suporte
   const [senhaPadrao, setSenhaPadrao] = useState('');
@@ -56,189 +81,209 @@ export default function ServerConfigView() {
     setUserRole(getCurrentUserRole());
     setSenhaPadrao(getSenhaPadraoRedefinicao());
     setConfigSuporte(getConfiguracoesSuporte());
+    setMotivosList(getMotivosSuporte());
   };
 
   useEffect(() => {
     recarregar();
-
-    const handleMockUpdate = () => recarregar();
-    const handleRoleUpdate = () => setUserRole(getCurrentUserRole());
-    const handleSenhaUpdate = () => setSenhaPadrao(getSenhaPadraoRedefinicao());
-    const handleConfigUpdate = () => setConfigSuporte(getConfiguracoesSuporte());
-
-    window.addEventListener('storage_mock_updated', handleMockUpdate);
-    window.addEventListener('user_role_updated', handleRoleUpdate);
-    window.addEventListener('senha_padrao_updated', handleSenhaUpdate);
-    window.addEventListener('config_suporte_updated', handleConfigUpdate);
-
-    return () => {
-      window.removeEventListener('storage_mock_updated', handleMockUpdate);
-      window.removeEventListener('user_role_updated', handleRoleUpdate);
-      window.removeEventListener('senha_padrao_updated', handleSenhaUpdate);
-      window.removeEventListener('config_suporte_updated', handleConfigUpdate);
-    };
   }, []);
 
-  const handleToggleRegraSuporte = (chave) => {
-    const novoValor = !configSuporte[chave];
-    const atualizada = { ...configSuporte, [chave]: novoValor };
-    setConfigSuporte(atualizada);
-    setConfiguracoesSuporte(atualizada);
-    setFeedback(`Regra de suporte atualizada: ${novoValor ? 'OBRIGATÓRIO' : 'OPCIONAL'}`);
+  const showFeedbackMsg = (msg) => {
+    setFeedback(msg);
     setTimeout(() => setFeedback(''), 3500);
   };
 
+  // Salvar Novo Requisito no Checklist Global
   const handleSalvarItemChecklist = (e) => {
     e.preventDefault();
     if (!novoTitulo.trim()) return;
 
     try {
       addServerChecklistTemplateItem({
-        titulo: novoTitulo.trim(),
-        descricao: novaDescricao.trim(),
+        titulo: novoTitulo,
+        descricao: novaDescricao,
         categoria: novaCategoria,
         obrigatorio: novoObrigatorio,
       });
 
       setNovoTitulo('');
       setNovaDescricao('');
-      setFeedback('Requisito adicionado com sucesso ao modelo de checklist!');
-      setTimeout(() => setFeedback(''), 4000);
-      recarregar();
+      showFeedbackMsg('Requisito adicionado com sucesso ao modelo de servidores.');
+      setChecklistItems(getServerChecklistTemplate());
     } catch (err) {
       alert(err.message);
     }
   };
 
-  const handleRemoverItemChecklist = (id) => {
-    removeServerChecklistTemplateItem(id);
-    recarregar();
+  const handleRemoverItemChecklist = (itemId) => {
+    if (confirm('Deseja remover este requisito do modelo global de servidores?')) {
+      removeServerChecklistTemplateItem(itemId);
+      setChecklistItems(getServerChecklistTemplate());
+      showFeedbackMsg('Requisito removido do modelo global.');
+    }
   };
 
+  // Cadastrar Novo Usuário da Equipe
   const handleCadastrarUsuario = (e) => {
     e.preventDefault();
-    if (!novoUsuarioEmail.trim()) return;
+    if (!novoUsuarioNome.trim() || !novoUsuarioEmail.trim()) return;
+
     try {
       addEquipeUsuario({
-        nome: novoUsuarioNome.trim(),
-        email: novoUsuarioEmail.trim(),
-        senha: novoUsuarioSenha.trim() || senhaPadrao,
+        nome: novoUsuarioNome,
+        email: novoUsuarioEmail,
+        senha: novoUsuarioSenha || senhaPadrao,
         papel: novoUsuarioPapel,
       });
+
       setNovoUsuarioNome('');
       setNovoUsuarioEmail('');
       setNovoUsuarioSenha('');
-      setFeedback('Membro da equipe cadastrado com sucesso!');
-      setTimeout(() => setFeedback(''), 4000);
-      recarregar();
+      showFeedbackMsg(`Membro ${novoUsuarioNome} cadastrado com sucesso.`);
+      setEquipe(getEquipeUsuarios());
     } catch (err) {
       alert(err.message);
     }
   };
 
-  const handleRemoverUsuario = (id) => {
-    deleteEquipeUsuario(id);
-    recarregar();
-  };
-
-  const handleMudarMeuPapel = (novoPapel) => {
-    setCurrentUserRole(novoPapel);
-    setUserRole(novoPapel);
-    setFeedback(`Perfil de visualização alterado para: ${novoPapel.toUpperCase()}`);
-    setTimeout(() => setFeedback(''), 4000);
-  };
-
-  const handleSalvarSenhaPadrao = (e) => {
-    e.preventDefault();
-    if (!senhaPadrao.trim()) return;
-    setSenhaPadraoRedefinicao(senhaPadrao.trim());
-    setSenhaPadraoSalva(true);
-    setFeedback('Senha padrão de contingência salva com sucesso!');
-    setTimeout(() => {
-      setSenhaPadraoSalva(false);
-      setFeedback('');
-    }, 4000);
-  };
-
-  const handleCopiarTexto = (texto) => {
-    if (!texto) return;
-    navigator.clipboard.writeText(texto);
-    setFeedback('Copiado para a área de transferência!');
-    setTimeout(() => setFeedback(''), 3000);
+  const handleExcluirUsuario = (usuarioId) => {
+    if (confirm('Deseja remover este membro da equipe?')) {
+      deleteEquipeUsuario(usuarioId);
+      setEquipe(getEquipeUsuarios());
+      showFeedbackMsg('Membro removido da equipe.');
+    }
   };
 
   const toggleRevelarSenhaEquipe = (id) => {
-    setSenhasEquipeReveladas((prev) => ({ ...prev, [id]: !prev[id] }));
+    setSenhasEquipeReveladas((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
+  const handleCopiarTexto = (texto, id) => {
+    if (!texto) return;
+    navigator.clipboard.writeText(texto);
+    setCopiadoId(id);
+    setTimeout(() => setCopiadoId(null), 2000);
+  };
+
+  // Gerenciamento de Motivos de Chamado
+  const handleCriarMotivo = (e) => {
+    e.preventDefault();
+    if (!novoMotivoNome.trim()) return;
+
+    try {
+      addMotivoSuporte({
+        nome: novoMotivoNome,
+        descricao: novoMotivoDesc,
+      });
+      setNovoMotivoNome('');
+      setNovoMotivoDesc('');
+      setMotivosList(getMotivosSuporte());
+      showFeedbackMsg('Motivo de atendimento cadastrado com sucesso.');
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleRemoverMotivo = (id) => {
+    if (confirm('Deseja remover este motivo do catálogo?')) {
+      removeMotivoSuporte(id);
+      setMotivosList(getMotivosSuporte());
+      showFeedbackMsg('Motivo de atendimento removido.');
+    }
+  };
+
+  // Salvar Senha Padrão
+  const handleSalvarSenhaPadrao = (e) => {
+    e.preventDefault();
+    if (!senhaPadrao.trim()) return;
+    setSenhaPadraoRedefinicao(senhaPadrao);
+    setSenhaPadraoSalva(true);
+    showFeedbackMsg('Senha padrão de contingência atualizada.');
+    setTimeout(() => setSenhaPadraoSalva(false), 2500);
+  };
+
+  // Alterar Regras de Obrigatoriedade de Suporte
+  const handleToggleRegraSuporte = (campo) => {
+    const atualizado = setConfiguracoesSuporte({
+      [campo]: !configSuporte[campo],
+    });
+    setConfigSuporte(atualizado);
+    showFeedbackMsg('Regras de encerramento de suporte salvas.');
   };
 
   const mockAtivo = isMockDataEnabled();
 
+  const categoriasChecklist = [
+    'Infraestrutura',
+    'Rede & SSL',
+    'Aplicação',
+    'Canais',
+    'Suporte',
+    'Segurança & Backup'
+  ];
+
   return (
-    <div className="space-y-6 animate-fade-in text-slate-900 dark:text-zinc-100">
+    <div className="space-y-6 text-[#1d1d1f] dark:text-[#f5f5f7]">
       
       {/* Cabeçalho */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Configurações Gerais & Servidores
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#1d1d1f] dark:text-white">
+            Configurações do Sistema & Servidores
           </h1>
-          <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-            Gerencie o checklist padrão dos servidores, usuários da equipe, permissões e a senha geral de contingência.
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-0.5">
+            Gerencie o checklist técnico de servidores, membros da equipe, catálogo de motivos e senhas de contingência.
           </p>
         </div>
       </div>
 
       {feedback && (
-        <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs font-semibold shadow-sm">
-          {feedback}
-        </div>
+        <motion.div 
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs font-semibold shadow-xs flex items-center gap-2"
+        >
+          <CheckIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          <span>{feedback}</span>
+        </motion.div>
       )}
 
-      {/* Sub-Abas */}
-      <div className="flex border-b border-slate-200 dark:border-zinc-800 gap-2 overflow-x-auto">
-        <button
-          onClick={() => setSubTab('checklist')}
-          className={`py-2.5 px-3.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap ${
-            subTab === 'checklist'
-              ? 'border-[#4d7c0f] dark:border-[#84cc16] text-[#4d7c0f] dark:text-[#84cc16]'
-              : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          Checklist de Requisitos ({checklistItems.length})
-        </button>
-
-        <button
-          onClick={() => setSubTab('usuarios')}
-          className={`py-2.5 px-3.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap ${
-            subTab === 'usuarios'
-              ? 'border-[#4d7c0f] dark:border-[#84cc16] text-[#4d7c0f] dark:text-[#84cc16]'
-              : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          Usuários da Equipe & Senhas ({equipe.length})
-        </button>
-
-        <button
-          onClick={() => setSubTab('geral')}
-          className={`py-2.5 px-3.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap ${
-            subTab === 'geral'
-              ? 'border-[#4d7c0f] dark:border-[#84cc16] text-[#4d7c0f] dark:text-[#84cc16]'
-              : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          🔑 Configurações Gerais & Senha Padrão
-        </button>
-
-        <button
-          onClick={() => setSubTab('formatos')}
-          className={`py-2.5 px-3.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap ${
-            subTab === 'formatos'
-              ? 'border-[#4d7c0f] dark:border-[#84cc16] text-[#4d7c0f] dark:text-[#84cc16]'
-              : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          Formatos de Conversa
-        </button>
+      {/* Sub-Abas em Apple Segmented Bar */}
+      <div className="flex border-b border-black/[0.06] dark:border-white/[0.08] gap-1.5 overflow-x-auto pb-1">
+        {[
+          { id: 'checklist', label: 'Checklist de Requisitos', count: checklistItems.length },
+          { id: 'usuarios', label: 'Equipe & Senhas', count: equipe.length },
+          { id: 'motivos', label: 'Motivos de Atendimento', count: motivosList.length },
+          { id: 'geral', label: 'Regras de Suporte & Senha Padrão' },
+          { id: 'formatos', label: 'Formatos de Conversa' },
+        ].map((tab) => {
+          const isActive = subTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setSubTab(tab.id)}
+              className={`py-2.5 px-3.5 text-xs font-semibold rounded-2xl transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer ${
+                isActive
+                  ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs font-bold'
+                  : 'text-slate-500 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-black/[0.03] dark:hover:bg-white/[0.05]'
+              }`}
+            >
+              <span>{tab.label}</span>
+              {typeof tab.count === 'number' && (
+                <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                  isActive
+                    ? 'bg-white/20 text-white dark:bg-black/20 dark:text-black'
+                    : 'bg-black/[0.05] dark:bg-white/[0.08] text-slate-600 dark:text-zinc-400'
+                }`}>
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* ============================================================================== */}
@@ -247,89 +292,91 @@ export default function ServerConfigView() {
       {subTab === 'checklist' && (
         <div className="space-y-6 animate-fade-in">
           
-          <div className="p-4 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50/70 dark:bg-zinc-900/60 text-xs text-slate-600 dark:text-zinc-400 flex items-start justify-between gap-4">
+          <div className="p-4 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.03] text-xs text-slate-600 dark:text-zinc-400 flex items-start justify-between gap-4">
             <div>
-              <span className="font-bold text-slate-900 dark:text-white block mb-0.5">
-                {mockAtivo ? '⚠️ Modo de Homologação (Mock Dev Ativo)' : '✓ Modo de Produção Limpo (Sem Checklist Padrão Fixo)'}
+              <span className="font-semibold text-slate-900 dark:text-white block mb-0.5">
+                {mockAtivo ? 'Modo de Homologação (Mock Ativo)' : 'Modo de Produção Limpo'}
               </span>
               <p className="text-[11px] leading-relaxed">
                 {mockAtivo 
-                  ? 'Os requisitos de exemplo estão visíveis para você testar. Ao desativar o "Dados Simulados (Mock Dev)" no menu de perfil, os requisitos simulados somem e apenas os requisitos que você cadastrar aqui abaixo serão atribuídos às novas empresas.' 
-                  : 'Nenhum checklist fixo padrão é injetado. Todo novo requisito adicionado por você aqui se tornará o modelo oficial de implantação de servidores.'}
+                  ? 'Requisitos de exemplo estão ativos para demonstração. Todo novo requisito adicionado aqui será automaticamente propagado às novas empresas.' 
+                  : 'Nenhum checklist fixo padrão é injetado. Todo novo requisito adicionado abaixo se tornará o modelo oficial de implantação de servidores.'}
               </p>
             </div>
           </div>
 
-          {/* Formulário para Cadastrar Novo Requisito Global */}
-          <div className="surface-card rounded-2xl p-5 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300">
-              Cadastrar Novo Requisito para o Checklist de Servidores
-            </h3>
+          {/* Formulário Estilo Apple para Cadastrar Novo Requisito */}
+          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                Cadastrar Novo Requisito para o Checklist de Servidores
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Defina o nome, categoria técnica e orientações operacionais do checklist.
+              </p>
+            </div>
 
-            <form onSubmit={handleSalvarItemChecklist} className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
-                    Título da Etapa / Requisito <span className="text-red-500">*</span>
+            <form onSubmit={handleSalvarItemChecklist} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5">
+                <div className="sm:col-span-7 space-y-1">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 pl-1">
+                    Título do Requisito <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={novoTitulo}
                     onChange={(e) => setNovoTitulo(e.target.value)}
-                    placeholder="Ex: Provisionar VPS Linux / Configurar Let's Encrypt SSL / Instalar Redis"
+                    placeholder="Ex: Instalação e Pareamento da Evolution API"
                     required
-                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none"
+                    className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white placeholder-slate-400 font-medium"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
-                    Categoria
+                <div className="sm:col-span-5 space-y-1">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 pl-1">
+                    Categoria Técnica
                   </label>
                   <select
                     value={novaCategoria}
                     onChange={(e) => setNovaCategoria(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none"
+                    className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium cursor-pointer"
                   >
-                    <option value="Infraestrutura">Infraestrutura</option>
-                    <option value="Rede & SSL">Rede & SSL</option>
-                    <option value="Aplicação">Aplicação</option>
-                    <option value="Canais">Canais</option>
-                    <option value="Segurança & Backup">Segurança & Backup</option>
-                    <option value="Suporte">Suporte</option>
+                    {categoriasChecklist.map((cat) => (
+                      <option key={cat} value={cat} className="dark:bg-zinc-900">{cat}</option>
+                    ))}
                   </select>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 pl-1">
                   Instruções Técnicas ou Descrição (Opcional)
                 </label>
                 <input
                   type="text"
                   value={novaDescricao}
                   onChange={(e) => setNovaDescricao(e.target.value)}
-                  placeholder="Ex: Portas liberadas: 80, 443, 3000 / Chave SSH cadastrada"
-                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none"
+                  placeholder="Ex: Portas liberadas: 80, 443, 3000 / Chave SSH cadastrada / Certificado SSL emitido"
+                  className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white placeholder-slate-400"
                 />
               </div>
 
-              <div className="flex items-center justify-between pt-1">
-                <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-zinc-300 cursor-pointer">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                <label className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-zinc-300 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={novoObrigatorio}
                     onChange={(e) => setNovoObrigatorio(e.target.checked)}
-                    className="w-4 h-4 accent-[#4d7c0f] dark:accent-[#84cc16]"
+                    className="w-4 h-4 accent-[#4d7c0f] dark:accent-[#84cc16] rounded cursor-pointer"
                   />
-                  <span>Requisito Obrigatório</span>
+                  <span className="font-semibold">Requisito Obrigatório para Ativação do Servidor</span>
                 </label>
 
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-sm hover:opacity-90"
+                  className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-sm hover:opacity-90 flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  + Adicionar ao Modelo de Checklist
+                  <span>+ Adicionar ao Modelo de Checklist</span>
                 </button>
               </div>
             </form>
@@ -337,12 +384,12 @@ export default function ServerConfigView() {
 
           {/* Lista de Requisitos Atuais */}
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400 mb-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 mb-3 pl-1">
               Itens do Checklist Global ({checklistItems.length})
             </h3>
 
             {checklistItems.length === 0 ? (
-              <div className="surface-card rounded-2xl p-10 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] text-center text-xs text-slate-500">
+              <div className="rounded-3xl p-10 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] text-center text-xs text-slate-500">
                 Nenhum requisito cadastrado no checklist. Adicione o primeiro no formulário acima.
               </div>
             ) : (
@@ -350,30 +397,35 @@ export default function ServerConfigView() {
                 {checklistItems.map((item, idx) => (
                   <div
                     key={item.id}
-                    className="surface-card rounded-2xl p-4 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] flex items-center justify-between gap-3 shadow-sm"
+                    className="rounded-2xl p-4 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] flex items-center justify-between gap-3 shadow-xs hover:shadow-apple-hover transition-all"
                   >
-                    <div className="flex items-start gap-3">
-                      <span className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-zinc-800 font-mono text-xs font-bold flex items-center justify-center text-slate-700 dark:text-zinc-300 mt-0.5">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <span className="w-6 h-6 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] font-mono text-xs font-bold flex items-center justify-center text-slate-700 dark:text-zinc-300 mt-0.5 flex-shrink-0">
                         {idx + 1}
                       </span>
 
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-900 dark:text-white">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-[#1d1d1f] dark:text-white">
                             {item.titulo}
                           </span>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 font-semibold uppercase">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-300 font-semibold uppercase font-mono">
                             {item.categoria}
                           </span>
+                          {item.obrigatorio && (
+                            <span className="text-[9px] uppercase font-bold px-1.5 py-0.2 rounded-full bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/20">
+                              Obrigatório
+                            </span>
+                          )}
                           {item.id.includes('mock') && (
-                            <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300">
+                            <span className="text-[9px] uppercase font-mono px-1.5 py-0.2 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
                               Exemplo Mock
                             </span>
                           )}
                         </div>
 
                         {item.descricao && (
-                          <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                          <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5 truncate">
                             {item.descricao}
                           </p>
                         )}
@@ -383,12 +435,10 @@ export default function ServerConfigView() {
                     {!item.id.includes('mock') && (
                       <button
                         onClick={() => handleRemoverItemChecklist(item.id)}
-                        className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
+                        className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors flex-shrink-0 cursor-pointer"
                         title="Remover requisito"
                       >
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                        </svg>
+                        <TrashIcon className="w-4 h-4" />
                       </button>
                     )}
                   </div>
@@ -406,16 +456,21 @@ export default function ServerConfigView() {
       {subTab === 'usuarios' && (
         <div className="space-y-6 animate-fade-in">
           
-          {/* Cadastro de Novo Usuário na Equipe (com Senha) */}
-          <div className="surface-card rounded-2xl p-5 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300">
-              Cadastrar Novo Membro da Equipe com Senha
-            </h3>
+          {/* Cadastro de Novo Usuário na Equipe */}
+          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                Cadastrar Novo Membro da Equipe com Senha
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Crie acessos para operadores de suporte, consultores de vendas ou administradores gerais.
+              </p>
+            </div>
 
-            <form onSubmit={handleCadastrarUsuario} className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
+            <form onSubmit={handleCadastrarUsuario} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 pl-1">
                     Nome Completo <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -424,12 +479,12 @@ export default function ServerConfigView() {
                     onChange={(e) => setNovoUsuarioNome(e.target.value)}
                     placeholder="Ex: Tiago da Silva"
                     required
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none"
+                    className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 pl-1">
                     E-mail de Acesso <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -438,46 +493,56 @@ export default function ServerConfigView() {
                     onChange={(e) => setNovoUsuarioEmail(e.target.value)}
                     placeholder="tiago@rmcontrole.com"
                     required
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none"
+                    className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-mono"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-semibold text-slate-600 dark:text-zinc-400">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between pl-1">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
                       Senha Inicial
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => setNovoUsuarioSenha(senhaPadrao)}
-                      className="text-[10px] text-[#4d7c0f] dark:text-[#84cc16] font-semibold hover:underline"
-                    >
-                      Usar Senha Padrão
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setNovoUsuarioSenha(generateSecurePassword(14))}
+                        className="text-[10px] text-[#4d7c0f] dark:text-[#84cc16] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <SparklesIcon className="w-3 h-3" />
+                        <span>Gerar Segura</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNovoUsuarioSenha(senhaPadrao)}
+                        className="text-[10px] text-slate-500 hover:text-black dark:hover:text-white font-semibold hover:underline cursor-pointer"
+                      >
+                        Usar Padrão
+                      </button>
+                    </div>
                   </div>
                   <input
                     type="text"
                     value={novoUsuarioSenha}
                     onChange={(e) => setNovoUsuarioSenha(e.target.value)}
-                    placeholder={senhaPadrao || 'Digite ou use a senha padrão'}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs font-mono focus:outline-none"
+                    placeholder={senhaPadrao || 'Digite ou gere a senha'}
+                    className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono focus:outline-none text-[#1d1d1f] dark:text-white"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 pl-1">
                     Papel / Permissões de Abas <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={novoUsuarioPapel}
                     onChange={(e) => setNovoUsuarioPapel(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none font-medium"
+                    className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium cursor-pointer"
                   >
-                    <option value="suporte">🛠 Suporte (Empresas, Dashboard, Servidores, Auditoria)</option>
-                    <option value="vendas">💼 Vendas (Empresas, Dashboard)</option>
-                    <option value="administrador">👑 Administrador Geral (Todas as Abas)</option>
+                    <option value="suporte" className="dark:bg-zinc-900">Suporte Técnico (Empresas, Dashboard, Servidores, Auditoria)</option>
+                    <option value="vendas" className="dark:bg-zinc-900">Comercial & Vendas (Empresas, Dashboard)</option>
+                    <option value="administrador" className="dark:bg-zinc-900">Administrador Geral (Todas as Abas do Sistema)</option>
                   </select>
                 </div>
               </div>
@@ -485,73 +550,85 @@ export default function ServerConfigView() {
               <div className="flex justify-end pt-1">
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs rounded-xl shadow-sm hover:opacity-90"
+                  className="px-5 py-2.5 bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs rounded-full shadow-sm hover:opacity-90 flex items-center gap-1.5 cursor-pointer"
                 >
-                  + Cadastrar Membro da Equipe
+                  <span>+ Cadastrar Membro da Equipe</span>
                 </button>
               </div>
             </form>
           </div>
 
           {/* Lista de Membros da Equipe */}
-          <div className="surface-card rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] overflow-hidden">
-            <div className="p-4 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-zinc-300">
+          <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-sm">
+            <div className="p-5 border-b border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-zinc-300">
               <span>Membros Cadastrados ({equipe.length})</span>
-              <span className="text-[10px] text-slate-400">Controle de acesso seguro e senhas</span>
+              <span className="text-[10px] text-slate-400 font-mono">Controle de acesso individual e senhas</span>
             </div>
 
-            <div className="divide-y divide-slate-100 dark:divide-zinc-800">
+            <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
               {equipe.map((u) => {
                 const isRevelada = Boolean(senhasEquipeReveladas[u.id]);
+                const copiado = copiadoId === u.id;
+
                 return (
-                  <div key={u.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900 dark:text-white">{u.nome}</span>
-                        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
-                          u.papel === 'administrador'
-                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
-                            : u.papel === 'suporte'
-                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                            : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
-                        }`}>
-                          {u.papel}
-                        </span>
+                  <div key={u.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-[#4d7c0f]/15 to-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-xs flex items-center justify-center border border-[#4d7c0f]/20 flex-shrink-0">
+                        {u.nome.charAt(0)}
                       </div>
-                      <p className="text-[11px] text-slate-500 font-mono mt-0.5">{u.email}</p>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-[#1d1d1f] dark:text-white">{u.nome}</span>
+                          <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                            u.papel === 'administrador'
+                              ? 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20'
+                              : u.papel === 'suporte'
+                              ? 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20'
+                              : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20'
+                          }`}>
+                            {u.papel === 'administrador' && <CrownIcon className="w-3 h-3" />}
+                            {u.papel === 'suporte' && <WrenchIcon className="w-3 h-3" />}
+                            {u.papel === 'vendas' && <BriefcaseIcon className="w-3 h-3" />}
+                            <span>{u.papel}</span>
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono mt-0.5">{u.email}</p>
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-2 self-end sm:self-center">
                       {/* Senha do Usuário */}
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-zinc-800 font-mono text-[11px]">
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.06] font-mono text-[11px]">
                         <span className="text-slate-400">Senha:</span>
                         <span className="font-bold text-slate-800 dark:text-zinc-200">
-                          {isRevelada ? (u.senha || senhaPadrao) : '••••••••'}
+                          {isRevelada ? (u.senha || senhaPadrao) : '••••••••••••'}
                         </span>
+
                         <button
                           type="button"
                           onClick={() => toggleRevelarSenhaEquipe(u.id)}
-                          className="ml-1 text-slate-500 hover:text-slate-800 dark:hover:text-white"
-                          title={isRevelada ? 'Ocultar' : 'Ver'}
+                          className="text-slate-400 hover:text-black dark:hover:text-white p-0.5 cursor-pointer ml-1"
+                          title={isRevelada ? 'Ocultar senha' : 'Ver senha'}
                         >
                           {isRevelada ? <EyeOffIcon className="w-3.5 h-3.5" /> : <EyeIcon className="w-3.5 h-3.5" />}
                         </button>
+
                         <button
                           type="button"
-                          onClick={() => handleCopiarTexto(u.senha || senhaPadrao)}
-                          className="ml-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400 hover:underline"
+                          onClick={() => handleCopiarTexto(u.senha || senhaPadrao, u.id)}
+                          className="text-[10px] text-slate-500 hover:text-black dark:hover:text-white font-semibold cursor-pointer ml-1"
                         >
-                          Copiar
+                          {copiado ? 'Copiado!' : 'Copiar'}
                         </button>
                       </div>
 
-                      {equipe.length > 1 && u.email !== 'admin@rmcontrole.com' && (
+                      {u.email !== 'admin@rmcontrole.com' && (
                         <button
-                          onClick={() => handleRemoverUsuario(u.id)}
-                          className="p-1 text-slate-400 hover:text-red-500"
-                          title="Remover usuário"
+                          onClick={() => handleExcluirUsuario(u.id)}
+                          className="p-1.5 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer"
+                          title="Remover membro"
                         >
-                          ×
+                          <TrashIcon className="w-4 h-4" />
                         </button>
                       )}
                     </div>
@@ -565,98 +642,176 @@ export default function ServerConfigView() {
       )}
 
       {/* ============================================================================== */}
-      {/* SUB-ABA 3: CONFIGURAÇÕES GERAIS & SENHA PADRÃO DE REDEFINIÇÃO */}
+      {/* SUB-ABA 3: MOTIVOS DE ATENDIMENTO & SUPORTE (MIGRADO DO DASHBOARD) */}
       {/* ============================================================================== */}
-      {subTab === 'geral' && (
-        <div className="surface-card rounded-2xl p-6 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] space-y-5 animate-fade-in">
-          <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">
-              Senha Padrão de Redefinição / Contingência
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-              Esta é a senha padrão que a equipe de suporte utiliza ao redefinir o acesso de qualquer cliente ou funcionário.
-            </p>
-          </div>
-
-          <form onSubmit={handleSalvarSenhaPadrao} className="max-w-lg space-y-3">
+      {subTab === 'motivos' && (
+        <div className="space-y-6 animate-fade-in">
+          
+          {/* Cadastro de Novo Motivo */}
+          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
-                Senha Padrão do Sistema
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={senhaPadrao}
-                  onChange={(e) => setSenhaPadrao(e.target.value)}
-                  placeholder="Ex: RmSuporte@Padrao2026!"
-                  required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none"
-                />
-              </div>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                Cadastrar Novo Motivo de Atendimento
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Configure as categorias e motivos que os técnicos selecionam ao concluir um chamado.
+              </p>
             </div>
 
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                type="submit"
-                className="px-4 py-2 bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs rounded-xl shadow-sm hover:opacity-90"
-              >
-                Salvar Senha Padrão
-              </button>
+            <form onSubmit={handleCriarMotivo} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 pl-1">
+                    Nome do Motivo de Suporte <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={novoMotivoNome}
+                    onChange={(e) => setNovoMotivoNome(e.target.value)}
+                    placeholder="Ex: Desconexão de Instância / QR Code"
+                    required
+                    className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium"
+                  />
+                </div>
 
-              <button
-                type="button"
-                onClick={() => handleCopiarTexto(senhaPadrao)}
-                className="px-4 py-2 bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 font-semibold text-xs rounded-xl hover:bg-slate-200"
-              >
-                Copiar Senha Padrão
-              </button>
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 pl-1">
+                    Descrição Técnica (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={novoMotivoDesc}
+                    onChange={(e) => setNovoMotivoDesc(e.target.value)}
+                    placeholder="Ex: Instância caiu e precisou de reconexão manual"
+                    className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-1">
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-sm hover:opacity-90 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>+ Cadastrar Motivo no Catálogo</span>
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Lista de Motivos Ativos */}
+          <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-sm">
+            <div className="p-5 border-b border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-zinc-300">
+              <span>Motivos Ativos no Sistema ({motivosList.length})</span>
+              <span className="text-[10px] text-slate-400 font-mono">Utilizados no encerramento de chamados</span>
+            </div>
+
+            <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
+              {motivosList.map((m) => (
+                <div key={m.id} className="p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors">
+                  <div>
+                    <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white">
+                      {m.nome}
+                    </h4>
+                    {m.descricao && (
+                      <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                        {m.descricao}
+                      </p>
+                    )}
+                  </div>
+
+                  {!['mot_1', 'mot_2', 'mot_3', 'mot_4'].includes(m.id) && (
+                    <button
+                      onClick={() => handleRemoverMotivo(m.id)}
+                      className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer"
+                      title="Remover motivo"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* ============================================================================== */}
+      {/* SUB-ABA 4: CONFIGURAÇÕES GERAIS, REGRAS DE SUPORTE & SENHA PADRÃO */}
+      {/* ============================================================================== */}
+      {subTab === 'geral' && (
+        <div className="space-y-6 animate-fade-in">
+          
+          {/* Senha Padrão de Contingência */}
+          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                Senha Padrão de Contingência
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Utilizada para redefinir credenciais de novos membros ou de empresas quando não especificada.
+              </p>
+            </div>
+
+            <form onSubmit={handleSalvarSenhaPadrao} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <input
+                type="text"
+                value={senhaPadrao}
+                onChange={(e) => setSenhaPadrao(e.target.value)}
+                placeholder="Ex: RmSuporte@Padrao2026!"
+                required
+                className="flex-1 px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono focus:outline-none text-[#1d1d1f] dark:text-white"
+              />
 
               <button
                 type="button"
                 onClick={() => setSenhaPadrao(generateSecurePassword(14))}
-                className="text-xs text-[#4d7c0f] dark:text-[#84cc16] font-semibold hover:underline ml-2"
+                className="px-4 py-2.5 rounded-full border border-black/10 dark:border-white/15 hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-slate-700 dark:text-zinc-300 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                ⚡ Gerar Nova
+                <SparklesIcon className="w-3.5 h-3.5" />
+                <span>Gerar Nova</span>
               </button>
-            </div>
-          </form>
 
-          <div className="p-4 rounded-xl bg-slate-50 dark:bg-zinc-900/50 border border-slate-200/80 dark:border-zinc-800 text-xs text-slate-600 dark:text-zinc-400 space-y-1">
-            <span className="font-bold text-slate-900 dark:text-white block">Instrução para a Equipe de Atendimento:</span>
-            <p className="text-[11px] leading-relaxed">
-              Sempre que um cliente solicitar redefinição de senha e esquecer seus dados, o atendente pode aplicar esta senha padrão e orientar o cliente a alterá-la após o primeiro login.
-            </p>
+              <button
+                type="submit"
+                className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-sm hover:opacity-90 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <SaveIcon className="w-3.5 h-3.5" />
+                <span>{senhaPadraoSalva ? 'Salvo!' : 'Salvar Senha Padrão'}</span>
+              </button>
+            </form>
           </div>
 
-          {/* Regras de Encerramento de Suporte (Campos Obrigatórios) */}
-          <div className="pt-6 border-t border-slate-200 dark:border-zinc-800 space-y-4">
+          {/* Regras Obrigatórias para Conclusão de Chamados */}
+          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
             <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                Regras de Encerramento de Chamado (Campos Obrigatórios)
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                Regras de Encerramento de Chamado
               </h3>
-              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                Defina quais dados o técnico é obrigado a informar ao concluir um atendimento de suporte.
+              <p className="text-xs text-slate-400 mt-0.5">
+                Defina quais campos são estritamente obrigatórios quando um técnico for concluir o suporte.
               </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {[
-                { chave: 'motivo_obrigatorio', label: 'Motivo / Categoria do Chamado', desc: 'Exige classificar o motivo da solicitação' },
-                { chave: 'solucao_obrigatoria', label: 'Resumo da Solução Aplicada', desc: 'Exige descrever o procedimento de resolução' },
-                { chave: 'colaborador_obrigatorio', label: 'Colaborador Solicitante', desc: 'Exige selecionar quem solicitou o suporte na empresa' },
-                { chave: 'atendente_obrigatorio', label: 'Atendente Técnico Responsável', desc: 'Exige identificar o operador que atendeu a demanda' },
+                { chave: 'motivo_obrigatorio', label: 'Motivo do Chamado', desc: 'Exige que o técnico selecione um motivo cadastrado' },
+                { chave: 'solucao_obrigatoria', label: 'Resumo da Solução Aplicada', desc: 'Exige que o técnico descreva o que foi feito no atendimento' },
+                { chave: 'colaborador_obrigatorio', label: 'Colaborador Solicitante', desc: 'Exige o nome ou e-mail de quem pediu o suporte' },
+                { chave: 'atendente_obrigatorio', label: 'Identificação do Atendente', desc: 'Exige a confirmação de qual técnico encerrou o ticket' },
               ].map((item) => (
                 <div
                   key={item.chave}
                   onClick={() => handleToggleRegraSuporte(item.chave)}
                   className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                     configSuporte[item.chave]
-                      ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/10 dark:bg-[#84cc16]/10'
-                      : 'border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-900/50'
+                      ? 'border-[#4d7c0f]/30 bg-[#4d7c0f]/5 dark:bg-[#84cc16]/5 shadow-xs'
+                      : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.01] dark:bg-white/[0.02] opacity-70'
                   }`}
                 >
                   <div>
-                    <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                    <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white">
                       {item.label}
                     </h4>
                     <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-0.5 leading-tight">
@@ -667,7 +822,7 @@ export default function ServerConfigView() {
                   <span className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full ${
                     configSuporte[item.chave]
                       ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950'
-                      : 'bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'
+                      : 'bg-black/[0.05] dark:bg-white/[0.08] text-slate-600 dark:text-zinc-400'
                   }`}>
                     {configSuporte[item.chave] ? 'Obrigatório' : 'Opcional'}
                   </span>
@@ -679,23 +834,23 @@ export default function ServerConfigView() {
       )}
 
       {/* ============================================================================== */}
-      {/* SUB-ABA 4: FORMATOS DE CONVERSA */}
+      {/* SUB-ABA 5: FORMATOS DE CONVERSA */}
       {/* ============================================================================== */}
       {subTab === 'formatos' && (
-        <div className="surface-card rounded-2xl p-6 border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#121216] space-y-4 animate-fade-in">
-          <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+        <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-4 shadow-sm animate-fade-in">
+          <h2 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
             Diretrizes dos Formatos de Conversa
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div className="p-4 rounded-xl bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-800 space-y-2">
-              <span className="font-bold text-slate-900 dark:text-white block">Formato Colaborativo</span>
+            <div className="p-5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.08] space-y-2">
+              <span className="font-bold text-[#1d1d1f] dark:text-white block">Formato Colaborativo</span>
               <p className="text-slate-600 dark:text-zinc-400 leading-relaxed">
                 Fila única aberta. Ideal para centrais de atendimento, lojas e vendas ágeis onde qualquer atendente disponível pode puxar o próximo ticket da fila.
               </p>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-800 space-y-2">
-              <span className="font-bold text-slate-900 dark:text-white block">Formato Individual</span>
+            <div className="p-5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.08] space-y-2">
+              <span className="font-bold text-[#1d1d1f] dark:text-white block">Formato Individual</span>
               <p className="text-slate-600 dark:text-zinc-400 leading-relaxed">
                 Isolamento estrito de conversas por operador. Atende aos requisitos da LGPD para setores médicos, jurídicos ou consultorias executivas onde o cliente não pode ter suas mensagens lidas por outros funcionários.
               </p>
