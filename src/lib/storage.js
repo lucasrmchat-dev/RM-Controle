@@ -224,10 +224,48 @@ export function removeMotivoSuporte(id) {
 }
 
 // ==============================================================================
-// SISTEMA DE CHAMADOS DE SUPORTE (INICIAR, FINALIZAR, TIMER & MÉTRICAS)
+// SISTEMA DE CHAMADOS & FILA DE SUPORTE (INICIAR, FILA, ASSUMIR, FINALIZAR & TIMER)
 // ==============================================================================
-export async function iniciarSuporte({ empresa_id, empresa_nome, userEmail = 'admin@rmcontrole.com' }) {
+export async function iniciarSuporte({ 
+  empresa_id, 
+  empresa_nome, 
+  chamado_id = null,
+  motivo = '',
+  prioridade = 'normal',
+  descricao = '',
+  solicitante = '',
+  userEmail = 'admin@rmcontrole.com' 
+}) {
   const chamados = getLocalData('chamados_suporte', []);
+
+  // Se já existe um ID específico (ex: item que estava 'pendente' na fila)
+  if (chamado_id) {
+    const idx = chamados.findIndex((c) => c.id === chamado_id);
+    if (idx !== -1) {
+      chamados[idx] = {
+        ...chamados[idx],
+        status: 'em_andamento',
+        tecnico_email: userEmail,
+        iniciado_em: new Date().toISOString(),
+        motivo: motivo || chamados[idx].motivo || 'Geral',
+        prioridade: prioridade || chamados[idx].prioridade || 'normal',
+        descricao: descricao || chamados[idx].descricao || '',
+        solicitante: solicitante || chamados[idx].solicitante || '',
+      };
+      setLocalData('chamados_suporte', chamados);
+
+      await logAuditoria({
+        empresaId: empresa_id,
+        usuarioEmail: userEmail,
+        acao: 'iniciou_suporte_tecnico',
+        detalhes: { empresa_nome, iniciado_em: chamados[idx].iniciado_em, modulo: 'Fila de Suporte' },
+      });
+
+      window.dispatchEvent(new Event('suporte_updated'));
+      return chamados[idx];
+    }
+  }
+
   const jaEmAndamento = chamados.find((c) => c.empresa_id === empresa_id && c.status === 'em_andamento');
   if (jaEmAndamento) return jaEmAndamento;
 
@@ -237,10 +275,14 @@ export async function iniciarSuporte({ empresa_id, empresa_nome, userEmail = 'ad
     empresa_nome,
     tecnico_email: userEmail,
     status: 'em_andamento',
+    prioridade: prioridade || 'normal',
+    motivo: motivo || 'Geral',
+    descricao: descricao || '',
+    solicitante: solicitante || '',
+    created_at: new Date().toISOString(),
     iniciado_em: new Date().toISOString(),
     finalizado_em: null,
     duracao_segundos: 0,
-    motivo: '',
     observacoes: '',
   };
 
@@ -251,11 +293,113 @@ export async function iniciarSuporte({ empresa_id, empresa_nome, userEmail = 'ad
     empresaId: empresa_id,
     usuarioEmail: userEmail,
     acao: 'iniciou_suporte_tecnico',
-    detalhes: { empresa_nome, iniciado_em: novoChamado.iniciado_em, modulo: 'Suporte em Tempo Real' },
+    detalhes: { empresa_nome, iniciado_em: novoChamado.iniciado_em, modulo: 'Fila de Suporte' },
   });
 
   window.dispatchEvent(new Event('suporte_updated'));
   return novoChamado;
+}
+
+export async function adicionarChamadoFila({
+  empresa_id,
+  empresa_nome,
+  motivo = 'Geral',
+  prioridade = 'normal',
+  descricao = '',
+  solicitante = '',
+  iniciarAgora = false,
+  userEmail = 'admin@rmcontrole.com',
+}) {
+  if (iniciarAgora) {
+    return iniciarSuporte({
+      empresa_id,
+      empresa_nome,
+      motivo,
+      prioridade,
+      descricao,
+      solicitante,
+      userEmail,
+    });
+  }
+
+  const chamados = getLocalData('chamados_suporte', []);
+  const jaAtivoOuPendente = chamados.find(
+    (c) => c.empresa_id === empresa_id && (c.status === 'em_andamento' || c.status === 'pendente')
+  );
+  if (jaAtivoOuPendente) return jaAtivoOuPendente;
+
+  const novoChamado = {
+    id: 'chamado_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    empresa_id,
+    empresa_nome,
+    tecnico_email: null,
+    status: 'pendente',
+    prioridade: prioridade || 'normal',
+    motivo: motivo || 'Geral',
+    descricao: descricao || '',
+    solicitante: solicitante || '',
+    created_at: new Date().toISOString(),
+    iniciado_em: null,
+    finalizado_em: null,
+    duracao_segundos: 0,
+    observacoes: '',
+  };
+
+  chamados.unshift(novoChamado);
+  setLocalData('chamados_suporte', chamados);
+
+  await logAuditoria({
+    empresaId: empresa_id,
+    usuarioEmail: userEmail,
+    acao: 'adicionou_chamado_na_fila',
+    detalhes: { empresa_nome, prioridade, motivo, modulo: 'Fila de Suporte' },
+  });
+
+  window.dispatchEvent(new Event('suporte_updated'));
+  return novoChamado;
+}
+
+export async function assumirSuporte({ chamado_id, userEmail }) {
+  const chamados = getLocalData('chamados_suporte', []);
+  const idx = chamados.findIndex((c) => c.id === chamado_id);
+  if (idx === -1) return null;
+
+  const anterior = chamados[idx];
+  chamados[idx] = {
+    ...anterior,
+    tecnico_email: userEmail,
+    status: 'em_andamento',
+    iniciado_em: anterior.iniciado_em || new Date().toISOString(),
+  };
+
+  setLocalData('chamados_suporte', chamados);
+
+  await logAuditoria({
+    empresaId: anterior.empresa_id,
+    usuarioEmail: userEmail,
+    acao: 'assumiu_suporte_tecnico',
+    detalhes: {
+      empresa_nome: anterior.empresa_nome,
+      atendente_anterior: anterior.tecnico_email,
+      modulo: 'Fila de Suporte',
+    },
+  });
+
+  window.dispatchEvent(new Event('suporte_updated'));
+  return chamados[idx];
+}
+
+export function getFilaChamados() {
+  const chamados = getLocalData('chamados_suporte', []);
+  return chamados.filter((c) => c.status === 'em_andamento' || c.status === 'pendente');
+}
+
+export function getChamadosResolvidosHoje() {
+  const chamados = getLocalData('chamados_suporte', []);
+  const hojeStr = new Date().toISOString().split('T')[0];
+  return chamados.filter(
+    (c) => c.status === 'finalizado' && (c.finalizado_em || '').startsWith(hojeStr)
+  );
 }
 
 export async function finalizarSuporte({
@@ -733,9 +877,9 @@ export async function deleteEmpresaCredencial(empresaId, credId, userEmail = 'ad
 // GESTÃO DE USUÁRIOS E PERMISSÕES POR ABA (SUPORTE, VENDAS, ADMIN)
 // ==============================================================================
 export const PERMISSOES_PADRAO = {
-  administrador: ['empresas', 'dashboard', 'canais', 'servidores', 'auditoria'],
-  suporte: ['empresas', 'dashboard'],
-  vendas: ['empresas', 'dashboard'],
+  administrador: ['empresas', 'fila', 'dashboard', 'canais', 'servidores', 'auditoria'],
+  suporte: ['empresas', 'fila', 'dashboard'],
+  vendas: ['empresas', 'fila', 'dashboard'],
 };
 
 export function resolveUserRole(email) {

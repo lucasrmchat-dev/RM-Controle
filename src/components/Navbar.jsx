@@ -4,12 +4,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   getChamadosAtivos, 
+  getFilaChamados,
   getAbasPermitidas, 
   getCurrentUserRole, 
   setCurrentUserRole,
   cancelarSuporte 
 } from '@/lib/storage';
-import { XMarkIcon } from './Icons';
+import { XMarkIcon, SupportQueueIcon } from './Icons';
 
 export default function Navbar({ 
   activeTab, 

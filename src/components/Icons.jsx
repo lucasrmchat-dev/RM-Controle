@@ -316,3 +316,23 @@ export const RefreshIcon = ({ className = "w-4 h-4" }) => (
     <path d="M3 21v-5h5" />
   </svg>
 );
+
+// Fila de Suporte / Headset de Atendimento ao Vivo
+export const SupportQueueIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+  </svg>
+);
+
+// Fila em Lista
+export const QueueListIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="8" x2="21" y1="6" y2="6" />
+    <line x1="8" x2="21" y1="12" y2="12" />
+    <line x1="8" x2="21" y1="18" y2="18" />
+    <circle cx="4" cy="6" r="1.5" fill="currentColor" />
+    <circle cx="4" cy="12" r="1.5" fill="currentColor" />
+    <circle cx="4" cy="18" r="1.5" fill="currentColor" />
+  </svg>
+);
