@@ -734,13 +734,29 @@ export async function deleteEmpresaCredencial(empresaId, credId, userEmail = 'ad
 // ==============================================================================
 export const PERMISSOES_PADRAO = {
   administrador: ['empresas', 'dashboard', 'canais', 'servidores', 'auditoria'],
-  suporte: ['empresas', 'dashboard', 'servidores', 'auditoria'],
+  suporte: ['empresas', 'dashboard'],
   vendas: ['empresas', 'dashboard'],
 };
 
+export function resolveUserRole(email) {
+  if (!email) return 'suporte';
+  const emailNorm = email.toLowerCase().trim();
+  if (emailNorm === 'admin@rmcontrole.com') return 'administrador';
+  const equipe = getEquipeUsuarios();
+  const membro = equipe.find((u) => (u.email || '').toLowerCase().trim() === emailNorm);
+  if (membro && membro.papel) return membro.papel;
+  if (emailNorm.includes('admin')) return 'administrador';
+  if (emailNorm.includes('vendas') || emailNorm.includes('comercial')) return 'vendas';
+  return 'suporte';
+}
+
 export function getCurrentUserRole() {
-  if (typeof window === 'undefined') return 'administrador';
-  return localStorage.getItem('rm_user_role') || 'administrador';
+  if (typeof window === 'undefined') return 'suporte';
+  const savedUser = localStorage.getItem('rm_auth_user');
+  if (savedUser) {
+    return resolveUserRole(savedUser);
+  }
+  return localStorage.getItem('rm_user_role') || 'suporte';
 }
 
 export function setCurrentUserRole(role) {
@@ -751,8 +767,7 @@ export function setCurrentUserRole(role) {
 
 export function getAbasPermitidas(role = null) {
   const currentRole = role || getCurrentUserRole();
-  const customPerms = getLocalData('custom_role_permissions', PERMISSOES_PADRAO);
-  return customPerms[currentRole] || PERMISSOES_PADRAO[currentRole] || PERMISSOES_PADRAO.administrador;
+  return PERMISSOES_PADRAO[currentRole] || PERMISSOES_PADRAO.suporte;
 }
 
 export function getEquipeUsuarios() {
@@ -766,6 +781,10 @@ export function getEquipeUsuarios() {
 export function addEquipeUsuario({ nome, email, senha = '', papel = 'suporte' }) {
   if (!email || !email.trim()) throw new Error('E-mail é obrigatório.');
   const usuarios = getEquipeUsuarios();
+  const emailLimpo = email.trim().toLowerCase();
+  if (usuarios.some((u) => (u.email || '').toLowerCase().trim() === emailLimpo)) {
+    throw new Error('Já existe um membro cadastrado com este e-mail.');
+  }
   const novo = {
     id: 'usr_' + Date.now(),
     nome: (nome || '').trim() || email.split('@')[0],
@@ -776,6 +795,7 @@ export function addEquipeUsuario({ nome, email, senha = '', papel = 'suporte' })
   };
   usuarios.push(novo);
   setLocalData('equipe_usuarios', usuarios);
+  window.dispatchEvent(new Event('equipe_updated'));
   return novo;
 }
 
@@ -783,8 +803,16 @@ export function updateEquipeUsuario(id, dados) {
   const usuarios = getEquipeUsuarios();
   const idx = usuarios.findIndex((u) => u.id === id);
   if (idx !== -1) {
-    usuarios[idx] = { ...usuarios[idx], ...dados };
+    const atual = usuarios[idx];
+    const novaSenha = (dados.senha && dados.senha.trim()) ? dados.senha.trim() : atual.senha;
+    usuarios[idx] = {
+      ...atual,
+      ...dados,
+      senha: novaSenha,
+    };
     setLocalData('equipe_usuarios', usuarios);
+    window.dispatchEvent(new Event('equipe_updated'));
+    window.dispatchEvent(new Event('user_role_updated'));
   }
   return true;
 }

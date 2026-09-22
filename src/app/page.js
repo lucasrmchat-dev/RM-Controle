@@ -15,7 +15,10 @@ import {
   finalizarSuporte,
   getMotivosSuporte,
   getEquipeUsuarios,
-  setCurrentUserRole
+  setCurrentUserRole,
+  getCurrentUserRole,
+  getAbasPermitidas,
+  resolveUserRole
 } from '@/lib/storage';
 import Navbar from '@/components/Navbar';
 import CompanyModal from '@/components/CompanyModal';
@@ -160,13 +163,18 @@ export default function Home() {
         if (isSupabaseConfigured && supabase) {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
+            const email = session.user.email || 'admin@rmcontrole.com';
             setIsAuthenticated(true);
-            setUserEmail(session.user.email || 'admin@rmcontrole.com');
+            setUserEmail(email);
+            const role = resolveUserRole(email);
+            setCurrentUserRole(role);
           } else {
             const localUser = localStorage.getItem('rm_auth_user');
             if (localUser) {
               setIsAuthenticated(true);
               setUserEmail(localUser);
+              const role = resolveUserRole(localUser);
+              setCurrentUserRole(role);
             }
           }
         } else {
@@ -174,6 +182,8 @@ export default function Home() {
           if (localUser) {
             setIsAuthenticated(true);
             setUserEmail(localUser);
+            const role = resolveUserRole(localUser);
+            setCurrentUserRole(role);
           }
         }
       } catch (e) {
@@ -188,13 +198,26 @@ export default function Home() {
     if (isSupabaseConfigured && supabase) {
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
         if (session?.user) {
+          const email = session.user.email || 'admin@rmcontrole.com';
           setIsAuthenticated(true);
-          setUserEmail(session.user.email || 'admin@rmcontrole.com');
+          setUserEmail(email);
+          const role = resolveUserRole(email);
+          setCurrentUserRole(role);
         }
       });
       return () => subscription.unsubscribe();
     }
   }, []);
+
+  // Proteção e Redirecionamento de Abas Permitidas por Papel (Hierarquia Estrita)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const role = resolveUserRole(userEmail);
+    const permitidas = getAbasPermitidas(role);
+    if (!permitidas.includes(activeTab)) {
+      setActiveTab('empresas');
+    }
+  }, [isAuthenticated, userEmail, activeTab]);
 
   // Monitora alternador de dados mock
   useEffect(() => {
