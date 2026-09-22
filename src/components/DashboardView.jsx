@@ -61,8 +61,9 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
     const met = getMetricasSuporte({ periodo, dataInicio, dataFim });
     setMetricas(met);
     setChamadosRecentes(getChamadosSuporte().slice(0, 15));
-    const emp = await getEmpresas();
-    setEmpresasLista(emp);
+    const emp = await getEmpresas({ pageSize: 1000 });
+    const listaEmpresas = Array.isArray(emp) ? emp : (emp?.items || []);
+    setEmpresasLista(listaEmpresas);
   };
 
   useEffect(() => {
@@ -595,7 +596,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
             {metricas.metricasEmpresas.slice(0, 8).map((emp, idx) => {
               const maxChamados = Math.max(1, ...metricas.metricasEmpresas.map((e) => e.total_chamados));
               const barWidth = Math.max(8, Math.round((emp.total_chamados / maxChamados) * 100));
-              const empresaObj = empresasLista.find((e) => e.id === emp.empresa_id);
+              const empresaObj = Array.isArray(empresasLista) ? empresasLista.find((e) => e.id === emp.empresa_id) : null;
 
               return (
                 <div

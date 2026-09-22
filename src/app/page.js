@@ -13,7 +13,9 @@ import {
   iniciarSuporte,
   cancelarSuporte,
   finalizarSuporte,
-  getMotivosSuporte
+  getMotivosSuporte,
+  getEquipeUsuarios,
+  setCurrentUserRole
 } from '@/lib/storage';
 import Navbar from '@/components/Navbar';
 import CompanyModal from '@/components/CompanyModal';
@@ -279,25 +281,63 @@ export default function Home() {
           password: loginPassword,
         });
 
+        if (!error && data?.user) {
+          setIsAuthenticated(true);
+          setUserEmail(data.user.email);
+          localStorage.setItem('rm_auth_user', data.user.email);
+          return;
+        }
+
+        // Se falhou no Supabase Auth, verifica se é um membro da equipe cadastrado no sistema
+        const equipe = getEquipeUsuarios();
+        const membroEquipe = equipe.find(
+          (u) => u.email.toLowerCase().trim() === loginEmail.toLowerCase().trim()
+        );
+
+        if (membroEquipe) {
+          if (!membroEquipe.senha || membroEquipe.senha === loginPassword) {
+            setIsAuthenticated(true);
+            setUserEmail(membroEquipe.email);
+            setCurrentUserRole(membroEquipe.papel || 'suporte');
+            localStorage.setItem('rm_auth_user', membroEquipe.email);
+            return;
+          } else {
+            throw new Error('Senha incorreta para este usuário da equipe.');
+          }
+        }
+
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
-            throw new Error('E-mail ou senha incorretos. Verifique suas credenciais no Supabase.');
+            throw new Error('E-mail ou senha incorretos no Supabase. Se cadastrou no Supabase, verifique se confirmou o e-mail (ou marque "Auto Confirm User" no painel do Supabase).');
+          }
+          if (error.message.includes('Email not confirmed')) {
+            throw new Error('E-mail ainda não confirmado no Supabase. Acesse o painel do Supabase (Authentication > Users) e confirme o e-mail do usuário.');
           }
           if (error.message.includes('Database error querying schema')) {
             throw new Error("Erro no Supabase: usuário com campos nulos. Use o botão de homologação abaixo.");
           }
           throw error;
         }
-
-        if (data?.user) {
-          setIsAuthenticated(true);
-          setUserEmail(data.user.email);
-          localStorage.setItem('rm_auth_user', data.user.email);
-          return;
-        }
       }
 
       // Fallback local caso Supabase não esteja conectado
+      const equipe = getEquipeUsuarios();
+      const membroEquipe = equipe.find(
+        (u) => u.email.toLowerCase().trim() === loginEmail.toLowerCase().trim()
+      );
+
+      if (membroEquipe) {
+        if (!membroEquipe.senha || membroEquipe.senha === loginPassword) {
+          setIsAuthenticated(true);
+          setUserEmail(membroEquipe.email);
+          setCurrentUserRole(membroEquipe.papel || 'suporte');
+          localStorage.setItem('rm_auth_user', membroEquipe.email);
+          return;
+        } else {
+          throw new Error('Senha incorreta para este usuário da equipe.');
+        }
+      }
+
       if (loginEmail.includes('@') && loginPassword.length >= 4) {
         setIsAuthenticated(true);
         setUserEmail(loginEmail.trim());
