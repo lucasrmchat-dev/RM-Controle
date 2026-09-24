@@ -29,6 +29,7 @@ export default function Navbar({
   const dropdownRef = useRef(null);
   const islandRef = useRef(null);
   const [chamadosAtivos, setChamadosAtivos] = useState([]);
+  const [totalFila, setTotalFila] = useState(0);
   const [userRole, setUserRole] = useState('administrador');
   const [, setTick] = useState(0);
 
@@ -36,6 +37,8 @@ export default function Navbar({
   const checarEstado = () => {
     const ativos = getChamadosAtivos();
     setChamadosAtivos(ativos);
+    const fila = getFilaChamados ? getFilaChamados() : [];
+    setTotalFila(fila.length);
     setUserRole(getCurrentUserRole());
   };
 
@@ -104,6 +107,12 @@ export default function Navbar({
           <path d="M9 22v-4h6v4"/>
         </svg>
       ) 
+    },
+    { 
+      id: 'fila', 
+      label: 'Fila de Suporte', 
+      badge: totalFila > 0 ? totalFila : null,
+      icon: <SupportQueueIcon className="w-4 h-4" />
     },
     { 
       id: 'dashboard', 
@@ -354,6 +363,15 @@ export default function Navbar({
                     {tab.icon}
                   </span>
                   <span className="hidden md:inline">{tab.label}</span>
+                  {tab.badge && (
+                    <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
+                      isActive 
+                        ? 'bg-[#4d7c0f]/15 text-[#4d7c0f] dark:bg-[#84cc16]/20 dark:text-[#84cc16]' 
+                        : 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+                    }`}>
+                      {tab.badge}
+                    </span>
+                  )}
                 </button>
               );
             })}

@@ -29,6 +29,7 @@ import ServerConfigView from '@/components/ServerConfigView';
 import DashboardView from '@/components/DashboardView';
 import LoginView from '@/components/LoginView';
 import SupportCompletionModal from '@/components/SupportCompletionModal';
+import SupportQueueView from '@/components/SupportQueueView';
 import { 
   MessageChannelIcon, 
   ViewGridIcon, 
@@ -124,33 +125,50 @@ export default function Home() {
 
   // ==============================================================================
   // TIMER DE INATIVIDADE (30 MINUTOS COM DESCONEXÃO AUTOMÁTICA LGPD)
+  // Baseado em carimbo de relógio real (wall-clock timestamp) para não pausar com Mac/aba suspensa
   // ==============================================================================
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    let timer = 1800;
-    const resetTimer = () => {
-      timer = 1800;
-      setInactivityTimeLeft(1800);
+    if (!localStorage.getItem('rm_last_active_timestamp')) {
+      localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
+    }
+
+    let lastThrottle = Date.now();
+    const recordUserActivity = () => {
+      const now = Date.now();
+      if (now - lastThrottle > 2000) {
+        lastThrottle = now;
+        localStorage.setItem('rm_last_active_timestamp', now.toString());
+      }
     };
 
-    const userEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
-    userEvents.forEach((evt) => window.addEventListener(evt, resetTimer, { passive: true }));
+    const userEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
+    userEvents.forEach((evt) => window.addEventListener(evt, recordUserActivity, { passive: true }));
 
-    const interval = setInterval(() => {
-      timer -= 1;
-      setInactivityTimeLeft(timer);
+    const checkInactivity = () => {
+      const lastActiveStr = localStorage.getItem('rm_last_active_timestamp');
+      const lastActive = lastActiveStr ? parseInt(lastActiveStr, 10) : Date.now();
+      const elapsedSec = Math.floor((Date.now() - lastActive) / 1000);
+      const remainingSec = Math.max(0, 1800 - elapsedSec);
 
-      if (timer <= 0) {
-        clearInterval(interval);
+      setInactivityTimeLeft(remainingSec);
+
+      if (remainingSec <= 0) {
         handleLogout();
         alert('Sessão encerrada por inatividade de 30 minutos (Proteção LGPD).');
       }
-    }, 1000);
+    };
+
+    const interval = setInterval(checkInactivity, 1000);
+    window.addEventListener('visibilitychange', checkInactivity);
+    window.addEventListener('focus', checkInactivity);
 
     return () => {
       clearInterval(interval);
-      userEvents.forEach((evt) => window.removeEventListener(evt, resetTimer));
+      userEvents.forEach((evt) => window.removeEventListener(evt, recordUserActivity));
+      window.removeEventListener('visibilitychange', checkInactivity);
+      window.removeEventListener('focus', checkInactivity);
     };
   }, [isAuthenticated]);
 
@@ -160,6 +178,17 @@ export default function Home() {
   useEffect(() => {
     async function checkSession() {
       try {
+        // Validação estrita de inatividade persistida (LGPD - 30 minutos)
+        const lastActiveStr = localStorage.getItem('rm_last_active_timestamp');
+        if (lastActiveStr) {
+          const lastActive = parseInt(lastActiveStr, 10);
+          if (!isNaN(lastActive) && (Date.now() - lastActive) > 1800 * 1000) {
+            await handleLogout();
+            setAuthLoading(false);
+            return;
+          }
+        }
+
         if (isSupabaseConfigured && supabase) {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
@@ -168,6 +197,7 @@ export default function Home() {
             setUserEmail(email);
             const role = resolveUserRole(email);
             setCurrentUserRole(role);
+            localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
           } else {
             const localUser = localStorage.getItem('rm_auth_user');
             if (localUser) {
@@ -175,6 +205,7 @@ export default function Home() {
               setUserEmail(localUser);
               const role = resolveUserRole(localUser);
               setCurrentUserRole(role);
+              localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
             }
           }
         } else {
@@ -184,6 +215,7 @@ export default function Home() {
             setUserEmail(localUser);
             const role = resolveUserRole(localUser);
             setCurrentUserRole(role);
+            localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
           }
         }
       } catch (e) {
@@ -203,6 +235,7 @@ export default function Home() {
           setUserEmail(email);
           const role = resolveUserRole(email);
           setCurrentUserRole(role);
+          localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
         }
       });
       return () => subscription.unsubscribe();
@@ -308,6 +341,7 @@ export default function Home() {
           setIsAuthenticated(true);
           setUserEmail(data.user.email);
           localStorage.setItem('rm_auth_user', data.user.email);
+          localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
           return;
         }
 
@@ -323,6 +357,7 @@ export default function Home() {
             setUserEmail(membroEquipe.email);
             setCurrentUserRole(membroEquipe.papel || 'suporte');
             localStorage.setItem('rm_auth_user', membroEquipe.email);
+            localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
             return;
           } else {
             throw new Error('Senha incorreta para este usuário da equipe.');
@@ -355,7 +390,8 @@ export default function Home() {
           setUserEmail(membroEquipe.email);
           setCurrentUserRole(membroEquipe.papel || 'suporte');
           localStorage.setItem('rm_auth_user', membroEquipe.email);
-          return;
+            localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
+            return;
         } else {
           throw new Error('Senha incorreta para este usuário da equipe.');
         }
@@ -365,6 +401,7 @@ export default function Home() {
         setIsAuthenticated(true);
         setUserEmail(loginEmail.trim());
         localStorage.setItem('rm_auth_user', loginEmail.trim());
+        localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
       } else {
         throw new Error('Credenciais inválidas.');
       }
@@ -379,6 +416,7 @@ export default function Home() {
     setIsAuthenticated(true);
     setUserEmail('admin@rmcontrole.com');
     localStorage.setItem('rm_auth_user', 'admin@rmcontrole.com');
+    localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
   };
 
   const handleLogout = async () => {
@@ -388,6 +426,8 @@ export default function Home() {
       } catch (e) {}
     }
     localStorage.removeItem('rm_auth_user');
+    localStorage.removeItem('rm_user_role');
+    localStorage.removeItem('rm_last_active_timestamp');
     setIsAuthenticated(false);
     setUserEmail('');
   };
@@ -1010,6 +1050,17 @@ export default function Home() {
               {/* ABA 5: AUDITORIA LGPD */}
               {activeTab === 'auditoria' && (
                 <AuditLogsView userEmail={userEmail} />
+              )}
+
+              {/* ABA 6: FILA DE SUPORTE */}
+              {activeTab === 'fila' && (
+                <SupportQueueView
+                  onSelectEmpresa={(empresaId) => {
+                    const emp = empresas.find((e) => e.id === empresaId);
+                    if (emp) setSelectedEmpresa(emp);
+                  }}
+                  userEmail={userEmail}
+                />
               )}
             </motion.div>
           )}

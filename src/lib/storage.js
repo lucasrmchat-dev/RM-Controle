@@ -775,10 +775,35 @@ export async function addEmpresaCredencial(empresaId, { rotulo, usuario_email, s
   if (!rotulo || !rotulo.trim()) throw new Error('O rótulo/identificador do acesso é obrigatório.');
   if (!senha || !senha.trim()) throw new Error('A senha é obrigatória.');
 
+  let credId = 'cred_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+
+  if (isSupabaseConfigured && supabase && empresaId && empresaId.length === 36) {
+    try {
+      const { data: dbCred, error: credErr } = await supabase
+        .from('empresa_credenciais')
+        .insert([
+          {
+            empresa_id: empresaId,
+            rotulo: rotulo.trim(),
+            usuario_email: (usuario_email || '').trim(),
+            senha: senha.trim(),
+            observacao: (observacao || '').trim(),
+          }
+        ])
+        .select()
+        .single();
+
+      if (!credErr && dbCred) {
+        credId = dbCred.id;
+      }
+    } catch (e) {
+      console.warn('Erro ao inserir credencial no Supabase:', e);
+    }
+  }
+
   let empresas = getLocalData('empresas_reais', []);
   let emp = empresas.find((e) => e.id === empresaId);
 
-  // Se for empresa mock sendo editada, clona para empresas_reais
   if (!emp && isMockDataEnabled()) {
     const mockEmp = DEFAULT_EMPRESAS_MOCK.find((e) => e.id === empresaId);
     if (mockEmp) {
@@ -788,11 +813,11 @@ export async function addEmpresaCredencial(empresaId, { rotulo, usuario_email, s
   }
 
   const novaCred = {
-    id: 'cred_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+    id: credId,
     rotulo: rotulo.trim(),
-    usuario_email: usuario_email.trim(),
+    usuario_email: (usuario_email || '').trim(),
     senha: senha.trim(),
-    observacao: observacao.trim(),
+    observacao: (observacao || '').trim(),
     ultima_alteracao: new Date().toISOString(),
   };
 
@@ -813,6 +838,21 @@ export async function addEmpresaCredencial(empresaId, { rotulo, usuario_email, s
 }
 
 export async function updateEmpresaCredencial(empresaId, credId, dados, userEmail = 'admin@rmcontrole.com') {
+  if (isSupabaseConfigured && supabase && credId && credId.length === 36) {
+    try {
+      const updateData = {};
+      if (dados.rotulo !== undefined) updateData.rotulo = dados.rotulo;
+      if (dados.usuario_email !== undefined) updateData.usuario_email = dados.usuario_email;
+      if (dados.senha !== undefined) updateData.senha = dados.senha;
+      if (dados.observacao !== undefined) updateData.observacao = dados.observacao;
+      updateData.ultima_alteracao = new Date().toISOString();
+
+      await supabase.from('empresa_credenciais').update(updateData).eq('id', credId);
+    } catch (e) {
+      console.warn('Erro ao atualizar credencial no Supabase:', e);
+    }
+  }
+
   let empresas = getLocalData('empresas_reais', []);
   let emp = empresas.find((e) => e.id === empresaId);
 
@@ -841,6 +881,41 @@ export async function updateEmpresaCredencial(empresaId, credId, dados, userEmai
     usuarioEmail: userEmail,
     acao: 'alterou_credencial_suporte',
     detalhes: { credId, rotulo: dados.rotulo, modulo: 'Credenciais & Acessos' },
+  });
+
+  return true;
+}
+
+export async function deleteEmpresaCredencial(empresaId, credId, userEmail = 'admin@rmcontrole.com') {
+  if (isSupabaseConfigured && supabase && credId && credId.length === 36) {
+    try {
+      await supabase.from('empresa_credenciais').delete().eq('id', credId);
+    } catch (e) {
+      console.warn('Erro ao deletar credencial no Supabase:', e);
+    }
+  }
+
+  let empresas = getLocalData('empresas_reais', []);
+  let emp = empresas.find((e) => e.id === empresaId);
+
+  if (!emp && isMockDataEnabled()) {
+    const mockEmp = DEFAULT_EMPRESAS_MOCK.find((e) => e.id === empresaId);
+    if (mockEmp) {
+      emp = JSON.parse(JSON.stringify(mockEmp));
+      empresas.unshift(emp);
+    }
+  }
+
+  if (emp && emp.credenciais_lista) {
+    emp.credenciais_lista = emp.credenciais_lista.filter((c) => c.id !== credId);
+    setLocalData('empresas_reais', empresas);
+  }
+
+  await logAuditoria({
+    empresaId,
+    usuarioEmail: userEmail,
+    acao: 'removeu_credencial_suporte',
+    detalhes: { credId, modulo: 'Credenciais & Acessos' },
   });
 
   return true;
@@ -1045,32 +1120,96 @@ export async function getEmpresas({
         `)
         .order('created_at', { ascending: false });
 
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         empresas = data.map((emp) => ({
           ...emp,
           is_mock: false,
           servidor_alocado: emp.servidor_alocado || 'servidor_1',
           canais: (emp.canais || []).map((c) => ({
+            id: c.id,
             canal_id: c.canal_id,
-            nome: c.catalogo?.nome || 'Canal',
-            tipo: c.catalogo?.tipo || 'outro',
-            identificador_numero: c.identificador_numero,
-            status: c.status,
-            observacao: c.observacao,
+            nome: c.catalogo?.nome || c.nome || 'Canal',
+            tipo: c.catalogo?.tipo || c.tipo || 'outro',
+            identificador_numero: c.identificador_numero || '',
+            status: c.status || 'ativo',
+            observacao: c.observacao || '',
           })),
-          observacoes: emp.observacoes || [],
-          credenciais_lista: emp.credenciais?.map((cr) => ({
+          observacoes: (emp.observacoes || []).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)),
+          credenciais_lista: (emp.credenciais || []).map((cr) => ({
             id: cr.id,
-            rotulo: 'Acesso Principal',
-            usuario_email: cr.email_administrador,
-            senha: cr.senha_suporte,
-            ultima_alteracao: cr.ultima_alteracao,
-          })) || [],
-          checklist: emp.checklist || [],
+            rotulo: cr.rotulo || 'Acesso Principal',
+            usuario_email: cr.usuario_email || cr.email_administrador || '',
+            senha: cr.senha || cr.senha_suporte || '',
+            observacao: cr.observacao || '',
+            ultima_alteracao: cr.ultima_alteracao || cr.created_at,
+          })),
+          checklist: (emp.checklist || []).map((chk) => ({
+            id: chk.id,
+            titulo: chk.titulo,
+            descricao: chk.descricao || '',
+            categoria: chk.categoria || 'Infraestrutura',
+            concluido: !!chk.concluido,
+            observacao: chk.observacao || '',
+          })),
         }));
+
+        if (empresas.length > 0) {
+          setLocalData('empresas_reais', empresas);
+        }
       }
     } catch (e) {
       console.warn('Recorrendo ao armazenamento local para listar empresas:', e);
+    }
+  }
+
+  // AUTO-MIGRAÇÃO DE CONTINGÊNCIA:
+  // Se o Supabase estiver conectado mas existirem empresas cadastradas localmente
+  // em sessões anteriores (ex: id sem traço UUID), migramos para o Supabase automaticamente!
+  if (isSupabaseConfigured && supabase) {
+    const empresasLocais = getLocalData('empresas_reais', []);
+    const empresasNaoMigradas = empresasLocais.filter(
+      (loc) => !loc.is_mock && (!loc.id || !loc.id.includes('-')) && !empresas.some((db) => db.nome.toLowerCase().trim() === loc.nome.toLowerCase().trim())
+    );
+
+    if (empresasNaoMigradas.length > 0) {
+      for (const leg of empresasNaoMigradas) {
+        try {
+          const { data: mig, error: migErr } = await supabase
+            .from('empresas')
+            .insert([
+              {
+                nome: leg.nome,
+                formato_atendimento: leg.formato_atendimento || 'colaborativo',
+                servidor_alocado: leg.servidor_alocado || 'servidor_1',
+                ativo: leg.ativo !== false,
+                is_mock: false,
+              }
+            ])
+            .select()
+            .single();
+
+          if (!migErr && mig) {
+            if (leg.credenciais_lista && leg.credenciais_lista.length > 0) {
+              for (const cr of leg.credenciais_lista) {
+                await supabase.from('empresa_credenciais').insert([
+                  {
+                    empresa_id: mig.id,
+                    rotulo: cr.rotulo || 'Acesso Principal',
+                    usuario_email: cr.usuario_email || '',
+                    senha: cr.senha || getSenhaPadraoRedefinicao(),
+                    observacao: cr.observacao || '',
+                  }
+                ]);
+              }
+            }
+            empresas.unshift({
+              ...leg,
+              id: mig.id,
+              created_at: mig.created_at,
+            });
+          }
+        } catch (e) {}
+      }
     }
   }
 
@@ -1087,7 +1226,6 @@ export async function getEmpresas({
     }
   }
 
-  // Se o mock estiver desligado, limpa qualquer resquício de itens mock do checklist
   if (!isMockDataEnabled()) {
     empresas = empresas.map((emp) => ({
       ...emp,
@@ -1095,7 +1233,7 @@ export async function getEmpresas({
     }));
   }
 
-  // BUSCA APRIMORADA: Nome de Empresa, Nome de Colaborador/Acesso, Telefone/WhatsApp
+  // Busca aprimorada
   if (search && search.trim() !== '') {
     const q = search.toLowerCase().trim();
     const qNumeros = q.replace(/\D/g, '');
@@ -1104,66 +1242,52 @@ export async function getEmpresas({
       const nomeMatch = (emp.nome || '').toLowerCase().includes(q);
       const servidorMatch = (emp.servidor_alocado || '').toLowerCase().includes(q);
       
-      // Busca em Colaboradores e Acessos
       const credsMatch = (emp.credenciais_lista || []).some((c) => 
         (c.usuario_email || '').toLowerCase().includes(q) || 
         (c.rotulo || '').toLowerCase().includes(q)
       );
 
-      // Busca em Telefones e Canais
       const canaisMatch = (emp.canais || []).some((c) => {
         const cNome = (c.nome || '').toLowerCase().includes(q);
-        const cId = (c.identificador_numero || '').toLowerCase().includes(q);
-        const cIdNumeros = (c.identificador_numero || '').replace(/\D/g, '');
-        const telMatch = qNumeros.length >= 3 && cIdNumeros.includes(qNumeros);
-        return cNome || cId || telMatch;
+        const cObs = (c.observacao || '').toLowerCase().includes(q);
+        const cIdNum = (c.identificador_numero || '').replace(/\D/g, '');
+        const numMatch = qNumeros.length >= 3 && cIdNum.includes(qNumeros);
+        return cNome || cObs || numMatch;
       });
 
-      // Busca em Observações
-      const obsMatch = (emp.observacoes || []).some((o) => 
-        (o.titulo || '').toLowerCase().includes(q) || 
-        (o.conteudo || '').toLowerCase().includes(q)
-      );
-
-      return nomeMatch || servidorMatch || credsMatch || canaisMatch || obsMatch;
+      return nomeMatch || servidorMatch || credsMatch || canaisMatch;
     });
   }
 
-  // Filtro de Canal
-  if (canalTipo && canalTipo !== 'todos') {
-    empresas = empresas.filter((emp) => {
-      return (emp.canais || []).some((c) => c.tipo === canalTipo);
-    });
+  if (canalTipo !== 'todos') {
+    empresas = empresas.filter((emp) =>
+      emp.canais?.some((c) => c.tipo === canalTipo)
+    );
   }
 
-  // Filtro de Formato
-  if (formato && formato !== 'todos') {
+  if (formato !== 'todos') {
     empresas = empresas.filter((emp) => emp.formato_atendimento === formato);
   }
 
-  // Filtro de Servidor Alocado (Servidor 1 vs Servidor 2)
-  if (servidor && servidor !== 'todos') {
+  if (servidor !== 'todos') {
     empresas = empresas.filter((emp) => (emp.servidor_alocado || 'servidor_1') === servidor);
   }
 
   const total = empresas.length;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const currentPage = Math.min(Math.max(1, page), totalPages);
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
-  const paginatedItems = empresas.slice(startIndex, endIndex);
+  const totalPages = Math.ceil(total / pageSize) || 1;
+  const paginated = empresas.slice((page - 1) * pageSize, page * pageSize);
 
   return {
-    items: paginatedItems,
+    items: paginated,
     total,
-    page: currentPage,
+    page,
     pageSize,
     totalPages,
   };
 }
 
 // ==============================================================================
-// CADASTRO DE EMPRESAS
+// CADASTRO DE EMPRESAS (PERSISTÊNCIA REAL NO SUPABASE)
 // ==============================================================================
 export async function createEmpresa({
   nome,
@@ -1178,24 +1302,105 @@ export async function createEmpresa({
   if (!trimmedNome) throw new Error('O nome da empresa é obrigatório.');
 
   const templateChecklist = getServerChecklistTemplate();
+  let empresaId = null;
+  let createdDbEmpresa = null;
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data: dbEmp, error: dbErr } = await supabase
+        .from('empresas')
+        .insert([
+          {
+            nome: trimmedNome,
+            formato_atendimento,
+            servidor_alocado,
+            ativo: true,
+            is_mock: false,
+          }
+        ])
+        .select()
+        .single();
+
+      if (dbErr) {
+        console.error('Erro ao cadastrar empresa no Supabase:', dbErr);
+      } else if (dbEmp) {
+        createdDbEmpresa = dbEmp;
+        empresaId = dbEmp.id;
+
+        if (email_administrador || senha_suporte) {
+          try {
+            await supabase.from('empresa_credenciais').insert([
+              {
+                empresa_id: empresaId,
+                rotulo: 'Acesso Principal do Administrador',
+                usuario_email: email_administrador || `admin@${trimmedNome.toLowerCase().replace(/[^a-z0-9]/g, '')}.com.br`,
+                senha: senha_suporte || getSenhaPadraoRedefinicao(),
+                observacao: 'Acesso inicial configurado no cadastro',
+              }
+            ]);
+          } catch (cErr) {
+            console.warn('Erro ao inserir credencial no Supabase:', cErr);
+          }
+        }
+
+        if (templateChecklist && templateChecklist.length > 0) {
+          try {
+            const chkInserts = templateChecklist.map((item) => ({
+              empresa_id: empresaId,
+              titulo: item.titulo,
+              descricao: item.descricao || '',
+              categoria: item.categoria || 'Infraestrutura',
+              concluido: false,
+              observacao: '',
+            }));
+            await supabase.from('empresa_checklist').insert(chkInserts);
+          } catch (chkErr) {
+            console.warn('Erro ao inserir checklist no Supabase:', chkErr);
+          }
+        }
+
+        if (canaisIniciais && canaisIniciais.length > 0) {
+          try {
+            const canaisInserts = canaisIniciais.map((c) => ({
+              empresa_id: empresaId,
+              canal_id: c.canal_id && c.canal_id.length === 36 ? c.canal_id : null,
+              nome: c.nome || 'Canal',
+              tipo: c.tipo || 'outro',
+              identificador_numero: c.identificador_numero || '',
+              status: c.status || 'ativo',
+            }));
+            await supabase.from('empresa_canais').insert(canaisInserts);
+          } catch (canErr) {
+            console.warn('Erro ao inserir canais no Supabase:', canErr);
+          }
+        }
+      }
+    } catch (supErr) {
+      console.error('Falha de conexão com Supabase ao criar empresa:', supErr);
+    }
+  }
+
+  if (!empresaId) {
+    empresaId = 'emp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+  }
 
   const novaEmpresa = {
-    id: 'emp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    id: empresaId,
     nome: trimmedNome,
     formato_atendimento,
     servidor_alocado,
     ativo: true,
     is_mock: false,
-    created_at: new Date().toISOString(),
+    created_at: createdDbEmpresa?.created_at || new Date().toISOString(),
     canais: canaisIniciais,
     observacoes: [],
     credenciais_lista: (email_administrador || senha_suporte) ? [
       {
         id: 'cred_' + Date.now(),
         rotulo: 'Acesso Principal do Administrador',
-        usuario_email: email_administrador || `admin@${trimmedNome.toLowerCase().replace(/\s+/g, '')}.com.br`,
+        usuario_email: email_administrador || `admin@${trimmedNome.toLowerCase().replace(/[^a-z0-9]/g, '')}.com.br`,
         senha: senha_suporte || getSenhaPadraoRedefinicao(),
-        observacao: 'Acesso inicial',
+        observacao: 'Acesso inicial configurado no cadastro',
         ultima_alteracao: new Date().toISOString(),
       }
     ] : [],
@@ -1234,6 +1439,91 @@ export async function createEmpresasEmMassa(nomes, { formato_atendimento = 'cola
   const criadas = [];
   const empresasReais = getLocalData('empresas_reais', []);
   const templateChecklist = getServerChecklistTemplate();
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const inserts = nomesLimpos.map((nome) => ({
+        nome,
+        formato_atendimento,
+        servidor_alocado,
+        ativo: true,
+        is_mock: false,
+      }));
+
+      const { data: dbEmpresas, error } = await supabase.from('empresas').insert(inserts).select();
+
+      if (!error && dbEmpresas && dbEmpresas.length > 0) {
+        for (const emp of dbEmpresas) {
+          try {
+            await supabase.from('empresa_credenciais').insert([
+              {
+                empresa_id: emp.id,
+                rotulo: 'Acesso Principal do Administrador',
+                usuario_email: `admin@${emp.nome.toLowerCase().replace(/[^a-z0-9]/g, '')}.com.br`,
+                senha: getSenhaPadraoRedefinicao(),
+                observacao: 'Importação em lote',
+              }
+            ]);
+            if (templateChecklist.length > 0) {
+              const chkInserts = templateChecklist.map((item) => ({
+                empresa_id: emp.id,
+                titulo: item.titulo,
+                descricao: item.descricao || '',
+                categoria: item.categoria || 'Infraestrutura',
+                concluido: false,
+                observacao: '',
+              }));
+              await supabase.from('empresa_checklist').insert(chkInserts);
+            }
+          } catch (e) {}
+
+          const novaObj = {
+            id: emp.id,
+            nome: emp.nome,
+            formato_atendimento,
+            servidor_alocado,
+            ativo: true,
+            is_mock: false,
+            created_at: emp.created_at || new Date().toISOString(),
+            canais: [],
+            observacoes: [],
+            credenciais_lista: [
+              {
+                id: 'cred_' + Date.now(),
+                rotulo: 'Acesso Principal do Administrador',
+                usuario_email: `admin@${emp.nome.toLowerCase().replace(/[^a-z0-9]/g, '')}.com.br`,
+                senha: getSenhaPadraoRedefinicao(),
+                observacao: 'Importação em lote',
+                ultima_alteracao: new Date().toISOString(),
+              }
+            ],
+            checklist: templateChecklist.map((item) => ({
+              id: 'chk_inst_' + Math.random().toString(36).substr(2, 7),
+              titulo: item.titulo,
+              descricao: item.descricao,
+              categoria: item.categoria,
+              concluido: false,
+              observacao: '',
+            })),
+          };
+          empresasReais.unshift(novaObj);
+          criadas.push(novaObj);
+        }
+
+        setLocalData('empresas_reais', empresasReais);
+
+        await logAuditoria({
+          usuarioEmail: userEmail,
+          acao: 'cadastrou_empresas_em_massa',
+          detalhes: { quantidade: criadas.length, nomes: nomesLimpos, modulo: 'Gestão de Empresas' },
+        });
+
+        return criadas;
+      }
+    } catch (e) {
+      console.warn('Erro ao inserir empresas em massa no Supabase:', e);
+    }
+  }
 
   for (const nome of nomesLimpos) {
     const nova = {
@@ -1282,6 +1572,61 @@ export async function createEmpresasEmMassa(nomes, { formato_atendimento = 'cola
 }
 
 export async function getEmpresaById(id) {
+  if (isSupabaseConfigured && supabase && id && id.length === 36) {
+    try {
+      const { data, error } = await supabase
+        .from('empresas')
+        .select(`
+          *,
+          canais:empresa_canais(
+            *,
+            catalogo:canais_catalogo(*)
+          ),
+          observacoes:empresa_observacoes(*),
+          credenciais:empresa_credenciais(*),
+          checklist:empresa_checklist(*)
+        `)
+        .eq('id', id)
+        .single();
+
+      if (!error && data) {
+        return {
+          ...data,
+          is_mock: false,
+          servidor_alocado: data.servidor_alocado || 'servidor_1',
+          canais: (data.canais || []).map((c) => ({
+            id: c.id,
+            canal_id: c.canal_id,
+            nome: c.catalogo?.nome || c.nome || 'Canal',
+            tipo: c.catalogo?.tipo || c.tipo || 'outro',
+            identificador_numero: c.identificador_numero || '',
+            status: c.status || 'ativo',
+            observacao: c.observacao || '',
+          })),
+          observacoes: (data.observacoes || []).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)),
+          credenciais_lista: (data.credenciais || []).map((cr) => ({
+            id: cr.id,
+            rotulo: cr.rotulo || 'Acesso Principal',
+            usuario_email: cr.usuario_email || cr.email_administrador || '',
+            senha: cr.senha || cr.senha_suporte || '',
+            observacao: cr.observacao || '',
+            ultima_alteracao: cr.ultima_alteracao || cr.created_at,
+          })),
+          checklist: (data.checklist || []).map((chk) => ({
+            id: chk.id,
+            titulo: chk.titulo,
+            descricao: chk.descricao || '',
+            categoria: chk.categoria || 'Infraestrutura',
+            concluido: !!chk.concluido,
+            observacao: chk.observacao || '',
+          })),
+        };
+      }
+    } catch (e) {
+      console.warn('Recorrendo ao armazenamento local para getEmpresaById:', e);
+    }
+  }
+
   let empresas = getLocalData('empresas_reais', []);
   let encontrada = empresas.find((e) => e.id === id);
   if (!encontrada && isMockDataEnabled()) {
@@ -1289,7 +1634,6 @@ export async function getEmpresaById(id) {
   }
   if (!encontrada) throw new Error('Empresa não encontrada.');
 
-  // Se mock estiver desligado, garante que não há checklist fake
   if (!isMockDataEnabled()) {
     encontrada = {
       ...encontrada,
@@ -1301,6 +1645,21 @@ export async function getEmpresaById(id) {
 }
 
 export async function updateEmpresa(id, dados, userEmail = 'admin@rmcontrole.com') {
+  if (isSupabaseConfigured && supabase && id && id.length === 36) {
+    try {
+      const updatePayload = {};
+      if (dados.nome !== undefined) updatePayload.nome = dados.nome;
+      if (dados.formato_atendimento !== undefined) updatePayload.formato_atendimento = dados.formato_atendimento;
+      if (dados.servidor_alocado !== undefined) updatePayload.servidor_alocado = dados.servidor_alocado;
+      if (dados.ativo !== undefined) updatePayload.ativo = dados.ativo;
+      updatePayload.updated_at = new Date().toISOString();
+
+      await supabase.from('empresas').update(updatePayload).eq('id', id);
+    } catch (e) {
+      console.warn('Erro ao atualizar empresa no Supabase:', e);
+    }
+  }
+
   let empresasReais = getLocalData('empresas_reais', []);
   let idx = empresasReais.findIndex((e) => e.id === id);
   
@@ -1312,7 +1671,6 @@ export async function updateEmpresa(id, dados, userEmail = 'admin@rmcontrole.com
     };
     setLocalData('empresas_reais', empresasReais);
   } else {
-    // Se for uma empresa mock sendo editada, clona para empresas_reais
     const mockEmp = DEFAULT_EMPRESAS_MOCK.find((e) => e.id === id);
     if (mockEmp) {
       const cloned = { ...mockEmp, ...dados, is_mock: false, updated_at: new Date().toISOString() };
@@ -1331,13 +1689,59 @@ export async function updateEmpresa(id, dados, userEmail = 'admin@rmcontrole.com
   return dados;
 }
 
-// ==============================================================================
-// GESTÃO DE CANAIS POR EMPRESA
-// ==============================================================================
+export async function deleteEmpresa(id, userEmail = 'admin@rmcontrole.com') {
+  if (isSupabaseConfigured && supabase && id && id.length === 36) {
+    try {
+      await supabase.from('empresas').delete().eq('id', id);
+    } catch (e) {
+      console.warn('Erro ao excluir empresa no Supabase:', e);
+    }
+  }
+
+  let empresasReais = getLocalData('empresas_reais', []);
+  empresasReais = empresasReais.filter((e) => e.id !== id);
+  setLocalData('empresas_reais', empresasReais);
+
+  await logAuditoria({
+    empresaId: id,
+    usuarioEmail: userEmail,
+    acao: 'excluiu_empresa',
+    detalhes: { id, modulo: 'Gestão de Empresas' },
+  });
+
+  return true;
+}
+
 export async function addCanalEmpresa(empresaId, { canal_id, identificador_numero = '', observacao = '' }, userEmail = 'admin@rmcontrole.com') {
   const catalogo = await getCanaisCatalogo();
   const canalInfo = catalogo.find((c) => c.id === canal_id);
   if (!canalInfo) throw new Error('Canal não encontrado no catálogo.');
+
+  let canalDbId = null;
+  if (isSupabaseConfigured && supabase && empresaId && empresaId.length === 36) {
+    try {
+      const { data: dbCanal, error: errCanal } = await supabase
+        .from('empresa_canais')
+        .insert([
+          {
+            empresa_id: empresaId,
+            canal_id: canal_id && canal_id.length === 36 ? canal_id : null,
+            nome: canalInfo.nome,
+            tipo: canalInfo.tipo,
+            identificador_numero: identificador_numero.trim(),
+            observacao: observacao.trim(),
+            status: 'ativo',
+          }
+        ])
+        .select()
+        .single();
+      if (!errCanal && dbCanal) {
+        canalDbId = dbCanal.id;
+      }
+    } catch (e) {
+      console.warn('Erro ao inserir canal no Supabase:', e);
+    }
+  }
 
   let empresas = getLocalData('empresas_reais', []);
   let emp = empresas.find((e) => e.id === empresaId);
@@ -1351,6 +1755,7 @@ export async function addCanalEmpresa(empresaId, { canal_id, identificador_numer
   }
   
   const novoCanalVinculado = {
+    id: canalDbId || ('can_' + Date.now()),
     canal_id,
     nome: canalInfo.nome,
     tipo: canalInfo.tipo,
@@ -1379,6 +1784,18 @@ export async function addCanalEmpresa(empresaId, { canal_id, identificador_numer
 }
 
 export async function removeCanalEmpresa(empresaId, canalId, userEmail = 'admin@rmcontrole.com') {
+  if (isSupabaseConfigured && supabase && empresaId && empresaId.length === 36) {
+    try {
+      await supabase
+        .from('empresa_canais')
+        .delete()
+        .eq('empresa_id', empresaId)
+        .or(`canal_id.eq.${canalId},id.eq.${canalId}`);
+    } catch (e) {
+      console.warn('Erro ao remover canal no Supabase:', e);
+    }
+  }
+
   let empresas = getLocalData('empresas_reais', []);
   let emp = empresas.find((e) => e.id === empresaId);
 
@@ -1391,7 +1808,7 @@ export async function removeCanalEmpresa(empresaId, canalId, userEmail = 'admin@
   }
 
   if (emp) {
-    emp.canais = (emp.canais || []).filter((c) => c.canal_id !== canalId);
+    emp.canais = (emp.canais || []).filter((c) => c.canal_id !== canalId && c.id !== canalId);
     setLocalData('empresas_reais', empresas);
   }
 
@@ -1405,11 +1822,34 @@ export async function removeCanalEmpresa(empresaId, canalId, userEmail = 'admin@
   return true;
 }
 
-// ==============================================================================
-// GESTÃO DE OBSERVAÇÕES
-// ==============================================================================
-export async function addEmpresaObservacao(empresaId, { titulo = 'Nova Observação', conteudo, tipo = 'manual' }, userEmail = 'admin@rmcontrole.com') {
+export async function addEmpresaObservacao(empresaId, { titulo = 'Nova Observação', conteudo, tipo = 'geral' }, userEmail = 'admin@rmcontrole.com') {
   if (!conteudo || !conteudo.trim()) throw new Error('O conteúdo da observação é obrigatório.');
+
+  const tipoDb = ['geral', 'suporte', 'particularidade'].includes(tipo) ? tipo : 'geral';
+  let obsDbId = null;
+
+  if (isSupabaseConfigured && supabase && empresaId && empresaId.length === 36) {
+    try {
+      const { data: dbObs, error: obsErr } = await supabase
+        .from('empresa_observacoes')
+        .insert([
+          {
+            empresa_id: empresaId,
+            titulo: titulo.trim() || 'Observação',
+            conteudo: conteudo.trim(),
+            tipo: tipoDb,
+            autor_email: userEmail,
+          }
+        ])
+        .select()
+        .single();
+      if (!obsErr && dbObs) {
+        obsDbId = dbObs.id;
+      }
+    } catch (e) {
+      console.warn('Erro ao inserir observação no Supabase:', e);
+    }
+  }
 
   let empresas = getLocalData('empresas_reais', []);
   let emp = empresas.find((e) => e.id === empresaId);
@@ -1423,11 +1863,11 @@ export async function addEmpresaObservacao(empresaId, { titulo = 'Nova Observaç
   }
 
   const novaObs = {
-    id: 'obs_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    id: obsDbId || ('obs_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5)),
     titulo: titulo.trim() || 'Observação',
     conteudo: conteudo.trim(),
     autor_email: userEmail,
-    tipo, // 'manual' | 'suporte'
+    tipo: tipoDb,
     created_at: new Date().toISOString(),
   };
 
@@ -1441,13 +1881,21 @@ export async function addEmpresaObservacao(empresaId, { titulo = 'Nova Observaç
     empresaId,
     usuarioEmail: userEmail,
     acao: 'adicionou_observacao',
-    detalhes: { titulo: novaObs.titulo, tipo, modulo: 'Anotações & Pedidos' },
+    detalhes: { titulo: novaObs.titulo, tipo: tipoDb, modulo: 'Anotações & Pedidos' },
   });
 
   return novaObs;
 }
 
 export async function deleteEmpresaObservacao(empresaId, obsId, userEmail = 'admin@rmcontrole.com') {
+  if (isSupabaseConfigured && supabase && obsId && obsId.length === 36) {
+    try {
+      await supabase.from('empresa_observacoes').delete().eq('id', obsId);
+    } catch (e) {
+      console.warn('Erro ao deletar observação no Supabase:', e);
+    }
+  }
+
   let empresas = getLocalData('empresas_reais', []);
   let emp = empresas.find((e) => e.id === empresaId);
 
@@ -1474,10 +1922,21 @@ export async function deleteEmpresaObservacao(empresaId, obsId, userEmail = 'adm
   return true;
 }
 
-// ==============================================================================
-// CHECKLIST DO SERVIDOR DA EMPRESA
-// ==============================================================================
 export async function toggleChecklistItem(empresaId, itemId, { concluido, observacao }, userEmail = 'admin@rmcontrole.com') {
+  if (isSupabaseConfigured && supabase && itemId && itemId.length === 36) {
+    try {
+      const updateData = {};
+      if (concluido !== undefined) {
+        updateData.concluido = concluido;
+        updateData.concluido_em = concluido ? new Date().toISOString() : null;
+      }
+      if (observacao !== undefined) updateData.observacao = observacao;
+      await supabase.from('empresa_checklist').update(updateData).eq('id', itemId);
+    } catch (e) {
+      console.warn('Erro ao atualizar checklist no Supabase:', e);
+    }
+  }
+
   let empresas = getLocalData('empresas_reais', []);
   let emp = empresas.find((e) => e.id === empresaId);
 
