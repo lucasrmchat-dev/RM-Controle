@@ -921,32 +921,6 @@ export async function deleteEmpresaCredencial(empresaId, credId, userEmail = 'ad
   return true;
 }
 
-export async function deleteEmpresaCredencial(empresaId, credId, userEmail = 'admin@rmcontrole.com') {
-  let empresas = getLocalData('empresas_reais', []);
-  let emp = empresas.find((e) => e.id === empresaId);
-
-  if (!emp && isMockDataEnabled()) {
-    const mockEmp = DEFAULT_EMPRESAS_MOCK.find((e) => e.id === empresaId);
-    if (mockEmp) {
-      emp = JSON.parse(JSON.stringify(mockEmp));
-      empresas.unshift(emp);
-    }
-  }
-
-  if (emp && emp.credenciais_lista) {
-    emp.credenciais_lista = emp.credenciais_lista.filter((c) => c.id !== credId);
-    setLocalData('empresas_reais', empresas);
-  }
-
-  await logAuditoria({
-    empresaId,
-    usuarioEmail: userEmail,
-    acao: 'removeu_credencial_suporte',
-    detalhes: { credId, modulo: 'Credenciais & Acessos' },
-  });
-
-  return true;
-}
 
 // ==============================================================================
 // GESTÃO DE USUÁRIOS E PERMISSÕES POR ABA (SUPORTE, VENDAS, ADMIN)
