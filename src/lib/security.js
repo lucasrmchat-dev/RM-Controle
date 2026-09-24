@@ -33,22 +33,23 @@ export async function logAuditoria({
 }) {
   const nomeFinal = usuarioNome || getNomeAmigavel(usuarioEmail);
 
-  const payload = {
-    empresa_id: empresaId,
-    usuario_id: usuarioId,
-    usuario_email: usuarioEmail,
-    usuario_nome: nomeFinal,
-    operador_nome: nomeFinal,
-    ip_origem: ipOrigem,
-    acao,
-    detalhes,
-    created_at: new Date().toISOString(),
-    criado_em: new Date().toISOString(),
+  // Validação estrita para o schema real do Supabase:
+  // auditoria_logs: id, empresa_id (uuid), usuario_id (uuid), usuario_email (text), acao (text), detalhes (jsonb), created_at
+  const payloadSupabase = {
+    empresa_id: (empresaId && typeof empresaId === 'string' && empresaId.length === 36) ? empresaId : null,
+    usuario_id: (usuarioId && typeof usuarioId === 'string' && usuarioId.length === 36) ? usuarioId : null,
+    usuario_email: usuarioEmail || 'admin@rmcontrole.com',
+    acao: acao || 'acao_sistema',
+    detalhes: {
+      ...detalhes,
+      usuario_nome: nomeFinal,
+      ip_origem: ipOrigem,
+    },
   };
 
   try {
     if (isSupabaseConfigured && supabase) {
-      await supabase.from('auditoria_logs').insert([payload]);
+      await supabase.from('auditoria_logs').insert([payloadSupabase]);
     }
   } catch (err) {
     console.warn('Falha ao persistir log de auditoria no Supabase:', err);

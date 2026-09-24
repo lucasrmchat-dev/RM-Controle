@@ -136,7 +136,7 @@ export default function ServerConfigView() {
     if (!novoUsuarioNome.trim() || !novoUsuarioEmail.trim()) return;
 
     try {
-      addEquipeUsuario({
+      await addEquipeUsuario({
         nome: novoUsuarioNome,
         email: novoUsuarioEmail,
         senha: novoUsuarioSenha || senhaPadrao,
@@ -169,7 +169,7 @@ export default function ServerConfigView() {
     setEditSenha('');
   };
 
-  const handleSalvarEdicao = (e) => {
+  const handleSalvarEdicao = async (e) => {
     e.preventDefault();
     if (!usuarioEditando) return;
     if (!editNome.trim() || !editEmail.trim()) {
@@ -178,7 +178,7 @@ export default function ServerConfigView() {
     }
 
     try {
-      updateEquipeUsuario(usuarioEditando.id, {
+      await updateEquipeUsuario(usuarioEditando.id, {
         nome: editNome.trim(),
         email: editEmail.trim(),
         papel: editPapel,

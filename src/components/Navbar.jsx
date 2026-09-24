@@ -47,6 +47,7 @@ export default function Navbar({
     const handleUpdate = () => checarEstado();
     window.addEventListener('suporte_updated', handleUpdate);
     window.addEventListener('user_role_updated', handleUpdate);
+    window.addEventListener('equipe_updated', handleUpdate);
 
     // Ticker a cada segundo para atualizar cronômetros ao vivo
     const timer = setInterval(() => setTick((t) => t + 1), 1000);
@@ -54,6 +55,7 @@ export default function Navbar({
     return () => {
       window.removeEventListener('suporte_updated', handleUpdate);
       window.removeEventListener('user_role_updated', handleUpdate);
+      window.removeEventListener('equipe_updated', handleUpdate);
       clearInterval(timer);
     };
   }, []);

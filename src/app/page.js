@@ -245,11 +245,24 @@ export default function Home() {
   // Proteção e Redirecionamento de Abas Permitidas por Papel (Hierarquia Estrita)
   useEffect(() => {
     if (!isAuthenticated) return;
-    const role = resolveUserRole(userEmail);
-    const permitidas = getAbasPermitidas(role);
-    if (!permitidas.includes(activeTab)) {
-      setActiveTab('empresas');
-    }
+    const checkRoleAndTab = () => {
+      const role = resolveUserRole(userEmail);
+      setCurrentUserRole(role);
+      const permitidas = getAbasPermitidas(role);
+      if (!permitidas.includes(activeTab)) {
+        setActiveTab('empresas');
+      }
+    };
+
+    checkRoleAndTab();
+
+    window.addEventListener('user_role_updated', checkRoleAndTab);
+    window.addEventListener('equipe_updated', checkRoleAndTab);
+
+    return () => {
+      window.removeEventListener('user_role_updated', checkRoleAndTab);
+      window.removeEventListener('equipe_updated', checkRoleAndTab);
+    };
   }, [isAuthenticated, userEmail, activeTab]);
 
   // Monitora alternador de dados mock
