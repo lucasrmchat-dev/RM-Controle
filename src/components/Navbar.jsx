@@ -1,5 +1,6 @@
-import { getAudioConfig, setAudioConfig, playNotificationTone } from '@/lib/audioNotifications';
 'use client';
+
+import { getAudioConfig, setAudioConfig, playNotificationTone } from '@/lib/audioNotifications';
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
