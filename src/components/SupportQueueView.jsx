@@ -63,6 +63,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   // Atribuição de Atendente
   const [tecnicoAtribuido, setTecnicoAtribuido] = useState(userEmail || 'admin@rmcontrole.com');
   const [iniciarDireto, setIniciarDireto] = useState(false);
+  const [dropdownTecnicoAberto, setDropdownTecnicoAberto] = useState(false);
   const [novaObservacao, setNovaObservacao] = useState('');
   const [feedback, setFeedback] = useState('');
 
@@ -831,7 +832,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           type="text"
                           value={novoColabTelefone}
                           onChange={(e) => setNovoColabTelefone(e.target.value)}
-                          placeholder="WhatsApp (opcional)"
+                          placeholder="Telefone / Contato (opcional)"
                           className="px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-800 border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none"
                         />
                       </div>
@@ -905,28 +906,151 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                   )}
                 </div>
 
-                {/* 3. Atribuição de Atendente Técnico */}
-                <div className="space-y-1.5">
+                {/* 3. Atribuição de Atendente Técnico (Seletor Apple Elegante com Avatar) */}
+                <div className="space-y-1.5 relative">
                   <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
                     Atribuir Atendimento a
                   </label>
-                  <select
-                    value={tecnicoAtribuido}
-                    onChange={(e) => setTecnicoAtribuido(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium focus:outline-none cursor-pointer"
-                  >
-                    <option value={userEmail || 'admin@rmcontrole.com'}>
-                      Para mim ({getNomeTecnico(userEmail)}) [Padrão]
-                    </option>
-                    {equipeLista
-                      .filter((eq) => (eq.email || '').toLowerCase() !== (userEmail || '').toLowerCase())
-                      .map((eq) => (
-                        <option key={eq.id} value={eq.email}>
-                          {eq.nome} ({eq.papel})
-                        </option>
-                      ))}
-                    <option value="">Fila Geral (Aguardando Atendente Livre)</option>
-                  </select>
+                  
+                  {(() => {
+                    const isParaMim = !tecnicoAtribuido || 
+                      (userEmail && tecnicoAtribuido.toLowerCase() === userEmail.toLowerCase()) || 
+                      (tecnicoAtribuido === 'admin@rmcontrole.com' && (!userEmail || userEmail === 'admin@rmcontrole.com'));
+                    
+                    const membroSelecionado = equipeLista.find(
+                      (eq) => (eq.email || '').toLowerCase() === (tecnicoAtribuido || '').toLowerCase()
+                    );
+                    
+                    const rotuloAtual = !tecnicoAtribuido 
+                      ? 'Fila Geral (Aguardando Atendente Livre)'
+                      : isParaMim
+                      ? `Para mim (${getNomeTecnico(userEmail)}) [Padrão]`
+                      : membroSelecionado?.nome || getNomeTecnico(tecnicoAtribuido);
+
+                    const papelAtual = membroSelecionado?.papel || (isParaMim ? 'Responsável' : 'Geral');
+
+                    return (
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setDropdownTecnicoAberto(!dropdownTecnicoAberto)}
+                          className="w-full p-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] hover:border-black/[0.15] dark:hover:border-white/[0.2] transition-all flex items-center justify-between text-left cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-slate-200 to-slate-100 dark:from-zinc-700 dark:to-zinc-800 text-slate-800 dark:text-zinc-100 flex items-center justify-center font-bold text-xs flex-shrink-0 border border-black/[0.06] dark:border-white/[0.08]">
+                              {rotuloAtual.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-xs font-semibold text-[#1d1d1f] dark:text-white block truncate">
+                                {rotuloAtual}
+                              </span>
+                              <span className="text-[10px] text-slate-400 capitalize font-medium block">
+                                {papelAtual}
+                              </span>
+                            </div>
+                          </div>
+
+                          <svg className="w-4 h-4 text-slate-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </button>
+
+                        {/* Dropdown Menu com visual de luxo Apple */}
+                        {dropdownTecnicoAberto && (
+                          <div className="absolute top-full mt-1.5 left-0 w-full z-30 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.12] shadow-2xl p-2 space-y-1 backdrop-blur-2xl max-h-60 overflow-y-auto">
+                            
+                            {/* Opção 1: Para mim */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTecnicoAtribuido(userEmail || 'admin@rmcontrole.com');
+                                setDropdownTecnicoAberto(false);
+                              }}
+                              className={`w-full p-2 rounded-xl text-left flex items-center justify-between text-xs transition-all cursor-pointer ${
+                                isParaMim 
+                                  ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold' 
+                                  : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-[10px] flex items-center justify-center">
+                                  ✓
+                                </div>
+                                <div>
+                                  <span className="block font-semibold">Para mim ({getNomeTecnico(userEmail)})</span>
+                                  <span className="text-[10px] opacity-70 block font-mono">{userEmail || 'admin@rmcontrole.com'}</span>
+                                </div>
+                              </div>
+                              <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06]">
+                                Padrão
+                              </span>
+                            </button>
+
+                            {/* Membros da Equipe Cadastrados */}
+                            {equipeLista
+                              .filter((eq) => (eq.email || '').toLowerCase() !== (userEmail || '').toLowerCase())
+                              .map((eq) => {
+                                const isSel = (tecnicoAtribuido || '').toLowerCase() === (eq.email || '').toLowerCase();
+                                return (
+                                  <button
+                                    key={eq.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setTecnicoAtribuido(eq.email);
+                                      setIniciarDireto(false); // Atribuído a outro -> sempre fila de espera por padrão
+                                      setDropdownTecnicoAberto(false);
+                                    }}
+                                    className={`w-full p-2 rounded-xl text-left flex items-center justify-between text-xs transition-all cursor-pointer ${
+                                      isSel 
+                                        ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold' 
+                                        : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-6 h-6 rounded-full bg-black/[0.05] dark:bg-white/[0.08] text-slate-700 dark:text-zinc-200 font-bold text-[10px] flex items-center justify-center">
+                                        {(eq.nome || eq.email).charAt(0).toUpperCase()}
+                                      </div>
+                                      <div>
+                                        <span className="block font-medium">{eq.nome}</span>
+                                        <span className="text-[10px] opacity-70 block font-mono">{eq.email}</span>
+                                      </div>
+                                    </div>
+                                    <span className="text-[10px] capitalize px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06]">
+                                      {eq.papel || 'suporte'}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+
+                            {/* Opção Fila Geral */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTecnicoAtribuido('');
+                                setDropdownTecnicoAberto(false);
+                              }}
+                              className={`w-full p-2 rounded-xl text-left flex items-center justify-between text-xs transition-all cursor-pointer ${
+                                !tecnicoAtribuido 
+                                  ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold' 
+                                  : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-slate-300 dark:bg-zinc-700 text-slate-800 dark:text-zinc-200 font-bold text-[10px] flex items-center justify-center">
+                                  👥
+                                </div>
+                                <div>
+                                  <span className="block font-medium">Fila Geral (Sem Atendente Fixo)</span>
+                                  <span className="text-[10px] opacity-70 block">Disponível para qualquer operador</span>
+                                </div>
+                              </div>
+                            </button>
+
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* 4. Breve Descrição / Contexto do Problema */}
@@ -938,24 +1062,76 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                     rows={2}
                     value={novaObservacao}
                     onChange={(e) => setNovaObservacao(e.target.value)}
-                    placeholder="Ex: Cliente relata que mensagens do WhatsApp estão demorando para disparar..."
+                    placeholder="Ex: Cliente relata lentidão no envio de mensagens ou instabilidade na instância..."
                     className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none leading-relaxed"
                   />
                 </div>
 
-                {/* Opção de Iniciar Atendimento Imediato */}
-                <div className="flex items-center gap-2 pl-1 pt-1">
-                  <input
-                    type="checkbox"
-                    id="chkIniciarAgora"
-                    checked={iniciarDireto}
-                    onChange={(e) => setIniciarDireto(e.target.checked)}
-                    className="rounded border-slate-300 text-[#4d7c0f] focus:ring-[#4d7c0f]"
-                  />
-                  <label htmlFor="chkIniciarAgora" className="text-xs text-slate-700 dark:text-zinc-300 cursor-pointer">
-                    Iniciar cronômetro de atendimento ativo imediatamente
-                  </label>
-                </div>
+                {/* 5. Início do Chamado: Cronômetro Ativo vs Fila de Espera */}
+                {(() => {
+                  const isParaMim = !tecnicoAtribuido || 
+                    (userEmail && tecnicoAtribuido.toLowerCase() === userEmail.toLowerCase()) || 
+                    (tecnicoAtribuido === 'admin@rmcontrole.com' && (!userEmail || userEmail === 'admin@rmcontrole.com'));
+
+                  if (!isParaMim) {
+                    return (
+                      <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-900 dark:text-amber-200 text-xs flex items-center gap-2.5">
+                        <span className="text-base flex-shrink-0">⏳</span>
+                        <div className="space-y-0.5 leading-relaxed">
+                          <span className="font-bold block">Encaminhamento para Fila de Espera</span>
+                          <p className="text-[11px] opacity-90">
+                            Como o chamado está atribuído a outro operador ({getNomeTecnico(tecnicoAtribuido)}), ele entrará automaticamente na fila em espera até que o colaborador visualize e inicie o atendimento.
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-2 pt-1">
+                      <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
+                        Modo de Início do Chamado
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => setIniciarDireto(false)}
+                          className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                            !iniciarDireto
+                              ? 'bg-amber-500/10 border-amber-500/35 text-amber-900 dark:text-amber-200 shadow-xs'
+                              : 'bg-black/[0.02] dark:bg-white/[0.04] border-black/[0.08] dark:border-white/[0.1] text-slate-600 dark:text-zinc-400 hover:border-black/[0.15]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm">⏳</span>
+                            <span className="text-xs font-bold">Colocar na Fila de Espera</span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 dark:text-zinc-400 leading-snug">
+                            Salvar na fila de triagem para atender depois ou como lembrete.
+                          </p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setIniciarDireto(true)}
+                          className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                            iniciarDireto
+                              ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/15 border-[#4d7c0f]/35 dark:border-[#84cc16]/35 text-[#4d7c0f] dark:text-[#84cc16] shadow-xs'
+                              : 'bg-black/[0.02] dark:bg-white/[0.04] border-black/[0.08] dark:border-white/[0.1] text-slate-600 dark:text-zinc-400 hover:border-black/[0.15]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm">⏱</span>
+                            <span className="text-xs font-bold">Iniciar Atendimento Agora</span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 dark:text-zinc-400 leading-snug">
+                            O cronômetro ativo começa a contar imediatamente.
+                          </p>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Botões do Modal */}
                 <div className="flex items-center justify-end gap-3 pt-3 border-t border-black/[0.06] dark:border-white/[0.08]">
@@ -972,7 +1148,12 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                     type="submit"
                     className="px-6 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold shadow-md hover:opacity-95 transition-all cursor-pointer"
                   >
-                    {iniciarDireto ? 'Iniciar Suporte Agora' : 'Adicionar à Fila de Espera'}
+                    {(() => {
+                      const isParaMim = !tecnicoAtribuido || 
+                        (userEmail && tecnicoAtribuido.toLowerCase() === userEmail.toLowerCase()) || 
+                        (tecnicoAtribuido === 'admin@rmcontrole.com' && (!userEmail || userEmail === 'admin@rmcontrole.com'));
+                      return (isParaMim && iniciarDireto) ? 'Iniciar Suporte Agora' : 'Adicionar à Fila de Espera';
+                    })()}
                   </motion.button>
                 </div>
 

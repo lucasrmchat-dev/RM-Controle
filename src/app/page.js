@@ -242,6 +242,10 @@ export default function Home() {
     }
   }, []);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [activeTab, selectedEmpresa]);
+
   // Proteção e Redirecionamento de Abas Permitidas por Papel (Hierarquia Estrita)
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -530,32 +534,22 @@ export default function Home() {
         }}
       />
 
-      <main className="flex-1 w-full max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 py-4 pb-20">
-        <AnimatePresence initial={false}>
-          {selectedEmpresa ? (
-            /* TELA CHEIA: GERENCIAR EMPRESA (WIDESCREEN DE ALTA PRODUTIVIDADE) */
-            <motion.div
-              key="empresa-detail"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.25 }}
-            >
-              <CompanyManagementView
-                empresa={selectedEmpresa}
-                onBack={() => setSelectedEmpresa(null)}
-                onUpdated={carregarEmpresas}
-                userEmail={userEmail}
-              />
-            </motion.div>
-          ) : (
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.25 }}
-            >
+      <main className="flex-1 w-full max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 py-2 sm:py-4 pb-20">
+        {selectedEmpresa ? (
+          /* TELA CHEIA: GERENCIAR EMPRESA (WIDESCREEN DE ALTA PRODUTIVIDADE) */
+          <div key="empresa-detail" className="animate-fade-in">
+            <CompanyManagementView
+              empresa={selectedEmpresa}
+              onBack={() => {
+                setSelectedEmpresa(null);
+                window.scrollTo({ top: 0, behavior: 'instant' });
+              }}
+              onUpdated={carregarEmpresas}
+              userEmail={userEmail}
+            />
+          </div>
+        ) : (
+          <div key={activeTab} className="animate-fade-in">
               {/* ABA 1: EMPRESAS */}
               {activeTab === 'empresas' && (
                 <div className="space-y-5">
@@ -1078,9 +1072,8 @@ export default function Home() {
                   userEmail={userEmail}
                 />
               )}
-            </motion.div>
-          )}
-        </AnimatePresence>
+          </div>
+        )}
       </main>
 
       {/* Modal de Criação de Empresa */}

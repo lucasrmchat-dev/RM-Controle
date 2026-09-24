@@ -603,10 +603,25 @@ export async function addColaboradorEmpresa(empresaId, { nome, cargo = '', email
 }
 
 export async function deleteHistoricoChamado(chamadoId, userEmail = 'admin@rmcontrole.com') {
+  // 1. Remove do historico_chamados
   let historico = getLocalData('historico_chamados', []);
   const chamadoExcluido = historico.find((c) => c.id === chamadoId);
   historico = historico.filter((c) => c.id !== chamadoId);
   setLocalData('historico_chamados', historico);
+
+  // 2. Remove também de chamados_suporte (garante limpeza completa de chamados finalizados legados)
+  let chamados = getLocalData('chamados_suporte', []);
+  chamados = chamados.filter((c) => c.id !== chamadoId);
+  setLocalData('chamados_suporte', chamados);
+
+  // 3. Remove no Supabase se configurado
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('chamados_suporte').delete().eq('id', chamadoId);
+    } catch (e) {
+      console.warn('Erro ao excluir chamado no Supabase:', e);
+    }
+  }
 
   await logAuditoria({
     empresaId: chamadoExcluido?.empresa_id || null,

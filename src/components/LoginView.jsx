@@ -182,11 +182,12 @@ export default function LoginView({
             
             {/* Campo E-mail */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
+              <label htmlFor="login-email" className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1 cursor-pointer">
                 E-mail Corporativo
               </label>
-              <div
-                className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all ${
+              <label
+                htmlFor="login-email"
+                className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all cursor-text ${
                   focusedField === 'email'
                     ? 'border-black dark:border-white bg-white dark:bg-zinc-900 ring-2 ring-black/10 dark:ring-white/20 shadow-sm'
                     : 'border-slate-300 dark:border-white/15 bg-slate-50/70 dark:bg-white/[0.04]'
@@ -196,25 +197,29 @@ export default function LoginView({
                   <rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
                 </svg>
                 <input
-                  type="email"
+                  id="login-email"
+                  name="email"
+                  type="text"
+                  autoComplete="username email"
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   onFocus={() => setFocusedField('email')}
                   onBlur={() => setFocusedField(null)}
                   placeholder="admin@rmcontrole.com"
                   required
-                  className="w-full bg-transparent text-xs text-black dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none font-medium"
+                  className="w-full bg-transparent text-sm text-black dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none font-medium cursor-text"
                 />
-              </div>
+              </label>
             </div>
 
             {/* Campo Senha */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
+              <label htmlFor="login-password" className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1 cursor-pointer">
                 Senha de Acesso
               </label>
-              <div
-                className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all ${
+              <label
+                htmlFor="login-password"
+                className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all cursor-text ${
                   focusedField === 'password'
                     ? 'border-black dark:border-white bg-white dark:bg-zinc-900 ring-2 ring-black/10 dark:ring-white/20 shadow-sm'
                     : 'border-slate-300 dark:border-white/15 bg-slate-50/70 dark:bg-white/[0.04]'
@@ -222,24 +227,31 @@ export default function LoginView({
               >
                 <AppleLockIcon className="w-4 h-4 text-slate-500 dark:text-zinc-400 flex-shrink-0" />
                 <input
+                  id="login-password"
+                  name="password"
                   type={showLoginPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
                   onFocus={() => setFocusedField('password')}
                   onBlur={() => setFocusedField(null)}
                   placeholder="••••••••••••"
                   required
-                  className="w-full bg-transparent text-xs text-black dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none font-mono"
+                  className="w-full bg-transparent text-sm text-black dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none font-mono cursor-text"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowLoginPassword(!showLoginPassword)}
-                  className="text-slate-400 hover:text-black dark:hover:text-white p-0.5 transition-colors"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowLoginPassword(!showLoginPassword);
+                  }}
+                  className="text-slate-400 hover:text-black dark:hover:text-white p-1 transition-colors cursor-pointer"
                   tabIndex={-1}
                 >
                   {showLoginPassword ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
                 </button>
-              </div>
+              </label>
             </div>
 
             {/* Botão de Autenticação Alto Contraste */}

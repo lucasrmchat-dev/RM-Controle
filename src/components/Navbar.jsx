@@ -363,7 +363,7 @@ export default function Navbar({
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => { setActiveTab(tab.id); window.scrollTo({ top: 0, behavior: 'instant' }); }}
                   className={`relative flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-full text-xs font-medium transition-colors duration-200 z-10 ${
                     isActive
                       ? 'text-[#0a0a0c] dark:text-white font-semibold'
@@ -684,7 +684,7 @@ export default function Navbar({
         </div>
       </header>
 
-      <div className="h-20 sm:h-24"></div>
+      <div className="h-16 sm:h-20" aria-hidden="true" />
     </>
   );
 }

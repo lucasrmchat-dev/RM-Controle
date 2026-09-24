@@ -63,7 +63,17 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
   const carregarDados = async () => {
     const met = getMetricasSuporte({ periodo, dataInicio, dataFim });
     setMetricas(met);
-    const hist = getHistoricoChamados(); setChamadosRecentes(hist.length > 0 ? hist.slice(0, 20) : getChamadosSuporte().slice(0, 15));
+    const hist = getHistoricoChamados();
+    const chamados = getChamadosSuporte().filter((c) => c.status === "concluido" || c.status === "finalizado");
+    const mapaChamados = new Map();
+    hist.forEach((h) => mapaChamados.set(h.id, h));
+    chamados.forEach((c) => {
+      if (!mapaChamados.has(c.id)) mapaChamados.set(c.id, c);
+    });
+    const listaFinal = Array.from(mapaChamados.values()).sort(
+      (a, b) => new Date(b.finalizado_em || b.iniciado_em || 0) - new Date(a.finalizado_em || a.iniciado_em || 0)
+    );
+    setChamadosRecentes(listaFinal.slice(0, 30));
     const emp = await getEmpresas({ pageSize: 1000 });
     const listaEmpresas = Array.isArray(emp) ? emp : (emp?.items || []);
     setEmpresasLista(listaEmpresas);
@@ -110,8 +120,9 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
 
   const handleExcluirHistorico = async (chamadoId, empresaNome) => {
     if (confirm(`Deseja excluir este chamado de ${empresaNome || 'empresa'} do histórico?`)) {
+      setChamadosRecentes((prev) => prev.filter((c) => c.id !== chamadoId));
       await deleteHistoricoChamado(chamadoId, userEmail);
-      carregarDados();
+      await carregarDados();
     }
   };
 
