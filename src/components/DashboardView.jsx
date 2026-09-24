@@ -5,6 +5,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   getMetricasSuporte, 
   getChamadosSuporte, 
+  getHistoricoChamados,
+  deleteHistoricoChamado,
+  getNomeTecnico,
   finalizarSuporte,
   getEmpresas
 } from '@/lib/storage';
@@ -44,7 +47,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
   const [empresasLista, setEmpresasLista] = useState([]);
 
   // Períodos e Filtros de Data
-  const [periodo, setPeriodo] = useState('7d'); // 'hoje' | '7d' | '30d' | 'mes_atual' | 'personalizado'
+  const [periodo, setPeriodo] = useState('mes_atual'); // 'hoje' | '7d' | '30d' | 'mes_atual' | 'personalizado'
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
 
@@ -60,7 +63,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
   const carregarDados = async () => {
     const met = getMetricasSuporte({ periodo, dataInicio, dataFim });
     setMetricas(met);
-    setChamadosRecentes(getChamadosSuporte().slice(0, 15));
+    const hist = getHistoricoChamados(); setChamadosRecentes(hist.length > 0 ? hist.slice(0, 20) : getChamadosSuporte().slice(0, 15));
     const emp = await getEmpresas({ pageSize: 1000 });
     const listaEmpresas = Array.isArray(emp) ? emp : (emp?.items || []);
     setEmpresasLista(listaEmpresas);
@@ -103,6 +106,13 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
 
   const handleAbrirFinalizacao = (chamado) => {
     setChamadoParaFinalizar(chamado);
+  };
+
+  const handleExcluirHistorico = async (chamadoId, empresaNome) => {
+    if (confirm(`Deseja excluir este chamado de ${empresaNome || 'empresa'} do histórico?`)) {
+      await deleteHistoricoChamado(chamadoId, userEmail);
+      carregarDados();
+    }
   };
 
   // Cálculos do Gráfico SVG de Evolução Temporal
@@ -153,6 +163,13 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
       {/* ============================================================================== */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 border border-[#4d7c0f]/20 dark:border-[#84cc16]/30 text-[#4d7c0f] dark:text-[#84cc16] text-xs font-semibold shadow-xs">
+              <span className="text-xs">📅</span>
+              <span className="capitalize">{new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date())}</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#4d7c0f]/20 dark:bg-[#84cc16]/20 font-bold">Mês Vigente</span>
+            </span>
+          </div>
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#1d1d1f] dark:text-white">
             Dashboard de Atendimentos & Métricas
           </h1>
@@ -850,46 +867,81 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
               Nenhum suporte realizado ainda.
             </div>
           ) : (
-            chamadosRecentes.map((ch) => (
-              <div key={ch.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
-                <div>
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className="text-xs font-semibold text-[#1d1d1f] dark:text-white">
-                      {ch.empresa_nome}
-                    </span>
-                    <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${
-                      ch.status === 'finalizado'
-                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'
-                        : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20'
-                    }`}>
-                      {ch.status === 'finalizado' ? 'Finalizado' : 'Em Aberto'}
-                    </span>
-                    {ch.motivo && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-700 dark:text-zinc-300 font-medium">
-                        {ch.motivo}
+            chamadosRecentes.map((ch) => {
+              const nomeTecnico = ch.tecnico_nome || getNomeTecnico(ch.tecnico_email, ch.atendente_nome || ch.atendente);
+              const isConcluido = ch.status === 'finalizado' || ch.status === 'concluido';
+
+              return (
+                <div key={ch.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors group">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="text-xs font-semibold text-[#1d1d1f] dark:text-white">
+                        {ch.empresa_nome}
                       </span>
+                      <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${
+                        isConcluido
+                          ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'
+                          : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20'
+                      }`}>
+                        {isConcluido ? 'Concluído' : 'Em Aberto'}
+                      </span>
+                      {ch.motivo && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-700 dark:text-zinc-300 font-medium">
+                          {ch.motivo}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3 text-[11px] text-slate-500 dark:text-zinc-400 font-mono flex-wrap">
+                      <span>
+                        Técnico: <strong className="text-slate-800 dark:text-zinc-200 font-semibold">{nomeTecnico}</strong>
+                        {ch.tecnico_email && <span className="text-[10px] text-slate-400 ml-1">({ch.tecnico_email})</span>}
+                      </span>
+                      <span>•</span>
+                      <span>
+                        Data: {new Date(ch.finalizado_em || ch.iniciado_em || ch.created_at).toLocaleString('pt-BR')}
+                      </span>
+                      {ch.solicitante_nome && (
+                        <>
+                          <span>•</span>
+                          <span>Solicitante: <strong className="text-slate-700 dark:text-zinc-300">{ch.solicitante_nome}</strong></span>
+                        </>
+                      )}
+                    </div>
+
+                    {ch.observacoes && (
+                      <p className="text-[11px] text-slate-600 dark:text-zinc-400 mt-1 italic">
+                        Solução: {ch.observacoes}
+                      </p>
                     )}
                   </div>
 
-                  <p className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono">
-                    Técnico: {ch.tecnico_email} • Início: {new Date(ch.iniciado_em).toLocaleString('pt-BR')}
-                  </p>
+                  <div className="flex items-center gap-4 self-end sm:self-center flex-shrink-0">
+                    <div className="text-right font-mono">
+                      <span className="text-xs font-semibold text-slate-800 dark:text-zinc-200 block tabular-nums">
+                        {isConcluido ? formatarDuracao(ch.duracao_segundos || ch.tempo_ativo_segundos) : calcularTempoDecorrido(ch.iniciado_em)}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {ch.tempo_espera_segundos > 0 ? `Espera: ${Math.round(ch.tempo_espera_segundos / 60)}m` : 'Atendimento'}
+                      </span>
+                    </div>
 
-                  {ch.observacoes && (
-                    <p className="text-[11px] text-slate-600 dark:text-zinc-400 mt-1 italic">
-                      Solução: {ch.observacoes}
-                    </p>
-                  )}
+                    {/* Botão de Excluir Chamado do Histórico */}
+                    <button
+                      type="button"
+                      onClick={() => handleExcluirHistorico(ch.id, ch.empresa_nome)}
+                      className="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-xl hover:bg-red-500/10 transition-all cursor-pointer"
+                      title="Excluir este chamado do histórico"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
-
-                <div className="text-right self-end sm:self-center font-mono">
-                  <span className="text-xs font-semibold text-slate-800 dark:text-zinc-200 block tabular-nums">
-                    {ch.status === 'finalizado' ? formatarDuracao(ch.duracao_segundos) : calcularTempoDecorrido(ch.iniciado_em)}
-                  </span>
-                  <span className="text-[10px] text-slate-400">Duração</span>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

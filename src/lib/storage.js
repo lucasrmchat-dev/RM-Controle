@@ -1,3 +1,4 @@
+import { triggerSupportNotification, stopSupportNotificationLoop } from './audioNotifications';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { logAuditoria } from './security';
 
@@ -234,31 +235,43 @@ export async function iniciarSuporte({
   prioridade = 'normal',
   descricao = '',
   solicitante = '',
+  solicitante_nome = '',
   userEmail = 'admin@rmcontrole.com' 
 }) {
+  const agora = new Date().toISOString();
+  const agoraMs = new Date(agora).getTime();
   const chamados = getLocalData('chamados_suporte', []);
 
-  // Se já existe um ID específico (ex: item que estava 'pendente' na fila)
+  // Se já existe um ID específico (ex: item que estava 'pendente' ou 'aguardando_visualizacao')
   if (chamado_id) {
     const idx = chamados.findIndex((c) => c.id === chamado_id);
     if (idx !== -1) {
+      const anterior = chamados[idx];
+      const inicioEsperaMs = new Date(anterior.tempo_espera_inicio || anterior.created_at || agora).getTime();
+      const esperaSegs = Math.max(0, Math.floor((agoraMs - inicioEsperaMs) / 1000));
+
       chamados[idx] = {
-        ...chamados[idx],
+        ...anterior,
         status: 'em_andamento',
         tecnico_email: userEmail,
-        iniciado_em: new Date().toISOString(),
-        motivo: motivo || chamados[idx].motivo || 'Geral',
-        prioridade: prioridade || chamados[idx].prioridade || 'normal',
-        descricao: descricao || chamados[idx].descricao || '',
-        solicitante: solicitante || chamados[idx].solicitante || '',
+        tecnico_nome: getNomeTecnico(userEmail),
+        tempo_espera_fim: agora,
+        tempo_espera_segundos: esperaSegs,
+        tempo_ativo_inicio: agora,
+        iniciado_em: agora,
+        solicitante_nome: solicitante_nome || solicitante || anterior.solicitante_nome || anterior.solicitante || 'Colaborador',
       };
       setLocalData('chamados_suporte', chamados);
+
+      try {
+        stopSupportNotificationLoop();
+      } catch (e) {}
 
       await logAuditoria({
         empresaId: empresa_id,
         usuarioEmail: userEmail,
         acao: 'iniciou_suporte_tecnico',
-        detalhes: { empresa_nome, iniciado_em: chamados[idx].iniciado_em, modulo: 'Fila de Suporte' },
+        detalhes: { empresa_nome, iniciado_em: chamados[idx].iniciado_em, espera_segundos: esperaSegs, modulo: 'Fila de Suporte' },
       });
 
       window.dispatchEvent(new Event('suporte_updated'));
@@ -274,20 +287,28 @@ export async function iniciarSuporte({
     empresa_id,
     empresa_nome,
     tecnico_email: userEmail,
+    tecnico_nome: getNomeTecnico(userEmail),
     status: 'em_andamento',
-    prioridade: prioridade || 'normal',
-    motivo: motivo || 'Geral',
-    descricao: descricao || '',
-    solicitante: solicitante || '',
-    created_at: new Date().toISOString(),
-    iniciado_em: new Date().toISOString(),
+    solicitante_nome: solicitante_nome || solicitante || 'Colaborador',
+    created_at: agora,
+    tempo_espera_inicio: agora,
+    tempo_espera_fim: agora,
+    tempo_espera_segundos: 0,
+    tempo_ativo_inicio: agora,
+    tempo_ativo_fim: null,
+    tempo_ativo_segundos: 0,
+    iniciado_em: agora,
     finalizado_em: null,
     duracao_segundos: 0,
-    observacoes: '',
+    observacoes: descricao || '',
   };
 
   chamados.unshift(novoChamado);
   setLocalData('chamados_suporte', chamados);
+
+  try {
+    stopSupportNotificationLoop();
+  } catch (e) {}
 
   await logAuditoria({
     empresaId: empresa_id,
@@ -303,76 +324,123 @@ export async function iniciarSuporte({
 export async function adicionarChamadoFila({
   empresa_id,
   empresa_nome,
-  motivo = 'Geral',
-  prioridade = 'normal',
-  descricao = '',
-  solicitante = '',
+  solicitante_nome = '',
+  solicitante_email = '',
+  solicitante_telefone = '',
+  atribuido_a = null,
+  observacao_inicial = '',
   iniciarAgora = false,
   userEmail = 'admin@rmcontrole.com',
 }) {
+  const agora = new Date().toISOString();
+  const agoraMs = Date.now();
+  const chamados = getLocalData('chamados_suporte', []);
+
   if (iniciarAgora) {
-    return iniciarSuporte({
+    const novoChamado = {
+      id: 'chamado_' + agoraMs + '_' + Math.random().toString(36).substr(2, 5),
       empresa_id,
       empresa_nome,
-      motivo,
-      prioridade,
-      descricao,
-      solicitante,
-      userEmail,
+      tecnico_email: userEmail,
+      tecnico_nome: getNomeTecnico(userEmail),
+      solicitante_nome: (solicitante_nome || 'Colaborador').trim(),
+      solicitante_email: solicitante_email.trim(),
+      solicitante_telefone: solicitante_telefone.trim(),
+      observacao_inicial: observacao_inicial.trim(),
+      status: 'em_andamento',
+      created_at: agora,
+      tempo_espera_inicio: agora,
+      tempo_espera_fim: agora,
+      tempo_espera_segundos: 0,
+      tempo_ativo_inicio: agora,
+      tempo_ativo_fim: null,
+      tempo_ativo_segundos: 0,
+      iniciado_em: agora,
+      finalizado_em: null,
+    };
+    chamados.unshift(novoChamado);
+    setLocalData('chamados_suporte', chamados);
+
+    await logAuditoria({
+      empresaId: empresa_id,
+      usuarioEmail: userEmail,
+      acao: 'iniciou_suporte_tecnico',
+      detalhes: { empresa_nome, modulo: 'Fila de Suporte' },
     });
+    window.dispatchEvent(new Event('suporte_updated'));
+    return novoChamado;
   }
 
-  const chamados = getLocalData('chamados_suporte', []);
-  const jaAtivoOuPendente = chamados.find(
-    (c) => c.empresa_id === empresa_id && (c.status === 'em_andamento' || c.status === 'pendente')
-  );
-  if (jaAtivoOuPendente) return jaAtivoOuPendente;
+  const tecnicoDesignado = atribuido_a ? atribuido_a : userEmail;
+  const statusInicial = 'aguardando_visualizacao';
 
   const novoChamado = {
-    id: 'chamado_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    id: 'chamado_' + agoraMs + '_' + Math.random().toString(36).substr(2, 5),
     empresa_id,
     empresa_nome,
-    tecnico_email: null,
-    status: 'pendente',
-    prioridade: prioridade || 'normal',
-    motivo: motivo || 'Geral',
-    descricao: descricao || '',
-    solicitante: solicitante || '',
-    created_at: new Date().toISOString(),
+    tecnico_email: tecnicoDesignado,
+    tecnico_nome: getNomeTecnico(tecnicoDesignado),
+    solicitante_nome: (solicitante_nome || 'Colaborador').trim(),
+    solicitante_email: solicitante_email.trim(),
+    solicitante_telefone: solicitante_telefone.trim(),
+    observacao_inicial: observacao_inicial.trim(),
+    status: statusInicial,
+    created_at: agora,
+    tempo_espera_inicio: agora,
+    tempo_espera_fim: null,
+    tempo_espera_segundos: 0,
+    tempo_ativo_inicio: null,
+    tempo_ativo_fim: null,
+    tempo_ativo_segundos: 0,
     iniciado_em: null,
     finalizado_em: null,
-    duracao_segundos: 0,
-    observacoes: '',
   };
 
   chamados.unshift(novoChamado);
   setLocalData('chamados_suporte', chamados);
 
+  try {
+    triggerSupportNotification({ chamado: novoChamado, userEmail });
+  } catch (e) {}
+
   await logAuditoria({
     empresaId: empresa_id,
     usuarioEmail: userEmail,
     acao: 'adicionou_chamado_na_fila',
-    detalhes: { empresa_nome, prioridade, motivo, modulo: 'Fila de Suporte' },
+    detalhes: { empresa_nome, atribuido_a: tecnicoDesignado, modulo: 'Fila de Suporte' },
   });
 
   window.dispatchEvent(new Event('suporte_updated'));
   return novoChamado;
 }
 
-export async function assumirSuporte({ chamado_id, userEmail }) {
+export async function assumirSuporte({ chamado_id, userEmail = 'admin@rmcontrole.com' }) {
   const chamados = getLocalData('chamados_suporte', []);
   const idx = chamados.findIndex((c) => c.id === chamado_id);
   if (idx === -1) return null;
 
   const anterior = chamados[idx];
+  const agora = new Date().toISOString();
+  const agoraMs = new Date(agora).getTime();
+  const inicioEsperaMs = new Date(anterior.tempo_espera_inicio || anterior.created_at || agora).getTime();
+  const esperaSegundos = Math.max(0, Math.floor((agoraMs - inicioEsperaMs) / 1000));
+
   chamados[idx] = {
     ...anterior,
     tecnico_email: userEmail,
+    tecnico_nome: getNomeTecnico(userEmail),
     status: 'em_andamento',
-    iniciado_em: anterior.iniciado_em || new Date().toISOString(),
+    tempo_espera_fim: agora,
+    tempo_espera_segundos: esperaSegundos,
+    tempo_ativo_inicio: agora,
+    iniciado_em: agora,
   };
 
   setLocalData('chamados_suporte', chamados);
+
+  try {
+    stopSupportNotificationLoop();
+  } catch (e) {}
 
   await logAuditoria({
     empresaId: anterior.empresa_id,
@@ -380,7 +448,7 @@ export async function assumirSuporte({ chamado_id, userEmail }) {
     acao: 'assumiu_suporte_tecnico',
     detalhes: {
       empresa_nome: anterior.empresa_nome,
-      atendente_anterior: anterior.tecnico_email,
+      espera_segundos: esperaSegundos,
       modulo: 'Fila de Suporte',
     },
   });
@@ -391,15 +459,13 @@ export async function assumirSuporte({ chamado_id, userEmail }) {
 
 export function getFilaChamados() {
   const chamados = getLocalData('chamados_suporte', []);
-  return chamados.filter((c) => c.status === 'em_andamento' || c.status === 'pendente');
+  return chamados.filter((c) => c.status === 'em_andamento' || c.status === 'pendente' || c.status === 'aguardando_visualizacao');
 }
 
 export function getChamadosResolvidosHoje() {
-  const chamados = getLocalData('chamados_suporte', []);
+  const historico = getLocalData('historico_chamados', []);
   const hojeStr = new Date().toISOString().split('T')[0];
-  return chamados.filter(
-    (c) => c.status === 'finalizado' && (c.finalizado_em || '').startsWith(hojeStr)
-  );
+  return historico.filter((c) => (c.finalizado_em || '').startsWith(hojeStr));
 }
 
 export async function finalizarSuporte({
@@ -408,62 +474,50 @@ export async function finalizarSuporte({
   observacoes = '',
   colaborador_solicitante = '',
   atendente = '',
-  duracao_segundos = null,
   userEmail = 'admin@rmcontrole.com'
 }) {
-  const config = getConfiguracoesSuporte();
-
-  if (config.motivo_obrigatorio && (!motivo || !motivo.trim())) {
-    throw new Error('O motivo do suporte é obrigatório conforme as regras do sistema.');
-  }
-  if (config.solucao_obrigatoria && (!observacoes || !observacoes.trim())) {
-    throw new Error('O resumo da solução aplicada é obrigatório conforme as regras do sistema.');
-  }
-  if (config.colaborador_obrigatorio && (!colaborador_solicitante || !colaborador_solicitante.trim())) {
-    throw new Error('A identificação do colaborador solicitante é obrigatória.');
-  }
-  if (config.atendente_obrigatorio && (!atendente || !atendente.trim())) {
-    throw new Error('O atendente técnico responsável é obrigatório.');
-  }
-
   const chamados = getLocalData('chamados_suporte', []);
   const idx = chamados.findIndex((c) => c.id === chamado_id);
   if (idx === -1) throw new Error('Chamado não encontrado.');
 
   const chamado = chamados[idx];
-  const finalizadoEm = new Date();
-  const iniciadoEm = new Date(chamado.iniciado_em);
-  const duracaoCalculada = Math.max(1, Math.round((finalizadoEm.getTime() - iniciadoEm.getTime()) / 1000));
-  const duracaoFinal = (duracao_segundos !== null && duracao_segundos > 0) ? duracao_segundos : duracaoCalculada;
+  const finalizadoEm = new Date().toISOString();
+  const agoraMs = new Date(finalizadoEm).getTime();
 
-  chamados[idx] = {
+  let esperaSegs = chamado.tempo_espera_segundos || 0;
+  if (!chamado.tempo_espera_fim && chamado.tempo_espera_inicio) {
+    esperaSegs = Math.max(0, Math.floor((agoraMs - new Date(chamado.tempo_espera_inicio).getTime()) / 1000));
+  }
+
+  const ativoInicioMs = new Date(chamado.tempo_ativo_inicio || chamado.iniciado_em || finalizadoEm).getTime();
+  const ativoSegs = Math.max(1, Math.floor((agoraMs - ativoInicioMs) / 1000));
+
+  const chamadoFinalizado = {
     ...chamado,
-    status: 'finalizado',
-    finalizado_em: finalizadoEm.toISOString(),
-    duracao_segundos: duracaoFinal,
-    motivo: (motivo || 'Geral').trim(),
-    observacoes: (observacoes || '').trim(),
-    colaborador_solicitante: (colaborador_solicitante || '').trim(),
-    atendente: (atendente || userEmail).trim(),
+    status: 'concluido',
+    motivo: motivo || chamado.motivo || 'Atendimento Geral',
+    solicitante_nome: colaborador_solicitante || chamado.solicitante_nome || 'Colaborador',
+    resolucao: observacoes || '',
+    observacoes: observacoes || '',
+    finalizado_em: finalizadoEm,
+    tempo_espera_segundos: esperaSegs,
+    tempo_ativo_segundos: ativoSegs,
+    duracao_segundos: ativoSegs,
+    atendente_nome: atendente || chamado.tecnico_nome || getNomeTecnico(userEmail),
+    tecnico_email: chamado.tecnico_email || userEmail,
+    tecnico_nome: chamado.tecnico_nome || getNomeTecnico(userEmail),
   };
 
+  chamados.splice(idx, 1);
   setLocalData('chamados_suporte', chamados);
 
-  // Observações feitas no fechamento vão automaticamente para a aba "Anotações e Pedidos" da empresa
-  if (observacoes && observacoes.trim()) {
-    try {
-      const detalheSol = colaborador_solicitante 
-        ? `${observacoes.trim()} (Solicitante: ${colaborador_solicitante.trim()})`
-        : observacoes.trim();
-      await addEmpresaObservacao(chamado.empresa_id, {
-        titulo: `Resolução de Atendimento (${(motivo || 'Geral').trim()})`,
-        conteudo: detalheSol,
-        tipo: 'suporte',
-      }, userEmail);
-    } catch (e) {
-      console.warn('Falha ao adicionar anotação do suporte:', e);
-    }
-  }
+  const historico = getLocalData('historico_chamados', []);
+  historico.unshift(chamadoFinalizado);
+  setLocalData('historico_chamados', historico.slice(0, 500));
+
+  try {
+    stopSupportNotificationLoop();
+  } catch (e) {}
 
   await logAuditoria({
     empresaId: chamado.empresa_id,
@@ -471,40 +525,111 @@ export async function finalizarSuporte({
     acao: 'finalizou_suporte_tecnico',
     detalhes: {
       empresa_nome: chamado.empresa_nome,
-      duracao_segundos: duracaoFinal,
-      motivo: (motivo || 'Geral').trim(),
-      colaborador_solicitante: colaborador_solicitante || 'Não informado',
-      modulo: 'Suporte em Tempo Real',
+      motivo,
+      tempo_ativo_segundos: ativoSegs,
+      tempo_espera_segundos: esperaSegs,
+      modulo: 'Fila de Suporte',
     },
   });
 
   window.dispatchEvent(new Event('suporte_updated'));
-  return chamados[idx];
+  return chamadoFinalizado;
 }
 
 export async function cancelarSuporte({ chamado_id, userEmail = 'admin@rmcontrole.com' }) {
   const chamados = getLocalData('chamados_suporte', []);
   const idx = chamados.findIndex((c) => c.id === chamado_id);
   if (idx === -1) return null;
-  const chamado = chamados[idx];
 
-  // Remove dos chamados em andamento
+  const anterior = chamados[idx];
   chamados.splice(idx, 1);
   setLocalData('chamados_suporte', chamados);
 
+  try {
+    stopSupportNotificationLoop();
+  } catch (e) {}
+
   await logAuditoria({
-    empresaId: chamado.empresa_id,
+    empresaId: anterior.empresa_id,
     usuarioEmail: userEmail,
     acao: 'cancelou_suporte_tecnico',
+    detalhes: { empresa_nome: anterior.empresa_nome, modulo: 'Fila de Suporte' },
+  });
+
+  window.dispatchEvent(new Event('suporte_updated'));
+  return true;
+}
+export function getNomeTecnico(email, fallbackNome = null) {
+  if (!email) return fallbackNome || 'Não atribuído';
+  const emailNorm = email.toLowerCase().trim();
+  const equipe = getEquipeUsuarios();
+  const membro = equipe.find((u) => (u.email || '').toLowerCase().trim() === emailNorm);
+  if (membro && membro.nome) return membro.nome;
+  if (fallbackNome) return fallbackNome;
+  if (emailNorm === 'admin@rmcontrole.com') return 'Lucas Amorim (Administrador)';
+  const part = email.split('@')[0];
+  return part.charAt(0).toUpperCase() + part.slice(1);
+}
+
+export async function addColaboradorEmpresa(empresaId, { nome, cargo = '', email = '', telefone = '' }, userEmail = 'admin@rmcontrole.com') {
+  if (!nome || !nome.trim()) throw new Error('Nome do colaborador é obrigatório.');
+
+  let empresas = getLocalData('empresas_reais', []);
+  let emp = empresas.find((e) => e.id === empresaId);
+
+  const novoColaborador = {
+    id: 'colab_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+    nome: nome.trim(),
+    cargo: cargo.trim(),
+    email: email.trim(),
+    telefone: telefone.trim(),
+    created_at: new Date().toISOString(),
+  };
+
+  if (emp) {
+    if (!emp.colaboradores) emp.colaboradores = [];
+    emp.colaboradores.push(novoColaborador);
+    setLocalData('empresas_reais', empresas);
+  }
+
+  await logAuditoria({
+    empresaId,
+    usuarioEmail: userEmail,
+    acao: 'adicionou_colaborador_empresa',
+    detalhes: { nome: novoColaborador.nome, cargo, email, modulo: 'Colaboradores da Empresa' },
+  });
+
+  return novoColaborador;
+}
+
+export async function deleteHistoricoChamado(chamadoId, userEmail = 'admin@rmcontrole.com') {
+  let historico = getLocalData('historico_chamados', []);
+  const chamadoExcluido = historico.find((c) => c.id === chamadoId);
+  historico = historico.filter((c) => c.id !== chamadoId);
+  setLocalData('historico_chamados', historico);
+
+  await logAuditoria({
+    empresaId: chamadoExcluido?.empresa_id || null,
+    usuarioEmail: userEmail,
+    acao: 'excluiu_historico_chamado',
     detalhes: {
-      empresa_nome: chamado.empresa_nome,
-      modulo: 'Suporte em Tempo Real',
-      motivo: 'Cancelado pelo operador',
+      chamado_id: chamadoId,
+      empresa_nome: chamadoExcluido?.empresa_nome || '',
+      modulo: 'Histórico de Atendimentos',
     },
   });
 
   window.dispatchEvent(new Event('suporte_updated'));
-  return chamado;
+  return true;
+}
+
+
+export function getHistoricoChamados() {
+  const historico = getLocalData('historico_chamados', []);
+  return historico.map((c) => ({
+    ...c,
+    tecnico_nome: c.tecnico_nome || getNomeTecnico(c.tecnico_email, c.atendente_nome),
+  }));
 }
 
 export function getChamadoAtivo(empresa_id = null) {

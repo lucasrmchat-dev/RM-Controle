@@ -1,3 +1,4 @@
+import { getAudioConfig, setAudioConfig, playNotificationTone } from '@/lib/audioNotifications';
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -30,6 +31,20 @@ export default function Navbar({
   const islandRef = useRef(null);
   const [chamadosAtivos, setChamadosAtivos] = useState([]);
   const [totalFila, setTotalFila] = useState(0);
+  const [audioConfig, setAudioState] = useState({
+    habilitado: true,
+    tipoSom: 'harmonico',
+    modoRepeticao: 'uma_vez',
+    intervaloSegundos: 30,
+    escopo: 'todos',
+  });
+
+  useEffect(() => {
+    setAudioState(getAudioConfig());
+    const handleAudioUpdate = () => setAudioState(getAudioConfig());
+    window.addEventListener('rm_audio_config_updated', handleAudioUpdate);
+    return () => window.removeEventListener('rm_audio_config_updated', handleAudioUpdate);
+  }, []);
   const [userRole, setUserRole] = useState('administrador');
   const [, setTick] = useState(0);
 
@@ -195,17 +210,17 @@ export default function Navbar({
                   className="cursor-pointer"
                   onClick={() => setIslandExpanded(!islandExpanded)}
                 >
-                  {/* Cenário com 1 Chamado */}
+                  {/* Cenário com 1 Chamado Adaptado a Tema */}
                   {totalAtivos === 1 && (
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 dark:bg-amber-500/20 border border-amber-500/30 text-[11px] font-semibold text-amber-900 dark:text-amber-200 hover:bg-amber-500/25 transition-all shadow-xs">
-                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/95 dark:bg-[#16161a]/95 border border-black/[0.08] dark:border-white/[0.12] text-[11px] font-semibold text-[#1d1d1f] dark:text-white shadow-xs hover:border-black/[0.15] dark:hover:border-white/[0.2] transition-all">
+                      <span className="w-2 h-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] animate-ping"></span>
                       <strong className="truncate max-w-[120px] sm:max-w-[150px]">
                         {chamadosAtivos[0].empresa_nome}
                       </strong>
                       <span className="font-mono font-bold text-[#4d7c0f] dark:text-[#84cc16] tabular-nums">
                         {formatarTempo(chamadosAtivos[0].iniciado_em)}
                       </span>
-                      <span className="text-[10px] text-amber-700 dark:text-amber-300 ml-0.5">▼</span>
+                      <span className="text-[10px] text-slate-400 ml-0.5">▼</span>
                     </div>
                   )}
 
@@ -249,14 +264,14 @@ export default function Navbar({
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 12, scale: 0.94 }}
                       transition={{ type: "spring", stiffness: 450, damping: 32 }}
-                      className="absolute left-0 mt-3 w-[330px] sm:w-[380px] rounded-[30px] bg-[#09090c]/95 dark:bg-[#000000]/95 backdrop-blur-3xl text-white border border-white/15 p-5 shadow-[0_25px_80px_-15px_rgba(0,0,0,0.8)] z-50 space-y-3.5"
+                      className="absolute left-0 mt-3 w-[330px] sm:w-[380px] rounded-[30px] bg-white/95 dark:bg-[#16161a]/95 backdrop-blur-3xl text-[#1d1d1f] dark:text-[#f5f5f7] border border-black/[0.08] dark:border-white/[0.12] p-5 shadow-2xl z-50 space-y-3.5"
                     >
                       {/* Topo da Ilha */}
-                      <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                      <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.08] pb-3">
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                           <span className="text-xs font-bold tracking-tight">Ilha Dinâmica de Suporte</span>
-                          <span className="text-[10px] font-mono px-2 py-0.2 rounded-full bg-white/10 text-emerald-300">
+                          <span className="text-[10px] font-mono px-2 py-0.2 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
                             {totalAtivos} {totalAtivos === 1 ? 'chamado ativo' : 'chamados ativos'}
                           </span>
                         </div>
@@ -265,7 +280,7 @@ export default function Navbar({
                             e.stopPropagation();
                             setIslandExpanded(false);
                           }}
-                          className="text-slate-400 hover:text-white text-xs font-bold p-1"
+                          className="text-slate-400 hover:text-black dark:hover:text-white text-xs font-bold p-1 cursor-pointer"
                         >
                           ✕
                         </button>
@@ -276,7 +291,7 @@ export default function Navbar({
                         {chamadosAtivos.map((ch) => (
                           <div
                             key={ch.id}
-                            className="p-3.5 rounded-2xl bg-white/[0.06] border border-white/10 hover:border-white/20 transition-all space-y-2.5"
+                            className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] hover:border-black/[0.12] transition-all space-y-2.5"
                           >
                             <div className="flex items-center justify-between">
                               <div>
@@ -302,7 +317,7 @@ export default function Navbar({
                                   setIslandExpanded(false);
                                   onOpenChamadoAtivo && onOpenChamadoAtivo(ch.empresa_id);
                                 }}
-                                className="flex-1 py-1.5 px-2 rounded-xl bg-white/10 hover:bg-white/15 text-[10px] font-semibold text-white transition-all text-center"
+                                className="flex-1 py-1.5 px-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.08] hover:bg-black/[0.08] text-[10px] font-semibold text-slate-700 dark:text-zinc-200 transition-all text-center"
                               >
                                 Abrir Empresa
                               </button>
@@ -312,7 +327,7 @@ export default function Navbar({
                                   setIslandExpanded(false);
                                   window.dispatchEvent(new CustomEvent('abrir_conclusao_chamado', { detail: ch }));
                                 }}
-                                className="py-1.5 px-3 rounded-xl bg-[#84cc16] hover:bg-[#65a30d] text-black text-[10px] font-bold transition-all"
+                                className="py-1.5 px-3 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-[10px] font-bold transition-all"
                               >
                                 Concluir
                               </button>
@@ -478,6 +493,160 @@ export default function Navbar({
                         </div>
                       </>
                     )}
+
+                    {/* Controles de Alertas Sonoros de Suporte */}
+                    <div className="py-2.5 border-b border-black/[0.05] dark:border-white/[0.06] space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span>🔔</span>
+                          <span className="font-semibold text-[11px] text-[#1d1d1f] dark:text-white">
+                            Alertas Sonoros de Suporte
+                          </span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={audioConfig.habilitado}
+                          onChange={(e) => setAudioConfig({ habilitado: e.target.checked })}
+                          className="w-4 h-4 accent-[#4d7c0f] dark:accent-[#84cc16] cursor-pointer rounded"
+                        />
+                      </div>
+
+                      {audioConfig.habilitado && (
+                        <div className="space-y-2 pt-1 pl-1">
+                          
+                          {/* Escopo do Alerta */}
+                          <div>
+                            <span className="text-[10px] text-slate-500 dark:text-zinc-400 block mb-1">
+                              Tocar quando chegar chamado:
+                            </span>
+                            <div className="grid grid-cols-2 gap-1 text-[10px]">
+                              <button
+                                type="button"
+                                onClick={() => setAudioConfig({ escopo: 'apenas_meus' })}
+                                className={`py-1 px-1.5 rounded-lg font-medium transition-all ${
+                                  audioConfig.escopo === 'apenas_meus'
+                                    ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold'
+                                    : 'bg-black/[0.03] dark:bg-white/[0.05] text-slate-600 dark:text-zinc-400'
+                                }`}
+                              >
+                                Só atribuídos a mim
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setAudioConfig({ escopo: 'todos' })}
+                                className={`py-1 px-1.5 rounded-lg font-medium transition-all ${
+                                  audioConfig.escopo === 'todos'
+                                    ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold'
+                                    : 'bg-black/[0.03] dark:bg-white/[0.05] text-slate-600 dark:text-zinc-400'
+                                }`}
+                              >
+                                Fila inteira (todos)
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* 4 Tipos de Sons com Botão de Testar */}
+                          <div>
+                            <span className="text-[10px] text-slate-500 dark:text-zinc-400 block mb-1">
+                              Toque Sonoro:
+                            </span>
+                            <div className="space-y-1">
+                              {[
+                                { id: 'harmonico', label: 'Harmônico Apple (Suave)' },
+                                { id: 'dinamico', label: 'Alerta Dinâmico (Radar)' },
+                                { id: 'sino', label: 'Sino Suave / Marimba' },
+                                { id: 'incisivo', label: 'Incisivo / Alerta Urgente' },
+                              ].map((s) => {
+                                const isSel = audioConfig.tipoSom === s.id;
+                                return (
+                                  <div key={s.id} className="flex items-center justify-between gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setAudioConfig({ tipoSom: s.id });
+                                        playNotificationTone(s.id);
+                                      }}
+                                      className={`flex-1 text-left px-2 py-1 rounded-lg text-[10px] font-medium transition-all ${
+                                        isSel
+                                          ? 'bg-black/[0.06] dark:bg-white/[0.1] font-bold text-[#4d7c0f] dark:text-[#84cc16]'
+                                          : 'text-slate-600 dark:text-zinc-400 hover:bg-black/[0.02]'
+                                      }`}
+                                    >
+                                      {isSel ? '✓ ' : ''}{s.label}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => playNotificationTone(s.id)}
+                                      className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] text-slate-500"
+                                      title="Ouvir som de teste"
+                                    >
+                                      ▶ Testar
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Repetição: Uma vez, Intermitente ou Intervalo */}
+                          <div>
+                            <span className="text-[10px] text-slate-500 dark:text-zinc-400 block mb-1">
+                              Frequência da Notificação:
+                            </span>
+                            <div className="grid grid-cols-3 gap-1 text-[10px]">
+                              {[
+                                { id: 'uma_vez', label: 'Tocar 1x' },
+                                { id: 'intermitente', label: 'Em loop' },
+                                { id: 'intervalo', label: 'Intervalo' },
+                              ].map((m) => (
+                                <button
+                                  key={m.id}
+                                  type="button"
+                                  onClick={() => setAudioConfig({ modoRepeticao: m.id })}
+                                  className={`py-1 px-1 rounded-lg text-center font-medium transition-all ${
+                                    audioConfig.modoRepeticao === m.id
+                                      ? 'bg-black text-white dark:bg-white dark:text-black font-bold'
+                                      : 'bg-black/[0.03] dark:bg-white/[0.05] text-slate-600 dark:text-zinc-400'
+                                  }`}
+                                >
+                                  {m.label}
+                                </button>
+                              ))}
+                            </div>
+
+                            {audioConfig.modoRepeticao === 'intervalo' && (
+                              <div className="flex items-center gap-1.5 mt-1.5">
+                                <span className="text-[10px] text-slate-400">Repetir a cada:</span>
+                                {[15, 30, 60].map((sec) => (
+                                  <button
+                                    key={sec}
+                                    type="button"
+                                    onClick={() => setAudioConfig({ intervaloSegundos: sec })}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                                      audioConfig.intervaloSegundos === sec
+                                        ? 'bg-[#4d7c0f] text-white font-bold'
+                                        : 'bg-black/[0.04] dark:bg-white/[0.06] text-slate-600'
+                                    }`}
+                                  >
+                                    {sec}s
+                                  </button>
+                                ))}
+                                <input
+                                  type="number"
+                                  min="5"
+                                  max="300"
+                                  value={audioConfig.intervaloSegundos}
+                                  onChange={(e) => setAudioConfig({ intervaloSegundos: parseInt(e.target.value || '30', 10) })}
+                                  className="w-12 px-1.5 py-0.5 rounded border border-black/10 dark:border-white/10 text-[10px] font-mono text-center focus:outline-none"
+                                />
+                                <span className="text-[10px] text-slate-400">seg</span>
+                              </div>
+                            )}
+                          </div>
+
+                        </div>
+                      )}
+                    </div>
 
                     {/* Tema */}
                     <div className="py-2">

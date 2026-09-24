@@ -513,6 +513,9 @@ export default function Home() {
         setActiveTab={(tab) => {
           setSelectedEmpresa(null);
           setActiveTab(tab);
+          if (tab === 'empresas') {
+            carregarEmpresas();
+          }
         }}
         userEmail={userEmail}
         onLogout={handleLogout}
@@ -528,7 +531,7 @@ export default function Home() {
       />
 
       <main className="flex-1 w-full max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 py-4 pb-20">
-        <AnimatePresence mode="wait">
+        <AnimatePresence initial={false}>
           {selectedEmpresa ? (
             /* TELA CHEIA: GERENCIAR EMPRESA (WIDESCREEN DE ALTA PRODUTIVIDADE) */
             <motion.div
