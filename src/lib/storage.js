@@ -976,7 +976,7 @@ export async function addEquipeUsuario({ nome, email, senha = '', papel = 'supor
   const emailLimpo = email.trim().toLowerCase();
   const senhaFinal = (senha || '').trim() || getSenhaPadraoRedefinicao();
 
-  // 1. Cadastra no Supabase Authentication sem deslogar a sessão atual
+  // 1. Cadastra no Supabase Authentication
   if (isSupabaseConfigured && supabase) {
     try {
       const { createClient } = await import('@supabase/supabase-js');
@@ -1012,9 +1012,24 @@ export async function addEquipeUsuario({ nome, email, senha = '', papel = 'supor
     } catch (errAuth) {
       console.warn('Erro ao conectar ao Supabase Auth:', errAuth);
     }
+
+    // 2. Insere na tabela public.equipe_usuarios no Supabase
+    try {
+      await supabase.from('equipe_usuarios').insert([
+        {
+          nome: (nome || '').trim() || emailLimpo.split('@')[0],
+          email: emailLimpo,
+          papel: papel || 'suporte',
+          senha: senhaFinal,
+          ativo: true,
+        }
+      ]);
+    } catch (errTbl) {
+      console.warn('Aviso ao inserir na tabela equipe_usuarios:', errTbl);
+    }
   }
 
-  // 2. Salva na lista de equipe
+  // 3. Salva na lista de equipe local
   const usuarios = getEquipeUsuarios();
   if (usuarios.some((u) => (u.email || '').toLowerCase().trim() === emailLimpo)) {
     throw new Error('Já existe um membro cadastrado com este e-mail.');
@@ -1061,14 +1076,21 @@ export async function updateEquipeUsuario(id, dados) {
     };
     setLocalData('equipe_usuarios', usuarios);
 
-    // Se o usuário editado for o usuário logado atualmente no navegador:
-    const currentUserEmail = (localStorage.getItem('rm_auth_user') || '').toLowerCase().trim();
-    if (currentUserEmail === (atual.email || '').toLowerCase().trim() || currentUserEmail === emailFinal) {
-      setCurrentUserRole(novoPapel);
-    }
-
-    // Se o usuário logado no Supabase Auth for o próprio editado, atualiza seus metadados no Supabase
+    // Atualiza tabela equipe_usuarios no Supabase
     if (isSupabaseConfigured && supabase) {
+      try {
+        const updateDb = {
+          nome: dados.nome || atual.nome,
+          email: emailFinal,
+          papel: novoPapel,
+          updated_at: new Date().toISOString(),
+        };
+        if (dados.senha) updateDb.senha = novaSenha;
+
+        await supabase.from('equipe_usuarios').update(updateDb).or(`id.eq.${id},email.eq.${atual.email}`);
+      } catch (e) {}
+
+      // Se o usuário logado for o próprio editado, atualiza seus metadados no Supabase Auth
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user && user.email?.toLowerCase().trim() === emailFinal) {
@@ -1082,18 +1104,35 @@ export async function updateEquipeUsuario(id, dados) {
       } catch (e) {}
     }
 
+    // Se o usuário editado for o usuário logado atualmente no navegador:
+    const currentUserEmail = (localStorage.getItem('rm_auth_user') || '').toLowerCase().trim();
+    if (currentUserEmail === (atual.email || '').toLowerCase().trim() || currentUserEmail === emailFinal) {
+      setCurrentUserRole(novoPapel);
+    }
+
     window.dispatchEvent(new Event('equipe_updated'));
     window.dispatchEvent(new Event('user_role_updated'));
   }
   return true;
 }
 
-export function deleteEquipeUsuario(id) {
+export async function deleteEquipeUsuario(id) {
   let usuarios = getEquipeUsuarios();
+  const usuario = usuarios.find((u) => u.id === id);
+
+  if (isSupabaseConfigured && supabase && usuario) {
+    try {
+      await supabase.from('equipe_usuarios').delete().or(`id.eq.${id},email.eq.${usuario.email}`);
+    } catch (e) {}
+  }
+
   usuarios = usuarios.filter((u) => u.id !== id);
   setLocalData('equipe_usuarios', usuarios);
+  window.dispatchEvent(new Event('equipe_updated'));
   return true;
 }
+
+
 
 // ==============================================================================
 // GESTÃO DE CATÁLOGO DE CANAIS
