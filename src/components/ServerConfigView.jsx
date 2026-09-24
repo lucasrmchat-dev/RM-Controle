@@ -131,7 +131,7 @@ export default function ServerConfigView() {
   };
 
   // Cadastrar Novo Usuário da Equipe
-  const handleCadastrarUsuario = (e) => {
+  const handleCadastrarUsuario = async (e) => {
     e.preventDefault();
     if (!novoUsuarioNome.trim() || !novoUsuarioEmail.trim()) return;
 
