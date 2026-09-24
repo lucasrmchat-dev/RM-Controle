@@ -1428,13 +1428,33 @@ export async function createEmpresa({
   return novaEmpresa;
 }
 
-export async function createEmpresasEmMassa(nomes, { formato_atendimento = 'colaborativo', servidor_alocado = 'servidor_1', userEmail = 'admin@rmcontrole.com' } = {}) {
-  if (!Array.isArray(nomes) || nomes.length === 0) {
+export async function createEmpresasEmMassa(items, { formato_atendimento = 'colaborativo', servidor_alocado = 'servidor_1', userEmail = 'admin@rmcontrole.com' } = {}) {
+  if (!Array.isArray(items) || items.length === 0) {
     throw new Error('Lista de empresas inválida.');
   }
 
-  const nomesLimpos = nomes.map((n) => (typeof n === 'string' ? n.trim() : '')).filter((n) => n.length > 0);
-  if (nomesLimpos.length === 0) throw new Error('Nenhum nome válido informado.');
+  // Normaliza tanto strings simples quanto objetos { nome, email_administrador, senha_suporte }
+  const empresasNormalizadas = items
+    .map((item) => {
+      if (typeof item === 'string') {
+        const nomeTrim = item.trim();
+        return nomeTrim ? { nome: nomeTrim, email_administrador: '', senha_suporte: '' } : null;
+      }
+      if (item && typeof item === 'object') {
+        const nomeTrim = (item.nome || '').trim();
+        return nomeTrim
+          ? {
+              nome: nomeTrim,
+              email_administrador: (item.email_administrador || item.email || '').trim(),
+              senha_suporte: (item.senha_suporte || item.senha || '').trim(),
+            }
+          : null;
+      }
+      return null;
+    })
+    .filter(Boolean);
+
+  if (empresasNormalizadas.length === 0) throw new Error('Nenhuma empresa válida informada.');
 
   const criadas = [];
   const empresasReais = getLocalData('empresas_reais', []);
@@ -1442,9 +1462,9 @@ export async function createEmpresasEmMassa(nomes, { formato_atendimento = 'cola
 
   if (isSupabaseConfigured && supabase) {
     try {
-      const inserts = nomesLimpos.map((nome) => ({
-        nome,
-        formato_atendimento,
+      const inserts = empresasNormalizadas.map((emp) => ({
+        nome: emp.nome,
+        formato_atendimento: 'colaborativo',
         servidor_alocado,
         ativo: true,
         is_mock: false,
@@ -1453,14 +1473,19 @@ export async function createEmpresasEmMassa(nomes, { formato_atendimento = 'cola
       const { data: dbEmpresas, error } = await supabase.from('empresas').insert(inserts).select();
 
       if (!error && dbEmpresas && dbEmpresas.length > 0) {
-        for (const emp of dbEmpresas) {
+        for (let i = 0; i < dbEmpresas.length; i++) {
+          const emp = dbEmpresas[i];
+          const infoOriginal = empresasNormalizadas[i] || {};
+          const emailAdm = infoOriginal.email_administrador || `admin@${emp.nome.toLowerCase().replace(/[^a-z0-9]/g, '')}.com.br`;
+          const senhaSup = infoOriginal.senha_suporte || getSenhaPadraoRedefinicao();
+
           try {
             await supabase.from('empresa_credenciais').insert([
               {
                 empresa_id: emp.id,
                 rotulo: 'Acesso Principal do Administrador',
-                usuario_email: `admin@${emp.nome.toLowerCase().replace(/[^a-z0-9]/g, '')}.com.br`,
-                senha: getSenhaPadraoRedefinicao(),
+                usuario_email: emailAdm,
+                senha: senhaSup,
                 observacao: 'Importação em lote',
               }
             ]);
@@ -1480,7 +1505,7 @@ export async function createEmpresasEmMassa(nomes, { formato_atendimento = 'cola
           const novaObj = {
             id: emp.id,
             nome: emp.nome,
-            formato_atendimento,
+            formato_atendimento: 'colaborativo',
             servidor_alocado,
             ativo: true,
             is_mock: false,
@@ -1491,8 +1516,8 @@ export async function createEmpresasEmMassa(nomes, { formato_atendimento = 'cola
               {
                 id: 'cred_' + Date.now(),
                 rotulo: 'Acesso Principal do Administrador',
-                usuario_email: `admin@${emp.nome.toLowerCase().replace(/[^a-z0-9]/g, '')}.com.br`,
-                senha: getSenhaPadraoRedefinicao(),
+                usuario_email: emailAdm,
+                senha: senhaSup,
                 observacao: 'Importação em lote',
                 ultima_alteracao: new Date().toISOString(),
               }
@@ -1515,7 +1540,7 @@ export async function createEmpresasEmMassa(nomes, { formato_atendimento = 'cola
         await logAuditoria({
           usuarioEmail: userEmail,
           acao: 'cadastrou_empresas_em_massa',
-          detalhes: { quantidade: criadas.length, nomes: nomesLimpos, modulo: 'Gestão de Empresas' },
+          detalhes: { quantidade: criadas.length, nomes: empresasNormalizadas.map((e) => e.nome), modulo: 'Gestão de Empresas' },
         });
 
         return criadas;
@@ -1525,11 +1550,15 @@ export async function createEmpresasEmMassa(nomes, { formato_atendimento = 'cola
     }
   }
 
-  for (const nome of nomesLimpos) {
+  // Fallback local se offline
+  for (const empItem of empresasNormalizadas) {
+    const emailAdm = empItem.email_administrador || `admin@${empItem.nome.toLowerCase().replace(/[^a-z0-9]/g, '')}.com.br`;
+    const senhaSup = empItem.senha_suporte || getSenhaPadraoRedefinicao();
+
     const nova = {
       id: 'emp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-      nome,
-      formato_atendimento,
+      nome: empItem.nome,
+      formato_atendimento: 'colaborativo',
       servidor_alocado,
       ativo: true,
       is_mock: false,
@@ -1540,8 +1569,8 @@ export async function createEmpresasEmMassa(nomes, { formato_atendimento = 'cola
         {
           id: 'cred_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
           rotulo: 'Acesso Principal do Administrador',
-          usuario_email: `admin@${nome.toLowerCase().replace(/[^a-z0-9]/g, '')}.com.br`,
-          senha: getSenhaPadraoRedefinicao(),
+          usuario_email: emailAdm,
+          senha: senhaSup,
           observacao: 'Importação em lote',
           ultima_alteracao: new Date().toISOString(),
         }
@@ -1565,7 +1594,7 @@ export async function createEmpresasEmMassa(nomes, { formato_atendimento = 'cola
   await logAuditoria({
     usuarioEmail: userEmail,
     acao: 'cadastrou_empresas_em_massa',
-    detalhes: { quantidade: criadas.length, nomes: nomesLimpos, modulo: 'Gestão de Empresas' },
+    detalhes: { quantidade: criadas.length, nomes: empresasNormalizadas.map((e) => e.nome), modulo: 'Gestão de Empresas' },
   });
 
   return criadas;

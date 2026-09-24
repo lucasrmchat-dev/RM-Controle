@@ -436,15 +436,15 @@ export default function Home() {
     if (payload.tipo === 'manual') {
       await createEmpresa({
         nome: payload.nome,
-        formato_atendimento: payload.formato_atendimento,
+        formato_atendimento: 'colaborativo',
         servidor_alocado: payload.servidor_alocado,
         email_administrador: payload.email_administrador,
         senha_suporte: payload.senha_suporte,
         userEmail,
       });
     } else if (payload.tipo === 'massa') {
-      await createEmpresasEmMassa(payload.nomes, {
-        formato_atendimento: payload.formato_atendimento,
+      await createEmpresasEmMassa(payload.empresas || payload.nomes, {
+        formato_atendimento: 'colaborativo',
         servidor_alocado: payload.servidor_alocado,
         userEmail,
       });
