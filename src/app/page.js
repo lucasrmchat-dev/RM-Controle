@@ -199,27 +199,20 @@ export default function Home() {
             setCurrentUserRole(role);
             localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
           } else {
-            const localUser = localStorage.getItem('rm_auth_user');
-            if (localUser) {
-              setIsAuthenticated(true);
-              setUserEmail(localUser);
-              const role = resolveUserRole(localUser);
-              setCurrentUserRole(role);
-              localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
-            }
+            // Sem sessão válida no Supabase Auth -> Exige login autêntico
+            setIsAuthenticated(false);
+            setUserEmail('');
+            localStorage.removeItem('rm_auth_user');
           }
         } else {
-          const localUser = localStorage.getItem('rm_auth_user');
-          if (localUser) {
-            setIsAuthenticated(true);
-            setUserEmail(localUser);
-            const role = resolveUserRole(localUser);
-            setCurrentUserRole(role);
-            localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
-          }
+          setIsAuthenticated(false);
+          setUserEmail('');
+          localStorage.removeItem('rm_auth_user');
         }
       } catch (e) {
         console.error('Erro ao checar sessão:', e);
+        setIsAuthenticated(false);
+        setUserEmail('');
       } finally {
         setAuthLoading(false);
       }
@@ -366,42 +359,25 @@ export default function Home() {
         emailFormal = `${emailFormal}@rmcontrole.com`;
       }
 
-      // 2. Autenticação oficial no Supabase Auth (gera sessão JWT e concede papel 'authenticated' para o RLS)
+      // 2. Autenticação oficial e obrigatória no Supabase Auth (gera sessão JWT e concede papel 'authenticated' para o RLS)
       if (isSupabaseConfigured && supabase) {
-        let authResult = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email: emailFormal,
           password: senhaLimpa,
         });
 
-        // Se falhar e o usuário existir na lista da equipe, tenta auto-provisionamento no Supabase Auth
-        if (authResult.error && membroEquipe) {
-          const senhaEsperada = (membroEquipe.senha || '').trim();
-          if (senhaEsperada && senhaEsperada !== senhaLimpa) {
-            throw new Error(`Senha incorreta para o colaborador ${membroEquipe.nome || emailFormal}.`);
+        if (error) {
+          if (error.message.includes('Invalid login credentials')) {
+            throw new Error('E-mail ou senha incorretos no Supabase Authentication. Verifique se o usuário foi criado em Authentication > Users.');
           }
-
-          try {
-            await supabase.auth.signUp({
-              email: emailFormal,
-              password: senhaLimpa,
-              options: {
-                data: {
-                  name: membroEquipe.nome || emailFormal.split('@')[0],
-                  papel: membroEquipe.papel || 'suporte',
-                },
-              },
-            });
-            authResult = await supabase.auth.signInWithPassword({
-              email: emailFormal,
-              password: senhaLimpa,
-            });
-          } catch (autoErr) {
-            console.warn('Tentativa de auto-registro no Supabase Auth:', autoErr);
+          if (error.message.includes('Email not confirmed')) {
+            throw new Error('E-mail ainda não confirmado no Supabase. Em Authentication > Providers > Email, desative a opção "Confirm email".');
           }
+          throw new Error('Falha ao autenticar no Supabase: ' + error.message);
         }
 
-        if (authResult?.data?.user) {
-          const user = authResult.data.user;
+        if (data?.user && data?.session) {
+          const user = data.user;
           setIsAuthenticated(true);
           setUserEmail(user.email);
           const role = resolveUserRole(user.email);
@@ -409,41 +385,11 @@ export default function Home() {
           localStorage.setItem('rm_auth_user', user.email);
           localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
           return;
-        }
-
-        if (authResult?.error) {
-          if (authResult.error.message.includes('Invalid login credentials')) {
-            throw new Error('E-mail ou senha incorretos. Verifique suas credenciais.');
-          }
-          if (authResult.error.message.includes('Email not confirmed')) {
-            throw new Error('E-mail ainda não confirmado no Supabase Authentication.');
-          }
-          throw authResult.error;
-        }
-      }
-
-      // 3. Fallback local para desenvolvimento / homologação sem Supabase
-      if (membroEquipe) {
-        const senhaEsperada = (membroEquipe.senha || '').trim();
-        if (!senhaEsperada || senhaEsperada === senhaLimpa) {
-          setIsAuthenticated(true);
-          setUserEmail(membroEquipe.email);
-          setCurrentUserRole(membroEquipe.papel || 'suporte');
-          localStorage.setItem('rm_auth_user', membroEquipe.email);
-          localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
-          return;
         } else {
-          throw new Error(`Senha incorreta para o colaborador ${membroEquipe.nome || membroEquipe.email}.`);
+          throw new Error('Não foi possível estabelecer uma sessão autenticada.');
         }
-      }
-
-      if (emailFormal.includes('@') && senhaLimpa.length >= 4) {
-        setIsAuthenticated(true);
-        setUserEmail(emailFormal);
-        localStorage.setItem('rm_auth_user', emailFormal);
-        localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
       } else {
-        throw new Error('Credenciais inválidas. Verifique os dados informados.');
+        throw new Error('Serviço de autenticação não configurado.');
       }
     } catch (err) {
       setLoginError(err.message || 'Falha ao autenticar.');
