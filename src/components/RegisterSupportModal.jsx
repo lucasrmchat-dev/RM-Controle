@@ -180,7 +180,14 @@ export default function RegisterSupportModal({
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Empresa */}
-            {!empresaPreSelecionada && (
+            {empresaPreSelecionada ? (
+              <div className="p-3.5 rounded-2xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase font-mono block">Empresa Atendida</span>
+                  <span className="text-sm font-bold text-[#1d1d1f] dark:text-white">{empresaNome || empresaPreSelecionada.nome}</span>
+                </div>
+              </div>
+            ) : (
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
                   Empresa Atendida <span className="text-red-500">*</span>

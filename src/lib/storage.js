@@ -674,10 +674,28 @@ export async function deleteHistoricoChamado(chamadoId, userEmail = 'admin@rmcon
 
 export function getHistoricoChamados() {
   const historico = getLocalData('historico_chamados', []);
-  return historico.map((c) => ({
-    ...c,
-    tecnico_nome: c.tecnico_nome || getNomeTecnico(c.tecnico_email, c.atendente_nome),
-  }));
+  const chamadosAtivos = getLocalData('chamados_suporte', []);
+  const concluidosFila = chamadosAtivos.filter(
+    (c) => c.status === 'concluido' || c.status === 'finalizado'
+  );
+
+  const mapa = new Map();
+  // 1. Coloca chamados finalizados locais
+  concluidosFila.forEach((c) => mapa.set(c.id, c));
+  // 2. Coloca e sobrepõe com histórico oficial
+  historico.forEach((c) => mapa.set(c.id, c));
+
+  return Array.from(mapa.values())
+    .map((c) => ({
+      ...c,
+      tecnico_nome: c.tecnico_nome || getNomeTecnico(c.tecnico_email, c.atendente_nome),
+      atendente_nome: c.atendente_nome || c.tecnico_nome || getNomeTecnico(c.tecnico_email),
+    }))
+    .sort(
+      (a, b) =>
+        new Date(b.finalizado_em || b.created_at || b.iniciado_em || 0) -
+        new Date(a.finalizado_em || a.created_at || a.iniciado_em || 0)
+    );
 }
 
 // Sincroniza e busca todos os chamados finalizados do Supabase (para exibir atendimentos de todos os usuários)
@@ -688,7 +706,7 @@ export async function fetchHistoricoChamados() {
       const { data, error } = await supabase
         .from('suporte_chamados')
         .select('*')
-        .order('finalizado_em', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (!error && data) {
         dbChamados = data.map((d) => ({
@@ -1600,10 +1618,19 @@ export async function getEmpresas({
           const empObs = obsAll.filter((c) => c.empresa_id === emp.id);
           const empCheck = checkAll.filter((c) => c.empresa_id === emp.id);
 
+          const principalCred = empCreds[0] || null;
+          const emailAdm = principalCred?.email_administrador || principalCred?.usuario_email || emp.email_administrador || '';
+
           return {
             ...emp,
             is_mock: false,
             servidor_alocado: emp.servidor_alocado || 'servidor_1',
+            email_administrador: emailAdm,
+            credenciais: principalCred ? {
+              id: principalCred.id,
+              email_administrador: emailAdm,
+              senha_suporte: principalCred.senha_suporte || principalCred.senha || '',
+            } : (emailAdm ? { email_administrador: emailAdm, senha_suporte: '' } : null),
             canais: empCanais.map((c) => {
               const cat = catMap.get(c.canal_id);
               return {
@@ -1621,7 +1648,9 @@ export async function getEmpresas({
               id: cr.id,
               rotulo: cr.rotulo || 'Acesso Principal',
               usuario_email: cr.email_administrador || cr.usuario_email || '',
+              email_administrador: cr.email_administrador || cr.usuario_email || '',
               senha: cr.senha_suporte || cr.senha || '',
+              senha_suporte: cr.senha_suporte || cr.senha || '',
               observacao: cr.observacao || '',
               ultima_alteracao: cr.ultima_alteracao || cr.created_at,
             })),
@@ -1647,51 +1676,7 @@ export async function getEmpresas({
     }
   }
 
-  // AUTO-MIGRAÇÃO DE CONTINGÊNCIA
-  if (isSupabaseConfigured && supabase) {
-    const empresasLocais = getLocalData('empresas_reais', []);
-    const empresasNaoMigradas = empresasLocais.filter(
-      (loc) => !loc.is_mock && (!loc.id || !loc.id.includes('-')) && !empresas.some((db) => db.nome.toLowerCase().trim() === loc.nome.toLowerCase().trim())
-    );
-
-    if (empresasNaoMigradas.length > 0) {
-      for (const leg of empresasNaoMigradas) {
-        try {
-          const { data: mig, error: migErr } = await supabase
-            .from('empresas')
-            .insert([
-              {
-                nome: leg.nome,
-                formato_atendimento: 'colaborativo',
-                ativo: leg.ativo !== false,
-              }
-            ])
-            .select()
-            .single();
-
-          if (!migErr && mig) {
-            if (leg.credenciais_lista && leg.credenciais_lista.length > 0) {
-              for (const cr of leg.credenciais_lista) {
-                await supabase.from('empresa_credenciais').insert([
-                  {
-                    empresa_id: mig.id,
-                    email_administrador: cr.usuario_email || null,
-                    senha_suporte: cr.senha || getSenhaPadraoRedefinicao(),
-                    ultima_alteracao: new Date().toISOString(),
-                  }
-                ]);
-              }
-            }
-            empresas.unshift({
-              ...leg,
-              id: mig.id,
-              created_at: mig.created_at,
-            });
-          }
-        } catch (e) {}
-      }
-    }
-  }
+  // O Supabase é a fonte oficial da verdade; não reinserir dados legados repetidamente.
 
   if (empresas.length === 0) {
     const empresasReais = getLocalData('empresas_reais', []);
@@ -1789,6 +1774,17 @@ export async function createEmpresa({
   // empresas: id, nome, formato_atendimento, ativo, created_at, updated_at, created_by
   if (isSupabaseConfigured && supabase) {
     try {
+      // Validação anti-duplicação: impede cadastrar duas empresas com o mesmo nome
+      const { data: existente } = await supabase
+        .from('empresas')
+        .select('id, nome')
+        .ilike('nome', trimmedNome)
+        .limit(1);
+
+      if (existente && existente.length > 0) {
+        throw new Error(`A empresa "${trimmedNome}" já está cadastrada no sistema.`);
+      }
+
       const { data: dbEmp, error: dbErr } = await supabase
         .from('empresas')
         .insert([

@@ -309,15 +309,26 @@ export default function Home() {
   // ==============================================================================
   const handleSelectEmpresaGlobal = (empOrId) => {
     if (!empOrId) return;
-    if (typeof empOrId === 'object' && empOrId.id) {
-      setSelectedEmpresa(empOrId);
-      setActiveTab('empresas');
-      return;
+    let target = null;
+    if (typeof empOrId === 'object') {
+      if (empOrId.id) {
+        target = empresas.find((e) => e.id === empOrId.id);
+      }
+      if (!target && empOrId.nome) {
+        target = empresas.find((e) => e.nome.trim().toLowerCase() === empOrId.nome.trim().toLowerCase());
+      }
+      if (!target && (empOrId.id || empOrId.nome)) {
+        target = empOrId;
+      }
+    } else if (typeof empOrId === 'string') {
+      target = empresas.find((e) => e.id === empOrId || e.nome.trim().toLowerCase() === empOrId.trim().toLowerCase());
+      if (!target) {
+        target = { id: empOrId, nome: empOrId };
+      }
     }
-    const id = typeof empOrId === 'string' ? empOrId : empOrId?.id;
-    const emp = empresas.find((e) => e.id === id);
-    if (emp) {
-      setSelectedEmpresa(emp);
+
+    if (target) {
+      setSelectedEmpresa(target);
       setActiveTab('empresas');
     }
   };
@@ -642,6 +653,17 @@ export default function Home() {
                     </div>
 
                     <div className="flex items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEmpresaParaRegistrar(null);
+                          setIsRegistrarModalGlobalOpen(true);
+                        }}
+                        className="px-4 py-2.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-[#1d1d1f] dark:text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <span>+ Registrar Suporte</span>
+                      </button>
+
                       <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
@@ -871,7 +893,7 @@ export default function Home() {
                                       {emp.nome}
                                     </h3>
                                     <p className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono truncate">
-                                      {emp.credenciais?.email_administrador || 'Sem e-mail cadastrado'}
+                                      {emp.credenciais?.email_administrador || emp.credenciais_lista?.[0]?.usuario_email || emp.credenciais_lista?.[0]?.email_administrador || emp.email_administrador || 'Sem e-mail cadastrado'}
                                     </p>
                                   </div>
                                 </div>

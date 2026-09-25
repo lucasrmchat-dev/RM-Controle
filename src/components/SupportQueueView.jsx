@@ -513,7 +513,10 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
             const isEmAndamento = ch.status === 'em_andamento';
             const isAguardando = ch.status === 'aguardando_visualizacao' || ch.status === 'pendente';
             const isFinalizado = ch.status === 'concluido' || ch.status === 'finalizado';
-            const empresaObj = empresasLista.find((e) => e.id === ch.empresa_id);
+            const empresaObj = empresasLista.find(
+              (e) => (ch.empresa_id && e.id === ch.empresa_id) || 
+                     (ch.empresa_nome && e.nome && e.nome.trim().toLowerCase() === ch.empresa_nome.trim().toLowerCase())
+            ) || (ch.empresa_nome ? { id: ch.empresa_id || ch.empresa_nome, nome: ch.empresa_nome } : null);
 
             return (
               <motion.div
@@ -630,9 +633,9 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           <span>Aceitar e Iniciar Suporte</span>
                         </button>
 
-                        {empresaObj && onSelectEmpresa && (
+                        {onSelectEmpresa && (
                           <button
-                            onClick={() => onSelectEmpresa(empresaObj)}
+                            onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
                             className="px-3.5 py-2 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:bg-black/[0.03] transition-all cursor-pointer"
                           >
                             Ver Empresa
@@ -660,9 +663,9 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           <span>Concluir Atendimento</span>
                         </button>
 
-                        {empresaObj && onSelectEmpresa && (
+                        {onSelectEmpresa && (
                           <button
-                            onClick={() => onSelectEmpresa(empresaObj)}
+                            onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
                             className="px-3.5 py-2 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:bg-black/[0.03] transition-all cursor-pointer"
                           >
                             Acessar Empresa
