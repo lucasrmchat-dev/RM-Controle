@@ -515,6 +515,39 @@ export async function finalizarSuporte({
   historico.unshift(chamadoFinalizado);
   setLocalData('historico_chamados', historico.slice(0, 500));
 
+  // Sincroniza com a tabela suporte_chamados no Supabase
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const isUuid = chamado.empresa_id && chamado.empresa_id.includes('-');
+      if (isUuid) {
+        const payload = {
+          empresa_id: chamado.empresa_id,
+          empresa_nome: chamado.empresa_nome,
+          tecnico_email: chamadoFinalizado.tecnico_email || userEmail,
+          atendente: chamadoFinalizado.atendente_nome || chamadoFinalizado.tecnico_nome,
+          colaborador_solicitante: chamadoFinalizado.solicitante_nome || '',
+          status: 'finalizado',
+          iniciado_em: chamadoFinalizado.iniciado_em || finalizadoEm,
+          finalizado_em: finalizadoEm,
+          duracao_segundos: ativoSegs,
+          motivo: chamadoFinalizado.motivo || 'Atendimento Geral',
+          observacoes: chamadoFinalizado.observacoes || '',
+        };
+        const { data: dbSaved, error: errDb } = await supabase.from('suporte_chamados').insert([payload]).select().single();
+        if (!errDb && dbSaved) {
+          chamadoFinalizado.id = dbSaved.id;
+          const hAtual = getLocalData('historico_chamados', []);
+          if (hAtual.length > 0 && (hAtual[0].id === chamado.id || hAtual[0].created_at === chamadoFinalizado.created_at)) {
+            hAtual[0].id = dbSaved.id;
+            setLocalData('historico_chamados', hAtual);
+          }
+        }
+      }
+    } catch (errSup) {
+      console.warn('Aviso ao sincronizar chamado finalizado no Supabase:', errSup);
+    }
+  }
+
   try {
     stopSupportNotificationLoop();
   } catch (e) {}
@@ -617,7 +650,7 @@ export async function deleteHistoricoChamado(chamadoId, userEmail = 'admin@rmcon
   // 3. Remove no Supabase se configurado
   if (isSupabaseConfigured && supabase) {
     try {
-      await supabase.from('chamados_suporte').delete().eq('id', chamadoId);
+      await supabase.from('suporte_chamados').delete().eq('id', chamadoId);
     } catch (e) {
       console.warn('Erro ao excluir chamado no Supabase:', e);
     }
@@ -645,6 +678,154 @@ export function getHistoricoChamados() {
     ...c,
     tecnico_nome: c.tecnico_nome || getNomeTecnico(c.tecnico_email, c.atendente_nome),
   }));
+}
+
+// Sincroniza e busca todos os chamados finalizados do Supabase (para exibir atendimentos de todos os usuários)
+export async function fetchHistoricoChamados() {
+  let dbChamados = [];
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('suporte_chamados')
+        .select('*')
+        .order('finalizado_em', { ascending: false });
+
+      if (!error && data) {
+        dbChamados = data.map((d) => ({
+          id: d.id,
+          empresa_id: d.empresa_id,
+          empresa_nome: d.empresa_nome,
+          tecnico_email: d.tecnico_email,
+          tecnico_nome: d.atendente || getNomeTecnico(d.tecnico_email),
+          atendente_nome: d.atendente || getNomeTecnico(d.tecnico_email),
+          solicitante_nome: d.colaborador_solicitante || 'Colaborador',
+          status: 'concluido',
+          motivo: (d.motivo || '').trim() || 'Atendimento Geral',
+          observacoes: d.observacoes || '',
+          resolucao: d.observacoes || '',
+          iniciado_em: d.iniciado_em,
+          finalizado_em: d.finalizado_em,
+          duracao_segundos: d.duracao_segundos || 0,
+          tempo_ativo_segundos: d.duracao_segundos || 0,
+          created_at: d.created_at || d.iniciado_em,
+        }));
+      }
+    } catch (e) {
+      console.warn('Erro ao buscar suporte_chamados no Supabase:', e);
+    }
+  }
+
+  // Mescla com historico local preservando unicidade
+  const localHist = getLocalData('historico_chamados', []);
+  const mapa = new Map();
+  // Dados do banco Supabase têm prioridade
+  dbChamados.forEach((c) => mapa.set(c.id, c));
+  // Mantém locais
+  localHist.forEach((c) => {
+    if (!mapa.has(c.id)) mapa.set(c.id, c);
+  });
+
+  const merged = Array.from(mapa.values()).sort(
+    (a, b) => new Date(b.finalizado_em || b.iniciado_em || 0) - new Date(a.finalizado_em || a.iniciado_em || 0)
+  );
+
+  setLocalData('historico_chamados', merged);
+  return merged;
+}
+
+// Registro de Suporte Direto / Retroativo (Sem cronômetro ativo, apenas contabiliza resolução)
+export async function registrarSuporteRetroativo({
+  empresa_id,
+  empresa_nome,
+  motivo,
+  observacoes = '',
+  solicitante_nome = '',
+  atendente = '',
+  userEmail = 'admin@rmcontrole.com',
+  data_atendimento = null
+}) {
+  if (!empresa_id) throw new Error('Selecione a empresa para registrar o suporte.');
+  if (!motivo || !motivo.trim()) throw new Error('Selecione o motivo do suporte.');
+
+  const finalizadoEm = data_atendimento ? new Date(data_atendimento).toISOString() : new Date().toISOString();
+  const nomeAtendente = atendente || getNomeTecnico(userEmail);
+
+  const novoChamado = {
+    id: 'chamado_ret_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    empresa_id,
+    empresa_nome: (empresa_nome || 'Empresa').trim(),
+    tecnico_email: userEmail,
+    tecnico_nome: nomeAtendente,
+    atendente_nome: nomeAtendente,
+    solicitante_nome: (solicitante_nome || 'Colaborador').trim(),
+    status: 'concluido',
+    motivo: motivo.trim(),
+    observacoes: (observacoes || '').trim(),
+    resolucao: (observacoes || '').trim(),
+    iniciado_em: finalizadoEm,
+    finalizado_em: finalizadoEm,
+    tempo_espera_segundos: 0,
+    tempo_ativo_segundos: 0,
+    duracao_segundos: 0,
+    retroativo: true,
+    created_at: finalizadoEm,
+  };
+
+  // 1. Grava no histórico local
+  const historico = getLocalData('historico_chamados', []);
+  historico.unshift(novoChamado);
+  setLocalData('historico_chamados', historico.slice(0, 500));
+
+  // 2. Grava no Supabase suporte_chamados
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const isUuid = empresa_id && empresa_id.includes('-');
+      if (isUuid) {
+        const payload = {
+          empresa_id,
+          empresa_nome: novoChamado.empresa_nome,
+          tecnico_email: userEmail,
+          atendente: nomeAtendente,
+          colaborador_solicitante: novoChamado.solicitante_nome,
+          status: 'finalizado',
+          iniciado_em: finalizadoEm,
+          finalizado_em: finalizadoEm,
+          duracao_segundos: 0,
+          motivo: novoChamado.motivo,
+          observacoes: novoChamado.observacoes,
+        };
+        const { data: dbSaved, error: errDb } = await supabase.from('suporte_chamados').insert([payload]).select().single();
+        if (!errDb && dbSaved) {
+          novoChamado.id = dbSaved.id;
+          const histAtual = getLocalData('historico_chamados', []);
+          if (histAtual.length > 0 && histAtual[0].created_at === finalizadoEm) {
+            histAtual[0].id = dbSaved.id;
+            setLocalData('historico_chamados', histAtual);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao salvar suporte retroativo no Supabase:', e);
+    }
+  }
+
+  // 3. Auditoria LGPD
+  await logAuditoria({
+    empresaId: empresa_id,
+    usuarioEmail: userEmail,
+    acao: 'registrou_suporte_retroativo',
+    detalhes: {
+      empresa_nome: novoChamado.empresa_nome,
+      motivo,
+      atendente: nomeAtendente,
+      solicitante: novoChamado.solicitante_nome,
+      duracao_segundos: 0,
+      modulo: 'Registro de Suporte',
+    },
+  });
+
+  window.dispatchEvent(new Event('suporte_updated'));
+  return novoChamado;
 }
 
 export function getChamadoAtivo(empresa_id = null) {
@@ -692,42 +873,55 @@ export function getChamadosSuporte({ empresa_id = null, status = 'todos' } = {})
 }
 
 export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim = null } = {}) {
-  let chamados = getLocalData('chamados_suporte', []);
+  const chamadosAtivos = getLocalData('chamados_suporte', []);
+  const historicoChamados = getLocalData('historico_chamados', []);
+
+  // Mescla sem duplicidade usando Map
+  const mapa = new Map();
+  chamadosAtivos.forEach((c) => {
+    mapa.set(c.id, { ...c, status: c.status || 'em_andamento' });
+  });
+  historicoChamados.forEach((c) => {
+    mapa.set(c.id, { ...c, status: 'finalizado' });
+  });
+
+  let chamados = Array.from(mapa.values());
   const hoje = new Date();
 
   // Filtro de período dinâmico
   if (periodo === 'hoje') {
     const hojeStr = hoje.toISOString().split('T')[0];
-    chamados = chamados.filter((c) => (c.iniciado_em || '').startsWith(hojeStr));
+    chamados = chamados.filter((c) => (c.finalizado_em || c.iniciado_em || c.created_at || '').startsWith(hojeStr));
   } else if (periodo === '7d') {
     const seteDiasAtras = new Date(hoje.getTime() - 7 * 24 * 60 * 60 * 1000);
-    chamados = chamados.filter((c) => new Date(c.iniciado_em || c.created_at) >= seteDiasAtras);
+    chamados = chamados.filter((c) => new Date(c.finalizado_em || c.iniciado_em || c.created_at) >= seteDiasAtras);
   } else if (periodo === '30d') {
     const trintaDiasAtras = new Date(hoje.getTime() - 30 * 24 * 60 * 60 * 1000);
-    chamados = chamados.filter((c) => new Date(c.iniciado_em || c.created_at) >= trintaDiasAtras);
+    chamados = chamados.filter((c) => new Date(c.finalizado_em || c.iniciado_em || c.created_at) >= trintaDiasAtras);
   } else if (periodo === 'mes_atual') {
     const mesAtualPrefix = hoje.toISOString().slice(0, 7);
-    chamados = chamados.filter((c) => (c.iniciado_em || '').startsWith(mesAtualPrefix));
+    chamados = chamados.filter((c) => (c.finalizado_em || c.iniciado_em || c.created_at || '').startsWith(mesAtualPrefix));
   } else if (periodo === 'personalizado' && dataInicio && dataFim) {
     const inicio = new Date(dataInicio + 'T00:00:00');
     const fim = new Date(dataFim + 'T23:59:59');
     chamados = chamados.filter((c) => {
-      const dt = new Date(c.iniciado_em || c.created_at);
+      const dt = new Date(c.finalizado_em || c.iniciado_em || c.created_at);
       return dt >= inicio && dt <= fim;
     });
   }
 
-  const finalizados = chamados.filter((c) => c.status === 'finalizado');
-  const emAndamento = chamados.filter((c) => c.status === 'em_andamento');
+  const finalizados = chamados.filter((c) => c.status === 'finalizado' || c.status === 'concluido');
+  const emAndamento = chamados.filter((c) => c.status === 'em_andamento' || c.status === 'aguardando_visualizacao' || c.status === 'pendente');
 
-  // Tempo médio geral
-  const duracaoTotalSegundos = finalizados.reduce((acc, c) => acc + (c.duracao_segundos || 0), 0);
-  const tempoMedioSegundos = finalizados.length > 0 ? Math.round(duracaoTotalSegundos / finalizados.length) : 0;
+  // Tempo médio geral apenas para atendimentos com cronômetro real (> 0s)
+  const finalizadosComTempo = finalizados.filter((c) => (c.duracao_segundos || c.tempo_ativo_segundos || 0) > 0);
+  const duracaoTotalSegundos = finalizadosComTempo.reduce((acc, c) => acc + (c.duracao_segundos || c.tempo_ativo_segundos || 0), 0);
+  const tempoMedioSegundos = finalizadosComTempo.length > 0 ? Math.round(duracaoTotalSegundos / finalizadosComTempo.length) : 0;
 
-  // Distribuição por motivos
+  // Distribuição por motivos reais de todos os finalizados
   const motivosCount = {};
   finalizados.forEach((c) => {
-    const m = c.motivo || 'Outro';
+    const m = (c.motivo || '').trim() || 'Atendimento Geral';
     motivosCount[m] = (motivosCount[m] || 0) + 1;
   });
 
@@ -735,39 +929,39 @@ export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim 
     .map(([nome, count]) => ({ nome, count }))
     .sort((a, b) => b.count - a.count);
 
-  // Métricas por empresa
-  // Métricas detalhadas por empresa (empresas que mais demandam suporte)
+  // Métricas por empresa (empresas que mais demandam suporte)
   const empresasStats = {};
   const motivosPorEmpresa = {};
 
   chamados.forEach((c) => {
-    if (!c.empresa_id) return;
-    if (!empresasStats[c.empresa_id]) {
-      empresasStats[c.empresa_id] = {
+    const empId = c.empresa_id || c.empresa_nome || 'Empresa';
+    const empNome = c.empresa_nome || 'Empresa';
+
+    if (!empresasStats[empId]) {
+      empresasStats[empId] = {
         empresa_id: c.empresa_id,
-        empresa_nome: c.empresa_nome || 'Empresa',
+        empresa_nome: empNome,
         total_chamados: 0,
         concluidos: 0,
         em_andamento: 0,
         duracao_total: 0,
       };
-      motivosPorEmpresa[c.empresa_id] = {};
+      motivosPorEmpresa[empId] = {};
     }
-    empresasStats[c.empresa_id].total_chamados += 1;
-    if (c.status === 'finalizado') {
-      empresasStats[c.empresa_id].concluidos += 1;
-      empresasStats[c.empresa_id].duracao_total += (c.duracao_segundos || 0);
-      const mot = c.motivo || 'Geral';
-      motivosPorEmpresa[c.empresa_id][mot] = (motivosPorEmpresa[c.empresa_id][mot] || 0) + 1;
+    empresasStats[empId].total_chamados += 1;
+    if (c.status === 'finalizado' || c.status === 'concluido') {
+      empresasStats[empId].concluidos += 1;
+      empresasStats[empId].duracao_total += (c.duracao_segundos || c.tempo_ativo_segundos || 0);
+      const mot = (c.motivo || '').trim() || 'Atendimento Geral';
+      motivosPorEmpresa[empId][mot] = (motivosPorEmpresa[empId][mot] || 0) + 1;
     } else {
-      empresasStats[c.empresa_id].em_andamento += 1;
+      empresasStats[empId].em_andamento += 1;
     }
   });
 
   const totalGeralChamados = Math.max(1, chamados.length);
   const metricasEmpresas = Object.values(empresasStats).map((e) => {
-    // Motivo mais frequente
-    const motivosEmp = motivosPorEmpresa[e.empresa_id] || {};
+    const motivosEmp = motivosPorEmpresa[e.empresa_id || e.empresa_nome] || {};
     const motivoMaisFrequente = Object.entries(motivosEmp).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Atendimento Geral';
 
     return {
@@ -782,7 +976,6 @@ export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim 
   const equipeUsuarios = getEquipeUsuarios();
   const colaboradoresStats = {};
 
-  // Inicializa com todos os membros cadastrados na equipe
   equipeUsuarios.forEach((u) => {
     const emailNorm = (u.email || '').toLowerCase().trim();
     if (!emailNorm) return;
@@ -798,13 +991,12 @@ export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim 
     };
   });
 
-  // Agrega chamados realizados
   chamados.forEach((c) => {
     const atendenteEmail = (c.atendente || c.tecnico_email || '').toLowerCase().trim();
     if (!atendenteEmail) return;
 
     if (!colaboradoresStats[atendenteEmail]) {
-      const nomeAmigavel = atendenteEmail.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+      const nomeAmigavel = c.tecnico_nome || c.atendente_nome || atendenteEmail.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
       colaboradoresStats[atendenteEmail] = {
         id: 'usr_' + Math.random().toString(36).substr(2, 6),
         nome: nomeAmigavel,
@@ -818,10 +1010,10 @@ export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim 
     }
 
     colaboradoresStats[atendenteEmail].total_chamados += 1;
-    if (c.status === 'finalizado') {
+    if (c.status === 'finalizado' || c.status === 'concluido') {
       colaboradoresStats[atendenteEmail].resolvidos += 1;
-      colaboradoresStats[atendenteEmail].duracao_total_segundos += (c.duracao_segundos || 0);
-    } else if (c.status === 'em_andamento') {
+      colaboradoresStats[atendenteEmail].duracao_total_segundos += (c.duracao_segundos || c.tempo_ativo_segundos || 0);
+    } else {
       colaboradoresStats[atendenteEmail].em_andamento += 1;
     }
   });
@@ -858,8 +1050,8 @@ export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim 
     const dStr = `${y}-${m}-${day}`;
     const diaNome = diasSemana[d.getDay()];
 
-    const count = chamados.filter((c) => {
-      const dataChamado = (c.iniciado_em || c.created_at || '').split('T')[0];
+    const count = finalizados.filter((c) => {
+      const dataChamado = (c.finalizado_em || c.iniciado_em || c.created_at || '').split('T')[0];
       return dataChamado === dStr;
     }).length;
 
@@ -1066,7 +1258,7 @@ export async function deleteEmpresaCredencial(empresaId, credId, userEmail = 'ad
 // GESTÃO DE USUÁRIOS E PERMISSÕES POR ABA (SUPORTE, VENDAS, ADMIN)
 // ==============================================================================
 export const PERMISSOES_PADRAO = {
-  administrador: ['empresas', 'fila', 'dashboard', 'canais', 'servidores', 'auditoria'],
+  administrador: ['empresas', 'fila', 'dashboard', 'configuracoes', 'canais', 'servidores', 'auditoria'],
   suporte: ['empresas', 'fila', 'dashboard'],
   vendas: ['empresas', 'fila', 'dashboard'],
 };

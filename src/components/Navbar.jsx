@@ -145,33 +145,12 @@ export default function Navbar({
       ) 
     },
     { 
-      id: 'canais', 
-      label: 'Canais', 
+      id: 'configuracoes', 
+      label: 'Configurações Gerais', 
       icon: (
         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/>
-          <circle cx="12" cy="12" r="2"/>
-          <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/>
-        </svg>
-      ) 
-    },
-    { 
-      id: 'servidores', 
-      label: 'Servidores', 
-      icon: (
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-          <rect width="20" height="8" x="2" y="2" rx="2" ry="2"/>
-          <rect width="20" height="8" x="2" y="14" rx="2" ry="2"/>
-        </svg>
-      ) 
-    },
-    { 
-      id: 'auditoria', 
-      label: 'Auditoria LGPD', 
-      icon: (
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          <path d="m9 12 2 2 4-4"/>
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
         </svg>
       ) 
     },
@@ -495,158 +474,22 @@ export default function Navbar({
                       </>
                     )}
 
-                    {/* Controles de Alertas Sonoros de Suporte */}
-                    <div className="py-2.5 border-b border-black/[0.05] dark:border-white/[0.06] space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <span>🔔</span>
-                          <span className="font-semibold text-[11px] text-[#1d1d1f] dark:text-white">
-                            Alertas Sonoros de Suporte
-                          </span>
+                    {/* Link para Configurações Gerais */}
+                    <div className="py-2 border-b border-black/[0.05] dark:border-white/[0.06]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProfileOpen(false);
+                          setActiveTab('configuracoes');
+                        }}
+                        className="w-full text-left py-2 px-2.5 rounded-xl hover:bg-black/[0.04] dark:hover:bg-white/[0.06] flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:text-black dark:hover:text-white transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span>⚙️</span>
+                          <span>Configurações Gerais</span>
                         </div>
-                        <input
-                          type="checkbox"
-                          checked={audioConfig.habilitado}
-                          onChange={(e) => setAudioConfig({ habilitado: e.target.checked })}
-                          className="w-4 h-4 accent-[#4d7c0f] dark:accent-[#84cc16] cursor-pointer rounded"
-                        />
-                      </div>
-
-                      {audioConfig.habilitado && (
-                        <div className="space-y-2 pt-1 pl-1">
-                          
-                          {/* Escopo do Alerta */}
-                          <div>
-                            <span className="text-[10px] text-slate-500 dark:text-zinc-400 block mb-1">
-                              Tocar quando chegar chamado:
-                            </span>
-                            <div className="grid grid-cols-2 gap-1 text-[10px]">
-                              <button
-                                type="button"
-                                onClick={() => setAudioConfig({ escopo: 'apenas_meus' })}
-                                className={`py-1 px-1.5 rounded-lg font-medium transition-all ${
-                                  audioConfig.escopo === 'apenas_meus'
-                                    ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold'
-                                    : 'bg-black/[0.03] dark:bg-white/[0.05] text-slate-600 dark:text-zinc-400'
-                                }`}
-                              >
-                                Só atribuídos a mim
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setAudioConfig({ escopo: 'todos' })}
-                                className={`py-1 px-1.5 rounded-lg font-medium transition-all ${
-                                  audioConfig.escopo === 'todos'
-                                    ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold'
-                                    : 'bg-black/[0.03] dark:bg-white/[0.05] text-slate-600 dark:text-zinc-400'
-                                }`}
-                              >
-                                Fila inteira (todos)
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* 4 Tipos de Sons com Botão de Testar */}
-                          <div>
-                            <span className="text-[10px] text-slate-500 dark:text-zinc-400 block mb-1">
-                              Toque Sonoro:
-                            </span>
-                            <div className="space-y-1">
-                              {[
-                                { id: 'harmonico', label: 'Harmônico Apple (Suave)' },
-                                { id: 'dinamico', label: 'Alerta Dinâmico (Radar)' },
-                                { id: 'sino', label: 'Sino Suave / Marimba' },
-                                { id: 'incisivo', label: 'Incisivo / Alerta Urgente' },
-                              ].map((s) => {
-                                const isSel = audioConfig.tipoSom === s.id;
-                                return (
-                                  <div key={s.id} className="flex items-center justify-between gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setAudioConfig({ tipoSom: s.id });
-                                        playNotificationTone(s.id);
-                                      }}
-                                      className={`flex-1 text-left px-2 py-1 rounded-lg text-[10px] font-medium transition-all ${
-                                        isSel
-                                          ? 'bg-black/[0.06] dark:bg-white/[0.1] font-bold text-[#4d7c0f] dark:text-[#84cc16]'
-                                          : 'text-slate-600 dark:text-zinc-400 hover:bg-black/[0.02]'
-                                      }`}
-                                    >
-                                      {isSel ? '✓ ' : ''}{s.label}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => playNotificationTone(s.id)}
-                                      className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] text-slate-500"
-                                      title="Ouvir som de teste"
-                                    >
-                                      ▶ Testar
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          {/* Repetição: Uma vez, Intermitente ou Intervalo */}
-                          <div>
-                            <span className="text-[10px] text-slate-500 dark:text-zinc-400 block mb-1">
-                              Frequência da Notificação:
-                            </span>
-                            <div className="grid grid-cols-3 gap-1 text-[10px]">
-                              {[
-                                { id: 'uma_vez', label: 'Tocar 1x' },
-                                { id: 'intermitente', label: 'Em loop' },
-                                { id: 'intervalo', label: 'Intervalo' },
-                              ].map((m) => (
-                                <button
-                                  key={m.id}
-                                  type="button"
-                                  onClick={() => setAudioConfig({ modoRepeticao: m.id })}
-                                  className={`py-1 px-1 rounded-lg text-center font-medium transition-all ${
-                                    audioConfig.modoRepeticao === m.id
-                                      ? 'bg-black text-white dark:bg-white dark:text-black font-bold'
-                                      : 'bg-black/[0.03] dark:bg-white/[0.05] text-slate-600 dark:text-zinc-400'
-                                  }`}
-                                >
-                                  {m.label}
-                                </button>
-                              ))}
-                            </div>
-
-                            {audioConfig.modoRepeticao === 'intervalo' && (
-                              <div className="flex items-center gap-1.5 mt-1.5">
-                                <span className="text-[10px] text-slate-400">Repetir a cada:</span>
-                                {[15, 30, 60].map((sec) => (
-                                  <button
-                                    key={sec}
-                                    type="button"
-                                    onClick={() => setAudioConfig({ intervaloSegundos: sec })}
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
-                                      audioConfig.intervaloSegundos === sec
-                                        ? 'bg-[#4d7c0f] text-white font-bold'
-                                        : 'bg-black/[0.04] dark:bg-white/[0.06] text-slate-600'
-                                    }`}
-                                  >
-                                    {sec}s
-                                  </button>
-                                ))}
-                                <input
-                                  type="number"
-                                  min="5"
-                                  max="300"
-                                  value={audioConfig.intervaloSegundos}
-                                  onChange={(e) => setAudioConfig({ intervaloSegundos: parseInt(e.target.value || '30', 10) })}
-                                  className="w-12 px-1.5 py-0.5 rounded border border-black/10 dark:border-white/10 text-[10px] font-mono text-center focus:outline-none"
-                                />
-                                <span className="text-[10px] text-slate-400">seg</span>
-                              </div>
-                            )}
-                          </div>
-
-                        </div>
-                      )}
+                        <span className="text-[10px] text-slate-400 font-mono">Abrir →</span>
+                      </button>
                     </div>
 
                     {/* Tema */}

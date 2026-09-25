@@ -6,6 +6,7 @@ import {
   getMetricasSuporte, 
   getChamadosSuporte, 
   getHistoricoChamados,
+  fetchHistoricoChamados,
   deleteHistoricoChamado,
   getNomeTecnico,
   finalizarSuporte,
@@ -61,19 +62,15 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
   const [, setTick] = useState(0);
 
   const carregarDados = async () => {
+    try {
+      await fetchHistoricoChamados();
+    } catch (e) {
+      console.warn('Erro ao sincronizar historico:', e);
+    }
     const met = getMetricasSuporte({ periodo, dataInicio, dataFim });
     setMetricas(met);
     const hist = getHistoricoChamados();
-    const chamados = getChamadosSuporte().filter((c) => c.status === "concluido" || c.status === "finalizado");
-    const mapaChamados = new Map();
-    hist.forEach((h) => mapaChamados.set(h.id, h));
-    chamados.forEach((c) => {
-      if (!mapaChamados.has(c.id)) mapaChamados.set(c.id, c);
-    });
-    const listaFinal = Array.from(mapaChamados.values()).sort(
-      (a, b) => new Date(b.finalizado_em || b.iniciado_em || 0) - new Date(a.finalizado_em || a.iniciado_em || 0)
-    );
-    setChamadosRecentes(listaFinal.slice(0, 30));
+    setChamadosRecentes(hist.slice(0, 50));
     const emp = await getEmpresas({ pageSize: 1000 });
     const listaEmpresas = Array.isArray(emp) ? emp : (emp?.items || []);
     setEmpresasLista(listaEmpresas);
@@ -128,15 +125,17 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
 
   // Cálculos do Gráfico SVG de Evolução Temporal
   const maxChamadosDia = Math.max(1, ...metricas.evolucaoUltimos7Dias.map((d) => d.chamados));
-  const svgWidth = 500;
-  const svgHeight = 160;
-  const paddingX = 35;
-  const paddingY = 25;
+  const svgWidth = 520;
+  const svgHeight = 175;
+  const paddingLeft = 45;
+  const paddingRight = 25;
+  const paddingTop = 32;
+  const paddingBottom = 26;
 
   const pontosGrafico = metricas.evolucaoUltimos7Dias.map((d, index) => {
     const totalPontos = metricas.evolucaoUltimos7Dias.length;
-    const x = paddingX + (index / (totalPontos - 1 || 1)) * (svgWidth - 2 * paddingX);
-    const y = svgHeight - paddingY - (d.chamados / maxChamadosDia) * (svgHeight - 2 * paddingY);
+    const x = paddingLeft + (index / (totalPontos - 1 || 1)) * (svgWidth - paddingLeft - paddingRight);
+    const y = svgHeight - paddingBottom - (d.chamados / maxChamadosDia) * (svgHeight - paddingTop - paddingBottom);
     return { x, y, valor: d.chamados, label: d.label, data: d.data };
   });
 
@@ -145,7 +144,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
   }, '');
 
   const areaD = pontosGrafico.length > 0
-    ? `${pathD} L ${pontosGrafico[pontosGrafico.length - 1].x} ${svgHeight - paddingY} L ${pontosGrafico[0].x} ${svgHeight - paddingY} Z`
+    ? `${pathD} L ${pontosGrafico[pontosGrafico.length - 1].x} ${svgHeight - paddingBottom} L ${pontosGrafico[0].x} ${svgHeight - paddingBottom} Z`
     : '';
 
   // Cores da Apple para Distribuição de Motivos (Donut)
@@ -673,10 +672,10 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
                     </div>
                   </div>
 
-                  {empresaObj && onSelectEmpresa && (
+                  {onSelectEmpresa && (
                     <button
-                      onClick={() => onSelectEmpresa(empresaObj)}
-                      className="px-4 py-2 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-[#1d1d1f] dark:text-white transition-all self-start sm:self-center flex-shrink-0 cursor-pointer"
+                      onClick={() => onSelectEmpresa(empresaObj || emp.empresa_id || emp.id)}
+                      className="px-4 py-2 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-[#1d1d1f] dark:text-white transition-all self-start sm:self-center flex-shrink-0 cursor-pointer shadow-xs"
                     >
                       Ver Empresa →
                     </button>
@@ -717,20 +716,33 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
                 </linearGradient>
               </defs>
 
-              {/* Linhas de Grade Horizontal */}
-              {[0, 0.33, 0.66, 1].map((ratio, i) => {
-                const y = paddingY + ratio * (svgHeight - 2 * paddingY);
+              {/* Eixo Vertical Y com Escala Numérica e Linhas de Grade */}
+              {[
+                { ratio: 0, val: maxChamadosDia },
+                { ratio: 0.5, val: Math.round(maxChamadosDia / 2) },
+                { ratio: 1, val: 0 }
+              ].map((lvl, i) => {
+                const y = paddingTop + lvl.ratio * (svgHeight - paddingTop - paddingBottom);
                 return (
-                  <line
-                    key={i}
-                    x1={paddingX}
-                    y1={y}
-                    x2={svgWidth - paddingX}
-                    y2={y}
-                    stroke="currentColor"
-                    className="text-black/[0.04] dark:text-white/[0.05]"
-                    strokeDasharray="4 4"
-                  />
+                  <g key={i}>
+                    <text
+                      x={paddingLeft - 8}
+                      y={y + 3}
+                      textAnchor="end"
+                      className="text-[10px] font-mono font-medium fill-slate-400 dark:fill-zinc-500"
+                    >
+                      {lvl.val}
+                    </text>
+                    <line
+                      x1={paddingLeft}
+                      y1={y}
+                      x2={svgWidth - paddingRight}
+                      y2={y}
+                      stroke="currentColor"
+                      className="text-black/[0.04] dark:text-white/[0.05]"
+                      strokeDasharray="4 4"
+                    />
+                  </g>
                 );
               })}
 
@@ -749,7 +761,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
                 />
               )}
 
-              {/* Pontos de dados */}
+              {/* Pontos de dados com badge numérico */}
               {pontosGrafico.map((p, i) => (
                 <g key={i}>
                   <circle
@@ -759,6 +771,25 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
                     className="fill-white dark:fill-zinc-900 stroke-[#4d7c0f] dark:stroke-[#84cc16]"
                     strokeWidth="2.5"
                   />
+                  {/* Badge numérico de quantificação acima do ponto */}
+                  <g>
+                    <rect
+                      x={p.x - 11}
+                      y={Math.max(4, p.y - 20)}
+                      width="22"
+                      height="14"
+                      rx="4"
+                      className={p.valor > 0 ? "fill-[#4d7c0f] dark:fill-[#84cc16]" : "fill-black/10 dark:fill-white/10"}
+                    />
+                    <text
+                      x={p.x}
+                      y={Math.max(4, p.y - 20) + 10}
+                      textAnchor="middle"
+                      className={p.valor > 0 ? "text-[9px] font-mono font-bold fill-white dark:fill-zinc-950" : "text-[9px] font-mono font-medium fill-slate-500 dark:fill-zinc-400"}
+                    >
+                      {p.valor}
+                    </text>
+                  </g>
                   <text
                     x={p.x}
                     y={svgHeight - 6}

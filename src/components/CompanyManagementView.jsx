@@ -43,10 +43,12 @@ import {
   EditIcon
 } from './Icons';
 import SupportCompletionModal from './SupportCompletionModal';
+import RegisterSupportModal from './RegisterSupportModal';
 
 export default function CompanyManagementView({ empresa, onBack, onUpdated, userEmail }) {
   const [activeTab, setActiveTab] = useState('canais'); // 'canais' | 'credenciais' | 'servidor' | 'observacoes' | 'chamados'
   const [catalogoCanais, setCatalogoCanais] = useState([]);
+  const [isRegistrarModalOpen, setIsRegistrarModalOpen] = useState(false);
   
   // Modos de Exibição (Cards vs Lista)
   const [canaisViewMode, setCanaisViewMode] = useState('grid'); // 'grid' | 'list'
@@ -471,17 +473,27 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
         </button>
 
         {/* Ações de Suporte (Sem redundância: Concluir ou Cancelar se ativo; Iniciar se inativo) */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
           {!chamadoAtivo ? (
-            <motion.button
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleIniciarSuporte}
-              className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 flex items-center gap-2 transition-all cursor-pointer"
-            >
-              <PlayIcon className="w-3.5 h-3.5" />
-              <span>Iniciar Atendimento de Suporte</span>
-            </motion.button>
+            <>
+              <motion.button
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleIniciarSuporte}
+                className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 flex items-center gap-2 transition-all cursor-pointer"
+              >
+                <PlayIcon className="w-3.5 h-3.5" />
+                <span>Iniciar Atendimento de Suporte</span>
+              </motion.button>
+
+              <button
+                type="button"
+                onClick={() => setIsRegistrarModalOpen(true)}
+                className="px-4 py-2.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-[#1d1d1f] dark:text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <span>+ Registrar Suporte</span>
+              </button>
+            </>
           ) : (
             <div className="flex items-center gap-2 p-1.5 pl-3.5 rounded-full bg-amber-500/15 border border-amber-500/30 shadow-xs">
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
@@ -1664,6 +1676,17 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
           onUpdated();
         }}
         userEmail={userEmail}
+      />
+
+      {/* Modal de Registro de Suporte Direto / Retroativo */}
+      <RegisterSupportModal
+        isOpen={isRegistrarModalOpen}
+        onClose={() => setIsRegistrarModalOpen(false)}
+        empresaPreSelecionada={empresa}
+        userEmail={userEmail}
+        onRegistered={() => {
+          if (onUpdated) onUpdated();
+        }}
       />
 
     </div>
