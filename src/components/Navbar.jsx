@@ -474,23 +474,7 @@ export default function Navbar({
                       </>
                     )}
 
-                    {/* Link para Configurações Gerais */}
-                    <div className="py-2 border-b border-black/[0.05] dark:border-white/[0.06]">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setProfileOpen(false);
-                          setActiveTab('configuracoes');
-                        }}
-                        className="w-full text-left py-2 px-2.5 rounded-xl hover:bg-black/[0.04] dark:hover:bg-white/[0.06] flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:text-black dark:hover:text-white transition-all cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span>⚙️</span>
-                          <span>Configurações Gerais</span>
-                        </div>
-                        <span className="text-[10px] text-slate-400 font-mono">Abrir →</span>
-                      </button>
-                    </div>
+
 
                     {/* Tema */}
                     <div className="py-2">

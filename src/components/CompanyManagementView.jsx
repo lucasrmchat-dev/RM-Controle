@@ -24,7 +24,10 @@ import {
 } from '@/lib/storage';
 import { generateSecurePassword } from '@/lib/security';
 import { 
-  MessageChannelIcon, 
+  MessageChannelIcon,
+  ApiCloudIcon,
+  QrCodeScanIcon,
+  MultichannelIcon,
   FacebookIcon, 
   InstagramIcon, 
   TelegramIcon, 
@@ -250,20 +253,26 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
   const pctChecklist = totalChecklist > 0 ? Math.round((concluidosChecklist / totalChecklist) * 100) : 0;
   const chamadosEmpresa = getChamadosSuporte({ empresa_id: empresa.id });
 
-  // Ícones de Canal (Puro SVG minimalista, zero ícone de WhatsApp)
+  // Ícones de Canal (Puro SVG minimalista Apple, zero ícones de WhatsApp)
   const renderCanalIcon = (c) => {
     const nomeLower = (c.nome || '').toLowerCase();
-    if (nomeLower.includes('whatsapp') || nomeLower.includes('api') || nomeLower.includes('qrcode')) {
-      return <MessageChannelIcon className="w-4 h-4 text-[#4d7c0f] dark:text-[#84cc16]" />;
+    const tipo = (c.tipo || '').toLowerCase();
+    if (tipo === 'api' || nomeLower.includes('api') || nomeLower.includes('cloud')) {
+      return <ApiCloudIcon className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />;
     }
-    if (nomeLower.includes('facebook')) return <FacebookIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
-    if (nomeLower.includes('instagram')) return <InstagramIcon className="w-4 h-4 text-pink-600 dark:text-pink-400" />;
-    if (nomeLower.includes('telegram')) return <TelegramIcon className="w-4 h-4 text-sky-600 dark:text-sky-400" />;
-    return (
-      <svg className="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/>
-      </svg>
-    );
+    if (tipo === 'qrcode' || nomeLower.includes('qr') || nomeLower.includes('pareamento')) {
+      return <QrCodeScanIcon className="w-4 h-4 text-amber-500 dark:text-amber-400" />;
+    }
+    if (nomeLower.includes('facebook') || nomeLower.includes('messenger')) {
+      return <FacebookIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
+    }
+    if (nomeLower.includes('instagram')) {
+      return <InstagramIcon className="w-4 h-4 text-pink-600 dark:text-pink-400" />;
+    }
+    if (nomeLower.includes('telegram')) {
+      return <TelegramIcon className="w-4 h-4 text-sky-500 dark:text-sky-400" />;
+    }
+    return <MultichannelIcon className="w-4 h-4 text-slate-500 dark:text-zinc-400" />;
   };
 
   // Ações de Canais

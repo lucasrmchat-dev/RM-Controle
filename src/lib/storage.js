@@ -1295,6 +1295,46 @@ export function getAbasPermitidas(role = null) {
   return PERMISSOES_PADRAO[currentRole] || PERMISSOES_PADRAO.suporte;
 }
 
+export async function fetchEquipeUsuarios() {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('equipe_usuarios')
+        .select('*')
+        .order('criado_em', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        const local = getLocalData('equipe_usuarios', []);
+        const map = new Map();
+        local.forEach((u) => {
+          if (u.email) map.set(u.email.toLowerCase().trim(), u);
+        });
+        data.forEach((u) => {
+          if (!u.email) return;
+          const email = u.email.toLowerCase().trim();
+          const prev = map.get(email) || {};
+          map.set(email, {
+            ...prev,
+            id: u.id,
+            nome: u.nome || prev.nome || email.split('@')[0],
+            email: u.email,
+            papel: u.papel || prev.papel || 'suporte',
+            senha: u.senha || prev.senha || '',
+            ativo: u.ativo !== false,
+            criado_em: u.criado_em || prev.criado_em || new Date().toISOString(),
+          });
+        });
+        const merged = Array.from(map.values());
+        setLocalData('equipe_usuarios', merged);
+        return merged;
+      }
+    } catch (e) {
+      console.warn('Erro ao sincronizar equipe_usuarios do Supabase:', e);
+    }
+  }
+  return getEquipeUsuarios();
+}
+
 export function getEquipeUsuarios() {
   return getLocalData('equipe_usuarios', [
     { id: 'usr_1', nome: 'Lucas Amorim (Administrador)', email: 'admin@rmcontrole.com', senha: 'RmControle@Admin2026!', papel: 'administrador', criado_em: new Date().toISOString() },
@@ -1529,58 +1569,78 @@ export async function getEmpresas({
 
   if (isSupabaseConfigured && supabase) {
     try {
-      const { data, error } = await supabase
+      // 1. Busca direta das empresas com RLS ativo (robusta e imune a falhas de relacionamentos filhos)
+      const { data: dbEmpresas, error: errEmp } = await supabase
         .from('empresas')
-        .select(`
-          *,
-          canais:empresa_canais(
-            *,
-            catalogo:canais_catalogo(*)
-          ),
-          observacoes:empresa_observacoes(*),
-          credenciais:empresa_credenciais(*),
-          checklist:empresa_checklist(*)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && data) {
-        empresas = data.map((emp) => ({
-          ...emp,
-          is_mock: false,
-          servidor_alocado: 'servidor_1',
-          canais: (emp.canais || []).map((c) => ({
-            id: c.id,
-            canal_id: c.canal_id,
-            nome: c.catalogo?.nome || 'Canal',
-            tipo: c.catalogo?.tipo || 'outro',
-            identificador_numero: c.identificador_numero || '',
-            status: c.status || 'ativo',
-            observacao: c.observacao || '',
-          })),
-          observacoes: (emp.observacoes || []).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)),
-          credenciais_lista: (emp.credenciais || []).map((cr) => ({
-            id: cr.id,
-            rotulo: 'Acesso Principal',
-            usuario_email: cr.email_administrador || '',
-            senha: cr.senha_suporte || '',
-            observacao: '',
-            ultima_alteracao: cr.ultima_alteracao || cr.created_at,
-          })),
-          checklist: (emp.checklist || []).map((chk) => ({
-            id: chk.id,
-            titulo: chk.titulo,
-            descricao: '',
-            categoria: 'Infraestrutura',
-            concluido: !!chk.concluido,
-            observacao: chk.observacao || '',
-          })),
-        }));
+      if (!errEmp && dbEmpresas && dbEmpresas.length > 0) {
+        // Busca paralela e tolerante a falhas das tabelas filhas
+        const [resCanais, resCreds, resObs, resCheck, resCat] = await Promise.allSettled([
+          supabase.from('empresa_canais').select('*'),
+          supabase.from('empresa_credenciais').select('*'),
+          supabase.from('empresa_observacoes').select('*'),
+          supabase.from('empresa_checklist').select('*'),
+          supabase.from('canais_catalogo').select('*'),
+        ]);
+
+        const canaisAll = resCanais.status === 'fulfilled' && resCanais.value.data ? resCanais.value.data : [];
+        const credsAll = resCreds.status === 'fulfilled' && resCreds.value.data ? resCreds.value.data : [];
+        const obsAll = resObs.status === 'fulfilled' && resObs.value.data ? resObs.value.data : [];
+        const checkAll = resCheck.status === 'fulfilled' && resCheck.value.data ? resCheck.value.data : [];
+        const catAll = resCat.status === 'fulfilled' && resCat.value.data ? resCat.value.data : [];
+
+        const catMap = new Map();
+        catAll.forEach((c) => catMap.set(c.id, c));
+
+        empresas = dbEmpresas.map((emp) => {
+          const empCanais = canaisAll.filter((c) => c.empresa_id === emp.id);
+          const empCreds = credsAll.filter((c) => c.empresa_id === emp.id);
+          const empObs = obsAll.filter((c) => c.empresa_id === emp.id);
+          const empCheck = checkAll.filter((c) => c.empresa_id === emp.id);
+
+          return {
+            ...emp,
+            is_mock: false,
+            servidor_alocado: emp.servidor_alocado || 'servidor_1',
+            canais: empCanais.map((c) => {
+              const cat = catMap.get(c.canal_id);
+              return {
+                id: c.id,
+                canal_id: c.canal_id,
+                nome: c.nome || cat?.nome || 'Canal de Comunicação',
+                tipo: c.tipo || cat?.tipo || 'api',
+                identificador_numero: c.identificador_numero || '',
+                status: c.status || 'ativo',
+                observacao: c.observacao || '',
+              };
+            }),
+            observacoes: empObs.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)),
+            credenciais_lista: empCreds.map((cr) => ({
+              id: cr.id,
+              rotulo: cr.rotulo || 'Acesso Principal',
+              usuario_email: cr.email_administrador || cr.usuario_email || '',
+              senha: cr.senha_suporte || cr.senha || '',
+              observacao: cr.observacao || '',
+              ultima_alteracao: cr.ultima_alteracao || cr.created_at,
+            })),
+            checklist: empCheck.map((chk) => ({
+              id: chk.id,
+              titulo: chk.titulo,
+              descricao: chk.descricao || '',
+              categoria: chk.categoria || 'Infraestrutura',
+              concluido: !!chk.concluido,
+              observacao: chk.observacao || '',
+            })),
+          };
+        });
 
         if (empresas.length > 0) {
           setLocalData('empresas_reais', empresas);
         }
-      } else if (error) {
-        console.warn('Erro ao consultar empresas no Supabase:', error);
+      } else if (errEmp) {
+        console.warn('Aviso ao consultar empresas no Supabase:', errEmp);
       }
     } catch (e) {
       console.warn('Recorrendo ao armazenamento local para listar empresas:', e);

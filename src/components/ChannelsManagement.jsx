@@ -4,7 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { getCanaisCatalogo, createCanalCatalogo } from '@/lib/storage';
 import { 
-  MessageChannelIcon, 
+  MessageChannelIcon,
+  ApiCloudIcon,
+  QrCodeScanIcon,
+  MultichannelIcon, 
   FacebookIcon, 
   InstagramIcon, 
   TelegramIcon,
@@ -67,17 +70,23 @@ export default function ChannelsManagement() {
 
   const renderIcon = (c) => {
     const lower = (c.nome || '').toLowerCase();
-    if (lower.includes('whatsapp') || lower.includes('api') || lower.includes('qrcode')) {
-      return <MessageChannelIcon className="w-4 h-4 text-[#4d7c0f] dark:text-[#84cc16]" />;
+    const tipo = (c.tipo || '').toLowerCase();
+    if (tipo === 'api' || lower.includes('api') || lower.includes('cloud')) {
+      return <ApiCloudIcon className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />;
     }
-    if (lower.includes('facebook')) return <FacebookIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
-    if (lower.includes('instagram')) return <InstagramIcon className="w-4 h-4 text-pink-600 dark:text-pink-400" />;
-    if (lower.includes('telegram')) return <TelegramIcon className="w-4 h-4 text-sky-600 dark:text-sky-400" />;
-    return (
-      <svg className="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-        <circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-      </svg>
-    );
+    if (tipo === 'qrcode' || lower.includes('qr') || lower.includes('pareamento')) {
+      return <QrCodeScanIcon className="w-4 h-4 text-amber-500 dark:text-amber-400" />;
+    }
+    if (lower.includes('facebook') || lower.includes('messenger')) {
+      return <FacebookIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
+    }
+    if (lower.includes('instagram')) {
+      return <InstagramIcon className="w-4 h-4 text-pink-600 dark:text-pink-400" />;
+    }
+    if (lower.includes('telegram')) {
+      return <TelegramIcon className="w-4 h-4 text-sky-500 dark:text-sky-400" />;
+    }
+    return <MultichannelIcon className="w-4 h-4 text-slate-500 dark:text-zinc-400" />;
   };
 
   return (

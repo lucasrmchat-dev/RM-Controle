@@ -15,10 +15,37 @@ export const MessageChannelIcon = ({ className = "w-4 h-4" }) => (
   </svg>
 );
 
-// Alias para compatibilidade
-export const WhatsAppIcon = ({ className = "w-4 h-4" }) => (
-  <MessageChannelIcon className={className} />
+// Ícone de API Cloud Oficial (Meta / WABA)
+export const ApiCloudIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
+    <polyline points="13 10 11 13 14 13 12 16" />
+  </svg>
 );
+
+// Ícone de Pareamento QR Code (Evolution / Baileys)
+export const QrCodeScanIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <rect width="6" height="6" x="3" y="3" rx="1.5" />
+    <rect width="6" height="6" x="15" y="3" rx="1.5" />
+    <rect width="6" height="6" x="3" y="15" rx="1.5" />
+    <path d="M15 15h2v2h-2z" />
+    <path d="M19 15v4h-2" />
+    <path d="M15 19v2" />
+    <path d="M21 21h.01" />
+  </svg>
+);
+
+// Ícone Multicanal / Hub de Mensageria Corporativa
+export const MultichannelIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" />
+    <circle cx="12" cy="12" r="2" />
+    <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19" />
+  </svg>
+);
+
+export const WhatsAppIcon = ApiCloudIcon;
 
 // Meta / Redes Sociais Integradas (Traço Minimalista Apple)
 export const FacebookIcon = ({ className = "w-4 h-4" }) => (

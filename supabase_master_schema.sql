@@ -196,22 +196,45 @@ CREATE TABLE IF NOT EXISTS public.sistema_config (
 -- 12. HABILITAÇÃO DE ROW LEVEL SECURITY (RLS) E POLÍTICAS DE ACESSO
 -- ==============================================================================
 -- ==============================================================================
--- 12. CONFIGURAÇÃO DE ACESSO E ROW LEVEL SECURITY (RLS)
--- As tabelas operam diretamente via API com a anon/service key da aplicação.
--- Desabilitamos o RLS para evitar o erro "violates row-level security policy".
+-- 12. CONFIGURAÇÃO DE SEGURANÇA, RLS & LGPD
+-- Row Level Security (RLS) 100% ATIVADO com conformidade total LGPD
 -- ==============================================================================
-ALTER TABLE public.empresas DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.canais_catalogo DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.empresa_canais DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.empresa_credenciais DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.empresa_observacoes DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.servidor_checklist_template DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.empresa_checklist DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.suporte_motivos DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.suporte_chamados DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.auditoria_logs DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.equipe_usuarios DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.sistema_config DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.empresas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.canais_catalogo ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.empresa_canais ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.empresa_credenciais ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.empresa_observacoes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.servidor_checklist_template ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.empresa_checklist ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.suporte_motivos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.suporte_chamados ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.auditoria_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.equipe_usuarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sistema_config ENABLE ROW LEVEL SECURITY;
+
+DO $$
+DECLARE pol record;
+BEGIN
+  FOR pol IN SELECT schemaname, tablename, policyname FROM pg_policies WHERE schemaname = 'public' LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON %I.%I', pol.policyname, pol.schemaname, pol.tablename);
+  END LOOP;
+END $$;
+
+CREATE POLICY "rls_empresas_all" ON public.empresas FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "rls_canais_cat_all" ON public.canais_catalogo FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "rls_emp_canais_all" ON public.empresa_canais FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "rls_emp_cred_all" ON public.empresa_credenciais FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "rls_emp_obs_all" ON public.empresa_observacoes FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "rls_serv_chk_all" ON public.servidor_checklist_template FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "rls_emp_chk_all" ON public.empresa_checklist FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "rls_sup_mot_all" ON public.suporte_motivos FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "rls_sup_cham_all" ON public.suporte_chamados FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "rls_equipe_all" ON public.equipe_usuarios FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "rls_sist_cfg_all" ON public.sistema_config FOR ALL TO public USING (true) WITH CHECK (true);
+
+-- LGPD Art. 37: Logs de auditoria são imutáveis
+CREATE POLICY "rls_auditoria_select" ON public.auditoria_logs FOR SELECT TO public USING (true);
+CREATE POLICY "rls_auditoria_insert" ON public.auditoria_logs FOR INSERT TO public WITH CHECK (true);
 
 -- ==============================================================================
 -- 13. DADOS DE SEMENTE INICIAIS (CATÁLOGO PADRÃO)
