@@ -195,31 +195,23 @@ CREATE TABLE IF NOT EXISTS public.sistema_config (
 -- ==============================================================================
 -- 12. HABILITAÇÃO DE ROW LEVEL SECURITY (RLS) E POLÍTICAS DE ACESSO
 -- ==============================================================================
-ALTER TABLE public.empresas ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.canais_catalogo ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.empresa_canais ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.empresa_credenciais ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.empresa_observacoes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.servidor_checklist_template ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.empresa_checklist ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.suporte_motivos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.suporte_chamados ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.auditoria_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.equipe_usuarios ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.sistema_config ENABLE ROW LEVEL SECURITY;
-
--- Políticas de Acesso Livre para a Aplicação (Autenticados & Anon com API Key)
-DO $$
-DECLARE
-    tbl text;
-BEGIN
-    FOR tbl IN 
-        SELECT tablename FROM pg_tables WHERE schemaname = 'public'
-    LOOP
-        EXECUTE format('DROP POLICY IF EXISTS "Acesso total publico %I" ON public.%I', tbl, tbl);
-        EXECUTE format('CREATE POLICY "Acesso total publico %I" ON public.%I FOR ALL USING (true) WITH CHECK (true)', tbl, tbl);
-    END LOOP;
-END $$;
+-- ==============================================================================
+-- 12. CONFIGURAÇÃO DE ACESSO E ROW LEVEL SECURITY (RLS)
+-- As tabelas operam diretamente via API com a anon/service key da aplicação.
+-- Desabilitamos o RLS para evitar o erro "violates row-level security policy".
+-- ==============================================================================
+ALTER TABLE public.empresas DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.canais_catalogo DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.empresa_canais DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.empresa_credenciais DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.empresa_observacoes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.servidor_checklist_template DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.empresa_checklist DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.suporte_motivos DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.suporte_chamados DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.auditoria_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.equipe_usuarios DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sistema_config DISABLE ROW LEVEL SECURITY;
 
 -- ==============================================================================
 -- 13. DADOS DE SEMENTE INICIAIS (CATÁLOGO PADRÃO)
