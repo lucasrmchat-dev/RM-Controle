@@ -351,27 +351,78 @@ export default function Home() {
     setLoginSubmitting(true);
 
     try {
-      // 1. PRIMEIRO: Sincroniza e busca na tabela equipe_usuarios do Supabase (para usuários como Maria, Lu, etc.)
-      let equipe = getEquipeUsuarios();
-      if (isSupabaseConfigured && supabase) {
-        try {
-          const { data: dbUsers, error: dbErr } = await supabase.from('equipe_usuarios').select('*');
-          if (!dbErr && dbUsers && dbUsers.length > 0) {
-            setLocalData('equipe_usuarios', dbUsers);
-            equipe = dbUsers;
-          }
-        } catch (errDb) {
-          console.warn('Falha ao sincronizar equipe do Supabase:', errDb);
-        }
-      }
-
-      // Busca na equipe por e-mail completo, por nome ou por prefixo (ex: "maria")
+      // 1. Resolve o e-mail completo (aceita tanto 'maria' quanto 'maria@rmcontrole.com')
+      let emailFormal = emailLimpo;
+      const equipe = getEquipeUsuarios();
       const membroEquipe = equipe.find((u) => {
         const uEmail = (u.email || '').toLowerCase().trim();
         const uNome = (u.nome || '').toLowerCase().trim();
         return uEmail === emailLimpo || uNome === emailLimpo || uEmail.split('@')[0] === emailLimpo;
       });
 
+      if (membroEquipe?.email) {
+        emailFormal = membroEquipe.email.toLowerCase().trim();
+      } else if (!emailFormal.includes('@')) {
+        emailFormal = `${emailFormal}@rmcontrole.com`;
+      }
+
+      // 2. Autenticação oficial no Supabase Auth (gera sessão JWT e concede papel 'authenticated' para o RLS)
+      if (isSupabaseConfigured && supabase) {
+        let authResult = await supabase.auth.signInWithPassword({
+          email: emailFormal,
+          password: senhaLimpa,
+        });
+
+        // Se falhar e o usuário existir na lista da equipe, tenta auto-provisionamento no Supabase Auth
+        if (authResult.error && membroEquipe) {
+          const senhaEsperada = (membroEquipe.senha || '').trim();
+          if (senhaEsperada && senhaEsperada !== senhaLimpa) {
+            throw new Error(`Senha incorreta para o colaborador ${membroEquipe.nome || emailFormal}.`);
+          }
+
+          try {
+            await supabase.auth.signUp({
+              email: emailFormal,
+              password: senhaLimpa,
+              options: {
+                data: {
+                  name: membroEquipe.nome || emailFormal.split('@')[0],
+                  papel: membroEquipe.papel || 'suporte',
+                },
+              },
+            });
+            authResult = await supabase.auth.signInWithPassword({
+              email: emailFormal,
+              password: senhaLimpa,
+            });
+          } catch (autoErr) {
+            console.warn('Tentativa de auto-registro no Supabase Auth:', autoErr);
+          }
+        }
+
+        if (authResult?.data?.user) {
+          const user = authResult.data.user;
+          setIsAuthenticated(true);
+          setUserEmail(user.email);
+          const role = resolveUserRole(user.email);
+          setCurrentUserRole(role);
+          localStorage.setItem('rm_auth_user', user.email);
+          localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
+          return;
+        }
+
+        if (authResult?.error) {
+          if (authResult.error.message.includes('Invalid login credentials')) {
+            throw new Error('E-mail ou senha incorretos. Verifique suas credenciais.');
+          }
+          if (authResult.error.message.includes('Email not confirmed')) {
+            throw new Error('E-mail ainda não confirmado no Supabase Authentication.');
+          }
+          throw authResult.error;
+        }
+      }
+
+      // 3. Fallback local para desenvolvimento / homologação sem Supabase
       if (membroEquipe) {
         const senhaEsperada = (membroEquipe.senha || '').trim();
         if (!senhaEsperada || senhaEsperada === senhaLimpa) {
@@ -386,37 +437,10 @@ export default function Home() {
         }
       }
 
-      // 2. Se não estiver na equipe, tenta autenticação direta pelo Supabase Auth
-      if (isSupabaseConfigured && supabase) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: loginEmail.trim(),
-          password: loginPassword,
-        });
-
-        if (!error && data?.user) {
-          setIsAuthenticated(true);
-          setUserEmail(data.user.email);
-          localStorage.setItem('rm_auth_user', data.user.email);
-          localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
-          return;
-        }
-
-        if (error) {
-          if (error.message.includes('Invalid login credentials')) {
-            throw new Error('E-mail ou senha incorretos. Verifique suas credenciais.');
-          }
-          if (error.message.includes('Email not confirmed')) {
-            throw new Error('E-mail ainda não confirmado no Supabase.');
-          }
-          throw error;
-        }
-      }
-
-      // 3. Fallback de homologação / desenvolvimento
-      if (emailLimpo.includes('@') && senhaLimpa.length >= 4) {
+      if (emailFormal.includes('@') && senhaLimpa.length >= 4) {
         setIsAuthenticated(true);
-        setUserEmail(loginEmail.trim());
-        localStorage.setItem('rm_auth_user', loginEmail.trim());
+        setUserEmail(emailFormal);
+        localStorage.setItem('rm_auth_user', emailFormal);
         localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
       } else {
         throw new Error('Credenciais inválidas. Verifique os dados informados.');
