@@ -1,0 +1,991 @@
+{
+  "exportedAt": "2026-09-25T16:19:42.103Z",
+  "source": "fluxo",
+  "schemaVersion": 1,
+  "fluxo": {
+    "name": "Atendimento Inicial (cópia)",
+    "description": "",
+    "isServiceBot": false,
+    "definition": {
+      "edges": [
+        {
+          "id": "e_start_condition_muco7b7l_1_1790081341774",
+          "data": {},
+          "type": "default",
+          "source": "start",
+          "target": "condition_muco7b7l_1",
+          "sourceHandle": null,
+          "targetHandle": null
+        },
+        {
+          "id": "e_s_clinime_success_ask_mue7crys_1_1790173969701",
+          "data": {},
+          "type": "default",
+          "source": "s_clinime",
+          "target": "ask_mue7crys_1",
+          "sourceHandle": "success",
+          "targetHandle": null
+        },
+        {
+          "id": "e_content_mufnm9ns_1_content_mufnorqs_2_1790261957697",
+          "data": {},
+          "type": "default",
+          "source": "content_mufnm9ns_1",
+          "target": "content_mufnorqs_2",
+          "sourceHandle": null,
+          "targetHandle": null
+        },
+        {
+          "id": "e_condition_muco7b7l_1_b1_ask_mu5j8twe_2_1790351757593",
+          "data": {},
+          "type": "default",
+          "source": "condition_muco7b7l_1",
+          "target": "ask_mu5j8twe_2",
+          "sourceHandle": "b1",
+          "targetHandle": null
+        },
+        {
+          "id": "e_condition_muco7b7l_1_bmucpizp7_ask_mu5j8twe_2_1790351759326",
+          "data": {},
+          "type": "default",
+          "source": "condition_muco7b7l_1",
+          "target": "ask_mu5j8twe_2",
+          "sourceHandle": "bmucpizp7",
+          "targetHandle": null
+        },
+        {
+          "id": "e_condition_muco7b7l_1_bmucpj093_ask_mu5j8twe_2_1790351760976",
+          "data": {},
+          "type": "default",
+          "source": "condition_muco7b7l_1",
+          "target": "ask_mu5j8twe_2",
+          "sourceHandle": "bmucpj093",
+          "targetHandle": null
+        },
+        {
+          "id": "e_ask_mu5j8twe_2_action_muh57rpb_3_1790351773943",
+          "data": {},
+          "type": "default",
+          "source": "ask_mu5j8twe_2",
+          "target": "action_muh57rpb_3",
+          "sourceHandle": null,
+          "targetHandle": null
+        },
+        {
+          "id": "e_action_muh57rpb_3_options_mu5j9b1x_3_1790351801114",
+          "data": {},
+          "type": "default",
+          "source": "action_muh57rpb_3",
+          "target": "options_mu5j9b1x_3",
+          "sourceHandle": null,
+          "targetHandle": null
+        },
+        {
+          "id": "e_options_mu5j9b1x_3_condition_muh59f5c_4_1790351881102",
+          "data": {},
+          "type": "default",
+          "source": "options_mu5j9b1x_3",
+          "target": "condition_muh59f5c_4",
+          "sourceHandle": null,
+          "targetHandle": null
+        },
+        {
+          "id": "e_condition_muh59f5c_4_b1_q_especialidade_1790351885352",
+          "data": {},
+          "type": "default",
+          "source": "condition_muh59f5c_4",
+          "target": "q_especialidade",
+          "sourceHandle": "b1",
+          "targetHandle": null
+        }
+      ],
+      "nodes": [
+        {
+          "id": "start",
+          "data": {},
+          "type": "start",
+          "position": {
+            "x": -449.38026585548266,
+            "y": 221.9122564504489
+          }
+        },
+        {
+          "id": "ask_mu5j8twe_2",
+          "data": {
+            "text": "Olá! 👋 Seja muito bem-vindo(a), sou a Vitta, a assistente virtual do Espaço Vitta, me diga seu nome completo por favor 😊",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "paciente_nome_completo"
+          },
+          "type": "ask",
+          "position": {
+            "x": 271.25429281722495,
+            "y": 228.03702434248981
+          }
+        },
+        {
+          "id": "options_mu5j9b1x_3",
+          "data": {
+            "text": "Como podemos ajudar você hoje?\n\n1. Agendar uma consulta\n2. Já tenho consulta marcada\n3. Financeiro\n4. Enviar comprovante PIX\n5. Urgência odontológica\n6. Informações da clínica\n7. Falar com a equipe",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "vitta_resposta"
+          },
+          "type": "ask",
+          "position": {
+            "x": 864.0305671511109,
+            "y": 191.36173343478865
+          }
+        },
+        {
+          "id": "q_especialidade",
+          "data": {
+            "text": "Qual atendimento você deseja agendar?\n\n1. Clínico geral\n2. Ortodontia\n3. Implantes\n4. Endodontia / canal\n5. Harmonização facial\n6. Próteses\n7. Não sei, preciso de avaliação",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "vitta_resposta"
+          },
+          "type": "ask",
+          "position": {
+            "x": 1558.0737533889708,
+            "y": -199.7618066323608
+          }
+        },
+        {
+          "id": "q_consulta",
+          "data": {
+            "text": "Sobre sua consulta já marcada, escolha uma opção:\n\n1. Ver data ou horário\n2. Reagendar\n3. Tirar outra dúvida\n4. Falar com a equipe",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "vitta_resposta"
+          },
+          "type": "ask",
+          "position": {
+            "x": 1040,
+            "y": 780
+          }
+        },
+        {
+          "id": "q_financeiro",
+          "data": {
+            "text": "Sobre o financeiro, escolha uma opção:\n\n1. Parcelas / valores em aberto\n2. Solicitar PIX para pagamento\n3. Enviar comprovante PIX\n4. Parcela atrasada\n5. Solicitar recibo / nota\n6. Quero renegociar",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "vitta_resposta"
+          },
+          "type": "ask",
+          "position": {
+            "x": 1040,
+            "y": 1040
+          }
+        },
+        {
+          "id": "q_atraso",
+          "data": {
+            "text": "Sobre a parcela atrasada, como prefere seguir?\n\n1. Quero pagar por PIX\n2. Quero pagar no cartão\n3. Quero negociar\n4. Tenho outra dúvida",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "vitta_resposta"
+          },
+          "type": "ask",
+          "position": {
+            "x": 1040,
+            "y": 1300
+          }
+        },
+        {
+          "id": "q_nome_outro",
+          "data": {
+            "text": "Qual o nome completo do paciente? Se puder informar o CPF também, fica mais fácil localizar o cadastro.",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "paciente_nome_completo"
+          },
+          "type": "ask",
+          "position": {
+            "x": 1170.903444523909,
+            "y": 1724.7281139916583
+          }
+        },
+        {
+          "id": "q_cpf",
+          "data": {
+            "text": "Para localizar o cadastro, informe o CPF do paciente.",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "paciente_cpf"
+          },
+          "type": "ask",
+          "position": {
+            "x": 1978.386028585759,
+            "y": -162.6879637551072
+          }
+        },
+        {
+          "id": "q_cpf_pix",
+          "data": {
+            "text": "Para gerar o PIX corretamente, informe o CPF do paciente.",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "paciente_cpf"
+          },
+          "type": "ask",
+          "position": {
+            "x": 1860,
+            "y": 240
+          }
+        },
+        {
+          "id": "q_cpf_comprovante",
+          "data": {
+            "text": "Para vincular o comprovante ao cadastro, informe o CPF do paciente. Se o comprovante for para outro paciente, responda “outro paciente”.",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "paciente_cpf"
+          },
+          "type": "ask",
+          "position": {
+            "x": 1860,
+            "y": 460
+          }
+        },
+        {
+          "id": "q_cpf_financeiro",
+          "data": {
+            "text": "Para consultar o financeiro, informe o CPF do paciente.",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "paciente_cpf"
+          },
+          "type": "ask",
+          "position": {
+            "x": 1860,
+            "y": 680
+          }
+        },
+        {
+          "id": "q_cpf_clinime",
+          "data": {
+            "text": "Para verificar a consulta no sistema, informe o CPF do paciente.",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "paciente_cpf"
+          },
+          "type": "ask",
+          "position": {
+            "x": 1796.4037212285507,
+            "y": 917.747798726916
+          }
+        },
+        {
+          "id": "q_agenda_clinico_geral",
+          "data": {
+            "text": "Certo, Clínico geral. Qual dia ou período fica melhor para você? Pode responder, por exemplo: “terça de manhã”, “sexta à tarde” ou “qualquer horário”.",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "vitta_resposta"
+          },
+          "type": "ask",
+          "position": {
+            "x": 2680,
+            "y": 20
+          }
+        },
+        {
+          "id": "q_agenda_ortodontia",
+          "data": {
+            "text": "Certo, a Dra Tuyra Moser é especialista há mais de 10 anos na área, e atende aqui às terças-feiras. Me diga qual melhor horário ou período para seu agendamento?",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "vitta_resposta"
+          },
+          "type": "ask",
+          "position": {
+            "x": 2680,
+            "y": 240
+          }
+        },
+        {
+          "id": "q_agenda_implantes",
+          "data": {
+            "text": "Certo, Dr. Tiago Konzen é especialista na área e atende aqui na segunda-feira de manhã e quarta-feira à tarde, qual melhor dia para você?",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "vitta_resposta"
+          },
+          "type": "ask",
+          "position": {
+            "x": 2680,
+            "y": 460
+          }
+        },
+        {
+          "id": "q_agenda_endodontia",
+          "data": {
+            "text": "Certo, a Dra Kênia Ramos é especialista na área e realiza o tratamento de forma automatizada e com microscópio. Qual dia ou período é melhor para você? Pode responder por exemplo “terça de manhã”, “sexta a tarde” ou então “qualquer horário”",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "vitta_resposta"
+          },
+          "type": "ask",
+          "position": {
+            "x": 2680,
+            "y": 680
+          }
+        },
+        {
+          "id": "q_agenda_harmonizacao_facial",
+          "data": {
+            "text": "Certo, Harmonização facial com Dr Kenia Ramos. Qual dia ou período fica melhor para você? Pode responder, por exemplo: “terça de manhã”, “sexta à tarde” ou “qualquer horário”.",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "vitta_resposta"
+          },
+          "type": "ask",
+          "position": {
+            "x": 2680,
+            "y": 900
+          }
+        },
+        {
+          "id": "q_agenda_proteses",
+          "data": {
+            "text": "Certo, Próteses. Qual dia ou período fica melhor para você? Pode responder, por exemplo: “terça de manhã”, “sexta à tarde” ou “qualquer horário”.",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "vitta_resposta"
+          },
+          "type": "ask",
+          "position": {
+            "x": 2680,
+            "y": 1120
+          }
+        },
+        {
+          "id": "q_reagendar",
+          "data": {
+            "text": "Qual novo dia ou período você prefere para reagendar? Pode responder com data, dia da semana ou período.",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "vitta_resposta"
+          },
+          "type": "ask",
+          "position": {
+            "x": 2680,
+            "y": 1380
+          }
+        },
+        {
+          "id": "q_necessidade",
+          "data": {
+            "text": "Me conte rapidamente o que você precisa avaliar, para a equipe direcionar melhor seu atendimento.",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "vitta_resposta"
+          },
+          "type": "ask",
+          "position": {
+            "x": 2680,
+            "y": 1600
+          }
+        },
+        {
+          "id": "q_duvida",
+          "data": {
+            "text": "Pode escrever sua dúvida. Vou encaminhar para a equipe responder com segurança.",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "vitta_resposta"
+          },
+          "type": "ask",
+          "position": {
+            "x": 2680,
+            "y": 1820
+          }
+        },
+        {
+          "id": "q_duvida_financeiro",
+          "data": {
+            "text": "Pode escrever sua dúvida financeira. Vou encaminhar para conferência da equipe.",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "vitta_resposta"
+          },
+          "type": "ask",
+          "position": {
+            "x": 2680,
+            "y": 2040
+          }
+        },
+        {
+          "id": "q_pix",
+          "data": {
+            "text": "Na sequência enviarei a chave PIX (CNPJ), em nome de SPACO VITTA LTDA. Após realizar o pagamento, favor enviar o comprovante para realizarmos a baixa em nosso sistema (caso esteja pagando em nome de outro paciente, favor informar o nome completo do mesmo).",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "vitta_resposta"
+          },
+          "type": "ask",
+          "position": {
+            "x": 3520.7462249477217,
+            "y": -70.32894817633789
+          }
+        },
+        {
+          "id": "q_comprovante",
+          "data": {
+            "text": "Pode enviar foto do comprovante, que já estou encaminhando a nossa equipe para realizarmos a baixa da parcela!",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "vitta_resposta"
+          },
+          "type": "ask",
+          "position": {
+            "x": 3513.8308166318143,
+            "y": 473.83081663181446
+          }
+        },
+        {
+          "id": "s_clinime",
+          "data": {
+            "code": "const link='';\nsetVariable('solicitar_codigo_clinime','true');\nif(link&&/^https?:\\/\\//.test(link)){setVariable('vitta_mensagem_clinime','Para acompanhar sua consulta, acesse o CliniMe por aqui: '+link);}\nelse{setVariable('vitta_mensagem_clinime','Para consultar data ou horário, vou encaminhar para a recepção verificar no sistema.'); setVariable('setor_encaminhamento','recepcao');}\nreturn {ok:true};",
+            "memoryMb": 32,
+            "timeoutMs": 5000,
+            "responseVar": ""
+          },
+          "type": "script",
+          "position": {
+            "x": 3500,
+            "y": 900
+          }
+        },
+        {
+          "id": "c_humano",
+          "data": {
+            "items": [
+              {
+                "kind": "text",
+                "text": "Fique tranquilo, iremos priorizar seu atendimento.\n\nCerto, {{paciente_primeiro_nome}}. Vou encaminhar seu atendimento para a equipe do Espaço Vitta. Resumo: {{resumo_encaminhamento}}",
+                "collapsed": false
+              }
+            ]
+          },
+          "type": "content",
+          "position": {
+            "x": 4660,
+            "y": 760
+          }
+        },
+        {
+          "id": "content_mu5jbk4m_7",
+          "data": {
+            "items": [
+              {
+                "kind": "text",
+                "text": "📍 Espaço Vitta\nRua Curt Hering, 4650 - Rio Ferro, Presidente Getúlio - SC, 89150-000\n\nMapa: https://maps.app.goo.gl/7YNNTYN3tMAovbfs8\n\nHorário de atendimento:\nSegunda a sexta, das 08:00 às 12:00 e das 14:00 às 18:30\n\nInstagram: @espacovitta_odontologia\n\nTe ajudo em algo a mais?\n1. Sim - falar com atendente\n2. Não - obrigado pelo contato.",
+                "collapsed": false
+              }
+            ]
+          },
+          "type": "content",
+          "position": {
+            "x": 3500,
+            "y": 1160
+          }
+        },
+        {
+          "id": "c_erro",
+          "data": {
+            "items": [
+              {
+                "kind": "text",
+                "text": "Tive uma dificuldade para interpretar sua resposta. Vou encaminhar para a equipe te ajudar.",
+                "collapsed": false
+              }
+            ]
+          },
+          "type": "content",
+          "position": {
+            "x": 4300,
+            "y": 1120
+          }
+        },
+        {
+          "id": "c_retry",
+          "data": {
+            "items": [
+              {
+                "kind": "text",
+                "text": "Não consegui identificar essa opção. Pode responder com o número do menu ou escrever com outras palavras, por favor?",
+                "collapsed": false
+              }
+            ]
+          },
+          "type": "content",
+          "position": {
+            "x": 3500,
+            "y": 1380
+          }
+        },
+        {
+          "id": "c_urgencia",
+          "data": {
+            "items": [
+              {
+                "kind": "text",
+                "text": "Entendi. Como pode ser uma urgência odontológica, vou encaminhar você agora para a equipe da recepção priorizar o atendimento.",
+                "collapsed": false
+              }
+            ]
+          },
+          "type": "content",
+          "position": {
+            "x": 3500,
+            "y": 1600
+          }
+        },
+        {
+          "id": "c_comprovante_ok",
+          "data": {
+            "items": [
+              {
+                "kind": "text",
+                "text": "Recebi sua mensagem sobre o comprovante. Vou encaminhar para a equipe conferir o arquivo no histórico da conversa e validar o pagamento.",
+                "collapsed": false
+              }
+            ]
+          },
+          "type": "content",
+          "position": {
+            "x": 3500,
+            "y": 1820
+          }
+        },
+        {
+          "id": "c_fin_pronto",
+          "data": {
+            "items": [
+              {
+                "kind": "text",
+                "text": "Certo. Vou encaminhar para a equipe financeira conferir seu cadastro e retornar com segurança.",
+                "collapsed": false
+              }
+            ]
+          },
+          "type": "content",
+          "position": {
+            "x": 3500,
+            "y": 2040
+          }
+        },
+        {
+          "id": "c_ag_pronto",
+          "data": {
+            "items": [
+              {
+                "kind": "text",
+                "text": "Perfeito. Vou encaminhar para a recepção verificar os horários disponíveis e confirmar o agendamento com você.",
+                "collapsed": false
+              }
+            ]
+          },
+          "type": "content",
+          "position": {
+            "x": 3500,
+            "y": 2260
+          }
+        },
+        {
+          "id": "c_reag_pronto",
+          "data": {
+            "items": [
+              {
+                "kind": "text",
+                "text": "Perfeito. Vou encaminhar seu pedido de reagendamento para a recepção verificar a agenda.",
+                "collapsed": false
+              }
+            ]
+          },
+          "type": "content",
+          "position": {
+            "x": 3500,
+            "y": 2480
+          }
+        },
+        {
+          "id": "condition_muco7b7l_1",
+          "data": {
+            "source": "",
+            "branches": [
+              {
+                "id": "b1",
+                "label": "Sim",
+                "value": "558494229126",
+                "operator": "equals"
+              },
+              {
+                "id": "bmucpizp7",
+                "value": "554799668214 ",
+                "operator": "equals"
+              },
+              {
+                "id": "bmucpj093",
+                "value": "554791191117",
+                "operator": "equals"
+              },
+              {
+                "id": "bmucpj23r",
+                "value": "",
+                "operator": "fallback"
+              }
+            ],
+            "sourceType": "contact",
+            "sourceField": "number"
+          },
+          "type": "condition",
+          "position": {
+            "x": -230.75665797433493,
+            "y": 420.5788645477324
+          }
+        },
+        {
+          "id": "ask_mue7crys_1",
+          "data": {
+            "text": "Para maior comodidade, baixe o aplicativo clini.me na playstore ou app store, e solicite a recepção o código para validar seu cadastro. Lá você consegue ver seus agendamentos, acompanhar suas parcelas e muito mais!\n\n1. Solicitar meu código\n2. Falar com atendente",
+            "retry": {
+              "handle": "invalid",
+              "enabled": false,
+              "maxAttempts": 3,
+              "invalidMessage": "Resposta inválida. Por favor tente novamente."
+            },
+            "validation": "none",
+            "variableName": "vitta_resposta"
+          },
+          "type": "ask",
+          "position": {
+            "x": 3923.561883151661,
+            "y": 1152.2273363676425
+          }
+        },
+        {
+          "id": "content_mufnm9ns_1",
+          "data": {
+            "items": [
+              {
+                "kind": "text",
+                "text": "Na sequência enviarei a chave PIX (CNPJ), em nome de SPACO VITTA LTDA. Após realizar o pagamento, favor enviar o comprovante para realizarmos a baixa em nosso sistema (caso esteja pagando em nome de outro paciente, favor informar o nome completo do mesmo).",
+                "collapsed": false
+              }
+            ]
+          },
+          "type": "content",
+          "position": {
+            "x": 4256.075383717569,
+            "y": 438.43668005237834
+          }
+        },
+        {
+          "id": "content_mufnorqs_2",
+          "data": {
+            "items": [
+              {
+                "kind": "text",
+                "text": "38.184.698/0001-15",
+                "collapsed": false
+              }
+            ]
+          },
+          "type": "content",
+          "position": {
+            "x": 4648.186494340843,
+            "y": 462.22806278188256
+          }
+        },
+        {
+          "id": "condition_muh2lbyr_1",
+          "data": {
+            "source": "{{setor_encaminhamento}}",
+            "branches": [
+              {
+                "id": "b1",
+                "label": "Sim",
+                "value": "Agendamentos",
+                "operator": "equals"
+              },
+              {
+                "id": "b2",
+                "label": "Senão",
+                "value": "",
+                "operator": "fallback"
+              },
+              {
+                "id": "bmuh2ovj8",
+                "value": "Consulta marcada",
+                "operator": "equals"
+              },
+              {
+                "id": "bmuh2qqkm",
+                "value": "Financeiro",
+                "operator": "equals"
+              },
+              {
+                "id": "bmuh3acb4",
+                "value": "Comprovante Pix",
+                "operator": "equals"
+              },
+              {
+                "id": "bmuh3ak5v",
+                "value": "Urgência odontológica",
+                "operator": "equals"
+              }
+            ],
+            "sourceType": "variable",
+            "sourceField": null
+          },
+          "type": "condition",
+          "position": {
+            "x": 2196.6432004055923,
+            "y": 1347.051020559739
+          }
+        },
+        {
+          "id": "action_muh3bcnx_1",
+          "data": {
+            "steps": [
+              {
+                "id": "s_muh3bulj_616",
+                "kind": "transferQueue",
+                "queueId": 345
+              }
+            ]
+          },
+          "type": "action",
+          "position": {
+            "x": 2824.643200405593,
+            "y": 1412.9893514557798
+          }
+        },
+        {
+          "id": "action_muh3ct19_2",
+          "data": {
+            "steps": [
+              {
+                "id": "s_muh3d93f_944",
+                "kind": "transferQueue"
+              }
+            ]
+          },
+          "type": "action",
+          "position": {
+            "x": 2842.643200405593,
+            "y": 1430.9893514557798
+          }
+        },
+        {
+          "id": "action_muh57rpb_3",
+          "data": {
+            "steps": [
+              {
+                "id": "s_muh57ulh_230",
+                "kind": "updateContact",
+                "contactField": "name",
+                "contactValue": "{{paciente_nome_completo}}",
+                "contactTarget": "field"
+              }
+            ]
+          },
+          "type": "action",
+          "position": {
+            "x": 567.8469599270054,
+            "y": 179.6356415945628
+          }
+        },
+        {
+          "id": "condition_muh59f5c_4",
+          "data": {
+            "source": "",
+            "branches": [
+              {
+                "id": "b1",
+                "label": "Sim",
+                "value": "1|[Aa]gendar|[Cc]onsulta",
+                "operator": "regex"
+              },
+              {
+                "id": "bmuh5aijw",
+                "value": "2|",
+                "operator": "equals"
+              },
+              {
+                "id": "bmuh5aj49",
+                "value": "3|",
+                "operator": "equals"
+              },
+              {
+                "id": "bmuh5ajq0",
+                "value": "4|",
+                "operator": "equals"
+              },
+              {
+                "id": "bmuh5amc0",
+                "value": "5|",
+                "operator": "equals"
+              },
+              {
+                "id": "bmuh5amu2",
+                "value": "6|",
+                "operator": "equals"
+              },
+              {
+                "id": "bmuh5anc4",
+                "value": "7|",
+                "operator": "equals"
+              },
+              {
+                "id": "bmuh5ao0n",
+                "value": "",
+                "operator": "fallback"
+              }
+            ],
+            "sourceType": "lastMessage",
+            "sourceField": null
+          },
+          "type": "condition",
+          "position": {
+            "x": 1183.1491772328236,
+            "y": -199.91899733471038
+          }
+        }
+      ],
+      "version": 1,
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "zoom": 1
+      }
+    },
+    "metadata": {
+      "duplicatedFrom": 73
+    }
+  }
+}
