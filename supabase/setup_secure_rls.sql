@@ -1,33 +1,194 @@
 -- ==============================================================================
 -- RM CONTROLE - CONFIGURAÇÃO DEFINITIVA DE SEGURANÇA, RLS & LGPD NO SUPABASE
--- Execute este script no SQL Editor do Supabase para:
--- 1. Ativar Row Level Security (RLS) protegendo todos os dados sensíveis dos clientes.
--- 2. Garantir que apenas usuários autenticados da equipe acessem empresas e senhas.
--- 3. Sincronizar automaticamente os membros da equipe (equipe_usuarios) com o Supabase Auth.
--- 4. Blindar o banco contra acessos anônimos da internet.
+-- Execute este script no SQL Editor do Supabase.
+-- Ele cria automaticamente qualquer tabela pendente antes de aplicar as regras de RLS,
+-- evitando qualquer erro de "relation does not exist".
 -- ==============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ==============================================================================
--- 1. HABILITAÇÃO DO ROW LEVEL SECURITY (RLS) EM TODAS AS TABELAS
+-- 1. CRIAÇÃO DAS TABELAS SE NÃO EXISTIREM (GARANTIA DE INTEGRIDADE)
 -- ==============================================================================
-ALTER TABLE IF EXISTS public.empresas ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.empresa_credenciais ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.empresa_checklist ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.empresa_canais ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.empresa_observacoes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.auditoria_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.equipe_usuarios ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.sistema_config ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.suporte_chamados ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.suporte_motivos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.servidor_checklist_template ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.canais_catalogo ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.checklist_catalogo ENABLE ROW LEVEL SECURITY;
+
+-- Tabela: empresas
+CREATE TABLE IF NOT EXISTS public.empresas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nome TEXT NOT NULL,
+    formato_atendimento TEXT NOT NULL DEFAULT 'colaborativo',
+    servidor_alocado TEXT NOT NULL DEFAULT 'servidor_1',
+    ativo BOOLEAN NOT NULL DEFAULT true,
+    is_mock BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Tabela: canais_catalogo
+CREATE TABLE IF NOT EXISTS public.canais_catalogo (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nome TEXT NOT NULL UNIQUE,
+    tipo TEXT NOT NULL,
+    descricao TEXT,
+    icone TEXT DEFAULT 'message-square',
+    ativo BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Tabela: checklist_catalogo
+CREATE TABLE IF NOT EXISTS public.checklist_catalogo (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    titulo TEXT NOT NULL,
+    descricao TEXT,
+    categoria TEXT DEFAULT 'servidor',
+    ordem INT NOT NULL DEFAULT 0,
+    ativo BOOLEAN NOT NULL DEFAULT true
+);
+
+-- Tabela: servidor_checklist_template
+CREATE TABLE IF NOT EXISTS public.servidor_checklist_template (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    titulo TEXT NOT NULL,
+    descricao TEXT,
+    categoria TEXT DEFAULT 'Infraestrutura',
+    obrigatorio BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Tabela: empresa_canais
+CREATE TABLE IF NOT EXISTS public.empresa_canais (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id UUID NOT NULL REFERENCES public.empresas(id) ON DELETE CASCADE,
+    canal_id UUID,
+    nome TEXT,
+    tipo TEXT,
+    identificador_numero TEXT,
+    status TEXT NOT NULL DEFAULT 'ativo',
+    observacao TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Tabela: empresa_credenciais (Sigilo LGPD)
+CREATE TABLE IF NOT EXISTS public.empresa_credenciais (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id UUID NOT NULL REFERENCES public.empresas(id) ON DELETE CASCADE,
+    rotulo TEXT DEFAULT 'Acesso Principal',
+    usuario_email TEXT,
+    email_administrador TEXT,
+    senha TEXT,
+    senha_suporte TEXT,
+    observacao TEXT,
+    ultima_visualizacao TIMESTAMPTZ,
+    ultima_alteracao TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Tabela: empresa_observacoes
+CREATE TABLE IF NOT EXISTS public.empresa_observacoes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id UUID NOT NULL REFERENCES public.empresas(id) ON DELETE CASCADE,
+    titulo TEXT DEFAULT 'Observação',
+    conteudo TEXT NOT NULL,
+    tipo TEXT DEFAULT 'geral',
+    autor_email TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Tabela: empresa_checklist
+CREATE TABLE IF NOT EXISTS public.empresa_checklist (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id UUID NOT NULL REFERENCES public.empresas(id) ON DELETE CASCADE,
+    item_catalogo_id UUID,
+    titulo TEXT NOT NULL,
+    descricao TEXT,
+    categoria TEXT DEFAULT 'Infraestrutura',
+    obrigatorio BOOLEAN NOT NULL DEFAULT true,
+    concluido BOOLEAN NOT NULL DEFAULT false,
+    observacao TEXT,
+    concluido_em TIMESTAMPTZ,
+    concluido_por TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Tabela: auditoria_logs (Rastro LGPD)
+CREATE TABLE IF NOT EXISTS public.auditoria_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id UUID REFERENCES public.empresas(id) ON DELETE SET NULL,
+    usuario_id UUID,
+    usuario_email TEXT NOT NULL,
+    usuario_nome TEXT,
+    operador_nome TEXT,
+    ip_origem TEXT DEFAULT 'Rede Local / Cliente',
+    acao TEXT NOT NULL,
+    detalhes JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Tabela: equipe_usuarios (Membros internos)
+CREATE TABLE IF NOT EXISTS public.equipe_usuarios (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nome TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    senha TEXT NOT NULL,
+    papel TEXT NOT NULL DEFAULT 'suporte',
+    ativo BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Tabela: sistema_config
+CREATE TABLE IF NOT EXISTS public.sistema_config (
+    chave TEXT PRIMARY KEY,
+    valor JSONB NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Tabela: suporte_motivos
+CREATE TABLE IF NOT EXISTS public.suporte_motivos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nome TEXT NOT NULL UNIQUE,
+    descricao TEXT,
+    ativo BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Tabela: suporte_chamados (Fila e Métricas de Suporte)
+CREATE TABLE IF NOT EXISTS public.suporte_chamados (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id UUID NOT NULL REFERENCES public.empresas(id) ON DELETE CASCADE,
+    empresa_nome TEXT NOT NULL,
+    tecnico_email TEXT NOT NULL,
+    atendente TEXT,
+    colaborador_solicitante TEXT,
+    status TEXT NOT NULL DEFAULT 'em_andamento',
+    iniciado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+    finalizado_em TIMESTAMPTZ,
+    duracao_segundos INT DEFAULT 0,
+    motivo TEXT,
+    observacoes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 -- ==============================================================================
--- 2. LIMPEZA DE POLÍTICAS ANTERIORES PARA EVITAR CONFLITOS
+-- 2. HABILITAÇÃO DO ROW LEVEL SECURITY (RLS)
+-- ==============================================================================
+ALTER TABLE public.empresas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.empresa_credenciais ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.empresa_checklist ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.empresa_canais ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.empresa_observacoes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.auditoria_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.equipe_usuarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sistema_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.suporte_chamados ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.suporte_motivos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.servidor_checklist_template ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.canais_catalogo ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.checklist_catalogo ENABLE ROW LEVEL SECURITY;
+
+-- ==============================================================================
+-- 3. LIMPEZA SEGURA DE TODAS AS POLÍTICAS EXISTENTES
 -- ==============================================================================
 DO $$
 DECLARE
@@ -43,59 +204,46 @@ BEGIN
 END $$;
 
 -- ==============================================================================
--- 3. POLÍTICAS DE ACESSO RESTRITO (LGPD / SIGILO MÁXIMO)
--- Apenas usuários autenticados na equipe podem acessar ou modificar dados
+-- 4. POLÍTICAS RESTRITAS PARA USUÁRIOS AUTENTICADOS (LGPD)
+-- Usuários anônimos da internet não conseguem ler nem alterar
 -- ==============================================================================
 
--- A) EMPRESAS (Clientes gerenciados)
-CREATE POLICY "empresas_auth_select" ON public.empresas FOR SELECT TO authenticated USING (true);
-CREATE POLICY "empresas_auth_insert" ON public.empresas FOR INSERT TO authenticated WITH CHECK (true);
-CREATE POLICY "empresas_auth_update" ON public.empresas FOR UPDATE TO authenticated USING (true);
-CREATE POLICY "empresas_auth_delete" ON public.empresas FOR DELETE TO authenticated USING (true);
+-- A) EMPRESAS
+CREATE POLICY "empresas_auth_all" ON public.empresas FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- B) EMPRESA_CREDENCIAIS (Senhas e Acessos Técnicos de Clientes - SIGILO MÁXIMO)
-CREATE POLICY "credenciais_auth_select" ON public.empresa_credenciais FOR SELECT TO authenticated USING (true);
-CREATE POLICY "credenciais_auth_insert" ON public.empresa_credenciais FOR INSERT TO authenticated WITH CHECK (true);
-CREATE POLICY "credenciais_auth_update" ON public.empresa_credenciais FOR UPDATE TO authenticated USING (true);
-CREATE POLICY "credenciais_auth_delete" ON public.empresa_credenciais FOR DELETE TO authenticated USING (true);
+-- B) EMPRESA_CREDENCIAIS (Senhas de Clientes - SIGILO MÁXIMO)
+CREATE POLICY "credenciais_auth_all" ON public.empresa_credenciais FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- C) EMPRESA_CANAIS, CHECKLIST E OBSERVAÇÕES
+-- C) CANAIS, CHECKLIST E OBSERVAÇÕES DE CLIENTES
 CREATE POLICY "canais_auth_all" ON public.empresa_canais FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "checklist_auth_all" ON public.empresa_checklist FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "observacoes_auth_all" ON public.empresa_observacoes FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- D) EQUIPE_USUARIOS (Dados e Senhas da Equipe)
+-- D) EQUIPE E OPERACIONAL
 CREATE POLICY "equipe_auth_all" ON public.equipe_usuarios FOR ALL TO authenticated USING (true) WITH CHECK (true);
-
--- E) SUPORTE_CHAMADOS E SISTEMA_CONFIG
 CREATE POLICY "chamados_auth_all" ON public.suporte_chamados FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "config_auth_all" ON public.sistema_config FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- F) AUDITORIA_LOGS (LGPD: Rastro de visualização e alterações)
--- Autenticados podem ler e inserir. Proibido UPDATE e DELETE para garantir integridade imutável
+-- E) AUDITORIA_LOGS (LGPD: Apenas leitura e inserção; proibido UPDATE ou DELETE)
 CREATE POLICY "auditoria_auth_select" ON public.auditoria_logs FOR SELECT TO authenticated USING (true);
 CREATE POLICY "auditoria_auth_insert" ON public.auditoria_logs FOR INSERT TO authenticated WITH CHECK (true);
 
--- ==============================================================================
--- 4. CATÁLOGOS GLOBAIS DE SISTEMA (Modelos gerais sem dados de clientes)
--- Permite leitura de catálogo geral para a interface carregar opções
--- ==============================================================================
+-- F) CATÁLOGOS GERAIS DE INTERFACE (Modelos de canais, checklists e motivos padrão)
 CREATE POLICY "catalogo_canais_select" ON public.canais_catalogo FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "catalogo_canais_modify" ON public.canais_catalogo FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 CREATE POLICY "catalogo_checklist_select" ON public.checklist_catalogo FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "catalogo_checklist_modify" ON public.checklist_catalogo FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
-CREATE POLICY "catalogo_motivos_select" ON public.suporte_motivos FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY "catalogo_motivos_modify" ON public.suporte_motivos FOR ALL TO authenticated USING (true) WITH CHECK (true);
-
 CREATE POLICY "catalogo_servidor_select" ON public.servidor_checklist_template FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "catalogo_servidor_modify" ON public.servidor_checklist_template FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+CREATE POLICY "catalogo_motivos_select" ON public.suporte_motivos FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "catalogo_motivos_modify" ON public.suporte_motivos FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
 -- ==============================================================================
 -- 5. SINCRONIZAÇÃO AUTOMÁTICA: equipe_usuarios -> auth.users
--- Permite que todos os usuários da equipe (Lucas, Maria, etc.) façam login oficial
--- no Supabase Auth com sessão autenticada (role = 'authenticated')
+-- Permite login oficial de Maria, Lucas e equipe no Supabase Auth
 -- ==============================================================================
 CREATE OR REPLACE FUNCTION public.sync_equipe_to_auth()
 RETURNS TRIGGER
@@ -187,7 +335,7 @@ FOR EACH ROW
 EXECUTE FUNCTION public.sync_equipe_to_auth();
 
 -- ==============================================================================
--- 6. SINCRONIZAÇÃO INICIAL DE TODOS OS USUÁRIOS JÁ EXISTENTES
+-- 6. SINCRONIZAÇÃO INICIAL DE TODOS OS USUÁRIOS ATUAIS
 -- ==============================================================================
 DO $$
 DECLARE
