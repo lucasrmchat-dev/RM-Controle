@@ -1868,7 +1868,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
         onClose={() => setIsKBOpen(false)}
         empresa={empresa}
         chamadoAtivo={chamadoAtivo}
-        tempoDecorrido={tempoDecorrido}
+        tempoDecorrido={formatarTempo(tempoSuporteSegundos)}
         userEmail={userEmail}
       />
 
