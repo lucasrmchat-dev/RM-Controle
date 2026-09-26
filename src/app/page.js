@@ -30,6 +30,8 @@ import ServerConfigView from '@/components/ServerConfigView';
 import DashboardView from '@/components/DashboardView';
 import GeneralSettingsView from '@/components/GeneralSettingsView';
 import RegisterSupportModal from '@/components/RegisterSupportModal';
+import ConfirmModal from '@/components/ConfirmModal';
+import ToastContainer, { showToast } from '@/components/ToastNotification';
 import LoginView from '@/components/LoginView';
 import SupportCompletionModal from '@/components/SupportCompletionModal';
 import SupportQueueView from '@/components/SupportQueueView';
@@ -82,7 +84,8 @@ export default function Home() {
   // Navegação Principal por Abas
   const [activeTab, setActiveTab] = useState('empresas');
   const [isRegistrarModalGlobalOpen, setIsRegistrarModalGlobalOpen] = useState(false);
-  const [empresaParaRegistrar, setEmpresaParaRegistrar] = useState(null); // 'empresas' | 'dashboard' | 'canais' | 'servidores' | 'auditoria'
+  const [empresaParaRegistrar, setEmpresaParaRegistrar] = useState(null);
+  const [confirmModalData, setConfirmModalData] = useState(null); // 'empresas' | 'dashboard' | 'canais' | 'servidores' | 'auditoria'
 
   // Listagem de Empresas, Filtros e Paginação
   const [empresas, setEmpresas] = useState([]);
@@ -161,7 +164,7 @@ export default function Home() {
 
       if (remainingSec <= 0) {
         handleLogout();
-        alert('Sessão encerrada por inatividade de 30 minutos (Proteção LGPD).');
+        showToast('Sessão encerrada por inatividade de 30 minutos (Proteção LGPD).', 'warning');
       }
     };
 
@@ -1216,13 +1219,21 @@ export default function Home() {
                     <motion.button
                       whileHover={{ scale: 1.01 }}
                       whileTap={{ scale: 0.98 }}
-                      onClick={async () => {
+                      onClick={() => {
                         const ativo = getChamadoAtivo(empresaAcaoModal.id);
-                        if (confirm(`Deseja cancelar o atendimento de ${empresaAcaoModal.nome}?`)) {
-                          await cancelarSuporte({ chamado_id: ativo.id, userEmail });
-                          setEmpresaAcaoModal(null);
-                          carregarEmpresas();
-                        }
+                        setConfirmModalData({
+                          title: 'Cancelar Atendimento?',
+                          message: `Deseja realmente cancelar o atendimento em andamento de ${empresaAcaoModal.nome}? O tempo e registro serão descartados.`,
+                          confirmText: 'Sim, Cancelar',
+                          variant: 'danger',
+                          onConfirm: async () => {
+                            await cancelarSuporte({ chamado_id: ativo.id, userEmail });
+                            showToast(`Atendimento de ${empresaAcaoModal.nome} cancelado.`, 'info');
+                            setEmpresaAcaoModal(null);
+                            setConfirmModalData(null);
+                            carregarEmpresas();
+                          },
+                        });
                       }}
                       className="w-full py-2.5 px-4 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-600 dark:text-red-400 text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer"
                     >
@@ -1284,6 +1295,36 @@ export default function Home() {
         onFinalizado={carregarEmpresas}
         userEmail={userEmail}
       />
+
+      {/* Modal Global de Registro de Suporte Retroativo */}
+      <RegisterSupportModal
+        isOpen={isRegistrarModalGlobalOpen}
+        onClose={() => {
+          setIsRegistrarModalGlobalOpen(false);
+          setEmpresaParaRegistrar(null);
+        }}
+        empresaPreSelecionada={empresaParaRegistrar}
+        userEmail={userEmail}
+        onRegistered={() => {
+          carregarEmpresas();
+          showToast('Atendimento retroativo registrado com sucesso!', 'success');
+        }}
+      />
+
+      {/* Modal de Confirmação Visual Apple / Vercel (Substitui confirm nativo) */}
+      <ConfirmModal
+        isOpen={Boolean(confirmModalData)}
+        title={confirmModalData?.title || 'Confirmar'}
+        message={confirmModalData?.message || ''}
+        confirmText={confirmModalData?.confirmText || 'Confirmar'}
+        cancelText={confirmModalData?.cancelText || 'Cancelar'}
+        variant={confirmModalData?.variant || 'danger'}
+        onConfirm={confirmModalData?.onConfirm}
+        onClose={() => setConfirmModalData(null)}
+      />
+
+      {/* Container Flutuante de Toasts Estilo Apple / Vercel */}
+      <ToastContainer />
     </div>
   );
 }

@@ -3,6 +3,8 @@
 import { getAudioConfig, setAudioConfig, playNotificationTone } from '@/lib/audioNotifications';
 
 import React, { useState, useEffect, useRef } from 'react';
+import ConfirmModal from './ConfirmModal';
+import { showToast } from './ToastNotification';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   getChamadosAtivos, 
@@ -27,6 +29,7 @@ export default function Navbar({
   onOpenChamadoAtivo
 }) {
   const [profileOpen, setProfileOpen] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const [islandExpanded, setIslandExpanded] = useState(false);
   const dropdownRef = useRef(null);
   const islandRef = useRef(null);
@@ -313,12 +316,20 @@ export default function Navbar({
                               </button>
 
                               <button
-                                onClick={async () => {
-                                  if (confirm(`Deseja cancelar o suporte de ${ch.empresa_nome}?`)) {
-                                    await cancelarSuporte({ chamado_id: ch.id, userEmail });
-                                  }
+                                onClick={() => {
+                                  setConfirmDialog({
+                                    title: 'Cancelar Atendimento?',
+                                    message: `Deseja realmente cancelar o suporte de "${ch.empresa_nome}"? O tempo será descartado.`,
+                                    confirmText: 'Sim, Cancelar',
+                                    variant: 'danger',
+                                    onConfirm: async () => {
+                                      await cancelarSuporte({ chamado_id: ch.id, userEmail });
+                                      showToast(`Suporte de ${ch.empresa_nome} cancelado.`, 'info');
+                                      setConfirmDialog(null);
+                                    },
+                                  });
                                 }}
-                                className="py-1.5 px-2.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 text-[10px] font-semibold transition-all"
+                                className="py-1.5 px-2.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 text-[10px] font-semibold transition-all cursor-pointer"
                                 title="Cancelar chamado"
                               >
                                 Cancelar

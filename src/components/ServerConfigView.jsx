@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import ConfirmModal from './ConfirmModal';
+import { showToast } from './ToastNotification';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   getServerChecklistTemplate, 
@@ -118,16 +120,23 @@ export default function ServerConfigView() {
       showFeedbackMsg('Requisito adicionado com sucesso ao modelo de servidores.');
       setChecklistItems(getServerChecklistTemplate());
     } catch (err) {
-      alert(err.message);
+      showToast(err.message, 'error');
     }
   };
 
   const handleRemoverItemChecklist = (itemId) => {
-    if (confirm('Deseja remover este requisito do modelo global de servidores?')) {
-      removeServerChecklistTemplateItem(itemId);
-      setChecklistItems(getServerChecklistTemplate());
-      showFeedbackMsg('Requisito removido do modelo global.');
-    }
+    setConfirmDialog({
+      title: 'Remover Requisito do Modelo?',
+      message: 'Deseja remover este requisito técnico do modelo global de servidores?',
+      confirmText: 'Remover Requisito',
+      variant: 'danger',
+      onConfirm: () => {
+        removeServerChecklistTemplateItem(itemId);
+        setChecklistItems(getServerChecklistTemplate());
+        showToast('Requisito removido do modelo global.', 'info');
+        setConfirmDialog(null);
+      },
+    });
   };
 
   // Cadastrar Novo Usuário da Equipe
@@ -149,16 +158,23 @@ export default function ServerConfigView() {
       showFeedbackMsg(`Membro ${novoUsuarioNome} cadastrado com sucesso.`);
       setEquipe(getEquipeUsuarios());
     } catch (err) {
-      alert(err.message);
+      showToast(err.message, 'error');
     }
   };
 
   const handleExcluirUsuario = (usuarioId) => {
-    if (confirm('Deseja remover este membro da equipe?')) {
-      deleteEquipeUsuario(usuarioId);
-      setEquipe(getEquipeUsuarios());
-      showFeedbackMsg('Membro removido da equipe.');
-    }
+    setConfirmDialog({
+      title: 'Remover Membro da Equipe?',
+      message: 'Deseja realmente revogar o acesso deste membro da equipe?',
+      confirmText: 'Remover Membro',
+      variant: 'danger',
+      onConfirm: () => {
+        deleteEquipeUsuario(usuarioId);
+        setEquipe(getEquipeUsuarios());
+        showToast('Membro removido da equipe.', 'info');
+        setConfirmDialog(null);
+      },
+    });
   };
 
   const handleAbrirEdicao = (u) => {
@@ -173,7 +189,7 @@ export default function ServerConfigView() {
     e.preventDefault();
     if (!usuarioEditando) return;
     if (!editNome.trim() || !editEmail.trim()) {
-      alert('Nome e e-mail são obrigatórios.');
+      showToast('Nome e e-mail são obrigatórios.', 'error');
       return;
     }
 
@@ -189,7 +205,7 @@ export default function ServerConfigView() {
       setUsuarioEditando(null);
       setEquipe(getEquipeUsuarios());
     } catch (err) {
-      alert(err.message);
+      showToast(err.message, 'error');
     }
   };
 
@@ -208,16 +224,23 @@ export default function ServerConfigView() {
       setMotivosList(getMotivosSuporte());
       showFeedbackMsg('Motivo de atendimento cadastrado com sucesso.');
     } catch (err) {
-      alert(err.message);
+      showToast(err.message, 'error');
     }
   };
 
   const handleRemoverMotivo = (id) => {
-    if (confirm('Deseja remover este motivo do catálogo?')) {
-      removeMotivoSuporte(id);
-      setMotivosList(getMotivosSuporte());
-      showFeedbackMsg('Motivo de atendimento removido.');
-    }
+    setConfirmDialog({
+      title: 'Remover Motivo do Catálogo?',
+      message: 'Deseja desativar este motivo do catálogo de suporte?',
+      confirmText: 'Remover Motivo',
+      variant: 'danger',
+      onConfirm: () => {
+        removeMotivoSuporte(id);
+        setMotivosList(getMotivosSuporte());
+        showToast('Motivo removido do catálogo.', 'info');
+        setConfirmDialog(null);
+      },
+    });
   };
 
   // Salvar Senha Padrão
@@ -996,6 +1019,18 @@ export default function ServerConfigView() {
         </div>
       )}
 
+    </di
+      {/* Modal de Confirmação Visual Apple / Vercel (Zero popups nativos) */}
+      <ConfirmModal
+        isOpen={Boolean(confirmDialog)}
+        title={confirmDialog?.title || 'Confirmar'}
+        message={confirmDialog?.message || ''}
+        confirmText={confirmDialog?.confirmText || 'Confirmar'}
+        cancelText={confirmDialog?.cancelText || 'Cancelar'}
+        variant={confirmDialog?.variant || 'danger'}
+        onConfirm={confirmDialog?.onConfirm}
+        onClose={() => setConfirmDialog(null)}
+      />
     </div>
   );
 }

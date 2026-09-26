@@ -2582,3 +2582,298 @@ export async function logVisualizacaoSenha(empresaId, userEmail = 'admin@rmcontr
     },
   });
 }
+
+// ==============================================================================
+// BASE DE CONHECIMENTO & SOLUÇÕES DE SUPORTE ("COMO RESOLVER CHAMADOS")
+// ==============================================================================
+const DEFAULT_SOLUCOES = [
+  {
+    id: 'sol_1',
+    empresa_id: null,
+    empresa_nome: 'Global (Todas as Empresas)',
+    titulo: 'Instância Desconectada / Falha de Pareamento QR Code',
+    erro_codigo: 'ERR_EVOLUTION_DISCONNECTED',
+    contexto: 'Instância do WhatsApp Baileys/Evolution desconectou após reinício ou inatividade do celular.',
+    tipo_erro: 'Desconexão de Instância',
+    solucao_passos: '1. Acesse o painel de instâncias do servidor VPS.\n2. Limpe a sessão corrompida clicando em Desconectar/Reset.\n3. Gere um novo QR Code.\n4. No WhatsApp do cliente, vá em Dispositivos Conectados e escaneie.\n5. Envie uma mensagem de teste e monitore os logs de webhook.',
+    tags: ['qrcode', 'evolution', 'pareamento', 'desconexao', 'sessao'],
+    autor_email: 'admin@rmcontrole.com',
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
+  },
+  {
+    id: 'sol_2',
+    empresa_id: null,
+    empresa_nome: 'Global (Todas as Empresas)',
+    titulo: 'Erro 131026: Mensagem não entregue / Limite Meta Cloud API',
+    erro_codigo: 'WABA_131026',
+    contexto: 'Envio de mensagem via API Oficial falha com erro 131026 retornado pelo Graph API da Meta.',
+    tipo_erro: 'Envio de Mensagem',
+    solucao_passos: '1. Verifique se o template de mensagem está Aprovado no Gerenciador do WhatsApp.\n2. Cheque o saldo do cartão ou limite de crédito no Meta Business Suite.\n3. Confirme se o número do destinatário está no formato E.164 com código do país (+55).\n4. Caso a conta esteja em período de aquecimento, reduza a taxa de disparo.',
+    tags: ['meta', 'waba', '131026', 'template', 'envio', 'api'],
+    autor_email: 'admin@rmcontrole.com',
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 6).toISOString(),
+  },
+  {
+    id: 'sol_3',
+    empresa_id: null,
+    empresa_nome: 'Global (Todas as Empresas)',
+    titulo: 'Certificado SSL Let\'s Encrypt Expirado / Erro de Conexão Não Segura',
+    erro_codigo: 'ERR_SSL_PROTOCOL_ERROR',
+    contexto: 'Portal do cliente ou endpoint de webhook fica inacessível com aviso de certificado inválido no navegador.',
+    tipo_erro: 'Servidor VPS & SSL',
+    solucao_passos: '1. Conecte via SSH no servidor VPS.\n2. Verifique o apontamento de DNS (registro A) apontando para o IP correto.\n3. Execute: certbot renew --force-renewal ou reinicie o Traefik/Nginx.\n4. Confirme que as portas 80 e 443 estão liberadas no UFW.\n5. Valide o HTTPS via curl -Iv https://dominio-do-cliente.com.',
+    tags: ['ssl', 'https', 'traefik', 'nginx', 'dns', 'vps'],
+    autor_email: 'admin@rmcontrole.com',
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
+  },
+  {
+    id: 'sol_4',
+    empresa_id: null,
+    empresa_nome: 'Global (Todas as Empresas)',
+    titulo: 'PostgreSQL: Erro "FATAL: remaining connection slots are reserved"',
+    erro_codigo: 'PG_MAX_CONNECTIONS',
+    contexto: 'O sistema para de responder chamadas de banco por esgotamento de conexões abertas pela aplicação.',
+    tipo_erro: 'Banco de Dados',
+    solucao_passos: '1. Conecte ao container do PostgreSQL e cheque as conexões ativas: SELECT count(*) FROM pg_stat_activity;\n2. Identifique conexões em estado idle presas.\n3. Ative ou aumente o pool de conexões (PgBouncer) ou eleve max_connections no postgresql.conf para 200.\n4. Reinicie os contêineres de workers.',
+    tags: ['postgres', 'conexao', 'pool', 'banco', 'timeout'],
+    autor_email: 'admin@rmcontrole.com',
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 4).toISOString(),
+  },
+  {
+    id: 'sol_5',
+    empresa_id: null,
+    empresa_nome: 'Global (Todas as Empresas)',
+    titulo: 'Redefinição de Senha de Administrador & Desbloqueio de Acesso',
+    erro_codigo: 'AUTH_LOCKOUT_401',
+    contexto: 'Cliente esqueceu a senha mestre ou usuário administrador foi bloqueado após tentativas incorretas.',
+    tipo_erro: 'Redefinição de Senha',
+    solucao_passos: '1. Abra a empresa no RM Controle e consulte a aba Credenciais.\n2. Clique em Copiar Senha de Suporte.\n3. Caso o cliente exija nova senha, use o botão Gerar Senha Segura.\n4. Salve a alteração para auditar o log de segurança LGPD.\n5. Envie a nova credencial ao contato autorizado da empresa via canal seguro.',
+    tags: ['senha', 'admin', 'credencial', 'bloqueio', 'redefinicao'],
+    autor_email: 'admin@rmcontrole.com',
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
+  },
+];
+
+export function getSolucoesSuporte({ empresa_id = null, query = '', tag = '', tipo = '', buscaGeral = false } = {}) {
+  const base = getLocalData('solucoes_suporte', DEFAULT_SOLUCOES);
+  const historico = getLocalData('historico_chamados', []);
+
+  // Extrai soluções implícitas de atendimentos concluídos que possuem observações
+  const solucoesHistorico = historico
+    .filter((h) => (h.observacoes && h.observacoes.trim().length > 10) || (h.resolucao && h.resolucao.trim().length > 10))
+    .map((h) => ({
+      id: 'sol_hist_' + h.id,
+      empresa_id: h.empresa_id,
+      empresa_nome: h.empresa_nome || 'Empresa',
+      titulo: `${h.motivo || 'Atendimento Concluído'} (${h.empresa_nome || 'Empresa'})`,
+      erro_codigo: 'RESOLUCAO_CHAMADO',
+      contexto: `Solução documentada durante atendimento de suporte por ${h.tecnico_nome || 'Técnico'}.`,
+      tipo_erro: h.motivo || 'Suporte Geral',
+      solucao_passos: h.observacoes || h.resolucao,
+      tags: [
+        'atendimento',
+        (h.motivo || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
+        (h.empresa_nome || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+      ].filter(Boolean),
+      autor_email: h.tecnico_email || 'suporte@rmcontrole.com',
+      created_at: h.finalizado_em || h.created_at || new Date().toISOString(),
+      is_from_history: true,
+    }));
+
+  let todas = [...base, ...solucoesHistorico];
+
+  // Filtro de Escopo: Se buscaGeral for falso e empresa_id fornecido, restringe à empresa + globais
+  if (!buscaGeral && empresa_id) {
+    todas = todas.filter((s) => !s.empresa_id || s.empresa_id === empresa_id);
+  }
+
+  // Filtro por Tipo de Erro
+  if (tipo && tipo !== 'todos') {
+    todas = todas.filter((s) => s.tipo_erro?.toLowerCase().includes(tipo.toLowerCase()));
+  }
+
+  // Filtro por Tag
+  if (tag) {
+    const tagClean = tag.toLowerCase().trim();
+    todas = todas.filter((s) => s.tags?.some((t) => t.toLowerCase() === tagClean));
+  }
+
+  // Busca textual Inteligente (Palavra-chave, código de erro, sintoma, passos)
+  if (query && query.trim()) {
+    const q = query.toLowerCase().trim();
+    todas = todas.filter((s) => {
+      const matchTitulo = (s.titulo || '').toLowerCase().includes(q);
+      const matchCodigo = (s.erro_codigo || '').toLowerCase().includes(q);
+      const matchContexto = (s.contexto || '').toLowerCase().includes(q);
+      const matchPassos = (s.solucao_passos || '').toLowerCase().includes(q);
+      const matchEmpresa = (s.empresa_nome || '').toLowerCase().includes(q);
+      const matchTags = s.tags?.some((t) => t.toLowerCase().includes(q));
+      return matchTitulo || matchCodigo || matchContexto || matchPassos || matchEmpresa || matchTags;
+    });
+  }
+
+  return todas;
+}
+
+export async function addSolucaoSuporte({
+  empresa_id = null,
+  empresa_nome = 'Global',
+  titulo,
+  erro_codigo = '',
+  contexto = '',
+  tipo_erro = 'Suporte Geral',
+  solucao_passos,
+  tags = [],
+  userEmail = 'admin@rmcontrole.com'
+}) {
+  if (!titulo || !titulo.trim()) throw new Error('O título do problema/solução é obrigatório.');
+  if (!solucao_passos || !solucao_passos.trim()) throw new Error('O passo a passo da solução é obrigatório.');
+
+  const solucoes = getLocalData('solucoes_suporte', DEFAULT_SOLUCOES);
+  const tagsLimpos = Array.isArray(tags) 
+    ? tags.map((t) => t.trim().toLowerCase()).filter(Boolean)
+    : String(tags || '').split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+
+  const nova = {
+    id: 'sol_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+    empresa_id: empresa_id || null,
+    empresa_nome: (empresa_nome || 'Global').trim(),
+    titulo: titulo.trim(),
+    erro_codigo: (erro_codigo || '').trim().toUpperCase(),
+    contexto: (contexto || '').trim(),
+    tipo_erro: (tipo_erro || 'Suporte Geral').trim(),
+    solucao_passos: solucao_passos.trim(),
+    tags: tagsLimpos,
+    autor_email: userEmail,
+    created_at: new Date().toISOString(),
+  };
+
+  solucoes.unshift(nova);
+  setLocalData('solucoes_suporte', solucoes);
+
+  await logAuditoria({
+    empresaId: empresa_id,
+    usuarioEmail: userEmail,
+    acao: 'adicionou_solucao_base_conhecimento',
+    detalhes: { titulo: nova.titulo, erro_codigo: nova.erro_codigo, modulo: 'Base de Conhecimento' },
+  });
+
+  window.dispatchEvent(new Event('solucoes_updated'));
+  return nova;
+}
+
+export async function deleteSolucaoSuporte(id, userEmail = 'admin@rmcontrole.com') {
+  let solucoes = getLocalData('solucoes_suporte', DEFAULT_SOLUCOES);
+  solucoes = solucoes.filter((s) => s.id !== id);
+  setLocalData('solucoes_suporte', solucoes);
+
+  await logAuditoria({
+    empresaId: null,
+    usuarioEmail: userEmail,
+    acao: 'excluiu_solucao_base_conhecimento',
+    detalhes: { id, modulo: 'Base de Conhecimento' },
+  });
+
+  window.dispatchEvent(new Event('solucoes_updated'));
+  return true;
+}
+
+// ==============================================================================
+// CONFIGURAÇÕES DO SERVIDOR: PADRÃO GLOBAL VS PERSONALIZADO POR EMPRESA
+// ==============================================================================
+export const CONFIG_SERVIDOR_PADRAO_GLOBAL = {
+  versao_stack: 'RM Stack v3.4 (Ubuntu 22.04 LTS)',
+  portas_padrao: [
+    { servico: 'SSH Seguro (Hardened)', porta: '2222', protocolo: 'TCP' },
+    { servico: 'HTTP / HTTPS (Let\'s Encrypt)', porta: '80 / 443', protocolo: 'TCP' },
+    { servico: 'Engine Mensageria (API)', porta: '8080', protocolo: 'TCP' },
+    { servico: 'PostgreSQL Database', porta: '5432', protocolo: 'TCP (Interno)' },
+    { servico: 'Redis Cache & Queue', porta: '6379', protocolo: 'TCP (Interno)' },
+  ],
+  diretrizes_obrigatorias: [
+    'Firewall UFW ativado bloqueando todas as portas exceto 2222, 80 e 443 externamente.',
+    'Autenticação SSH restrita exclusivamente a chaves Ed25519 (senha desabilitada).',
+    'Fail2ban ativo com banimento automático de 24h após 5 tentativas inválidas.',
+    'Docker Compose com restart: unless-stopped e isolamento de rede virtual.',
+    'Dump automatizado do banco de dados diário às 03:00 com criptografia AES-256.',
+  ],
+  recursos_minimos_vps: '4 vCPU, 8 GB RAM, 80 GB SSD NVMe, 1 Gbps Link.',
+};
+
+export const CHECKLIST_IMPLEMENTACAO_SERVIDOR_PADRAO = [
+  { id: 'chk_srv_1', titulo: 'Provisionamento da VPS & Atualização do SO', desc: 'Instalação do Ubuntu 22.04 LTS com pacotes base atualizados', obrigatorio: true },
+  { id: 'chk_srv_2', titulo: 'Hardening de Segurança (SSH 2222, UFW & Fail2ban)', desc: 'Porta SSH alterada, chave pública configurada e firewall ativo', obrigatorio: true },
+  { id: 'chk_srv_3', titulo: 'Apontamento de DNS & Emissão SSL Let\'s Encrypt', desc: 'Registros A e CNAME propagados com HTTPS ativo no domínio do cliente', obrigatorio: true },
+  { id: 'chk_srv_4', titulo: 'Instalação do Docker Engine & Docker Compose', desc: 'Runtime configurado com inicialização no boot do sistema operacional', obrigatorio: true },
+  { id: 'chk_srv_5', titulo: 'Subida dos Bancos de Dados (PostgreSQL + Redis)', desc: 'Volumes persistentes mapeados e senhas seguras configuradas', obrigatorio: true },
+  { id: 'chk_srv_6', titulo: 'Subida da Engine de Mensageria & Webhooks', desc: 'Instâncias prontas para pareamento de QR Code ou ativação da Meta API', obrigatorio: true },
+  { id: 'chk_srv_7', titulo: 'Validação de Envio e Recebimento de Mensagens', desc: 'Disparo de mensagem de teste com entrega validada e sem atrasos', obrigatorio: true },
+  { id: 'chk_srv_8', titulo: 'Ativação da Rotina de Backup Automático Diário', desc: 'Script cron validado com envio de dump seguro para storage externo', obrigatorio: true },
+  { id: 'chk_srv_9', titulo: 'Cadastro das Credenciais Técnicas no RM Controle', desc: 'Armazenamento da senha de suporte e acessos na aba de Credenciais', obrigatorio: true },
+  { id: 'chk_srv_10', titulo: 'Homologação Final com o Cliente & Entrega', desc: 'Validação operacional completa com os atendentes da empresa', obrigatorio: true },
+];
+
+export function getServidorConfigPadrao() {
+  return getLocalData('servidor_config_padrao', CONFIG_SERVIDOR_PADRAO_GLOBAL);
+}
+
+export function setServidorConfigPadrao(config) {
+  setLocalData('servidor_config_padrao', config);
+  window.dispatchEvent(new Event('servidor_config_updated'));
+}
+
+export function getEmpresaServidorDetalhes(empresaId) {
+  if (!empresaId) return null;
+  const key = 'servidor_empresa_' + empresaId;
+  return getLocalData(key, {
+    servidor_alocado: 'servidor_1',
+    ip_personalizado: '',
+    porta_ssh: '2222',
+    observacoes_infra: '',
+    peculiaridades: '',
+    config_personalizada: '',
+    checklist_implementacao: CHECKLIST_IMPLEMENTACAO_SERVIDOR_PADRAO.map((item) => ({
+      ...item,
+      concluido: false,
+      concluido_em: null,
+      responsavel: null,
+    })),
+  });
+}
+
+export async function updateEmpresaServidorDetalhes(empresaId, dados, userEmail = 'admin@rmcontrole.com') {
+  if (!empresaId) throw new Error('ID da empresa é obrigatório.');
+  const key = 'servidor_empresa_' + empresaId;
+  const atual = getEmpresaServidorDetalhes(empresaId);
+  const atualizado = { ...atual, ...dados };
+  setLocalData(key, atualizado);
+
+  await logAuditoria({
+    empresaId,
+    usuarioEmail: userEmail,
+    acao: 'atualizou_configuracoes_servidor',
+    detalhes: { modulo: 'Configuração do Servidor', dados },
+  });
+
+  window.dispatchEvent(new Event('servidor_empresa_updated'));
+  return atualizado;
+}
+
+export async function toggleServidorChecklistItem(empresaId, itemId, userEmail = 'admin@rmcontrole.com') {
+  const dados = getEmpresaServidorDetalhes(empresaId);
+  const checklist = dados.checklist_implementacao.map((item) => {
+    if (item.id === itemId) {
+      const novoStatus = !item.concluido;
+      return {
+        ...item,
+        concluido: novoStatus,
+        concluido_em: novoStatus ? new Date().toISOString() : null,
+        responsavel: novoStatus ? getNomeTecnico(userEmail) : null,
+      };
+    }
+    return item;
+  });
+
+  dados.checklist_implementacao = checklist;
+  return updateEmpresaServidorDetalhes(empresaId, dados, userEmail);
+}

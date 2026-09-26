@@ -18,6 +18,8 @@ import {
 } from '@/lib/storage';
 import { stopSupportNotificationLoop } from '@/lib/audioNotifications';
 import SupportCompletionModal from './SupportCompletionModal';
+import ConfirmModal from './ConfirmModal';
+import { showToast } from './ToastNotification';
 import { 
   SupportQueueIcon, 
   ClockIcon, 
@@ -42,6 +44,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
   // Modal para Finalizar Suporte
   const [chamadoParaFinalizar, setChamadoParaFinalizar] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   // Modal para Abrir Novo Chamado na Fila
   const [modalNovoChamadoOpen, setModalNovoChamadoOpen] = useState(false);
@@ -245,17 +248,24 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     showFeedbackMsg(`Você aceitou o suporte de ${chamado.empresa_nome}. Cronômetro ativo iniciado!`);
   };
 
-  const handleCancelarChamado = async (chamado) => {
-    if (confirm(`Deseja cancelar o suporte de ${chamado.empresa_nome}?`)) {
-      await cancelarSuporte({ chamado_id: chamado.id, userEmail });
-      stopSupportNotificationLoop();
-      showFeedbackMsg('Chamado cancelado.');
-    }
+  const handleCancelarChamado = (chamado) => {
+    setConfirmDialog({
+      title: 'Cancelar Chamado da Fila?',
+      message: `Deseja realmente cancelar o atendimento de "${chamado.empresa_nome}"? O tempo será descartado.`,
+      confirmText: 'Sim, Cancelar',
+      variant: 'danger',
+      onConfirm: async () => {
+        await cancelarSuporte({ chamado_id: chamado.id, userEmail });
+        stopSupportNotificationLoop();
+        showToast(`Chamado de ${chamado.empresa_nome} cancelado.`, 'info');
+        setConfirmDialog(null);
+      },
+    });
   };
 
   const handleCadastrarNovoColaboradorInline = async () => {
     if (!novoColabNome.trim()) {
-      alert('Nome do colaborador é obrigatório.');
+      showToast('Nome do colaborador é obrigatório.', 'error');
       return;
     }
     if (!empresaSelecionada) return;
@@ -276,14 +286,14 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       setNovoColabTelefone('');
       showFeedbackMsg(`Colaborador ${novo.nome} adicionado à empresa com sucesso.`);
     } catch (e) {
-      alert(e.message);
+      showToast(e.message, 'error');
     }
   };
 
   const handleCriarChamado = async (e) => {
     e.preventDefault();
     if (!empresaSelecionada) {
-      alert('Selecione uma empresa.');
+      showToast('Selecione uma empresa.', 'error');
       return;
     }
 
@@ -309,7 +319,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       setBuscaSolicitante('');
       showFeedbackMsg(iniciarDireto ? `Atendimento de ${empresaSelecionada.nome} iniciado agora!` : `Chamado de ${empresaSelecionada.nome} aberto na fila.`);
     } catch (err) {
-      alert(err.message);
+      showToast(err.message, 'error');
     }
   };
 

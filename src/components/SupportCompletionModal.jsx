@@ -38,6 +38,8 @@ export default function SupportCompletionModal({
   const [atendente, setAtendente] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [salvarNaBase, setSalvarNaBase] = useState(true);
+  const [codigoErroSolucao, setCodigoErroSolucao] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
   // Cronômetros calculados no momento de abertura
@@ -164,6 +166,25 @@ export default function SupportCompletionModal({
         userEmail,
       });
 
+      if (salvarNaBase && observacoes.trim()) {
+        try {
+          await addSolucaoSuporte({
+            empresa_id: chamado.empresa_id || null,
+            empresa_nome: chamado.empresa_nome || 'Global',
+            titulo: `${motivo} (${chamado.empresa_nome || 'Empresa'})`,
+            erro_codigo: codigoErroSolucao.trim().toUpperCase(),
+            contexto: `Solução aplicada por ${atendente || 'atendente'} em atendimento.`,
+            tipo_erro: motivo,
+            solucao_passos: observacoes.trim(),
+            tags: [motivo, chamado.empresa_nome, 'suporte_finalizado'],
+            userEmail,
+          });
+        } catch (e) {
+          console.warn('Erro ao salvar solucao na base:', e);
+        }
+      }
+
+      showToast(`Atendimento de ${chamado.empresa_nome} concluído com sucesso!`, 'success');
       if (onFinalizado) onFinalizado();
       onClose();
     } catch (err) {

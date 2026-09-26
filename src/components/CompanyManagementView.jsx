@@ -46,12 +46,47 @@ import {
   EditIcon
 } from './Icons';
 import SupportCompletionModal from './SupportCompletionModal';
+import KnowledgeBaseModal from './KnowledgeBaseModal';
+import ConfirmModal from './ConfirmModal';
+import { showToast } from './ToastNotification';
+import {
+  getServidorConfigPadrao,
+  getEmpresaServidorDetalhes,
+  updateEmpresaServidorDetalhes,
+  toggleServidorChecklistItem,
+  getSolucoesSuporte,
+  addSolucaoSuporte,
+  deleteSolucaoSuporte
+} from '@/lib/storage';
 import RegisterSupportModal from './RegisterSupportModal';
 
 export default function CompanyManagementView({ empresa, onBack, onUpdated, userEmail }) {
   const [activeTab, setActiveTab] = useState('canais'); // 'canais' | 'credenciais' | 'servidor' | 'observacoes' | 'chamados'
   const [catalogoCanais, setCatalogoCanais] = useState([]);
   const [isRegistrarModalOpen, setIsRegistrarModalOpen] = useState(false);
+  const [isKBOpen, setIsKBOpen] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState(null);
+
+  // Estados de Servidor Dividido (Padrão vs Personalizado + Checklist de Implementação)
+  const [servidorDetalhes, setServidorDetalhes] = useState(null);
+  const [servidorIpCustom, setServidorIpCustom] = useState('');
+  const [servidorPortaSsh, setServidorPortaSsh] = useState('2222');
+  const [servidorPeculiaridades, setServidorPeculiaridades] = useState('');
+  const [salvandoServidorDetalhes, setSalvandoServidorDetalhes] = useState(false);
+
+  // Estados de Soluções & Base de Conhecimento na aba de observações
+  const [kbBuscaGeral, setKbBuscaGeral] = useState(false);
+  const [kbQuery, setKbQuery] = useState('');
+  const [kbTagFiltro, setKbTagFiltro] = useState('');
+  const [listaSolucoesTab, setListaSolucoesTab] = useState([]);
+  const [isFormNovaSolucaoTab, setIsFormNovaSolucaoTab] = useState(false);
+  const [novaSolucaoTitulo, setNovaSolucaoTitulo] = useState('');
+  const [novaSolucaoCodigo, setNovaSolucaoCodigo] = useState('');
+  const [novaSolucaoTipo, setNovaSolucaoTipo] = useState('Envio de Mensagem');
+  const [novaSolucaoContexto, setNovaSolucaoContexto] = useState('');
+  const [novaSolucaoPassos, setNovaSolucaoPassos] = useState('');
+  const [novaSolucaoTags, setNovaSolucaoTags] = useState('');
+  const [salvandoSolucaoTab, setSalvandoSolucaoTab] = useState(false);
   
   // Modos de Exibição (Cards vs Lista)
   const [canaisViewMode, setCanaisViewMode] = useState('grid'); // 'grid' | 'list'
@@ -199,17 +234,25 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
   };
 
   // Cancelar Suporte (sem redundância)
-  const handleCancelarChamado = async () => {
+  const handleCancelarChamado = () => {
     if (!chamadoAtivo) return;
-    if (!confirm('Deseja realmente cancelar este atendimento de suporte? O tempo e registro serão descartados.')) return;
-    try {
-      await cancelarSuporte({ chamado_id: chamadoAtivo.id, userEmail });
-      setChamadoAtivo(null);
-      showToast('Chamado de suporte cancelado com sucesso.');
-      onUpdated();
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
+    setConfirmDialog({
+      title: 'Cancelar Atendimento de Suporte?',
+      message: 'Deseja realmente cancelar este atendimento? O cronômetro e o registro em andamento serão descartados.',
+      confirmText: 'Sim, Cancelar',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await cancelarSuporte({ chamado_id: chamadoAtivo.id, userEmail });
+          setChamadoAtivo(null);
+          showToast('Chamado cancelado.', 'info');
+          setConfirmDialog(null);
+          onUpdated();
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      },
+    });
   };
 
   // Salvar Formato de Atendimento
@@ -300,15 +343,23 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
     }
   };
 
-  const handleRemoverCanal = async (canalId) => {
-    if (!confirm('Deseja realmente remover este canal da empresa?')) return;
-    try {
-      await removeCanalEmpresa(empresa.id, canalId, userEmail);
-      showToast('Canal removido com sucesso.');
-      onUpdated();
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
+  const handleRemoverCanal = (canalId) => {
+    setConfirmDialog({
+      title: 'Remover Canal?',
+      message: 'Deseja realmente desvincular este canal da empresa? As integrações associadas deixarão de operar.',
+      confirmText: 'Remover Canal',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await removeCanalEmpresa(empresa.id, canalId, userEmail);
+          showToast('Canal desvinculado com sucesso.', 'info');
+          setConfirmDialog(null);
+          onUpdated();
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      },
+    });
   };
 
   // Checklist Ações
@@ -394,15 +445,23 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
     }
   };
 
-  const handleExcluirCredencial = async (credId) => {
-    if (!confirm('Deseja excluir esta credencial de acesso?')) return;
-    try {
-      await deleteEmpresaCredencial(empresa.id, credId, userEmail);
-      showToast('Credencial removida.');
-      recarregarCredenciais();
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
+  const handleExcluirCredencial = (credId) => {
+    setConfirmDialog({
+      title: 'Excluir Credencial de Acesso?',
+      message: 'Tem certeza que deseja apagar esta credencial técnica? Esta ação é definitiva.',
+      confirmText: 'Excluir Credencial',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteEmpresaCredencial(empresa.id, credId, userEmail);
+          showToast('Credencial removida com sucesso!', 'info');
+          setConfirmDialog(null);
+          recarregarCredenciais();
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      },
+    });
   };
 
   const handleEditarCredencial = (c) => {
@@ -517,6 +576,17 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 <CheckIcon className="w-3.5 h-3.5" />
                 <span>Concluir Chamado</span>
               </button>
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setIsKBOpen(true)}
+                className="px-3.5 py-1.5 rounded-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-200 border border-amber-500/30 font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ml-1"
+                title="Pesquisar como resolver chamado na Base de Conhecimento"
+              >
+                <span>💡</span>
+                <span>Como Resolver Chamado</span>
+              </motion.button>
 
               <button
                 onClick={handleCancelarChamado}
@@ -739,7 +809,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
               { id: 'canais', label: 'Canais de Atendimento', count: empresa.canais?.length || 0 },
               { id: 'credenciais', label: 'Acessos & Senhas Técnicas', count: credenciaisList.length },
               { id: 'servidor', label: 'Configuração do Servidor', count: `${concluidosChecklist}/${totalChecklist}` },
-              { id: 'observacoes', label: 'Anotações & Pedidos', count: empresa.observacoes?.length || 0 },
+              { id: 'observacoes', label: 'Soluções & Base de Conhecimento', count: listaSolucoesTab.length + (empresa.observacoes?.length || 0) },
               { id: 'chamados', label: 'Histórico de Suporte', count: chamadosEmpresa.length },
             ].map((tab) => {
               const isActive = activeTab === tab.id;
@@ -1390,224 +1460,605 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
           {/* ABA 3: CONFIGURAÇÃO DO SERVIDOR & CHECKLIST */}
           {/* ============================================================================== */}
           {activeTab === 'servidor' && (
-            <div className="space-y-4">
-              <div className="rounded-3xl p-6 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] flex items-center justify-between gap-4 shadow-sm">
-                <div>
-                  <h2 className="text-base font-bold text-[#0a0a0c] dark:text-white">
-                    Checklist de Setup do Servidor
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Validação de portas, DNS, SSL e diretrizes técnicas para operação contínua.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setIsAddReqOpen(true)}
-                  className="px-4 py-2 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 text-xs font-bold text-slate-800 dark:text-zinc-200"
-                >
-                  + Novo Requisito
-                </button>
-              </div>
-
-              {/* Form Novo Requisito */}
-              <AnimatePresence>
-                {isAddReqOpen && (
-                  <motion.form
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    onSubmit={handleAdicionarRequisito}
-                    className="rounded-3xl p-6 border border-black/10 dark:border-white/15 bg-slate-50/90 dark:bg-zinc-900/90 space-y-3"
-                  >
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300">Adicionar Requisito Customizado</h3>
-                      <button type="button" onClick={() => setIsAddReqOpen(false)} className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer">
-                        <XMarkIcon className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <input
-                        type="text"
-                        value={novoReqTitulo}
-                        onChange={(e) => setNovoReqTitulo(e.target.value)}
-                        placeholder="Título do requisito"
-                        required
-                        className="px-4 py-2 rounded-2xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs focus:outline-none"
-                      />
-                      <input
-                        type="text"
-                        value={novoReqObs}
-                        onChange={(e) => setNovoReqObs(e.target.value)}
-                        placeholder="Observação técnica (opcional)"
-                        className="px-4 py-2 rounded-2xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs focus:outline-none"
-                      />
-                    </div>
-                    <div className="flex justify-end gap-2 pt-1">
-                      <button type="button" onClick={() => setIsAddReqOpen(false)} className="px-4 py-1.5 text-xs text-slate-500">Cancelar</button>
-                      <button type="submit" disabled={loadingChecklist} className="px-4 py-1.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs">
-                        Adicionar
-                      </button>
-                    </div>
-                  </motion.form>
-                )}
-              </AnimatePresence>
-
-              {/* Lista de Itens do Checklist */}
-              <div className="space-y-2.5">
-                {checklistFiltrado.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`rounded-2xl p-4 border transition-all flex items-start gap-3.5 ${
-                      item.concluido
-                        ? 'border-emerald-500/30 bg-emerald-500/[0.04]'
-                        : 'border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a]'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={Boolean(item.concluido)}
-                      onChange={() => handleToggleChecklist(item)}
-                      className="w-5 h-5 accent-[#4d7c0f] dark:accent-[#84cc16] cursor-pointer rounded mt-0.5"
-                    />
-
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-xs font-bold ${item.concluido ? 'text-emerald-700 dark:text-emerald-400 line-through' : 'text-[#0a0a0c] dark:text-white'}`}>
-                          {item.titulo}
-                        </span>
-                        {item.categoria && (
-                          <span className="text-[9px] uppercase font-mono px-2 py-0.2 rounded-full bg-black/5 dark:bg-white/10 text-slate-500">
-                            {item.categoria}
-                          </span>
-                        )}
-                      </div>
-
-                      {item.descricao && (
-                        <p className="text-[11px] text-slate-500 leading-relaxed">
-                          {item.descricao}
-                        </p>
-                      )}
-
-                      <input
-                        type="text"
-                        defaultValue={item.observacao || ''}
-                        onBlur={(e) => handleSalvarObsChecklist(item, e.target.value)}
-                        placeholder="Adicionar nota técnica sobre este requisito..."
-                        className="w-full text-[11px] bg-transparent border-b border-black/10 dark:border-white/10 pb-0.5 focus:outline-none focus:border-[#4d7c0f] dark:focus:border-[#84cc16] font-mono mt-1 text-slate-700 dark:text-zinc-300"
-                      />
-                    </div>
+            <div className="space-y-6">
+              
+              {/* DIVISÃO 1: CONFIGURAÇÕES PADRÃO DO SERVIDOR (DIRETRIZES GLOBAIS DO SISTEMA) */}
+              <div className="rounded-3xl p-6 sm:p-7 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-black/[0.05] dark:border-white/[0.06]">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 inline-block mb-1">
+                      Divisão 1 • Diretrizes Globais
+                    </span>
+                    <h3 className="text-base sm:text-lg font-bold text-[#0a0a0c] dark:text-white">
+                      Configuração Padrão de Servidores (Todas as Empresas)
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                      Parâmetros arquiteturais e portas padrão aplicados a todos os servidores do ecossistema RM Controle.
+                    </p>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ============================================================================== */}
-          {/* ABA 4: ANOTAÇÕES & PEDIDOS */}
-          {/* ============================================================================== */}
-          {activeTab === 'observacoes' && (
-            <div className="space-y-4">
-              <div className="rounded-3xl p-6 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] flex items-center justify-between gap-4 shadow-sm">
-                <div>
-                  <h2 className="text-base font-bold text-[#0a0a0c] dark:text-white">
-                    Anotações & Pedidos Especiais
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Histórico de observações técnicas e resoluções gravadas no encerramento de chamados.
-                  </p>
+                  <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-700 dark:text-zinc-300 self-start sm:self-center">
+                    RM Stack v3.4 (Ubuntu 22.04 LTS)
+                  </span>
                 </div>
-                <button
-                  onClick={() => setIsAddObsOpen(true)}
-                  className="px-4 py-2.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black text-xs font-bold shadow-sm"
-                >
-                  + Nova Anotação
-                </button>
+
+                {/* Tabela de Portas Padrão */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Portas e Protocolos Padrão</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs">
+                    {[
+                      { servico: 'SSH Hardened', porta: '2222', proto: 'TCP', tag: 'Acesso Restrito' },
+                      { servico: 'HTTP / HTTPS (SSL)', porta: '80 / 443', proto: 'TCP', tag: 'Web & Let\'s Encrypt' },
+                      { servico: 'Engine Mensageria API', porta: '8080', proto: 'TCP', tag: 'Webhooks & Instâncias' },
+                      { servico: 'PostgreSQL Database', porta: '5432', proto: 'TCP Interno', tag: 'Persistência Isolada' },
+                      { servico: 'Redis Cache & Queue', porta: '6379', proto: 'TCP Interno', tag: 'Fila em Memória' },
+                      { servico: 'Hardware Mínimo VPS', porta: '4 vCPU / 8GB', proto: 'NVMe 80GB', tag: 'Link 1 Gbps' },
+                    ].map((item, i) => (
+                      <div key={i} className="p-3 rounded-2xl border border-black/[0.05] dark:border-white/[0.06] bg-black/[0.015] dark:bg-white/[0.02] flex items-center justify-between">
+                        <div>
+                          <span className="font-semibold text-[#1d1d1f] dark:text-white block">{item.servico}</span>
+                          <span className="text-[10px] text-slate-400">{item.tag}</span>
+                        </div>
+                        <span className="font-mono text-xs font-bold text-[#4d7c0f] dark:text-[#84cc16]">
+                          {item.porta}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Diretrizes Obrigatórias */}
+                <div className="p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.06] space-y-1.5 text-xs">
+                  <span className="font-bold text-slate-700 dark:text-zinc-200 block text-[11px] uppercase tracking-wider">
+                    Diretrizes Obrigatórias de Segurança:
+                  </span>
+                  <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-zinc-400 text-[11px] leading-relaxed">
+                    <li>Firewall UFW bloqueando todas as portas exceto 2222, 80 e 443 externamente.</li>
+                    <li>Autenticação SSH restrita exclusivamente a chaves públicas Ed25519 (autenticação por senha desativada).</li>
+                    <li>Fail2ban ativo com banimento de 24 horas após 5 tentativas incorretas.</li>
+                    <li>Rotina diária de backup criptografado do banco de dados às 03:00 com retenção automática.</li>
+                  </ul>
+                </div>
               </div>
 
-              {/* Form Nova Anotação */}
-              <AnimatePresence>
-                {isAddObsOpen && (
-                  <motion.form
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    onSubmit={handleSalvarObservacao}
-                    className="rounded-3xl p-6 border border-black/10 dark:border-white/15 bg-slate-50/90 dark:bg-zinc-900/90 space-y-3"
+              {/* DIVISÃO 2: CONFIGURAÇÕES PERSONALIZADAS & PECULIARIDADES DA EMPRESA */}
+              <div className="rounded-3xl p-6 sm:p-7 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-black/[0.05] dark:border-white/[0.06]">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 inline-block mb-1">
+                      Divisão 2 • Personalizado por Empresa
+                    </span>
+                    <h3 className="text-base sm:text-lg font-bold text-[#0a0a0c] dark:text-white">
+                      Peculiaridades do Servidor de {empresa.nome}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                      Registre aqui o que o cliente pediu de diferente: IP dedicado, porta SSH personalizada, rotinas de backup externas e exceções.
+                    </p>
+                  </div>
+                  
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    type="button"
+                    disabled={salvandoServidorDetalhes}
+                    onClick={async () => {
+                      try {
+                        setSalvandoServidorDetalhes(true);
+                        await updateEmpresaServidorDetalhes(empresa.id, {
+                          ip_personalizado: servidorIpCustom.trim(),
+                          porta_ssh: servidorPortaSsh.trim() || '2222',
+                          peculiaridades: servidorPeculiaridades.trim(),
+                          observacoes_infra: servidorPeculiaridades.trim(),
+                        }, userEmail);
+                        showToast(`Configurações personalizadas de ${empresa.nome} salvas!`, 'success');
+                      } catch (err) {
+                        showToast(err.message || 'Erro ao salvar configurações do servidor.', 'error');
+                      } finally {
+                        setSalvandoServidorDetalhes(false);
+                      }
+                    }}
+                    className="px-5 py-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 flex items-center gap-1.5 cursor-pointer self-start sm:self-center disabled:opacity-50"
                   >
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-xs font-bold uppercase text-slate-700 dark:text-zinc-300">Nova Anotação Técnica</h3>
-                      <button type="button" onClick={() => setIsAddObsOpen(false)} className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer">
-                        <XMarkIcon className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    {salvandoServidorDetalhes ? 'Salvando...' : 'Salvar Personalizações'}
+                  </motion.button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
+                      IP Fixo / Hostname Dedicado (Opcional)
+                    </label>
                     <input
                       type="text"
-                      value={novaObsTitulo}
-                      onChange={(e) => setNovaObsTitulo(e.target.value)}
-                      placeholder="Título da anotação (ex: Particularidade no Horário)"
-                      className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs focus:outline-none"
+                      value={servidorIpCustom}
+                      onChange={(e) => setServidorIpCustom(e.target.value)}
+                      placeholder="Ex: 159.65.23.88 ou vps.cliente.com"
+                      className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20"
                     />
-                    <textarea
-                      rows={3}
-                      value={novaObsConteudo}
-                      onChange={(e) => setNovaObsConteudo(e.target.value)}
-                      placeholder="Conteúdo detalhado da anotação..."
-                      required
-                      className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs focus:outline-none leading-relaxed"
-                    />
-                    <div className="flex justify-end gap-2">
-                      <button type="button" onClick={() => setIsAddObsOpen(false)} className="px-4 py-1.5 text-xs text-slate-500 cursor-pointer">Cancelar</button>
-                      <button type="submit" disabled={loadingObs} className="px-4 py-1.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs cursor-pointer">
-                        Salvar Anotação
-                      </button>
-                    </div>
-                  </motion.form>
-                )}
-              </AnimatePresence>
+                  </div>
 
-              {/* Lista de Anotações */}
-              {(!empresa.observacoes || empresa.observacoes.length === 0) ? (
-                <div className="rounded-3xl p-10 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] text-center space-y-2">
-                  <p className="text-sm font-bold text-[#0a0a0c] dark:text-white">Nenhuma anotação cadastrada</p>
-                  <p className="text-xs text-slate-500">Adicione observações ou encerre atendimentos para preencher esta lista.</p>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
+                      Porta SSH Personalizada
+                    </label>
+                    <input
+                      type="text"
+                      value={servidorPortaSsh}
+                      onChange={(e) => setServidorPortaSsh(e.target.value)}
+                      placeholder="Padrão: 2222"
+                      className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20"
+                    />
+                  </div>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {empresa.observacoes.map((obs) => (
-                    <div
-                      key={obs.id}
-                      className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] space-y-2 shadow-xs"
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
+                    Peculiaridades, Exceções e Pedidos Especiais de Infraestrutura
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={servidorPeculiaridades}
+                    onChange={(e) => setServidorPeculiaridades(e.target.value)}
+                    placeholder="Descreva exatamente o que este cliente pediu de diferente: ex: 'Cliente utiliza VPS própria na Hetzner', 'Backup diário enviado para SFTP interno do cliente', 'Porta 8080 redirecionada', 'Certificado SSL gerenciado por Cloudflare externa'..."
+                    className="w-full p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 leading-relaxed resize-none"
+                  />
+                </div>
+              </div>
+
+              {/* DIVISÃO 3: CHECKLIST OBRIGATÓRIO DE IMPLEMENTAÇÃO DE SERVIDOR NOVO */}
+              <div className="rounded-3xl p-6 sm:p-7 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] space-y-5 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-black/[0.05] dark:border-white/[0.06]">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 inline-block mb-1">
+                      Divisão 3 • Validação de Entrega
+                    </span>
+                    <h3 className="text-base sm:text-lg font-bold text-[#0a0a0c] dark:text-white">
+                      Checklist Obrigatório de Implementação de Servidor Novo
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                      Etapas técnicas mandatórias que devem ser executadas e marcadas antes da entrega final do servidor ao cliente.
+                    </p>
+                  </div>
+
+                  {/* Barra de Progresso Interativa com Dopamina */}
+                  {servidorDetalhes?.checklist_implementacao && (
+                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                      <span className="text-xs font-bold text-slate-700 dark:text-zinc-300 font-mono">
+                        {servidorDetalhes.checklist_implementacao.filter(i => i.concluido).length} de {servidorDetalhes.checklist_implementacao.length} validados (
+                        {Math.round((servidorDetalhes.checklist_implementacao.filter(i => i.concluido).length / servidorDetalhes.checklist_implementacao.length) * 100)}%)
+                      </span>
+                      <div className="w-36 h-2 rounded-full bg-black/[0.05] dark:bg-white/[0.08] overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-blue-500 to-[#4d7c0f] dark:to-[#84cc16] transition-all duration-500"
+                          style={{
+                            width: `${Math.round((servidorDetalhes.checklist_implementacao.filter(i => i.concluido).length / servidorDetalhes.checklist_implementacao.length) * 100)}%`
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Lista dos 10 Itens Obrigatórios com Spring Feedback */}
+                <div className="space-y-2.5">
+                  {servidorDetalhes?.checklist_implementacao?.map((item, idx) => (
+                    <motion.div
+                      key={item.id || idx}
+                      whileHover={{ scale: 1.008 }}
+                      whileTap={{ scale: 0.995 }}
+                      onClick={async () => {
+                        await toggleServidorChecklistItem(empresa.id, item.id, userEmail);
+                        setServidorDetalhes(getEmpresaServidorDetalhes(empresa.id));
+                        showToast(item.concluido ? `Item "${item.titulo}" desmarcado` : `Etapa "${item.titulo}" concluída com sucesso!`, 'success');
+                      }}
+                      className={`rounded-2xl p-4 border transition-all flex items-start gap-3.5 cursor-pointer select-none ${
+                        item.concluido
+                          ? 'border-emerald-500/30 bg-emerald-500/[0.04] dark:bg-emerald-500/[0.06]'
+                          : 'border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] hover:bg-black/[0.02] dark:hover:bg-white/[0.03]'
+                      }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-xs font-bold text-[#0a0a0c] dark:text-white">{obs.titulo}</h4>
-                          {obs.tipo === 'suporte' && (
-                            <span className="text-[9px] uppercase font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-                              Resolução de Suporte
+                      <input
+                        type="checkbox"
+                        checked={Boolean(item.concluido)}
+                        onChange={() => {}}
+                        className="w-5 h-5 accent-[#4d7c0f] dark:accent-[#84cc16] cursor-pointer rounded mt-0.5 pointer-events-none"
+                      />
+
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className={`text-xs font-bold ${item.concluido ? 'text-emerald-700 dark:text-emerald-400 line-through' : 'text-[#0a0a0c] dark:text-white'}`}>
+                            {idx + 1}. {item.titulo}
+                          </span>
+                          {item.concluido && item.responsavel && (
+                            <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400">
+                              ✓ Validado por {item.responsavel}
                             </span>
                           )}
                         </div>
-                        <button
-                          onClick={() => handleRemoverObservacao(obs.id)}
-                          className="text-slate-400 hover:text-red-500 p-1 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer"
-                          title="Remover anotação"
-                        >
-                          <TrashIcon className="w-3.5 h-3.5" />
-                        </button>
+
+                        {item.desc && (
+                          <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-relaxed">
+                            {item.desc}
+                          </p>
+                        )}
                       </div>
-                      <p className="text-xs text-slate-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">
-                        {obs.conteudo}
-                      </p>
-                      <div className="text-[10px] text-slate-400 font-mono pt-1">
-                        Registrado por {obs.autor_email} em {new Date(obs.created_at).toLocaleString('pt-BR')}
-                      </div>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
-              )}
+              </div>
+
             </div>
           )}
-
+{/* ============================================================================== */}
+          {/* ABA 4: BASE DE CONHECIMENTO & COMO RESOLVER CHAMADOS + ANOTAÇÕES */}
           {/* ============================================================================== */}
+          {activeTab === 'observacoes' && (
+            <div className="space-y-6">
+              
+              {/* SEÇÃO 1: BASE DE CONHECIMENTO DE SUPORTE ("COMO RESOLVER CHAMADOS") */}
+              <div className="rounded-3xl p-6 sm:p-7 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] space-y-5 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-black/[0.05] dark:border-white/[0.06]">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 inline-block mb-1">
+                      💡 Banco de Soluções Inteligente
+                    </span>
+                    <h2 className="text-base sm:text-lg font-bold text-[#0a0a0c] dark:text-white">
+                      Base de Conhecimento: Como Resolver Chamados
+                    </h2>
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                      Pesquise causas, erros e resoluções documentadas em suportes anteriores desta empresa ou busque no banco geral.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap self-start sm:self-center">
+                    {/* Alternador de Escopo */}
+                    <div className="flex items-center p-1 rounded-2xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08]">
+                      <button
+                        type="button"
+                        onClick={() => setKbBuscaGeral(false)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                          !kbBuscaGeral
+                            ? 'bg-white dark:bg-[#1a1a20] text-[#1d1d1f] dark:text-white shadow-xs font-bold'
+                            : 'text-slate-500 hover:text-black dark:hover:text-white'
+                        }`}
+                      >
+                        🏢 Desta Empresa
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setKbBuscaGeral(true)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                          kbBuscaGeral
+                            ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold shadow-xs'
+                            : 'text-slate-500 hover:text-black dark:hover:text-white'
+                        }`}
+                      >
+                        🌐 Busca Geral (Todas)
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsFormNovaSolucaoTab(!isFormNovaSolucaoTab)}
+                      className="px-4 py-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-sm hover:opacity-95 cursor-pointer"
+                    >
+                      {isFormNovaSolucaoTab ? 'Cancelar' : '+ Nova Solução'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Formulário Retrátil para Cadastrar Solução */}
+                <AnimatePresence>
+                  {isFormNovaSolucaoTab && (
+                    <motion.form
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!novaSolucaoTitulo.trim() || !novaSolucaoPassos.trim()) {
+                          showToast('Informe o título e os passos da solução.', 'error');
+                          return;
+                        }
+                        try {
+                          setSalvandoSolucaoTab(true);
+                          await addSolucaoSuporte({
+                            empresa_id: kbBuscaGeral ? null : empresa.id,
+                            empresa_nome: kbBuscaGeral ? 'Global' : empresa.nome,
+                            titulo: novaSolucaoTitulo,
+                            erro_codigo: novaSolucaoCodigo,
+                            contexto: novaSolucaoContexto,
+                            tipo_erro: novaSolucaoTipo,
+                            solucao_passos: novaSolucaoPassos,
+                            tags: novaSolucaoTags,
+                            userEmail,
+                          });
+                          showToast('Solução catalogada com sucesso!', 'success');
+                          setNovaSolucaoTitulo('');
+                          setNovaSolucaoCodigo('');
+                          setNovaSolucaoContexto('');
+                          setNovaSolucaoPassos('');
+                          setNovaSolucaoTags('');
+                          setIsFormNovaSolucaoTab(false);
+                          carregarSolucoesTab();
+                        } catch (err) {
+                          showToast(err.message || 'Erro ao salvar solução.', 'error');
+                        } finally {
+                          setSalvandoSolucaoTab(false);
+                        }
+                      }}
+                      className="rounded-3xl p-5 border border-black/10 dark:border-white/15 bg-black/[0.02] dark:bg-white/[0.03] space-y-3"
+                    >
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300">
+                          Catalogar Nova Solução na Base
+                        </h4>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          Escopo: {kbBuscaGeral ? 'Global' : empresa.nome}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <div className="sm:col-span-2">
+                          <input
+                            type="text"
+                            value={novaSolucaoTitulo}
+                            onChange={(e) => setNovaSolucaoTitulo(e.target.value)}
+                            placeholder="Título do problema (ex: Instância Baileys desconectando)"
+                            required
+                            className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <input
+                            type="text"
+                            value={novaSolucaoCodigo}
+                            onChange={(e) => setNovaSolucaoCodigo(e.target.value)}
+                            placeholder="Código de Erro (ex: 131026, 401)"
+                            className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs font-mono focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <textarea
+                        rows={3}
+                        value={novaSolucaoPassos}
+                        onChange={(e) => setNovaSolucaoPassos(e.target.value)}
+                        placeholder="Passo a passo numerado da resolução aplicada..."
+                        required
+                        className="w-full p-3 rounded-xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs font-mono focus:outline-none resize-none leading-relaxed"
+                      />
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <input
+                          type="text"
+                          value={novaSolucaoTags}
+                          onChange={(e) => setNovaSolucaoTags(e.target.value)}
+                          placeholder="Tags separadas por vírgula (ex: qr, evolution, restart)"
+                          className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs font-mono focus:outline-none"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setIsFormNovaSolucaoTab(false)}
+                            className="px-4 py-1.5 rounded-full border border-black/10 dark:border-white/10 text-xs font-semibold"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={salvandoSolucaoTab}
+                            className="px-5 py-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-xs"
+                          >
+                            {salvandoSolucaoTab ? 'Salvando...' : 'Salvar Solução'}
+                          </button>
+                        </div>
+                      </div>
+                    </motion.form>
+                  )}
+                </AnimatePresence>
+
+                {/* Barra de Busca de Soluções */}
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={kbQuery}
+                    onChange={(e) => setKbQuery(e.target.value)}
+                    placeholder="Pesquisar por código de erro, sintoma ou palavras-chave nas soluções anteriores..."
+                    className="w-full pl-9 pr-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20"
+                  />
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Lista de Soluções com Visual Apple */}
+                <div className="space-y-3">
+                  {listaSolucoesTab.length === 0 ? (
+                    <div className="p-8 text-center rounded-2xl border border-dashed border-black/[0.08] dark:border-white/[0.1] text-xs text-slate-400">
+                      Nenhuma solução ou resolução encontrada com esses filtros.
+                    </div>
+                  ) : (
+                    listaSolucoesTab.slice(0, 10).map((sol) => (
+                      <div
+                        key={sol.id}
+                        className="p-4 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.01] dark:bg-white/[0.02] hover:bg-white dark:hover:bg-[#1a1a20] transition-all space-y-2.5 group"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {sol.erro_codigo && (
+                                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-red-500/10 text-red-600 dark:text-red-400">
+                                  {sol.erro_codigo}
+                                </span>
+                              )}
+                              <span className="text-[10px] font-semibold text-slate-700 dark:text-zinc-300">
+                                {sol.tipo_erro}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                • {sol.empresa_nome}
+                              </span>
+                            </div>
+                            <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white mt-1">
+                              {sol.titulo}
+                            </h4>
+                          </div>
+
+                          {!sol.is_from_history && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setConfirmDialog({
+                                  title: 'Excluir Solução?',
+                                  message: `Deseja remover "${sol.titulo}" da base de conhecimento?`,
+                                  confirmText: 'Excluir Solução',
+                                  variant: 'danger',
+                                  onConfirm: async () => {
+                                    await deleteSolucaoSuporte(sol.id, userEmail);
+                                    showToast('Solução removida.', 'info');
+                                    setConfirmDialog(null);
+                                    carregarSolucoesTab();
+                                  },
+                                });
+                              }}
+                              className="text-slate-300 hover:text-red-500 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                              title="Excluir solução"
+                            >
+                              <TrashIcon className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-white dark:bg-zinc-900 border border-black/[0.04] dark:border-white/[0.06] text-xs font-mono text-slate-700 dark:text-zinc-300 whitespace-pre-line leading-relaxed">
+                          {sol.solucao_passos}
+                        </div>
+
+                        {sol.tags && sol.tags.length > 0 && (
+                          <div className="flex items-center gap-1.5 flex-wrap text-[10px] text-slate-400">
+                            {sol.tags.map((tg, i) => (
+                              <span key={i} className="font-mono">#{tg}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* SEÇÃO 2: ANOTAÇÕES PARTICULARES DA EMPRESA */}
+              <div className="rounded-3xl p-6 sm:p-7 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
+                <div className="flex items-center justify-between pb-3 border-b border-black/[0.05] dark:border-white/[0.06]">
+                  <div>
+                    <h3 className="text-base font-bold text-[#0a0a0c] dark:text-white">
+                      Anotações Particulares de {empresa.nome}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Orientações internas e particularidades operacionais exclusivas deste cliente.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setIsAddObsOpen(true)}
+                    className="px-4 py-2 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black text-xs font-bold shadow-sm cursor-pointer"
+                  >
+                    + Nova Anotação
+                  </button>
+                </div>
+
+                {/* Form Nova Anotação */}
+                <AnimatePresence>
+                  {isAddObsOpen && (
+                    <motion.form
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      onSubmit={handleSalvarObservacao}
+                      className="rounded-3xl p-5 border border-black/10 dark:border-white/15 bg-slate-50/90 dark:bg-zinc-900/90 space-y-3"
+                    >
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold uppercase text-slate-700 dark:text-zinc-300">Nova Anotação Técnica</h4>
+                        <button type="button" onClick={() => setIsAddObsOpen(false)} className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer">
+                          <XMarkIcon className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={novaObsTitulo}
+                        onChange={(e) => setNovaObsTitulo(e.target.value)}
+                        placeholder="Título da anotação (ex: Horário de Almoço dos Atendentes)"
+                        className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs focus:outline-none"
+                      />
+                      <textarea
+                        rows={3}
+                        value={novaObsConteudo}
+                        onChange={(e) => setNovaObsConteudo(e.target.value)}
+                        placeholder="Conteúdo detalhado da anotação..."
+                        required
+                        className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs focus:outline-none leading-relaxed"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <button type="button" onClick={() => setIsAddObsOpen(false)} className="px-4 py-1.5 text-xs text-slate-500 cursor-pointer">Cancelar</button>
+                        <button type="submit" disabled={loadingObs} className="px-4 py-1.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs cursor-pointer">
+                          Salvar Anotação
+                        </button>
+                      </div>
+                    </motion.form>
+                  )}
+                </AnimatePresence>
+
+                {/* Lista de Anotações */}
+                <div className="space-y-3">
+                  {(!empresa.observacoes || empresa.observacoes.length === 0) ? (
+                    <p className="text-xs text-slate-400 italic py-4 text-center">
+                      Nenhuma anotação particular registrada ainda para esta empresa.
+                    </p>
+                  ) : (
+                    empresa.observacoes.map((obs) => (
+                      <div
+                        key={obs.id}
+                        className="p-4 rounded-2xl border border-black/8 dark:border-white/10 bg-black/[0.015] dark:bg-white/[0.02] space-y-2 group"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <h4 className="text-xs font-bold text-[#0a0a0c] dark:text-white">
+                            {obs.titulo}
+                          </h4>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setConfirmDialog({
+                                title: 'Excluir Anotação?',
+                                message: `Deseja excluir a anotação "${obs.titulo}"?`,
+                                confirmText: 'Excluir',
+                                variant: 'danger',
+                                onConfirm: async () => {
+                                  await deleteEmpresaObservacao(empresa.id, obs.id, userEmail);
+                                  showToast('Anotação removida.', 'info');
+                                  setConfirmDialog(null);
+                                  onUpdated();
+                                },
+                              });
+                            }}
+                            className="text-slate-300 hover:text-red-500 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                          >
+                            <TrashIcon className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-zinc-300 whitespace-pre-line leading-relaxed">
+                          {obs.conteudo}
+                        </p>
+                        <div className="text-[10px] text-slate-400 font-mono pt-1 border-t border-black/[0.03] dark:border-white/[0.04]">
+                          {obs.autor_email} • {new Date(obs.created_at || Date.now()).toLocaleString('pt-BR')}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+            </div>
+          )}
+{/* ============================================================================== */}
           {/* ABA 5: HISTÓRICO DE SUPORTE */}
           {/* ============================================================================== */}
           {activeTab === 'chamados' && (
@@ -1695,7 +2146,28 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
         userEmail={userEmail}
         onRegistered={() => {
           if (onUpdated) onUpdated();
+          showToast('Atendimento registrado com sucesso!', 'success');
         }}
+      />
+
+      {/* Modal de Base de Conhecimento (Como Resolver Chamados) */}
+      <KnowledgeBaseModal
+        isOpen={isKBOpen}
+        onClose={() => setIsKBOpen(false)}
+        empresa={empresa}
+        userEmail={userEmail}
+      />
+
+      {/* Modal de Confirmação Visual Apple / Vercel (Substitui confirm do navegador) */}
+      <ConfirmModal
+        isOpen={Boolean(confirmDialog)}
+        title={confirmDialog?.title || 'Confirmar'}
+        message={confirmDialog?.message || ''}
+        confirmText={confirmDialog?.confirmText || 'Confirmar'}
+        cancelText={confirmDialog?.cancelText || 'Cancelar'}
+        variant={confirmDialog?.variant || 'danger'}
+        onConfirm={confirmDialog?.onConfirm}
+        onClose={() => setConfirmDialog(null)}
       />
 
     </div>

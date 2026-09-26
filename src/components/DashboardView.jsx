@@ -13,6 +13,8 @@ import {
   getEmpresas
 } from '@/lib/storage';
 import SupportCompletionModal from './SupportCompletionModal';
+import ConfirmModal from './ConfirmModal';
+import { showToast } from './ToastNotification';
 import { 
   ViewGridIcon, 
   ViewListIcon, 
@@ -55,6 +57,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
   // Modal para Finalizar Suporte
   const [chamadoParaFinalizar, setChamadoParaFinalizar] = useState(null);
   const [empresaDetalhesDemandas, setEmpresaDetalhesDemandas] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   // Modo de exibição dos chamados em andamento ('cards' | 'list')
   const [emAndamentoViewMode, setEmAndamentoViewMode] = useState('cards');
@@ -116,12 +119,20 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
     setChamadoParaFinalizar(chamado);
   };
 
-  const handleExcluirHistorico = async (chamadoId, empresaNome) => {
-    if (confirm(`Deseja excluir este chamado de ${empresaNome || 'empresa'} do histórico?`)) {
-      setChamadosRecentes((prev) => prev.filter((c) => c.id !== chamadoId));
-      await deleteHistoricoChamado(chamadoId, userEmail);
-      await carregarDados();
-    }
+  const handleExcluirHistorico = (chamadoId, empresaNome) => {
+    setConfirmDialog({
+      title: 'Excluir Chamado do Histórico?',
+      message: `Deseja realmente remover este atendimento de ${empresaNome || 'empresa'} do histórico? Esta ação é definitiva.`,
+      confirmText: 'Excluir Chamado',
+      variant: 'danger',
+      onConfirm: async () => {
+        setChamadosRecentes((prev) => prev.filter((c) => c.id !== chamadoId));
+        await deleteHistoricoChamado(chamadoId, userEmail);
+        showToast('Chamado removido com sucesso.', 'info');
+        setConfirmDialog(null);
+        await carregarDados();
+      },
+    });
   };
 
   // Cálculos do Gráfico SVG de Evolução Temporal
@@ -1046,11 +1057,19 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
                       )}
                     </div>
                     <button
-                      onClick={async () => {
-                        if (confirm('Deseja excluir este chamado do histórico?')) {
-                          await deleteHistoricoChamado(ch.id, userEmail);
-                          carregarDados();
-                        }
+                      onClick={() => {
+                        setConfirmDialog({
+                          title: 'Excluir Atendimento?',
+                          message: `Deseja remover este atendimento de ${ch.motivo || 'suporte'} realizado em ${new Date(ch.finalizado_em || ch.created_at).toLocaleDateString()}?`,
+                          confirmText: 'Excluir',
+                          variant: 'danger',
+                          onConfirm: async () => {
+                            await deleteHistoricoChamado(ch.id, userEmail);
+                            showToast('Chamado excluído.', 'info');
+                            setConfirmDialog(null);
+                            carregarDados();
+                          }
+                        });
                       }}
                       className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-500/10 cursor-pointer flex-shrink-0"
                       title="Excluir este chamado"
@@ -1063,19 +1082,27 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
 
             <div className="pt-2 flex items-center justify-between border-t border-black/[0.05] dark:border-white/[0.06]">
               <button
-                onClick={async () => {
-                  if (confirm(`Deseja excluir todos os chamados registrados para "${empresaDetalhesDemandas.empresa_nome}"?`)) {
-                    const filtrados = chamadosRecentes.filter(
-                      (c) =>
-                        c.empresa_nome === empresaDetalhesDemandas.empresa_nome ||
-                        (empresaDetalhesDemandas.empresa_id && c.empresa_id === empresaDetalhesDemandas.empresa_id)
-                    );
-                    for (const ch of filtrados) {
-                      await deleteHistoricoChamado(ch.id, userEmail);
-                    }
-                    setEmpresaDetalhesDemandas(null);
-                    carregarDados();
-                  }
+                onClick={() => {
+                  setConfirmDialog({
+                    title: `Excluir Todos os Chamados de ${empresaDetalhesDemandas.empresa_nome}?`,
+                    message: `Todos os registros de atendimento vinculados à conta "${empresaDetalhesDemandas.empresa_nome}" serão permanentemente removidos.`,
+                    confirmText: 'Excluir Todos os Registros',
+                    variant: 'danger',
+                    onConfirm: async () => {
+                      const filtrados = chamadosRecentes.filter(
+                        (c) =>
+                          c.empresa_nome === empresaDetalhesDemandas.empresa_nome ||
+                          (empresaDetalhesDemandas.empresa_id && c.empresa_id === empresaDetalhesDemandas.empresa_id)
+                      );
+                      for (const ch of filtrados) {
+                        await deleteHistoricoChamado(ch.id, userEmail);
+                      }
+                      showToast(`Registros de ${empresaDetalhesDemandas.empresa_nome} limpos com sucesso.`, 'info');
+                      setConfirmDialog(null);
+                      setEmpresaDetalhesDemandas(null);
+                      carregarDados();
+                    },
+                  });
                 }}
                 className="text-xs text-red-500 hover:underline cursor-pointer font-medium"
               >
@@ -1092,6 +1119,18 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
           </div>
         </div>
       )}
+
+      {/* Modal de Confirmação Personalizado Apple (Zero popups nativos) */}
+      <ConfirmModal
+        isOpen={Boolean(confirmDialog)}
+        title={confirmDialog?.title || 'Confirmar'}
+        message={confirmDialog?.message || ''}
+        confirmText={confirmDialog?.confirmText || 'Confirmar'}
+        cancelText={confirmDialog?.cancelText || 'Cancelar'}
+        variant={confirmDialog?.variant || 'danger'}
+        onConfirm={confirmDialog?.onConfirm}
+        onClose={() => setConfirmDialog(null)}
+      />
 
       {/* Modal Imersivo de Finalização de Suporte */}
       <SupportCompletionModal

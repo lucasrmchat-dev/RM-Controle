@@ -86,7 +86,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
   };
 
   const handleRemoverCanal = async (canalId) => {
-    if (!confirm('Deseja realmente remover este canal da empresa?')) return;
+    // Removendo canal...
     try {
       await removeCanalEmpresa(empresa.id, canalId, userEmail);
       showToast('Canal removido com sucesso.');

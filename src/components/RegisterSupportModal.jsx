@@ -11,6 +11,7 @@ import {
   getEmpresas
 } from '@/lib/storage';
 import { XMarkIcon, CheckIcon, BuildingIcon, UserIcon, ClockIcon } from './Icons';
+import { showToast } from './ToastNotification';
 
 export default function RegisterSupportModal({
   isOpen,
@@ -98,20 +99,27 @@ export default function RegisterSupportModal({
     e.preventDefault();
     setErrorMsg('');
 
-    if (!empresaId) {
-      setErrorMsg('Selecione a empresa atendida.');
+    const alvoId = empresaId || (empresas.length > 0 ? empresas[0].id : null);
+    const alvoNome = empresaNome || (empresas.length > 0 ? empresas[0].nome : 'Empresa');
+
+    if (!alvoId) {
+      const msg = 'Selecione a empresa atendida.';
+      setErrorMsg(msg);
+      showToast(msg, 'error');
       return;
     }
     if (!motivo) {
-      setErrorMsg('Selecione o motivo do suporte.');
+      const msg = 'Selecione o motivo do suporte.';
+      setErrorMsg(msg);
+      showToast(msg, 'error');
       return;
     }
 
     try {
       setSubmitting(true);
       await registrarSuporteRetroativo({
-        empresa_id: empresaId,
-        empresa_nome: empresaNome,
+        empresa_id: alvoId,
+        empresa_nome: alvoNome,
         motivo,
         observacoes,
         solicitante_nome: solicitanteNome,
@@ -120,10 +128,13 @@ export default function RegisterSupportModal({
         data_atendimento: dataAtendimento ? new Date(dataAtendimento).toISOString() : null,
       });
 
+      showToast(`Atendimento de ${alvoNome} registrado com sucesso!`, 'success');
       if (onRegistered) onRegistered();
       onClose();
     } catch (err) {
-      setErrorMsg(err.message || 'Erro ao registrar atendimento.');
+      const msg = err.message || 'Erro ao registrar atendimento.';
+      setErrorMsg(msg);
+      showToast(msg, 'error');
     } finally {
       setSubmitting(false);
     }
