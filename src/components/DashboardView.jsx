@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
+  getDefaultViewMode,
+  removerAcentos,
   getMetricasSuporte, 
   getChamadosSuporte, 
   getHistoricoChamados,
@@ -29,10 +31,12 @@ import {
   BriefcaseIcon,
   PlayIcon,
   UsersIcon,
-  ChartBarIcon
+  ChartBarIcon,
+  HourglassIcon,
+  TrashIcon
 } from './Icons';
 
-export default function DashboardView({ onSelectEmpresa, userEmail }) {
+export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }) {
   const [metricas, setMetricas] = useState({
     totalChamados: 0,
     finalizadosCount: 0,
@@ -59,8 +63,35 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
   const [empresaDetalhesDemandas, setEmpresaDetalhesDemandas] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
 
-  // Modo de exibição dos chamados em andamento ('cards' | 'list')
-  const [emAndamentoViewMode, setEmAndamentoViewMode] = useState('cards');
+  // Modos de exibição individuais com fallback para a preferência global
+  const [produtividadeViewMode, setProdutividadeViewMode] = useState('cards');
+  const [demandasViewMode, setDemandasViewMode] = useState('cards');
+  const [historicoViewMode, setHistoricoViewMode] = useState('list');
+
+  // Ordenação das tabelas
+  const [sortProdCol, setSortProdCol] = useState('resolvidos');
+  const [sortProdDir, setSortProdDir] = useState('desc');
+  const [sortDemCol, setSortDemCol] = useState('chamados');
+  const [sortDemDir, setSortDemDir] = useState('desc');
+  const [sortHistCol, setSortHistCol] = useState('data');
+  const [sortHistDir, setSortHistDir] = useState('desc');
+
+  useEffect(() => {
+    const globalMode = getDefaultViewMode();
+    const effective = globalMode === 'grid' || globalMode === 'cards' ? 'cards' : 'list';
+    setProdutividadeViewMode(effective);
+    setDemandasViewMode(effective);
+    setHistoricoViewMode(effective);
+
+    const handleGlobalUpdate = (e) => {
+      const mode = e.detail === 'cards' || e.detail === 'grid' ? 'cards' : 'list';
+      setProdutividadeViewMode(mode);
+      setDemandasViewMode(mode);
+      setHistoricoViewMode(mode);
+    };
+    window.addEventListener('rm_default_view_mode_updated', handleGlobalUpdate);
+    return () => window.removeEventListener('rm_default_view_mode_updated', handleGlobalUpdate);
+  }, []);
 
   // Timer ao vivo para chamados em andamento
   const [, setTick] = useState(0);
@@ -295,11 +326,13 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
           </div>
         </motion.div>
 
-        {/* KPI 3: Chamados em Andamento */}
+        {/* KPI 3: Chamados em Andamento (Redireciona para a Fila ao Clicar) */}
         <motion.div 
           whileHover={{ y: -2 }}
           transition={{ duration: 0.2 }}
-          className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2"
+          onClick={() => onNavigate && onNavigate('fila')}
+          className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2 cursor-pointer hover:border-amber-500/40 hover:shadow-md transition-all group"
+          title="Clique para abrir a Fila de Suporte"
         >
           <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
             <span className="text-xs font-semibold uppercase tracking-wider">Em Andamento</span>
@@ -314,7 +347,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
             {metricas.emAndamentoCount > 0 && (
               <span className="flex items-center gap-1.5 text-[11px] font-bold text-amber-700 dark:text-amber-400">
                 <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
-                ao vivo agora
+                ver na fila →
               </span>
             )}
           </div>
@@ -342,132 +375,6 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
       </div>
 
       {/* ============================================================================== */}
-      {/* CHAMADOS EM ANDAMENTO (AO VIVO COM CRONÔMETRO) */}
-      {/* ============================================================================== */}
-      {metricas.emAndamento.length > 0 && (
-        <div className="rounded-3xl p-6 border border-amber-500/30 bg-amber-500/[0.03] dark:bg-amber-500/[0.06] space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
-              Suportes Iniciados e em Andamento ({metricas.emAndamento.length})
-            </h3>
-            
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono hidden sm:inline">
-                Tempo correndo ao vivo
-              </span>
-
-              {/* Alternador de Visualização Cards / Lista */}
-              <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.06]">
-                <button
-                  type="button"
-                  onClick={() => setEmAndamentoViewMode('cards')}
-                  className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
-                    emAndamentoViewMode === 'cards'
-                      ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
-                      : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
-                  }`}
-                  title="Exibir em Cards"
-                >
-                  <ViewGridIcon className="w-3.5 h-3.5" />
-                  <span className="text-[11px]">Cards</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEmAndamentoViewMode('list')}
-                  className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
-                    emAndamentoViewMode === 'list'
-                      ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
-                      : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
-                  }`}
-                  title="Exibir em Lista"
-                >
-                  <ViewListIcon className="w-3.5 h-3.5" />
-                  <span className="text-[11px]">Lista</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {emAndamentoViewMode === 'cards' ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5">
-              {metricas.emAndamento.map((ch) => (
-                <div
-                  key={ch.id}
-                  className="p-4 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] flex items-center justify-between gap-3 shadow-xs"
-                >
-                  <div className="min-w-0">
-                    <h4 className="text-xs font-semibold text-[#1d1d1f] dark:text-white truncate">
-                      {ch.empresa_nome}
-                    </h4>
-                    <p className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono truncate">
-                      Técnico: {ch.tecnico_email}
-                    </p>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <span className="text-[10px] text-slate-400">Em atendimento há:</span>
-                      <strong className="text-xs font-mono text-[#4d7c0f] dark:text-[#84cc16] tabular-nums">
-                        {calcularTempoDecorrido(ch.iniciado_em)}
-                      </strong>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => handleAbrirFinalizacao(ch)}
-                    className="px-3.5 py-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-semibold text-[11px] hover:opacity-90 shadow-sm cursor-pointer flex-shrink-0"
-                  >
-                    Finalizar
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-xs">
-              <div className="hidden sm:grid grid-cols-12 gap-3 px-4 py-2.5 border-b border-black/[0.05] dark:border-white/[0.06] text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 bg-black/[0.01] dark:bg-white/[0.02]">
-                <div className="col-span-5">Empresa em Suporte</div>
-                <div className="col-span-3">Técnico Operador</div>
-                <div className="col-span-2">Tempo Decorrido</div>
-                <div className="col-span-2 text-right">Ação</div>
-              </div>
-
-              <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
-                {metricas.emAndamento.map((ch) => (
-                  <div key={ch.id} className="p-3.5 sm:px-4 sm:py-3 flex flex-col sm:grid sm:grid-cols-12 gap-2 sm:gap-3 items-start sm:items-center hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors">
-                    <div className="sm:col-span-5 flex items-center gap-2 min-w-0">
-                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping flex-shrink-0"></span>
-                      <h4 className="text-xs font-semibold text-[#1d1d1f] dark:text-white truncate">
-                        {ch.empresa_nome}
-                      </h4>
-                    </div>
-
-                    <div className="sm:col-span-3 min-w-0">
-                      <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono truncate block">
-                        {ch.tecnico_email}
-                      </span>
-                    </div>
-
-                    <div className="sm:col-span-2 flex items-center gap-1.5">
-                      <strong className="text-xs font-mono text-[#4d7c0f] dark:text-[#84cc16] tabular-nums">
-                        {calcularTempoDecorrido(ch.iniciado_em)}
-                      </strong>
-                    </div>
-
-                    <div className="sm:col-span-2 flex items-center justify-end w-full sm:w-auto">
-                      <button
-                        onClick={() => handleAbrirFinalizacao(ch)}
-                        className="px-3 py-1 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-semibold text-[11px] hover:opacity-90 shadow-sm cursor-pointer"
-                      >
-                        Finalizar
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ============================================================================== */}
       {/* SEÇÃO LÚDICA COM MOTION: DESEMPENHO E PRODUTIVIDADE DA EQUIPE */}
       {/* ============================================================================== */}
       <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-5 shadow-sm">
@@ -486,16 +393,46 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
             </p>
           </div>
 
-          <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono self-start sm:self-auto">
-            {metricas.metricasColaboradores.length} membros mapeados
-          </span>
+          <div className="flex items-center gap-2.5 self-start sm:self-auto flex-wrap">
+            <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono hidden sm:inline">
+              {metricas.metricasColaboradores.length} membros
+            </span>
+            <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.06]">
+              <button
+                type="button"
+                onClick={() => setProdutividadeViewMode('cards')}
+                className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
+                  produtividadeViewMode === 'cards'
+                    ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
+                }`}
+                title="Exibir Produtividade em Cards"
+              >
+                <ViewGridIcon className="w-3.5 h-3.5" />
+                <span className="text-[11px]">Cards</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setProdutividadeViewMode('list')}
+                className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
+                  produtividadeViewMode === 'list'
+                    ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
+                }`}
+                title="Exibir Produtividade em Lista"
+              >
+                <ViewListIcon className="w-3.5 h-3.5" />
+                <span className="text-[11px]">Lista</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         {metricas.metricasColaboradores.length === 0 ? (
           <p className="text-xs text-slate-400 italic py-6 text-center">
             Nenhum membro com chamados registrados no período selecionado.
           </p>
-        ) : (
+        ) : produtividadeViewMode === 'cards' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {metricas.metricasColaboradores.map((col, idx) => {
               const isTopPerformer = idx === 0 && col.resolvidos > 0;
@@ -598,6 +535,90 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
                 </motion.div>
               );
             })}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-xs">
+            <div className="grid grid-cols-12 gap-3 px-4 py-2.5 border-b border-black/[0.05] dark:border-white/[0.06] text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 bg-black/[0.01] dark:bg-white/[0.02]">
+              <div className="col-span-4 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
+                if (sortProdCol === 'nome') setSortProdDir(d => d === 'asc' ? 'desc' : 'asc');
+                else { setSortProdCol('nome'); setSortProdDir('asc'); }
+              }}>
+                <span>Membro da Equipe</span>
+                {sortProdCol === 'nome' && <span>{sortProdDir === 'asc' ? '▲' : '▼'}</span>}
+              </div>
+              <div className="col-span-3 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
+                if (sortProdCol === 'resolvidos') setSortProdDir(d => d === 'asc' ? 'desc' : 'asc');
+                else { setSortProdCol('resolvidos'); setSortProdDir('desc'); }
+              }}>
+                <span>Resolvidos / Total</span>
+                {sortProdCol === 'resolvidos' && <span>{sortProdDir === 'asc' ? '▲' : '▼'}</span>}
+              </div>
+              <div className="col-span-3 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
+                if (sortProdCol === 'taxa') setSortProdDir(d => d === 'asc' ? 'desc' : 'asc');
+                else { setSortProdCol('taxa'); setSortProdDir('desc'); }
+              }}>
+                <span>Taxa de Resolução</span>
+                {sortProdCol === 'taxa' && <span>{sortProdDir === 'asc' ? '▲' : '▼'}</span>}
+              </div>
+              <div className="col-span-2 text-right cursor-pointer select-none flex items-center justify-end gap-1 hover:text-black dark:hover:text-white" onClick={() => {
+                if (sortProdCol === 'tma') setSortProdDir(d => d === 'asc' ? 'desc' : 'asc');
+                else { setSortProdCol('tma'); setSortProdDir('asc'); }
+              }}>
+                <span>Tempo Médio</span>
+                {sortProdCol === 'tma' && <span>{sortProdDir === 'asc' ? '▲' : '▼'}</span>}
+              </div>
+            </div>
+
+            <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
+              {[...metricas.metricasColaboradores].sort((a, b) => {
+                let vA = a[sortProdCol];
+                let vB = b[sortProdCol];
+                if (sortProdCol === 'taxa') {
+                  vA = a.total_chamados > 0 ? (a.resolvidos / a.total_chamados) : 0;
+                  vB = b.total_chamados > 0 ? (b.resolvidos / b.total_chamados) : 0;
+                }
+                if (sortProdCol === 'tma') {
+                  vA = a.tempo_medio_segundos || 0;
+                  vB = b.tempo_medio_segundos || 0;
+                }
+                if (typeof vA === 'number') {
+                  return sortProdDir === 'asc' ? vA - vB : vB - vA;
+                }
+                return sortProdDir === 'asc'
+                  ? (a.nome || '').localeCompare(b.nome || '')
+                  : (b.nome || '').localeCompare(a.nome || '');
+              }).map((col, idx) => {
+                const taxa = col.total_chamados > 0 ? Math.round((col.resolvidos / col.total_chamados) * 100) : 0;
+                return (
+                  <div key={col.email || idx} className="grid grid-cols-12 gap-3 px-4 py-3 items-center hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors text-xs">
+                    <div className="col-span-4 flex items-center gap-2 min-w-0">
+                      <span className="w-6 h-6 rounded-lg bg-[#4d7c0f]/15 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-[10px] flex items-center justify-center flex-shrink-0">
+                        {col.nome?.charAt(0) || 'U'}
+                      </span>
+                      <div className="truncate">
+                        <span className="font-semibold text-[#1d1d1f] dark:text-white block truncate">{col.nome}</span>
+                        <span className="text-[10px] text-slate-400 font-mono block truncate">{col.email}</span>
+                      </div>
+                    </div>
+                    <div className="col-span-3 font-mono">
+                      <span className="font-bold text-[#4d7c0f] dark:text-[#84cc16]">{col.resolvidos}</span>
+                      <span className="text-slate-400"> / {col.total_chamados}</span>
+                    </div>
+                    <div className="col-span-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 h-1.5 rounded-full bg-black/[0.05] dark:bg-white/[0.08] overflow-hidden">
+                          <div className="h-full rounded-full bg-gradient-to-r from-[#4d7c0f] to-[#84cc16]" style={{ width: `${taxa}%` }} />
+                        </div>
+                        <span className="text-[11px] font-mono font-bold text-slate-700 dark:text-zinc-300">{taxa}%</span>
+                      </div>
+                    </div>
+                    <div className="col-span-2 text-right font-mono text-slate-600 dark:text-zinc-400">
+                      {col.tempo_medio_minutos} min
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
@@ -919,28 +940,58 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
       {/* HISTÓRICO RECENTE DE ATENDIMENTOS */}
       {/* ============================================================================== */}
       <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-sm">
-        <div className="p-5 border-b border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-zinc-300">
-          <span>Histórico Recente de Atendimentos ({chamadosRecentes.length})</span>
-          <span className="text-[10px] text-slate-400 font-mono">Registrado com operador e data</span>
+        <div className="p-5 border-b border-black/[0.05] dark:border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
+              Histórico Recente de Atendimentos ({chamadosRecentes.length})
+            </h3>
+            <p className="text-[10px] text-slate-400 font-mono mt-0.5">Auditoria contínua de chamados finalizados</p>
+          </div>
+
+          <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.06]">
+            <button
+              type="button"
+              onClick={() => setHistoricoViewMode('cards')}
+              className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
+                historicoViewMode === 'cards'
+                  ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
+              }`}
+              title="Exibir Histórico em Cards"
+            >
+              <ViewGridIcon className="w-3.5 h-3.5" />
+              <span className="text-[11px]">Cards</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setHistoricoViewMode('list')}
+              className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
+                historicoViewMode === 'list'
+                  ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
+              }`}
+              title="Exibir Histórico em Lista"
+            >
+              <ViewListIcon className="w-3.5 h-3.5" />
+              <span className="text-[11px]">Lista</span>
+            </button>
+          </div>
         </div>
 
-        <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
-          {chamadosRecentes.length === 0 ? (
-            <div className="p-10 text-center text-xs text-slate-400">
-              Nenhum suporte realizado ainda.
-            </div>
-          ) : (
-            chamadosRecentes.map((ch) => {
+        {chamadosRecentes.length === 0 ? (
+          <div className="p-10 text-center text-xs text-slate-400">
+            Nenhum suporte realizado ainda.
+          </div>
+        ) : historicoViewMode === 'cards' ? (
+          <div className="p-4 sm:p-5 grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            {[...chamadosRecentes].map((ch) => {
               const nomeTecnico = ch.tecnico_nome || getNomeTecnico(ch.tecnico_email, ch.atendente_nome || ch.atendente);
               const isConcluido = ch.status === 'finalizado' || ch.status === 'concluido';
-
               return (
-                <div key={ch.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors group">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="text-xs font-semibold text-[#1d1d1f] dark:text-white">
-                        {ch.empresa_nome}
-                      </span>
+                <div key={ch.id} className="p-4 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.01] dark:bg-white/[0.02] flex flex-col justify-between gap-3 shadow-xs">
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="text-xs font-bold text-[#1d1d1f] dark:text-white truncate">{ch.empresa_nome}</span>
                       <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${
                         isConcluido
                           ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'
@@ -948,65 +999,148 @@ export default function DashboardView({ onSelectEmpresa, userEmail }) {
                       }`}>
                         {isConcluido ? 'Concluído' : 'Em Aberto'}
                       </span>
-                      {ch.motivo && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-700 dark:text-zinc-300 font-medium">
-                          {ch.motivo}
-                        </span>
-                      )}
                     </div>
-
-                    <div className="flex items-center gap-3 text-[11px] text-slate-500 dark:text-zinc-400 font-mono flex-wrap">
-                      <span>
-                        Técnico: <strong className="text-slate-800 dark:text-zinc-200 font-semibold">{nomeTecnico}</strong>
-                        {ch.tecnico_email && <span className="text-[10px] text-slate-400 ml-1">({ch.tecnico_email})</span>}
-                      </span>
-                      <span>•</span>
-                      <span>
-                        Data: {new Date(ch.finalizado_em || ch.iniciado_em || ch.created_at).toLocaleString('pt-BR')}
-                      </span>
-                      {ch.solicitante_nome && (
-                        <>
-                          <span>•</span>
-                          <span>Solicitante: <strong className="text-slate-700 dark:text-zinc-300">{ch.solicitante_nome}</strong></span>
-                        </>
-                      )}
+                    <div className="text-[11px] text-slate-600 dark:text-zinc-300 font-medium mb-1">
+                      {ch.motivo || 'Atendimento Geral'}
                     </div>
-
+                    <div className="text-[10px] text-slate-400 font-mono space-y-0.5">
+                      <div>Técnico: {nomeTecnico}</div>
+                      <div>Data: {new Date(ch.finalizado_em || ch.iniciado_em || ch.created_at).toLocaleString('pt-BR')}</div>
+                      {ch.solicitante_nome && <div>Solicitante: {ch.solicitante_nome}</div>}
+                    </div>
                     {ch.observacoes && (
-                      <p className="text-[11px] text-slate-600 dark:text-zinc-400 mt-1 italic">
-                        Solução: {ch.observacoes}
+                      <p className="text-[10px] text-slate-500 dark:text-zinc-400 mt-2 italic bg-black/[0.02] dark:bg-white/[0.03] p-2 rounded-xl">
+                        {ch.observacoes}
                       </p>
                     )}
                   </div>
-
-                  <div className="flex items-center gap-4 self-end sm:self-center flex-shrink-0">
-                    <div className="text-right font-mono">
-                      <span className="text-xs font-semibold text-slate-800 dark:text-zinc-200 block tabular-nums">
-                        {isConcluido ? formatarDuracao(ch.duracao_segundos || ch.tempo_ativo_segundos) : calcularTempoDecorrido(ch.iniciado_em)}
-                      </span>
-                      <span className="text-[10px] text-slate-400">
-                        {ch.tempo_espera_segundos > 0 ? `Espera: ${Math.round(ch.tempo_espera_segundos / 60)}m` : 'Atendimento'}
-                      </span>
-                    </div>
-
-                    {/* Botão de Excluir Chamado do Histórico */}
+                  <div className="flex items-center justify-between pt-2 border-t border-black/[0.04] dark:border-white/[0.05]">
+                    <span className="text-[10px] font-mono text-slate-500">
+                      Duração: {isConcluido ? formatarDuracao(ch.duracao_segundos || ch.tempo_ativo_segundos) : calcularTempoDecorrido(ch.iniciado_em)}
+                    </span>
                     <button
                       type="button"
                       onClick={() => handleExcluirHistorico(ch.id, ch.empresa_nome)}
-                      className="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-xl hover:bg-red-500/10 transition-all cursor-pointer"
-                      title="Excluir este chamado do histórico"
+                      className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-500/10 transition-colors"
+                      title="Excluir do histórico"
                     >
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="3 6 5 6 21 6" />
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                      </svg>
+                      <TrashIcon className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
               );
-            })
-          )}
-        </div>
+            })}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <div className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-black/[0.05] dark:border-white/[0.06] text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 bg-black/[0.01] dark:bg-white/[0.02] min-w-[700px]">
+              <div className="col-span-3 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
+                if (sortHistCol === 'empresa') setSortHistDir(d => d === 'asc' ? 'desc' : 'asc');
+                else { setSortHistCol('empresa'); setSortHistDir('asc'); }
+              }}>
+                <span>Empresa</span>
+                {sortHistCol === 'empresa' && <span>{sortHistDir === 'asc' ? '▲' : '▼'}</span>}
+              </div>
+              <div className="col-span-2 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
+                if (sortHistCol === 'motivo') setSortHistDir(d => d === 'asc' ? 'desc' : 'asc');
+                else { setSortHistCol('motivo'); setSortHistDir('asc'); }
+              }}>
+                <span>Motivo</span>
+                {sortHistCol === 'motivo' && <span>{sortHistDir === 'asc' ? '▲' : '▼'}</span>}
+              </div>
+              <div className="col-span-2 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
+                if (sortHistCol === 'solicitante') setSortHistDir(d => d === 'asc' ? 'desc' : 'asc');
+                else { setSortHistCol('solicitante'); setSortHistDir('asc'); }
+              }}>
+                <span>Solicitante</span>
+                {sortHistCol === 'solicitante' && <span>{sortHistDir === 'asc' ? '▲' : '▼'}</span>}
+              </div>
+              <div className="col-span-2 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
+                if (sortHistCol === 'tecnico') setSortHistDir(d => d === 'asc' ? 'desc' : 'asc');
+                else { setSortHistCol('tecnico'); setSortHistDir('asc'); }
+              }}>
+                <span>Técnico</span>
+                {sortHistCol === 'tecnico' && <span>{sortHistDir === 'asc' ? '▲' : '▼'}</span>}
+              </div>
+              <div className="col-span-2 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
+                if (sortHistCol === 'data') setSortHistDir(d => d === 'asc' ? 'desc' : 'asc');
+                else { setSortHistCol('data'); setSortHistDir('desc'); }
+              }}>
+                <span>Data & Duração</span>
+                {sortHistCol === 'data' && <span>{sortHistDir === 'asc' ? '▲' : '▼'}</span>}
+              </div>
+              <div className="col-span-1 text-right">Ação</div>
+            </div>
+
+            <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05] min-w-[700px]">
+              {[...chamadosRecentes].sort((a, b) => {
+                if (sortHistCol === 'empresa') {
+                  return sortHistDir === 'asc'
+                    ? (a.empresa_nome || '').localeCompare(b.empresa_nome || '')
+                    : (b.empresa_nome || '').localeCompare(a.empresa_nome || '');
+                }
+                if (sortHistCol === 'motivo') {
+                  return sortHistDir === 'asc'
+                    ? (a.motivo || '').localeCompare(b.motivo || '')
+                    : (b.motivo || '').localeCompare(a.motivo || '');
+                }
+                if (sortHistCol === 'solicitante') {
+                  return sortHistDir === 'asc'
+                    ? (a.solicitante_nome || '').localeCompare(b.solicitante_nome || '')
+                    : (b.solicitante_nome || '').localeCompare(a.solicitante_nome || '');
+                }
+                if (sortHistCol === 'tecnico') {
+                  const tA = a.tecnico_nome || '';
+                  const tB = b.tecnico_nome || '';
+                  return sortHistDir === 'asc' ? tA.localeCompare(tB) : tB.localeCompare(tA);
+                }
+                const dA = new Date(a.finalizado_em || a.created_at || 0).getTime();
+                const dB = new Date(b.finalizado_em || b.created_at || 0).getTime();
+                return sortHistDir === 'asc' ? dA - dB : dB - dA;
+              }).map((ch) => {
+                const nomeTecnico = ch.tecnico_nome || getNomeTecnico(ch.tecnico_email, ch.atendente_nome || ch.atendente);
+                const isConcluido = ch.status === 'finalizado' || ch.status === 'concluido';
+                return (
+                  <div key={ch.id} className="grid grid-cols-12 gap-3 px-5 py-3.5 items-center hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors text-xs">
+                    <div className="col-span-3 flex items-center gap-2 min-w-0">
+                      <span className="w-6 h-6 rounded-lg bg-black/[0.05] dark:bg-white/[0.08] text-slate-700 dark:text-zinc-300 font-bold text-[10px] flex items-center justify-center flex-shrink-0">
+                        {ch.empresa_nome?.charAt(0) || 'E'}
+                      </span>
+                      <span className="font-semibold text-[#1d1d1f] dark:text-white truncate">{ch.empresa_nome}</span>
+                    </div>
+                    <div className="col-span-2 truncate text-slate-700 dark:text-zinc-300">
+                      {ch.motivo || '-'}
+                    </div>
+                    <div className="col-span-2 truncate text-slate-600 dark:text-zinc-400 font-mono text-[11px]">
+                      {ch.solicitante_nome || '-'}
+                    </div>
+                    <div className="col-span-2 truncate text-slate-600 dark:text-zinc-400 font-mono text-[11px]">
+                      {nomeTecnico.split(' ')[0]}
+                    </div>
+                    <div className="col-span-2 font-mono text-[11px]">
+                      <span className="text-slate-800 dark:text-zinc-200 block">
+                        {new Date(ch.finalizado_em || ch.created_at).toLocaleDateString('pt-BR')}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {isConcluido ? formatarDuracao(ch.duracao_segundos || ch.tempo_ativo_segundos) : 'Ativo'}
+                      </span>
+                    </div>
+                    <div className="col-span-1 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleExcluirHistorico(ch.id, ch.empresa_nome)}
+                        className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-500/10 transition-colors"
+                        title="Excluir"
+                      >
+                        <TrashIcon className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modal de Detalhes da Demanda por Empresa (quando clicado no Dashboard) */}

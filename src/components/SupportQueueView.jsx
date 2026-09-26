@@ -41,6 +41,22 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   const [filtroPrioridade, setFiltroPrioridade] = useState('todas'); // 'todas' | 'urgente' | 'alta' | 'normal'
   const [busca, setBusca] = useState('');
   const [, setTick] = useState(0);
+  const [filaViewMode, setFilaViewMode] = useState('cards');
+  const [sortFilaCol, setSortFilaCol] = useState('status');
+  const [sortFilaDir, setSortFilaDir] = useState('asc');
+
+  useEffect(() => {
+    const globalMode = getDefaultViewMode();
+    const effective = globalMode === 'grid' || globalMode === 'cards' ? 'cards' : 'list';
+    setFilaViewMode(effective);
+
+    const handleGlobalUpdate = (e) => {
+      const mode = e.detail === 'cards' || e.detail === 'grid' ? 'cards' : 'list';
+      setFilaViewMode(mode);
+    };
+    window.addEventListener('rm_default_view_mode_updated', handleGlobalUpdate);
+    return () => window.removeEventListener('rm_default_view_mode_updated', handleGlobalUpdate);
+  }, []);
 
   // Modal para Finalizar Suporte
   const [chamadoParaFinalizar, setChamadoParaFinalizar] = useState(null);
@@ -474,8 +490,38 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
             })}
           </div>
 
+          {/* Alternador de Visualização Cards / Lista */}
+          <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.06]">
+            <button
+              type="button"
+              onClick={() => setFilaViewMode('cards')}
+              className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
+                filaViewMode === 'cards'
+                  ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
+              }`}
+              title="Exibir Fila em Cards"
+            >
+              <ViewGridIcon className="w-3.5 h-3.5" />
+              <span className="text-[11px]">Cards</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilaViewMode('list')}
+              className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
+                filaViewMode === 'list'
+                  ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
+              }`}
+              title="Exibir Fila em Lista"
+            >
+              <ViewListIcon className="w-3.5 h-3.5" />
+              <span className="text-[11px]">Lista</span>
+            </button>
+          </div>
+
           {/* Campo de Busca */}
-          <div className="relative min-w-[260px]">
+          <div className="relative min-w-[240px]">
             <input
               type="text"
               value={busca}
@@ -517,7 +563,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
             </button>
           </div>
         </div>
-      ) : (
+      ) : filaViewMode === 'cards' ? (
         <div className="space-y-3.5">
           {chamadosFiltrados.map((ch) => {
             const isEmAndamento = ch.status === 'em_andamento';
@@ -575,14 +621,16 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
                       {/* Cronômetro 1: Tempo em Espera */}
                       <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-[11px] font-mono font-bold">
-                        <span>⏳ Espera:</span>
+                        <HourglassIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                        <span>Espera:</span>
                         <span className="tabular-nums">{calcularTempoEspera(ch)}</span>
                       </div>
 
                       {/* Cronômetro 2: Tempo Ativo */}
                       {isEmAndamento && (
                         <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-[11px] font-mono font-bold">
-                          <span>⏱ Ativo:</span>
+                          <HourglassIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                          <span>Ativo:</span>
                           <span className="tabular-nums">{calcularTempoAtivo(ch)}</span>
                         </div>
                       )}

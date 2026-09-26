@@ -355,11 +355,22 @@ export const SupportQueueIcon = ({ className = "w-4 h-4" }) => (
 // Fila em Lista
 export const QueueListIcon = ({ className = "w-4 h-4" }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="8" x2="21" y1="6" y2="6" />
-    <line x1="8" x2="21" y1="12" y2="12" />
-    <line x1="8" x2="21" y1="18" y2="18" />
+    <line x1="8" x2="21" y1="6" stroke="currentColor" strokeWidth="1.75" />
+    <line x1="8" x2="21" y1="12" stroke="currentColor" strokeWidth="1.75" />
+    <line x1="8" x2="21" y1="18" stroke="currentColor" strokeWidth="1.75" />
     <circle cx="4" cy="6" r="1.5" fill="currentColor" />
     <circle cx="4" cy="12" r="1.5" fill="currentColor" />
     <circle cx="4" cy="18" r="1.5" fill="currentColor" />
   </svg>
 );
+
+// Ampulheta / Contador de Tempo (SVG Minimalista)
+export const HourglassIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 22h14" />
+    <path d="M5 2h14" />
+    <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22" />
+    <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" />
+  </svg>
+);
+

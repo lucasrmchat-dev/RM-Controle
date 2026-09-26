@@ -144,6 +144,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
   const [credenciaisList, setCredenciaisList] = useState([]);
   const [isAddCredOpen, setIsAddCredOpen] = useState(false);
   const [credRotulo, setCredRotulo] = useState('');
+  const [credNomeUsuario, setCredNomeUsuario] = useState('');
   const [credUsuario, setCredUsuario] = useState('');
   const [credSenha, setCredSenha] = useState('');
   const [credObs, setCredObs] = useState('');
@@ -424,6 +425,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
       if (editandoCredId) {
         await updateEmpresaCredencial(empresa.id, editandoCredId, {
           rotulo: credRotulo,
+          nome_usuario: credNomeUsuario,
           usuario_email: credUsuario,
           senha: credSenha,
           observacao: credObs,
@@ -432,6 +434,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
       } else {
         await addEmpresaCredencial(empresa.id, {
           rotulo: credRotulo,
+          nome_usuario: credNomeUsuario,
           usuario_email: credUsuario,
           senha: credSenha,
           observacao: credObs,
@@ -440,6 +443,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
       }
 
       setCredRotulo('');
+      setCredNomeUsuario('');
       setCredUsuario('');
       setCredSenha('');
       setCredObs('');
@@ -773,7 +777,6 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
               { id: 'canais', label: 'Canais de Atendimento', count: empresa.canais?.length || 0 },
               { id: 'credenciais', label: 'Acessos & Senhas Técnicas', count: credenciaisList.length },
               { id: 'servidor', label: 'Configuração do Servidor', count: `${concluidosChecklist}/${totalChecklist}` },
-              { id: 'observacoes', label: 'Soluções & Base de Conhecimento', count: listaSolucoesTab.length + (empresa.observacoes?.length || 0) },
               { id: 'chamados', label: 'Histórico de Suporte', count: chamadosEmpresa.length },
             ].map((tab) => {
               const isActive = activeTab === tab.id;
@@ -1098,6 +1101,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                     onClick={() => {
                       setEditandoCredId(null);
                       setCredRotulo('');
+                      setCredNomeUsuario('');
                       setCredUsuario('');
                       setCredSenha('');
                       setCredObs('');
@@ -1133,16 +1137,16 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                       <div className="space-y-1">
                         <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
-                          Rótulo / Nome do Acesso <span className="text-red-500">*</span>
+                          Rótulo / Serviço <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="text"
                           value={credRotulo}
                           onChange={(e) => setCredRotulo(e.target.value)}
-                          placeholder="Ex: Painel Admin - Diretor / Servidor SSH"
+                          placeholder="Ex: Painel Admin, Servidor SSH"
                           required
                           className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs focus:outline-none"
                         />
@@ -1150,7 +1154,20 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
 
                       <div className="space-y-1">
                         <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
-                          E-mail ou Usuário de Login
+                          Nome do Usuário (Opcional)
+                        </label>
+                        <input
+                          type="text"
+                          value={credNomeUsuario}
+                          onChange={(e) => setCredNomeUsuario(e.target.value)}
+                          placeholder="Ex: Carlos Gerente, Atendente 01"
+                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                          E-mail / Login (Opcional)
                         </label>
                         <input
                           type="text"
@@ -1166,7 +1183,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                       <div className="space-y-1">
                         <div className="flex items-center justify-between pl-1">
                           <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
-                            Senha <span className="text-red-500">*</span>
+                            Senha <span className="text-slate-400 font-normal text-[11px]">(Opcional)</span>
                           </label>
                           <button
                             type="button"
@@ -1181,8 +1198,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                           type="text"
                           value={credSenha}
                           onChange={(e) => setCredSenha(e.target.value)}
-                          placeholder="Senha de acesso"
-                          required
+                          placeholder="Opcional - preencha se houver senha cadastrada"
                           className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs font-mono focus:outline-none"
                         />
                       </div>
@@ -1264,9 +1280,11 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                           <div className="p-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/5 dark:border-white/5 flex items-center justify-between">
                             <div>
-                              <span className="text-[10px] text-slate-400 block">Usuário / E-mail:</span>
-                              <span className="font-mono font-bold text-slate-800 dark:text-zinc-200 select-all">
-                                {cred.usuario_email || 'Não informado'}
+                              <span className="text-[10px] text-slate-400 block">
+                                {cred.nome_usuario ? `Usuário: ${cred.nome_usuario}` : 'Login / E-mail:'}
+                              </span>
+                              <span className="font-mono font-bold text-slate-800 dark:text-zinc-200 select-all text-xs">
+                                {cred.usuario_email || (cred.nome_usuario ? 'Sem e-mail vinculado' : 'Não informado')}
                               </span>
                             </div>
                             {cred.usuario_email && (
@@ -1282,26 +1300,34 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                           <div className="p-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/5 dark:border-white/5 flex items-center justify-between">
                             <div>
                               <span className="text-[10px] text-slate-400 block">Senha:</span>
-                              <span className="font-mono font-bold text-slate-800 dark:text-zinc-200 select-all">
-                                {isRevelada ? cred.senha : '••••••••••••'}
-                              </span>
+                              {cred.senha ? (
+                                <span className="font-mono font-bold text-slate-800 dark:text-zinc-200 select-all">
+                                  {isRevelada ? cred.senha : '••••••••••••'}
+                                </span>
+                              ) : (
+                                <span className="text-[11px] text-slate-400 italic">
+                                  Sem senha cadastrada
+                                </span>
+                              )}
                             </div>
 
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleToggleVerSenha(cred)}
-                                className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer"
-                                title={isRevelada ? 'Ocultar' : 'Visualizar senha'}
-                              >
-                                {isRevelada ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
-                              </button>
-                              <button
-                                onClick={() => handleCopiarTexto(cred.senha, cred.id + '_s')}
-                                className="text-[10px] font-semibold text-slate-500 hover:text-black dark:hover:text-white cursor-pointer"
-                              >
-                                Copiar
-                              </button>
-                            </div>
+                            {cred.senha && (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleToggleVerSenha(cred)}
+                                  className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer"
+                                  title={isRevelada ? 'Ocultar' : 'Visualizar senha'}
+                                >
+                                  {isRevelada ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                                </button>
+                                <button
+                                  onClick={() => handleCopiarTexto(cred.senha, cred.id + '_s')}
+                                  className="text-[10px] font-semibold text-slate-500 hover:text-black dark:hover:text-white cursor-pointer"
+                                >
+                                  Copiar
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -1319,10 +1345,10 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 <div className="rounded-3xl border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] overflow-hidden shadow-sm">
                   <div className="hidden lg:grid grid-cols-12 gap-3 px-5 py-3 border-b border-black/5 dark:border-white/6 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 bg-black/[0.01] dark:bg-white/[0.02]">
                     <div className="col-span-3">Rótulo do Acesso</div>
+                    <div className="col-span-2">Nome Usuário</div>
                     <div className="col-span-3">Login / E-mail</div>
-                    <div className="col-span-3">Senha Protegida</div>
-                    <div className="col-span-2">Observação</div>
-                    <div className="col-span-1 text-right">Ações</div>
+                    <div className="col-span-2">Senha Protegida</div>
+                    <div className="col-span-2 text-right">Ações</div>
                   </div>
 
                   <div className="divide-y divide-black/5 dark:divide-white/6">
@@ -1348,10 +1374,17 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                             </div>
                           </div>
 
+                          {/* Nome Usuário */}
+                          <div className="lg:col-span-2 min-w-0">
+                            <span className="text-xs font-semibold text-slate-800 dark:text-zinc-200 truncate block">
+                              {cred.nome_usuario || '-'}
+                            </span>
+                          </div>
+
                           {/* Login / E-mail */}
                           <div className="lg:col-span-3 flex items-center gap-2">
                             <span className="text-xs font-mono font-semibold text-slate-800 dark:text-zinc-200 select-all truncate">
-                              {cred.usuario_email || 'Não informado'}
+                              {cred.usuario_email || '-'}
                             </span>
                             {cred.usuario_email && (
                               <button
@@ -1365,36 +1398,35 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                           </div>
 
                           {/* Senha */}
-                          <div className="lg:col-span-3 flex items-center gap-2">
-                            <span className="text-xs font-mono font-bold text-slate-800 dark:text-zinc-200 select-all">
-                              {isRevelada ? cred.senha : '••••••••••••'}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleToggleVerSenha(cred)}
-                              className="text-slate-400 hover:text-black dark:hover:text-white p-0.5"
-                              title={isRevelada ? 'Ocultar' : 'Visualizar senha'}
-                            >
-                              {isRevelada ? <EyeOffIcon className="w-3.5 h-3.5" /> : <EyeIcon className="w-3.5 h-3.5" />}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleCopiarTexto(cred.senha, cred.id + '_s')}
-                              className="text-[10px] text-slate-400 hover:text-black dark:hover:text-white"
-                            >
-                              {copiadoS ? 'Copiado!' : 'Copiar'}
-                            </button>
-                          </div>
-
-                          {/* Obs */}
-                          <div className="lg:col-span-2 min-w-0">
-                            <span className="text-[11px] text-slate-500 italic truncate block">
-                              {cred.observacao || '-'}
-                            </span>
+                          <div className="lg:col-span-2 flex items-center gap-2">
+                            {cred.senha ? (
+                              <>
+                                <span className="text-xs font-mono font-bold text-slate-800 dark:text-zinc-200 select-all">
+                                  {isRevelada ? cred.senha : '••••••••••••'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleVerSenha(cred)}
+                                  className="text-slate-400 hover:text-black dark:hover:text-white p-0.5"
+                                  title={isRevelada ? 'Ocultar' : 'Visualizar senha'}
+                                >
+                                  {isRevelada ? <EyeOffIcon className="w-3.5 h-3.5" /> : <EyeIcon className="w-3.5 h-3.5" />}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopiarTexto(cred.senha, cred.id + '_s')}
+                                  className="text-[10px] text-slate-400 hover:text-black dark:hover:text-white"
+                                >
+                                  {copiadoS ? 'Copiado!' : 'Copiar'}
+                                </button>
+                              </>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 italic">Sem senha</span>
+                            )}
                           </div>
 
                           {/* Ações */}
-                          <div className="lg:col-span-1 flex items-center justify-end gap-1.5 w-full lg:w-auto">
+                          <div className="lg:col-span-2 flex items-center justify-end gap-1.5 w-full lg:w-auto">
                             <button
                               type="button"
                               onClick={() => handleEditarCredencial(cred)}
@@ -1434,10 +1466,10 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                       Necessidades & Particularidades
                     </span>
                     <h3 className="text-base sm:text-lg font-bold text-[#0a0a0c] dark:text-white">
-                      Peculiaridades do Servidor de {empresa.nome}
+                      Peculiaridades & Anotações do Servidor de {empresa.nome}
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                      Registre aqui o que o cliente pediu de diferente e configurações específicas para a infraestrutura desta conta.
+                      Descreva as particularidades técnicas, anotações de infraestrutura e requisitos específicos desta empresa.
                     </p>
                   </div>
                   
@@ -1462,54 +1494,14 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                     }}
                     className="px-5 py-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 flex items-center gap-1.5 cursor-pointer self-start sm:self-center disabled:opacity-50"
                   >
-                    {salvandoServidorDetalhes ? 'Salvando...' : 'Salvar Peculiaridades'}
+                    {salvandoServidorDetalhes ? 'Salvando...' : 'Salvar Anotações'}
                   </motion.button>
                 </div>
 
-                {/* BANCO DE CONFIGURAÇÕES FREQUENTES (ATALHOS RÁPIDOS) */}
-                <div className="space-y-1.5 pt-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
-                      Banco de Configurações Geralmente Pedidas:
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-mono">(Clique para adicionar às notas)</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {[
-                      '📦 Backup diário externo (SFTP/S3)',
-                      '🌐 Domínio próprio com Cloudflare Proxy',
-                      '⚡ Limite ampliado de mensagens por minuto',
-                      '🔒 Webhook seguro com Bearer Token',
-                      '💾 Armazenamento dedicado para áudios e mídias',
-                      '🛡️ Liberação de IP estático no Firewall',
-                      '⚙️ Instância exclusiva de alta disponibilidade',
-                      '📱 Rotação inteligente de instâncias',
-                      '📊 Retenção de logs estendida (45 dias)',
-                    ].map((sugestao, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => {
-                          setServidorPeculiaridades((prev) => {
-                            if (!prev.trim()) return `• ${sugestao}`;
-                            if (prev.includes(sugestao)) return prev;
-                            return `${prev.trim()}
-• ${sugestao}`;
-                          });
-                          showToast(`Adicionado: ${sugestao}`, 'info');
-                        }}
-                        className="px-2.5 py-1 rounded-full text-[10px] font-medium bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.07] dark:hover:bg-white/[0.1] border border-black/[0.06] dark:border-white/[0.08] text-slate-700 dark:text-zinc-300 transition-all cursor-pointer"
-                      >
-                        + {sugestao}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Campo de Texto Livre de Peculiaridades */}
+                {/* Campo de Texto Livre de Peculiaridades & Anotações */}
                 <div className="space-y-1.5 pt-1">
                   <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                    Descrição Detalhada das Particularidades da Empresa
+                    Anotações e Particularidades Técnicas
                   </label>
                   <textarea
                     rows={4}
@@ -1833,315 +1825,6 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
           )}
 
           {/* ============================================================================== */}
-          {/* ABA 4: SOLUÇÕES & BASE DE CONHECIMENTO ("COMO RESOLVER CHAMADOS") */}
-          {/* ============================================================================== */}
-          {activeTab === 'observacoes' && (
-            <div className="space-y-6">
-              
-              <div className="rounded-3xl p-6 sm:p-7 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] space-y-5 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-black/[0.05] dark:border-white/[0.06]">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 inline-block mb-1">
-                      💡 Banco de Soluções Inteligente
-                    </span>
-                    <h2 className="text-base sm:text-lg font-bold text-[#0a0a0c] dark:text-white">
-                      Base de Conhecimento: Como Resolver Chamados
-                    </h2>
-                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                      Busca automática: se o problema não estiver catalogado especificamente para {empresa.nome}, o sistema busca automaticamente em toda a base geral.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsFormNovaSolucaoTab(!isFormNovaSolucaoTab)}
-                    className="px-4 py-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-sm hover:opacity-95 cursor-pointer self-start sm:self-center"
-                  >
-                    {isFormNovaSolucaoTab ? 'Cancelar' : '+ Nova Solução'}
-                  </button>
-                </div>
-
-                {/* Formulário para Cadastrar Nova Solução */}
-                <AnimatePresence>
-                  {isFormNovaSolucaoTab && (
-                    <motion.form
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      onSubmit={async (e) => {
-                        e.preventDefault();
-                        if (!novaSolucaoTitulo.trim() || !novaSolucaoPassos.trim()) {
-                          showToast('Informe o título e os passos da solução.', 'error');
-                          return;
-                        }
-                        try {
-                          setSalvandoSolucaoTab(true);
-                          await addSolucaoSuporte({
-                            empresa_id: empresa.id,
-                            empresa_nome: empresa.nome,
-                            titulo: novaSolucaoTitulo,
-                            erro_codigo: novaSolucaoCodigo,
-                            contexto: novaSolucaoContexto,
-                            tipo_erro: novaSolucaoTipo,
-                            solucao_passos: novaSolucaoPassos,
-                            tags: novaSolucaoTags,
-                            userEmail,
-                          });
-                          showToast('Solução catalogada na base!', 'success');
-                          setNovaSolucaoTitulo('');
-                          setNovaSolucaoCodigo('');
-                          setNovaSolucaoContexto('');
-                          setNovaSolucaoPassos('');
-                          setNovaSolucaoTags('');
-                          setIsFormNovaSolucaoTab(false);
-                          carregarSolucoesTab();
-                        } catch (err) {
-                          showToast(err.message || 'Erro ao salvar solução.', 'error');
-                        } finally {
-                          setSalvandoSolucaoTab(false);
-                        }
-                      }}
-                      className="rounded-3xl p-5 border border-black/10 dark:border-white/15 bg-black/[0.02] dark:bg-white/[0.03] space-y-3"
-                    >
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300">
-                          Catalogar Nova Solução na Base
-                        </h4>
-                        <span className="text-[10px] text-slate-400 font-mono">
-                          Vinculada a: {empresa.nome}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                        <div className="sm:col-span-2">
-                          <input
-                            type="text"
-                            value={novaSolucaoTitulo}
-                            onChange={(e) => setNovaSolucaoTitulo(e.target.value)}
-                            placeholder="Título do problema (ex: Instância Baileys desconectando)"
-                            required
-                            className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs focus:outline-none"
-                          />
-                        </div>
-                        <div>
-                          <input
-                            type="text"
-                            value={novaSolucaoCodigo}
-                            onChange={(e) => setNovaSolucaoCodigo(e.target.value)}
-                            placeholder="Código de Erro (ex: 131026, 401, 502)"
-                            className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs font-mono focus:outline-none"
-                          />
-                        </div>
-                      </div>
-
-                      <textarea
-                        rows={3}
-                        value={novaSolucaoPassos}
-                        onChange={(e) => setNovaSolucaoPassos(e.target.value)}
-                        placeholder="Passo a passo numerado da resolução aplicada..."
-                        required
-                        className="w-full p-3 rounded-xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs font-mono focus:outline-none resize-none leading-relaxed"
-                      />
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        <input
-                          type="text"
-                          value={novaSolucaoTags}
-                          onChange={(e) => setNovaSolucaoTags(e.target.value)}
-                          placeholder="Tags separadas por vírgula (ex: qr, evolution, timeout)"
-                          className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs font-mono focus:outline-none"
-                        />
-                        <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setIsFormNovaSolucaoTab(false)}
-                            className="px-4 py-1.5 rounded-full border border-black/10 dark:border-white/10 text-xs font-semibold"
-                          >
-                            Cancelar
-                          </button>
-                          <button
-                            type="submit"
-                            disabled={salvandoSolucaoTab}
-                            className="px-5 py-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-xs"
-                          >
-                            {salvandoSolucaoTab ? 'Salvando...' : 'Salvar Solução'}
-                          </button>
-                        </div>
-                      </div>
-                    </motion.form>
-                  )}
-                </AnimatePresence>
-
-                {/* Barra de Busca de Soluções com Fallback Automático */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={kbQuery}
-                    onChange={(e) => setKbQuery(e.target.value)}
-                    placeholder="Pesquisar por código de erro, sintoma ou palavras-chave nas soluções anteriores..."
-                    className="w-full pl-9 pr-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20"
-                  />
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* LISTAGEM INTELIGENTE DE SOLUÇÕES */}
-                <div className="space-y-4">
-                  {/* Seção A: Soluções Desta Empresa */}
-                  {listaSolucoesTab.filter(s => s.empresa_id === empresa.id).length > 0 && (
-                    <div className="space-y-2.5">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">
-                          Soluções Catalogadas para {empresa.nome} ({listaSolucoesTab.filter(s => s.empresa_id === empresa.id).length})
-                        </h4>
-                      </div>
-
-                      <div className="space-y-2.5">
-                        {listaSolucoesTab.filter(s => s.empresa_id === empresa.id).map((sol) => (
-                          <div
-                            key={sol.id}
-                            className="p-4 rounded-2xl border border-blue-500/20 bg-blue-500/[0.02] dark:bg-blue-500/[0.04] space-y-2 group"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  {sol.erro_codigo && (
-                                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-red-500/10 text-red-600 dark:text-red-400">
-                                      {sol.erro_codigo}
-                                    </span>
-                                  )}
-                                  <span className="text-[10px] font-semibold text-blue-700 dark:text-blue-300">
-                                    {sol.tipo_erro}
-                                  </span>
-                                </div>
-                                <h5 className="text-xs font-bold text-[#1d1d1f] dark:text-white mt-1">
-                                  {sol.titulo}
-                                </h5>
-                              </div>
-
-                              {!sol.is_from_history && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setConfirmDialog({
-                                      title: 'Excluir Solução?',
-                                      message: `Deseja remover "${sol.titulo}" da base de conhecimento?`,
-                                      confirmText: 'Excluir',
-                                      variant: 'danger',
-                                      onConfirm: async () => {
-                                        await deleteSolucaoSuporte(sol.id, userEmail);
-                                        showToast('Solução removida.', 'info');
-                                        setConfirmDialog(null);
-                                        carregarSolucoesTab();
-                                      },
-                                    });
-                                  }}
-                                  className="text-slate-300 hover:text-red-500 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                                >
-                                  <TrashIcon className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
-
-                            <div className="p-3 rounded-xl bg-white dark:bg-zinc-900 border border-black/[0.04] dark:border-white/[0.06] text-xs font-mono text-slate-700 dark:text-zinc-300 whitespace-pre-line leading-relaxed">
-                              {sol.solucao_passos}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Seção B: Soluções do Banco Geral (Automático: quando não há desta conta ou para enriquecer) */}
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300">
-                          {listaSolucoesTab.filter(s => s.empresa_id === empresa.id).length === 0
-                            ? 'Soluções Encontradas no Banco Geral (Todas as Empresas)'
-                            : 'Outras Soluções Similares do Banco Geral'}
-                        </h4>
-                      </div>
-                      {listaSolucoesTab.filter(s => s.empresa_id === empresa.id).length === 0 && (
-                        <span className="text-[10px] text-slate-400 font-mono">
-                          (Sem registro exclusivo nesta conta para este termo)
-                        </span>
-                      )}
-                    </div>
-
-                    {listaSolucoesTab.filter(s => s.empresa_id !== empresa.id).length === 0 ? (
-                      <div className="p-8 text-center rounded-2xl border border-dashed border-black/[0.08] dark:border-white/[0.1] text-xs text-slate-400">
-                        Nenhuma solução encontrada no banco geral.
-                      </div>
-                    ) : (
-                      listaSolucoesTab.filter(s => s.empresa_id !== empresa.id).slice(0, 10).map((sol) => (
-                        <div
-                          key={sol.id}
-                          className="p-4 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.01] dark:bg-white/[0.02] hover:bg-white dark:hover:bg-[#1a1a20] transition-all space-y-2 group"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {sol.erro_codigo && (
-                                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-red-500/10 text-red-600 dark:text-red-400">
-                                    {sol.erro_codigo}
-                                  </span>
-                                )}
-                                <span className="text-[10px] font-semibold text-slate-700 dark:text-zinc-300">
-                                  {sol.tipo_erro}
-                                </span>
-                                <span className="text-[10px] text-slate-400 font-mono">
-                                  • {sol.empresa_nome}
-                                </span>
-                              </div>
-                              <h5 className="text-xs font-bold text-[#1d1d1f] dark:text-white mt-1">
-                                {sol.titulo}
-                              </h5>
-                            </div>
-
-                            {!sol.is_from_history && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setConfirmDialog({
-                                    title: 'Excluir Solução?',
-                                    message: `Deseja remover "${sol.titulo}" da base de conhecimento?`,
-                                    confirmText: 'Excluir',
-                                    variant: 'danger',
-                                    onConfirm: async () => {
-                                      await deleteSolucaoSuporte(sol.id, userEmail);
-                                      showToast('Solução removida.', 'info');
-                                      setConfirmDialog(null);
-                                      carregarSolucoesTab();
-                                    },
-                                  });
-                                }}
-                                className="text-slate-300 hover:text-red-500 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                              >
-                                <TrashIcon className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-
-                          <div className="p-3 rounded-xl bg-white dark:bg-zinc-900 border border-black/[0.04] dark:border-white/[0.06] text-xs font-mono text-slate-700 dark:text-zinc-300 whitespace-pre-line leading-relaxed">
-                            {sol.solucao_passos}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-              </div>
-
-            </div>
-          )}
-{/* ============================================================================== */}
           {/* ABA 5: HISTÓRICO DE SUPORTE */}
           {/* ============================================================================== */}
           {activeTab === 'chamados' && (

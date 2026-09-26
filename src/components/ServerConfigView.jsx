@@ -44,7 +44,7 @@ import {
 import { generateSecurePassword } from '@/lib/security';
 
 export default function ServerConfigView() {
-  const [subTab, setSubTab] = useState('checklist'); // 'checklist' | 'usuarios' | 'motivos' | 'geral' | 'formatos'
+  const [subTab, setSubTab] = useState('usuarios'); // 'checklist' | 'usuarios' | 'motivos' | 'geral' | 'formatos'
   const [confirmDialog, setConfirmDialog] = useState(null);
   
   // Checklist Template
@@ -317,11 +317,9 @@ export default function ServerConfigView() {
       {/* Sub-Abas em Apple Segmented Bar */}
       <div className="flex border-b border-black/[0.06] dark:border-white/[0.08] gap-1.5 overflow-x-auto pb-1">
         {[
-          { id: 'checklist', label: 'Checklist de Requisitos', count: checklistItems.length },
           { id: 'usuarios', label: 'Equipe & Senhas', count: equipe.length },
+          { id: 'checklist', label: 'Checklist de Requisitos', count: checklistItems.length },
           { id: 'motivos', label: 'Motivos de Atendimento', count: motivosList.length },
-          { id: 'geral', label: 'Regras de Suporte & Senha Padrão' },
-          { id: 'formatos', label: 'Formatos de Conversa' },
         ].map((tab) => {
           const isActive = subTab === tab.id;
           return (
@@ -989,32 +987,6 @@ export default function ServerConfigView() {
                   </span>
                 </div>
               ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ============================================================================== */}
-      {/* SUB-ABA 5: FORMATOS DE CONVERSA */}
-      {/* ============================================================================== */}
-      {subTab === 'formatos' && (
-        <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-4 shadow-sm animate-fade-in">
-          <h2 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
-            Diretrizes dos Formatos de Conversa
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div className="p-5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.08] space-y-2">
-              <span className="font-bold text-[#1d1d1f] dark:text-white block">Formato Colaborativo</span>
-              <p className="text-slate-600 dark:text-zinc-400 leading-relaxed">
-                Fila única aberta. Ideal para centrais de atendimento, lojas e vendas ágeis onde qualquer atendente disponível pode puxar o próximo ticket da fila.
-              </p>
-            </div>
-
-            <div className="p-5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.08] space-y-2">
-              <span className="font-bold text-[#1d1d1f] dark:text-white block">Formato Individual</span>
-              <p className="text-slate-600 dark:text-zinc-400 leading-relaxed">
-                Isolamento estrito de conversas por operador. Atende aos requisitos da LGPD para setores médicos, jurídicos ou consultorias executivas onde o cliente não pode ter suas mensagens lidas por outros funcionários.
-              </p>
             </div>
           </div>
         </div>

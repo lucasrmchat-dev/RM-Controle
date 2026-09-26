@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { 
+  getDefaultViewMode,
+  removerAcentos,
   getEmpresas, 
   createEmpresa, 
   createEmpresasEmMassa, 
@@ -49,13 +51,30 @@ export default function Home() {
   const [theme, setTheme] = useState('light');
 
   // Modo de Exibição das Empresas: 'grid' (Cards) | 'list' (Lista/Tabela)
-  const [empresasViewMode, setEmpresasViewMode] = useState('grid');
+  const [empresasViewMode, setEmpresasViewMode] = useState('list');
+  const [sortColumn, setSortColumn] = useState('nome');
+  const [sortDirection, setSortDirection] = useState('asc');
+
+  const handleSortColumn = (col) => {
+    if (sortColumn === col) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortColumn(col);
+      setSortDirection('asc');
+    }
+  };
 
   useEffect(() => {
-    const saved = localStorage.getItem('rm_empresas_view_mode');
-    if (saved === 'list' || saved === 'grid') {
-      setEmpresasViewMode(saved);
-    }
+    const defaultM = getDefaultViewMode();
+    const effective = defaultM === 'cards' || defaultM === 'grid' ? 'grid' : 'list';
+    setEmpresasViewMode(effective);
+
+    const handleGlobalUpdate = (e) => {
+      const mode = e.detail === 'cards' || e.detail === 'grid' ? 'grid' : 'list';
+      setEmpresasViewMode(mode);
+    };
+    window.addEventListener('rm_default_view_mode_updated', handleGlobalUpdate);
+    return () => window.removeEventListener('rm_default_view_mode_updated', handleGlobalUpdate);
   }, []);
 
   const handleChangeViewMode = (mode) => {
@@ -869,7 +888,31 @@ export default function Home() {
                       transition={{ duration: 0.2 }}
                       className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4"
                     >
-                      {empresas.map((emp) => {
+                      {[...empresas].sort((a, b) => {
+                        let valA = '';
+                        let valB = '';
+                        if (sortColumn === 'nome') {
+                          valA = a.nome || '';
+                          valB = b.nome || '';
+                        } else if (sortColumn === 'servidor') {
+                          valA = `${a.servidor_alocado || ''}_${a.formato_atendimento || ''}`;
+                          valB = `${b.servidor_alocado || ''}_${b.formato_atendimento || ''}`;
+                        } else if (sortColumn === 'canais') {
+                          valA = a.canais?.length || 0;
+                          valB = b.canais?.length || 0;
+                          return sortDirection === 'asc' ? valA - valB : valB - valA;
+                        } else if (sortColumn === 'setup') {
+                          const cA = a.checklist?.filter((c) => c.concluido).length || 0;
+                          const cB = b.checklist?.filter((c) => c.concluido).length || 0;
+                          return sortDirection === 'asc' ? cA - cB : cB - cA;
+                        } else if (sortColumn === 'status') {
+                          valA = getChamadoAtivo(a.id) ? 'em_suporte' : 'livre';
+                          valB = getChamadoAtivo(b.id) ? 'em_suporte' : 'livre';
+                        }
+                        return sortDirection === 'asc'
+                          ? valA.toString().localeCompare(valB.toString())
+                          : valB.toString().localeCompare(valA.toString());
+                      }).map((emp) => {
                         const checklistTotal = emp.checklist?.length || 0;
                         const checklistConcluidos = emp.checklist?.filter((c) => c.concluido).length || 0;
                         const progressoPct = checklistTotal > 0 ? Math.round((checklistConcluidos / checklistTotal) * 100) : 0;
@@ -996,17 +1039,56 @@ export default function Home() {
                       transition={{ duration: 0.2 }}
                       className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-sm"
                     >
-                      {/* Cabeçalho da Tabela Apple */}
+                      {/* Cabeçalho da Tabela Apple com Ordenação */}
                       <div className="hidden lg:grid grid-cols-12 gap-4 px-5 py-3.5 border-b border-black/[0.05] dark:border-white/[0.06] text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 bg-black/[0.01] dark:bg-white/[0.02]">
-                        <div className="col-span-4">Empresa / E-mail</div>
-                        <div className="col-span-2">Servidor & Formato</div>
-                        <div className="col-span-2">Canais</div>
-                        <div className="col-span-2">Setup Checklist</div>
-                        <div className="col-span-2 text-right">Status / Ação</div>
+                        <div className="col-span-4 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => handleSortColumn('nome')}>
+                          <span>Empresa / E-mail</span>
+                          {sortColumn === 'nome' && <span>{sortDirection === 'asc' ? '▲' : '▼'}</span>}
+                        </div>
+                        <div className="col-span-2 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => handleSortColumn('servidor')}>
+                          <span>Servidor & Formato</span>
+                          {sortColumn === 'servidor' && <span>{sortDirection === 'asc' ? '▲' : '▼'}</span>}
+                        </div>
+                        <div className="col-span-2 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => handleSortColumn('canais')}>
+                          <span>Canais</span>
+                          {sortColumn === 'canais' && <span>{sortDirection === 'asc' ? '▲' : '▼'}</span>}
+                        </div>
+                        <div className="col-span-2 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => handleSortColumn('setup')}>
+                          <span>Setup Checklist</span>
+                          {sortColumn === 'setup' && <span>{sortDirection === 'asc' ? '▲' : '▼'}</span>}
+                        </div>
+                        <div className="col-span-2 text-right cursor-pointer select-none flex items-center justify-end gap-1 hover:text-black dark:hover:text-white" onClick={() => handleSortColumn('status')}>
+                          <span>Status / Ação</span>
+                          {sortColumn === 'status' && <span>{sortDirection === 'asc' ? '▲' : '▼'}</span>}
+                        </div>
                       </div>
 
                       <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
-                        {empresas.map((emp) => {
+                        {[...empresas].sort((a, b) => {
+                          let valA = '';
+                          let valB = '';
+                          if (sortColumn === 'nome') {
+                            valA = a.nome || '';
+                            valB = b.nome || '';
+                          } else if (sortColumn === 'servidor') {
+                            valA = `${a.servidor_alocado || ''}_${a.formato_atendimento || ''}`;
+                            valB = `${b.servidor_alocado || ''}_${b.formato_atendimento || ''}`;
+                          } else if (sortColumn === 'canais') {
+                            valA = a.canais?.length || 0;
+                            valB = b.canais?.length || 0;
+                            return sortDirection === 'asc' ? valA - valB : valB - valA;
+                          } else if (sortColumn === 'setup') {
+                            const cA = a.checklist?.filter((c) => c.concluido).length || 0;
+                            const cB = b.checklist?.filter((c) => c.concluido).length || 0;
+                            return sortDirection === 'asc' ? cA - cB : cB - cA;
+                          } else if (sortColumn === 'status') {
+                            valA = getChamadoAtivo(a.id) ? 'em_suporte' : 'livre';
+                            valB = getChamadoAtivo(b.id) ? 'em_suporte' : 'livre';
+                          }
+                          return sortDirection === 'asc'
+                            ? valA.toString().localeCompare(valB.toString())
+                            : valB.toString().localeCompare(valA.toString());
+                        }).map((emp) => {
                           const checklistTotal = emp.checklist?.length || 0;
                           const checklistConcluidos = emp.checklist?.filter((c) => c.concluido).length || 0;
                           const progressoPct = checklistTotal > 0 ? Math.round((checklistConcluidos / checklistTotal) * 100) : 0;
@@ -1142,6 +1224,7 @@ export default function Home() {
                 <DashboardView
                   onSelectEmpresa={handleSelectEmpresaGlobal}
                   userEmail={userEmail}
+                  onNavigate={(tab) => setActiveTab(tab)}
                 />
               )}
 
@@ -1214,6 +1297,22 @@ export default function Home() {
                     >
                       <PlayIcon className="w-3.5 h-3.5 fill-current" />
                       <span>Continuar Chamado em Andamento</span>
+                    </motion.button>
+
+                    <motion.button
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        const ativo = getChamadoAtivo(empresaAcaoModal.id);
+                        if (ativo) {
+                          setModalEncerrarChamado(ativo);
+                          setEmpresaAcaoModal(null);
+                        }
+                      }}
+                      className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    >
+                      <CheckIcon className="w-3.5 h-3.5" />
+                      <span>Concluir Chamado</span>
                     </motion.button>
 
                     <motion.button

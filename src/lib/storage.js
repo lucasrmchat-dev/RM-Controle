@@ -18,6 +18,32 @@ export function setMockDataEnabled(enabled) {
 }
 
 // ==============================================================================
+// PREFERÊNCIA GLOBAL DE VISUALIZAÇÃO (CARDS VS. LISTA)
+// ==============================================================================
+export function getDefaultViewMode() {
+  if (typeof window === 'undefined') return 'list';
+  return localStorage.getItem('rm_default_view_mode') || 'list';
+}
+
+export function setDefaultViewMode(mode) {
+  if (typeof window === 'undefined') return;
+  const valid = mode === 'cards' || mode === 'grid' ? 'cards' : 'list';
+  localStorage.setItem('rm_default_view_mode', valid);
+  window.dispatchEvent(new CustomEvent('rm_default_view_mode_updated', { detail: valid }));
+}
+
+// Auxiliar para remoção de acentos em buscas inteligentes
+export function removerAcentos(str) {
+  if (!str) return '';
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+
+// ==============================================================================
 // SENHA PADRÃO DE REDEFINIÇÃO / CONTINGÊNCIA (CONFIGURAÇÕES GERAIS)
 // ==============================================================================
 export function getSenhaPadraoRedefinicao() {
@@ -635,6 +661,33 @@ export async function addColaboradorEmpresa(empresaId, { nome, cargo = '', email
   return novoColaborador;
 }
 
+export function getColaboradoresEmpresa(empresaId) {
+  if (!empresaId) return [];
+  const empresas = getLocalData('empresas_reais', []);
+  const emp = empresas.find((e) => e.id === empresaId);
+  return emp?.colaboradores || [];
+}
+
+export async function deleteColaboradorEmpresa(empresaId, colaboradorId, userEmail = 'admin@rmcontrole.com') {
+  if (!empresaId || !colaboradorId) return false;
+  let empresas = getLocalData('empresas_reais', []);
+  let emp = empresas.find((e) => e.id === empresaId);
+  if (emp && emp.colaboradores) {
+    emp.colaboradores = emp.colaboradores.filter((c) => c.id !== colaboradorId);
+    setLocalData('empresas_reais', empresas);
+    await logAuditoria({
+      empresaId,
+      usuarioEmail: userEmail,
+      acao: 'removeu_colaborador_empresa',
+      detalhes: { colaborador_id: colaboradorId, modulo: 'Colaboradores da Empresa' },
+    });
+    window.dispatchEvent(new Event('empresas_updated'));
+    return true;
+  }
+  return false;
+}
+
+
 export async function deleteHistoricoChamado(chamadoId, userEmail = 'admin@rmcontrole.com') {
   // 1. Remove do historico_chamados
   let historico = getLocalData('historico_chamados', []);
@@ -1121,8 +1174,7 @@ export function getEmpresaCredenciais(empresaId) {
   return emp.credenciais_lista || [];
 }
 
-export async function addEmpresaCredencial(empresaId, { rotulo, usuario_email, senha, observacao = '' }, userEmail = 'admin@rmcontrole.com') {
-  if (!senha || !senha.trim()) throw new Error('A senha é obrigatória.');
+export async function addEmpresaCredencial(empresaId, { rotulo, nome_usuario = '', usuario_email = '', senha = '', observacao = '' }, userEmail = 'admin@rmcontrole.com') {
 
   let credId = 'cred_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
 
@@ -1167,8 +1219,9 @@ export async function addEmpresaCredencial(empresaId, { rotulo, usuario_email, s
   const novaCred = {
     id: credId,
     rotulo: (rotulo || 'Acesso Suporte').trim(),
+    nome_usuario: (nome_usuario || '').trim(),
     usuario_email: (usuario_email || '').trim(),
-    senha: senha.trim(),
+    senha: (senha || '').trim(),
     observacao: (observacao || '').trim(),
     ultima_alteracao: new Date().toISOString(),
   };
@@ -1221,6 +1274,11 @@ export async function updateEmpresaCredencial(empresaId, credId, dados, userEmai
       emp.credenciais_lista[idx] = {
         ...emp.credenciais_lista[idx],
         ...dados,
+        nome_usuario: dados.nome_usuario !== undefined ? dados.nome_usuario.trim() : (emp.credenciais_lista[idx].nome_usuario || ''),
+        usuario_email: dados.usuario_email !== undefined ? dados.usuario_email.trim() : (emp.credenciais_lista[idx].usuario_email || ''),
+        senha: dados.senha !== undefined ? dados.senha.trim() : (emp.credenciais_lista[idx].senha || ''),
+        rotulo: dados.rotulo !== undefined ? dados.rotulo.trim() : emp.credenciais_lista[idx].rotulo,
+        observacao: dados.observacao !== undefined ? dados.observacao.trim() : emp.credenciais_lista[idx].observacao,
         ultima_alteracao: new Date().toISOString(),
       };
       setLocalData('empresas_reais', empresas);
@@ -2655,7 +2713,14 @@ const DEFAULT_SOLUCOES = [
 ];
 
 export function getSolucoesSuporte({ empresa_id = null, query = '', tag = '', tipo = '' } = {}) {
-  const base = getLocalData('solucoes_suporte', DEFAULT_SOLUCOES);
+  const mockAtivo = isMockDataEnabled();
+  let base = getLocalData('solucoes_suporte', []);
+  if (!mockAtivo) {
+    base = base.filter((s) => s.is_user_created || s.id?.startsWith('sol_usr_'));
+  } else if (base.length === 0) {
+    base = DEFAULT_SOLUCOES;
+  }
+
   const historico = getLocalData('historico_chamados', []);
 
   // Extrai soluções implícitas de atendimentos concluídos que possuem observações
@@ -2672,8 +2737,8 @@ export function getSolucoesSuporte({ empresa_id = null, query = '', tag = '', ti
       solucao_passos: h.observacoes || h.resolucao,
       tags: [
         'atendimento',
-        (h.motivo || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
-        (h.empresa_nome || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+        removerAcentos(h.motivo || '').replace(/[^a-z0-9]/g, ''),
+        removerAcentos(h.empresa_nome || '').replace(/[^a-z0-9]/g, '')
       ].filter(Boolean),
       autor_email: h.tecnico_email || 'suporte@rmcontrole.com',
       created_at: h.finalizado_em || h.created_at || new Date().toISOString(),
@@ -2682,27 +2747,28 @@ export function getSolucoesSuporte({ empresa_id = null, query = '', tag = '', ti
 
   let todas = [...base, ...solucoesHistorico];
 
-  // Filtro por Tipo de Erro
+  // Filtro por Tipo de Erro (insensível a acentuação)
   if (tipo && tipo !== 'todos') {
-    todas = todas.filter((s) => s.tipo_erro?.toLowerCase().includes(tipo.toLowerCase()));
+    const tipoNorm = removerAcentos(tipo);
+    todas = todas.filter((s) => removerAcentos(s.tipo_erro).includes(tipoNorm));
   }
 
-  // Filtro por Tag
+  // Filtro por Tag (insensível a acentuação)
   if (tag) {
-    const tagClean = tag.toLowerCase().trim();
-    todas = todas.filter((s) => s.tags?.some((t) => t.toLowerCase() === tagClean));
+    const tagNorm = removerAcentos(tag);
+    todas = todas.filter((s) => s.tags?.some((t) => removerAcentos(t) === tagNorm));
   }
 
-  // Busca textual Inteligente (Palavra-chave, código de erro, sintoma, passos)
+  // Busca textual Inteligente insensível a acentuação e maiúsculas/minúsculas
   if (query && query.trim()) {
-    const q = query.toLowerCase().trim();
+    const q = removerAcentos(query);
     todas = todas.filter((s) => {
-      const matchTitulo = (s.titulo || '').toLowerCase().includes(q);
-      const matchCodigo = (s.erro_codigo || '').toLowerCase().includes(q);
-      const matchContexto = (s.contexto || '').toLowerCase().includes(q);
-      const matchPassos = (s.solucao_passos || '').toLowerCase().includes(q);
-      const matchEmpresa = (s.empresa_nome || '').toLowerCase().includes(q);
-      const matchTags = s.tags?.some((t) => t.toLowerCase().includes(q));
+      const matchTitulo = removerAcentos(s.titulo).includes(q);
+      const matchCodigo = removerAcentos(s.erro_codigo).includes(q);
+      const matchContexto = removerAcentos(s.contexto).includes(q);
+      const matchPassos = removerAcentos(s.solucao_passos).includes(q);
+      const matchEmpresa = removerAcentos(s.empresa_nome).includes(q);
+      const matchTags = s.tags?.some((t) => removerAcentos(t).includes(q));
       return matchTitulo || matchCodigo || matchContexto || matchPassos || matchEmpresa || matchTags;
     });
   }
@@ -2734,7 +2800,7 @@ export async function addSolucaoSuporte({
     : String(tags || '').split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
 
   const nova = {
-    id: 'sol_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+    id: 'sol_usr_' + Date.now(), is_user_created: true + '_' + Math.random().toString(36).substr(2, 4),
     empresa_id: empresa_id || null,
     empresa_nome: (empresa_nome || 'Global').trim(),
     titulo: titulo.trim(),

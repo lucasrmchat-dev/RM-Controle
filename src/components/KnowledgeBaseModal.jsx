@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getSolucoesSuporte, addSolucaoSuporte, deleteSolucaoSuporte } from '@/lib/storage';
+import { getSolucoesSuporte, addSolucaoSuporte, deleteSolucaoSuporte, removerAcentos } from '@/lib/storage';
 import { showToast } from './ToastNotification';
 import ConfirmModal from './ConfirmModal';
+import { XMarkIcon } from './Icons';
 
 export default function KnowledgeBaseModal({
   isOpen,
@@ -103,10 +104,10 @@ export default function KnowledgeBaseModal({
 
   if (!isOpen) return null;
 
-  const tagsFrequentes = [
-    'qrcode', 'evolution', 'pareamento', 'meta', 'waba', 
-    '131026', 'ssl', 'postgres', 'redefinicao', 'senha', 'timeout'
-  ];
+  // Extrai tags disponíveis estritamente das soluções existentes (sem tags fictícias hardcoded)
+  const tagsDisponiveis = Array.from(
+    new Set(solucoes.flatMap((s) => s.tags || []).filter(Boolean))
+  );
 
   // Separação inteligente: soluções desta empresa vs soluções do banco geral
   const solucoesDestaEmpresa = empresa?.id ? solucoes.filter((s) => s.empresa_id === empresa.id) : [];
@@ -114,13 +115,13 @@ export default function KnowledgeBaseModal({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 w-screen h-screen z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+      <div className="fixed inset-0 w-screen h-screen z-50 bg-black/50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
         <motion.div
-          initial={{ opacity: 0, scale: 0.94, y: 15 }}
+          initial={{ opacity: 0, scale: 0.96, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 12 }}
-          transition={{ type: 'spring', damping: 26, stiffness: 320 }}
-          className="relative w-full max-w-4xl max-h-[90vh] rounded-[32px] border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-[#16161a] backdrop-blur-2xl p-6 sm:p-8 shadow-2xl flex flex-col text-[#1d1d1f] dark:text-[#f5f5f7] my-auto overflow-hidden"
+          exit={{ opacity: 0, scale: 0.96, y: 10 }}
+          transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+          className="relative w-full max-w-4xl max-h-[90vh] rounded-[28px] border border-black/10 dark:border-white/15 bg-white dark:bg-[#16161a] p-6 sm:p-8 shadow-2xl flex flex-col text-[#1d1d1f] dark:text-[#f5f5f7] my-auto overflow-hidden"
         >
           {/* Cabeçalho */}
           <div className="flex items-start justify-between gap-4 pb-4 border-b border-black/[0.05] dark:border-white/[0.06]">
@@ -144,7 +145,7 @@ export default function KnowledgeBaseModal({
                 Como Resolver Chamados
               </h2>
               <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                Pesquisa automática: se o erro não estiver documentado nesta empresa, o sistema busca automaticamente em todo o banco geral.
+                Pesquisa automática: busca por sintomas, códigos de erro e procedimentos sem distinção de acentos ou maiúsculas.
               </p>
             </div>
 
@@ -163,7 +164,7 @@ export default function KnowledgeBaseModal({
                 className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-2 rounded-full hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-all cursor-pointer"
                 title="Fechar"
               >
-                ✕
+                <XMarkIcon className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -178,7 +179,7 @@ export default function KnowledgeBaseModal({
                     type="text"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Digite o código de erro (ex: 131026, 401), sintoma, QR Code, SSL, senha..."
+                    placeholder="Digite o código de erro (ex: 131026, 401), sintoma, reconexão, SSL, senha..."
                     className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20"
                     autoFocus
                   />
@@ -189,273 +190,291 @@ export default function KnowledgeBaseModal({
                   </div>
                 </div>
 
-                {/* Filtro Rápido por Tags */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px]">
-                  <span className="text-slate-400 text-[10px] uppercase font-mono mr-1">Tags:</span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedTag('')}
-                    className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all cursor-pointer ${
-                      !selectedTag
-                        ? 'bg-black text-white dark:bg-white dark:text-black'
-                        : 'bg-black/[0.03] dark:bg-white/[0.05] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.06]'
-                    }`}
-                  >
-                    Todas
-                  </button>
-                  {tagsFrequentes.map((t) => (
+                {/* Filtro Rápido por Tags Dinâmicas (apenas se houver tags reais cadastradas) */}
+                {tagsDisponiveis.length > 0 && (
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px]">
+                    <span className="text-slate-400 text-[10px] uppercase font-mono mr-1">Tags:</span>
                     <button
-                      key={t}
                       type="button"
-                      onClick={() => setSelectedTag(selectedTag === t ? '' : t)}
-                      className={`px-2.5 py-1 rounded-full text-[10px] font-mono transition-all cursor-pointer ${
-                        selectedTag === t
-                          ? 'bg-[#4d7c0f] text-white dark:bg-[#84cc16] dark:text-zinc-950 font-bold'
+                      onClick={() => setSelectedTag('')}
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all cursor-pointer ${
+                        !selectedTag
+                          ? 'bg-black text-white dark:bg-white dark:text-black'
                           : 'bg-black/[0.03] dark:bg-white/[0.05] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.06]'
                       }`}
                     >
-                      #{t}
+                      Todas
                     </button>
-                  ))}
-                </div>
+                    {tagsDisponiveis.map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setSelectedTag(selectedTag === t ? '' : t)}
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-mono transition-all cursor-pointer ${
+                          selectedTag === t
+                            ? 'bg-[#4d7c0f] text-white dark:bg-[#84cc16] dark:text-zinc-950 font-bold'
+                            : 'bg-black/[0.03] dark:bg-white/[0.05] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.06]'
+                        }`}
+                      >
+                        #{t}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* LISTAGEM DE SOLUÇÕES: DESTA EMPRESA + FALLBACK GERAL AUTOMÁTICO */}
               <div className="space-y-4 pt-1">
                 
-                {/* 1. Soluções Específicas desta Empresa */}
-                {empresa && solucoesDestaEmpresa.length > 0 && (
-                  <div className="space-y-2.5">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">
-                        Soluções Registradas para {empresa.nome} ({solucoesDestaEmpresa.length})
-                      </h3>
+                {/* 1. SEÇÃO DESTA EMPRESA (SE HOUVER) */}
+                {empresa?.id && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-zinc-200">
+                      <span className="w-2 h-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16]"></span>
+                      <span>Soluções Específicas de {empresa.nome} ({solucoesDestaEmpresa.length})</span>
                     </div>
 
-                    <div className="space-y-2.5">
-                      {solucoesDestaEmpresa.map((item) => (
+                    {solucoesDestaEmpresa.length === 0 ? (
+                      <div className="p-4 rounded-2xl border border-dashed border-black/10 dark:border-white/10 text-center text-xs text-slate-400">
+                        Nenhuma solução cadastrada especificamente para {empresa.nome} com este filtro.
+                      </div>
+                    ) : (
+                      solucoesDestaEmpresa.map((s) => (
                         <div
-                          key={item.id}
-                          className="p-4 sm:p-5 rounded-3xl border border-blue-500/20 bg-blue-500/[0.02] dark:bg-blue-500/[0.03] space-y-2.5 group"
+                          key={s.id}
+                          className="rounded-2xl p-5 border border-emerald-500/25 dark:border-emerald-500/20 bg-emerald-500/[0.02] dark:bg-emerald-500/[0.04] space-y-3 relative group"
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {item.erro_codigo && (
-                                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20">
-                                    {item.erro_codigo}
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                {s.erro_codigo && (
+                                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 font-mono text-[10px] font-bold">
+                                    {s.erro_codigo}
                                   </span>
                                 )}
-                                <span className="text-[10px] font-semibold text-blue-700 dark:text-blue-300">
-                                  {item.tipo_erro}
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/[0.03] dark:bg-white/[0.05] text-slate-600 dark:text-zinc-400">
+                                  {s.tipo_erro}
                                 </span>
                               </div>
-                              <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white mt-1">
-                                {item.titulo}
+                              <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
+                                {s.titulo}
                               </h4>
+                              {s.contexto && (
+                                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5 italic">
+                                  Contexto: {s.contexto}
+                                </p>
+                              )}
                             </div>
 
-                            {!item.is_from_history && (
-                              <button
-                                type="button"
-                                onClick={() => setSolucaoParaExcluir(item)}
-                                className="text-slate-300 hover:text-red-500 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                              >
-                                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                </svg>
-                              </button>
-                            )}
+                            <button
+                              onClick={() => setSolucaoParaExcluir(s)}
+                              className="text-slate-300 hover:text-red-500 p-1 rounded-md transition-colors cursor-pointer"
+                              title="Excluir Solução"
+                            >
+                              <XMarkIcon className="w-4 h-4" />
+                            </button>
                           </div>
 
-                          <div className="p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-black/[0.05] dark:border-white/[0.06] text-xs font-mono text-slate-700 dark:text-zinc-300 whitespace-pre-line leading-relaxed">
-                            {item.solucao_passos}
+                          <div className="p-3.5 rounded-xl bg-white dark:bg-[#1a1a20] border border-black/[0.06] dark:border-white/[0.08] text-xs font-mono text-slate-800 dark:text-zinc-200 whitespace-pre-line leading-relaxed">
+                            {s.solucao_passos}
                           </div>
+
+                          {s.tags && s.tags.length > 0 && (
+                            <div className="flex items-center gap-1.5 flex-wrap pt-1 text-[10px] font-mono text-slate-400">
+                              {s.tags.map((t, idx) => (
+                                <span key={idx}>#{t}</span>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      ))}
-                    </div>
+                      ))
+                    )}
                   </div>
                 )}
 
-                {/* 2. Soluções do Banco Geral (Automático: quando não acha ou para complementar) */}
-                <div className="space-y-2.5">
-                  <div className="flex items-center justify-between">
+                {/* 2. SEÇÃO BANCO GERAL AUTOMÁTICO */}
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-zinc-200 border-t border-black/[0.05] dark:border-white/[0.06] pt-3">
                     <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300">
-                        {empresa && solucoesDestaEmpresa.length === 0
-                          ? 'Soluções Encontradas no Banco Geral (Todas as Empresas)'
-                          : 'Outras Soluções do Banco Geral'}
-                      </h3>
+                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                      <span>Banco Geral de Soluções ({solucoesBancoGeral.length})</span>
                     </div>
-                    {empresa && solucoesDestaEmpresa.length === 0 && (
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        (Sem registro específico nesta conta para esta busca)
+                    {empresa?.id && (
+                      <span className="text-[10px] font-normal text-slate-400">
+                        (Soluções aplicáveis a qualquer empresa)
                       </span>
                     )}
                   </div>
 
                   {solucoesBancoGeral.length === 0 ? (
-                    <div className="p-8 text-center rounded-3xl border border-dashed border-black/[0.08] dark:border-white/[0.1] text-xs text-slate-400">
-                      Nenhuma solução encontrada no banco geral. Você pode cadastrar uma nova solução pelo botão acima.
+                    <div className="p-8 rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.01] text-center space-y-2">
+                      <p className="text-xs text-slate-500 dark:text-zinc-400">
+                        Nenhuma solução encontrada no banco de conhecimento.
+                      </p>
+                      <button
+                        onClick={() => setIsNovaSolucaoOpen(true)}
+                        className="text-xs text-[#4d7c0f] dark:text-[#84cc16] font-semibold hover:underline cursor-pointer"
+                      >
+                        + Cadastrar a primeira solução
+                      </button>
                     </div>
                   ) : (
-                    <div className="space-y-2.5">
-                      {solucoesBancoGeral.map((item) => (
-                        <div
-                          key={item.id}
-                          className="p-4 sm:p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.015] dark:bg-white/[0.02] hover:bg-white dark:hover:bg-[#1a1a20] transition-all space-y-2.5 group"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {item.erro_codigo && (
-                                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20">
-                                    {item.erro_codigo}
-                                  </span>
-                                )}
-                                <span className="text-[10px] font-semibold text-slate-600 dark:text-zinc-300">
-                                  {item.tipo_erro}
+                    solucoesBancoGeral.map((s) => (
+                      <div
+                        key={s.id}
+                        className="rounded-2xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#1a1a20] space-y-3 relative group shadow-xs"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              {s.erro_codigo && (
+                                <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-700 dark:text-red-400 font-mono text-[10px] font-bold">
+                                  {s.erro_codigo}
                                 </span>
-                                <span className="text-[10px] text-slate-400 font-mono">
-                                  • {item.empresa_nome || 'Global'}
-                                </span>
-                              </div>
-                              <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white mt-1">
-                                {item.titulo}
-                              </h4>
-                              {item.contexto && (
-                                <p className="text-xs text-slate-500 dark:text-zinc-400 italic">
-                                  Contexto: {item.contexto}
-                                </p>
                               )}
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/[0.03] dark:bg-white/[0.05] text-slate-600 dark:text-zinc-400">
+                                {s.tipo_erro}
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                • {s.empresa_nome || 'Global'}
+                              </span>
                             </div>
-
-                            {!item.is_from_history && (
-                              <button
-                                type="button"
-                                onClick={() => setSolucaoParaExcluir(item)}
-                                className="text-slate-300 hover:text-red-500 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                              >
-                                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                </svg>
-                              </button>
+                            <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
+                              {s.titulo}
+                            </h4>
+                            {s.contexto && (
+                              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5 italic">
+                                Contexto: {s.contexto}
+                              </p>
                             )}
                           </div>
 
-                          <div className="p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-black/[0.05] dark:border-white/[0.06] text-xs font-mono text-slate-700 dark:text-zinc-300 whitespace-pre-line leading-relaxed">
-                            {item.solucao_passos}
-                          </div>
-
-                          {item.tags && item.tags.length > 0 && (
-                            <div className="flex items-center gap-1.5 flex-wrap text-[10px] text-slate-400 pt-0.5">
-                              {item.tags.map((tg, i) => (
-                                <span key={i} className="font-mono">#{tg}</span>
-                              ))}
-                            </div>
-                          )}
+                          <button
+                            onClick={() => setSolucaoParaExcluir(s)}
+                            className="text-slate-300 hover:text-red-500 p-1 rounded-md transition-colors cursor-pointer"
+                            title="Excluir Solução"
+                          >
+                            <XMarkIcon className="w-4 h-4" />
+                          </button>
                         </div>
-                      ))}
-                    </div>
+
+                        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-black/[0.05] dark:border-white/[0.06] text-xs font-mono text-slate-800 dark:text-zinc-200 whitespace-pre-line leading-relaxed">
+                          {s.solucao_passos}
+                        </div>
+
+                        {s.tags && s.tags.length > 0 && (
+                          <div className="flex items-center gap-1.5 flex-wrap pt-1 text-[10px] font-mono text-slate-400">
+                            {s.tags.map((t, idx) => (
+                              <span key={idx}>#{t}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))
                   )}
                 </div>
 
               </div>
+
             </div>
           ) : (
-            /* Form Nova Solução */
+            /* FORMULÁRIO DE NOVA SOLUÇÃO */
             <form onSubmit={handleSalvarSolucao} className="flex-1 overflow-y-auto space-y-4 pt-4 pr-1">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5 sm:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                    Título do Problema ou Erro <span className="text-red-500">*</span>
+              <div className="p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.05] dark:border-white/[0.06] text-xs space-y-1">
+                <span className="font-bold text-[#1d1d1f] dark:text-white">Catalogar Novo Procedimento Técnico</span>
+                <p className="text-slate-500 dark:text-zinc-400 text-[11px]">
+                  Documente sintomas e resoluções para agilizar futuros chamados de qualquer operador da equipe.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                    Título do Problema ou Solução <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={novoTitulo}
                     onChange={(e) => setNovoTitulo(e.target.value)}
-                    placeholder="Ex: Instância desconecta após reinício de VPS"
+                    placeholder="Ex: Instância Desconectada / Falha de Pareamento QR Code"
                     required
-                    className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none"
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                    Código de Erro / Referência (Opcional)
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                    Código de Erro / Identificador (Opcional)
                   </label>
                   <input
                     type="text"
                     value={novoCodigo}
                     onChange={(e) => setNovoCodigo(e.target.value)}
-                    placeholder="Ex: WABA_131026 / 401 / 502"
-                    className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20"
+                    placeholder="Ex: ERR_EVOLUTION, 131026, 401..."
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono focus:outline-none"
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                    Categoria do Erro
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                    Categoria do Suporte
                   </label>
                   <select
                     value={novoTipo}
                     onChange={(e) => setNovoTipo(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 cursor-pointer"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none"
                   >
                     <option value="Envio de Mensagem">Envio de Mensagem</option>
                     <option value="Desconexão de Instância">Desconexão de Instância</option>
-                    <option value="Redefinição de Senha">Redefinição de Senha</option>
                     <option value="Servidor VPS & SSL">Servidor VPS & SSL</option>
                     <option value="Banco de Dados">Banco de Dados</option>
-                    <option value="Fila & Triagem">Fila & Triagem</option>
+                    <option value="Redefinição de Senha">Redefinição de Senha</option>
                     <option value="Suporte Geral">Suporte Geral</option>
                   </select>
                 </div>
+
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                    Contexto ou Sintoma
+                  </label>
+                  <input
+                    type="text"
+                    value={novoContexto}
+                    onChange={(e) => setNovoContexto(e.target.value)}
+                    placeholder="Ex: Ocorre quando a VPS é reiniciada ou após inatividade do WhatsApp no celular"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                    Passo a Passo da Solução <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={novosPassos}
+                    onChange={(e) => setNovosPassos(e.target.value)}
+                    placeholder="1. Acesse o painel de instâncias&#10;2. Clique em resetar sessão&#10;3. Gere novo QR Code..."
+                    required
+                    className="w-full p-3.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono focus:outline-none resize-none leading-relaxed"
+                  />
+                </div>
+
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                    Tags de Busca (Separadas por vírgula)
+                  </label>
+                  <input
+                    type="text"
+                    value={novasTags}
+                    onChange={(e) => setNovasTags(e.target.value)}
+                    placeholder="Ex: qrcode, evolution, reinicio, timeout"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none font-mono"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                  Contexto e Sintomas Observados
-                </label>
-                <input
-                  type="text"
-                  value={novoContexto}
-                  onChange={(e) => setNovoContexto(e.target.value)}
-                  placeholder="Ex: Mensagens param de disparar após reinício do serviço"
-                  className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                  Passo a Passo da Resolução / Como Resolver <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={novosPassos}
-                  onChange={(e) => setNovosPassos(e.target.value)}
-                  rows={4}
-                  required
-                  placeholder="1. Acesse o servidor VPS via SSH&#10;2. Execute docker restart evolution_api&#10;3. Limpe o cache do Redis&#10;4. Teste novo pareamento"
-                  className="w-full p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 resize-none leading-relaxed"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                  Tags e Palavras-chave (separadas por vírgula)
-                </label>
-                <input
-                  type="text"
-                  value={novasTags}
-                  onChange={(e) => setNovasTags(e.target.value)}
-                  placeholder="Ex: evolution, redis, restart, vps, timeout"
-                  className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-black/[0.05] dark:border-white/[0.06]">
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-black/[0.05] dark:border-white/[0.06]">
                 <button
                   type="button"
                   onClick={() => setIsNovaSolucaoOpen(false)}
@@ -466,26 +485,30 @@ export default function KnowledgeBaseModal({
                 <button
                   type="submit"
                   disabled={salvando}
-                  className="px-6 py-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold shadow-sm hover:opacity-95 cursor-pointer disabled:opacity-50"
                 >
-                  {salvando ? 'Salvando...' : 'Salvar Solução na Base'}
+                  {salvando ? 'Salvando...' : 'Salvar Solução'}
                 </button>
               </div>
             </form>
           )}
 
-          <ConfirmModal
-            isOpen={Boolean(solucaoParaExcluir)}
-            title="Excluir Solução da Base?"
-            message={`Deseja remover a solução "${solucaoParaExcluir?.titulo}" do banco de conhecimento?`}
-            confirmText="Excluir Solução"
-            cancelText="Manter"
-            variant="danger"
-            onConfirm={handleConfirmarExclusao}
-            onClose={() => setSolucaoParaExcluir(null)}
-          />
         </motion.div>
       </div>
+
+      {/* Modal de Confirmação de Exclusão */}
+      {solucaoParaExcluir && (
+        <ConfirmModal
+          isOpen={Boolean(solucaoParaExcluir)}
+          title="Excluir Solução da Base?"
+          message={`Tem certeza que deseja remover a solução "${solucaoParaExcluir.titulo}" da base de conhecimento?`}
+          confirmText="Sim, Excluir"
+          cancelText="Cancelar"
+          variant="danger"
+          onConfirm={handleConfirmarExclusao}
+          onCancel={() => setSolucaoParaExcluir(null)}
+        />
+      )}
     </AnimatePresence>
   );
 }

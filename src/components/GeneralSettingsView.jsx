@@ -3,12 +3,36 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAudioConfig, setAudioConfig, playNotificationTone } from '@/lib/audioNotifications';
+import { 
+  getDefaultViewMode, 
+  setDefaultViewMode,
+  getSenhaPadraoRedefinicao,
+  setSenhaPadraoRedefinicao,
+  getConfiguracoesSuporte,
+  setConfiguracoesSuporte
+} from '@/lib/storage';
+import { generateSecurePassword } from '@/lib/security';
 import ChannelsManagement from './ChannelsManagement';
 import ServerConfigView from './ServerConfigView';
 import AuditLogsView from './AuditLogsView';
+import { 
+  SparklesIcon, 
+  SaveIcon, 
+  CheckIcon, 
+  ViewGridIcon, 
+  ViewListIcon,
+  ShieldCheckIcon,
+  WrenchIcon
+} from './Icons';
+import { showToast } from './ToastNotification';
 
-export default function GeneralSettingsView({ userEmail, initialSubTab = 'audio' }) {
+export default function GeneralSettingsView({ userEmail, initialSubTab = 'visualizacao' }) {
   const [subTab, setSubTab] = useState(initialSubTab);
+
+  // 1. Preferência de Visualização Global
+  const [viewMode, setViewModeState] = useState('list');
+
+  // 2. Alertas Sonoros
   const [audioConfig, setAudioState] = useState({
     habilitado: true,
     tipoSom: 'harmonico',
@@ -18,17 +42,61 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'audio'
   });
   const [somTocando, setSomTocando] = useState(false);
 
+  // 3. Regras de Suporte & Senha Padrão
+  const [senhaPadrao, setSenhaPadrao] = useState('');
+  const [senhaSalva, setSenhaSalva] = useState(false);
+  const [configSuporte, setConfigSuporteState] = useState({
+    motivo_obrigatorio: true,
+    solucao_obrigatoria: false,
+    colaborador_obrigatorio: false,
+    atendente_obrigatorio: false,
+  });
+
   useEffect(() => {
+    setViewModeState(getDefaultViewMode());
     setAudioState(getAudioConfig());
+    setSenhaPadrao(getSenhaPadraoRedefinicao());
+    setConfigSuporteState(getConfiguracoesSuporte());
+
     const handleAudioUpdate = () => setAudioState(getAudioConfig());
+    const handleViewModeUpdate = (e) => setViewModeState(e.detail || getDefaultViewMode());
+
     window.addEventListener('rm_audio_config_updated', handleAudioUpdate);
-    return () => window.removeEventListener('rm_audio_config_updated', handleAudioUpdate);
+    window.addEventListener('rm_default_view_mode_updated', handleViewModeUpdate);
+
+    return () => {
+      window.removeEventListener('rm_audio_config_updated', handleAudioUpdate);
+      window.removeEventListener('rm_default_view_mode_updated', handleViewModeUpdate);
+    };
   }, []);
+
+  const handleChangeViewMode = (mode) => {
+    setDefaultViewMode(mode);
+    setViewModeState(mode);
+    showToast(`Visualização do sistema definida para ${mode === 'cards' ? 'Cards' : 'Lista'} por padrão.`, 'success');
+  };
 
   const handleTestarSom = (tipo) => {
     setSomTocando(true);
     playNotificationTone(tipo || audioConfig.tipoSom);
     setTimeout(() => setSomTocando(false), 1200);
+  };
+
+  const handleSalvarSenhaPadrao = (e) => {
+    e.preventDefault();
+    if (!senhaPadrao.trim()) return;
+    setSenhaPadraoRedefinicao(senhaPadrao.trim());
+    setSenhaSalva(true);
+    showToast('Senha padrão de contingência atualizada!', 'success');
+    setTimeout(() => setSenhaSalva(false), 2500);
+  };
+
+  const handleToggleRegraSuporte = (campo) => {
+    const atualizado = setConfiguracoesSuporte({
+      [campo]: !configSuporte[campo],
+    });
+    setConfigSuporteState(atualizado);
+    showToast('Regra de atendimento atualizada!', 'info');
   };
 
   const opcoesSons = [
@@ -38,49 +106,77 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'audio'
     { id: 'incisivo', nome: 'Incisivo / Alerta Urgente', desc: 'Frequência de atenção imediata para triagem rápida', tag: 'Urgência' },
   ];
 
-  const subAbas = [
+  const gruposNavegacao = [
     {
-      id: 'audio',
-      label: 'Alertas Sonoros',
-      badge: audioConfig.habilitado ? 'Ativo' : 'Mudo',
-      icon: (
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-          <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-          <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-        </svg>
-      ),
+      titulo: 'Configurações Básicas',
+      descricao: 'Preferências do sistema, alertas e regras acessíveis ao suporte',
+      abas: [
+        {
+          id: 'visualizacao',
+          label: 'Visualização do Sistema',
+          badge: viewMode === 'cards' ? 'Cards' : 'Lista',
+          icon: viewMode === 'cards' ? <ViewGridIcon className="w-4 h-4" /> : <ViewListIcon className="w-4 h-4" />,
+        },
+        {
+          id: 'audio',
+          label: 'Alertas Sonoros',
+          badge: audioConfig.habilitado ? 'Ativo' : 'Mudo',
+          icon: (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+            </svg>
+          ),
+        },
+        {
+          id: 'regras_suporte',
+          label: 'Regras de Suporte & Senha Padrão',
+          icon: (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+              <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          ),
+        },
+      ],
     },
     {
-      id: 'canais',
-      label: 'Canais de Atendimento',
-      icon: (
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-          <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" />
-          <circle cx="12" cy="12" r="2" />
-          <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19" />
-        </svg>
-      ),
-    },
-    {
-      id: 'servidores',
-      label: 'Servidores & Equipe',
-      icon: (
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-          <rect width="20" height="8" x="2" y="2" rx="2" ry="2" />
-          <rect width="20" height="8" x="2" y="14" rx="2" ry="2" />
-        </svg>
-      ),
-    },
-    {
-      id: 'auditoria',
-      label: 'Auditoria & LGPD',
-      icon: (
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-          <path d="m9 12 2 2 4-4" />
-        </svg>
-      ),
+      titulo: 'Configurações Avançadas',
+      descricao: 'Gestão de infraestrutura, servidores, equipe e conformidade',
+      abas: [
+        {
+          id: 'canais',
+          label: 'Canais de Atendimento',
+          icon: (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+              <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" />
+              <circle cx="12" cy="12" r="2" />
+              <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19" />
+            </svg>
+          ),
+        },
+        {
+          id: 'servidores',
+          label: 'Servidores & Equipe',
+          icon: (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+              <rect width="20" height="8" x="2" y="2" rx="2" ry="2" />
+              <rect width="20" height="8" x="2" y="14" rx="2" ry="2" />
+            </svg>
+          ),
+        },
+        {
+          id: 'auditoria',
+          label: 'Auditoria & LGPD',
+          icon: (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              <path d="m9 12 2 2 4-4" />
+            </svg>
+          ),
+        },
+      ],
     },
   ];
 
@@ -96,54 +192,161 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'audio'
             Configurações Gerais
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-1">
-            Gerencie alertas sonoros, catálogo de canais de mensageria, servidores, regras de suporte e conformidade LGPD.
+            Gerencie modo de visualização, alertas sonoros, diretrizes de suporte, catálogo de canais, servidores e LGPD.
           </p>
-        </div>
-
-        {/* Segmented Control Mac / Apple Style */}
-        <div className="flex items-center p-1 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] backdrop-blur-xl overflow-x-auto max-w-full">
-          {subAbas.map((tab) => {
-            const isSel = subTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setSubTab(tab.id)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap cursor-pointer relative ${
-                  isSel
-                    ? 'text-[#1d1d1f] dark:text-white bg-white dark:bg-[#1a1a20] shadow-sm shadow-black/5'
-                    : 'text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white'
-                }`}
-              >
-                {tab.icon}
-                <span>{tab.label}</span>
-                {tab.badge && (
-                  <span
-                    className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
-                      audioConfig.habilitado
-                        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                        : 'bg-slate-400/20 text-slate-500'
-                    }`}
-                  >
-                    {tab.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
         </div>
       </div>
 
-      {/* ============================================================================== */}
-      {/* SUB-ABA 1: ALERTAS SONOROS & NOTIFICAÇÕES (NOVO DESIGN ELEGANTE DEDICADO) */}
-      {/* ============================================================================== */}
+      {/* Setorização em Configurações Básicas e Avançadas */}
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {gruposNavegacao.map((grp, idx) => (
+            <div
+              key={idx}
+              className="p-4 sm:p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-3 shadow-xs"
+            >
+              <div className="border-b border-black/[0.04] dark:border-white/[0.05] pb-2">
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block mb-1 ${
+                  idx === 0 
+                    ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20'
+                    : 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20'
+                }`}>
+                  {grp.titulo}
+                </span>
+                <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                  {grp.descricao}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {grp.abas.map((tab) => {
+                  const isSel = subTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setSubTab(tab.id)}
+                      className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
+                        isSel
+                          ? 'text-white bg-black dark:bg-white dark:text-black shadow-sm font-bold'
+                          : 'text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.06]'
+                      }`}
+                    >
+                      {tab.icon}
+                      <span>{tab.label}</span>
+                      {tab.badge && (
+                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
+                          isSel
+                            ? 'bg-white/20 text-white dark:bg-black/20 dark:text-black'
+                            : 'bg-black/[0.06] dark:bg-white/[0.08] text-slate-600 dark:text-zinc-300'
+                        }`}>
+                          {tab.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* BÁSICA 1: MODO DE VISUALIZAÇÃO PADRÃO DO SISTEMA */}
+      {subTab === 'visualizacao' && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+          className="space-y-6"
+        >
+          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] shadow-sm space-y-5">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                Preferência de Interface
+              </span>
+              <h3 className="text-lg font-bold text-[#1d1d1f] dark:text-white mt-0.5">
+                Modo de Visualização Padrão do Sistema
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
+                Escolha o formato prioritário de exibição para todas as telas do RM Controle (Empresas, Fila de Suporte, Dashboard e Credenciais). Ao selecionar uma opção, o sistema inteiro adotará essa preferência.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div
+                onClick={() => handleChangeViewMode('list')}
+                className={`p-5 rounded-2xl border-2 transition-all cursor-pointer space-y-3 ${
+                  viewMode === 'list'
+                    ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/[0.03] dark:bg-[#84cc16]/[0.05] shadow-xs'
+                    : 'border-black/[0.08] dark:border-white/[0.1] bg-black/[0.01] hover:border-black/[0.15]'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-black/[0.04] dark:bg-white/[0.08] flex items-center justify-center">
+                      <ViewListIcon className="w-5 h-5 text-slate-700 dark:text-zinc-300" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
+                        Visualização em Lista / Tabela
+                      </h4>
+                      <span className="text-[10px] text-slate-400 font-mono">Alta densidade de dados</span>
+                    </div>
+                  </div>
+                  {viewMode === 'list' && (
+                    <span className="w-5 h-5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-black flex items-center justify-center">
+                      <CheckIcon className="w-3 h-3" />
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-600 dark:text-zinc-400 leading-relaxed">
+                  Ideal para operadores e monitoramento contínuo: cabeçalhos clicáveis para ordenação alfabética, múltiplos dados em linha e rapidez na leitura.
+                </p>
+              </div>
+
+              <div
+                onClick={() => handleChangeViewMode('cards')}
+                className={`p-5 rounded-2xl border-2 transition-all cursor-pointer space-y-3 ${
+                  viewMode === 'cards'
+                    ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/[0.03] dark:bg-[#84cc16]/[0.05] shadow-xs'
+                    : 'border-black/[0.08] dark:border-white/[0.1] bg-black/[0.01] hover:border-black/[0.15]'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-black/[0.04] dark:bg-white/[0.08] flex items-center justify-center">
+                      <ViewGridIcon className="w-5 h-5 text-slate-700 dark:text-zinc-300" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
+                        Visualização em Cards / Grade
+                      </h4>
+                      <span className="text-[10px] text-slate-400 font-mono">Layout visual imersivo</span>
+                    </div>
+                  </div>
+                  {viewMode === 'cards' && (
+                    <span className="w-5 h-5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-black flex items-center justify-center">
+                      <CheckIcon className="w-3 h-3" />
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-600 dark:text-zinc-400 leading-relaxed">
+                  Design moderno em cartões individuais com ênfase em status, contadores e atalhos visuais por elemento.
+                </p>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* BÁSICA 2: ALERTAS SONOROS */}
       {subTab === 'audio' && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25 }}
+          transition={{ duration: 0.2 }}
           className="space-y-6"
         >
-          {/* Card 1: Chave Geral de Alertas Sonoros */}
           <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] shadow-sm space-y-4">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -158,7 +361,6 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'audio'
                 </p>
               </div>
 
-              {/* Switch Toggle */}
               <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
                 <input
                   type="checkbox"
@@ -173,247 +375,332 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'audio'
 
           {audioConfig.habilitado && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              
-              {/* Card 2: Escopo de Notificação */}
               <div className="rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] shadow-sm space-y-4">
                 <div>
                   <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
-                    Filtro de Escopo de Atendimento
+                    Escopo das Notificações
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                    Escolha quais chamados devem acionar o aviso sonoro neste dispositivo.
+                    Defina quando o som deve ser disparado para o seu usuário.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setAudioConfig({ escopo: 'apenas_meus' })}
-                    className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
-                      audioConfig.escopo === 'apenas_meus'
-                        ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10 text-[#1d1d1f] dark:text-white shadow-xs'
-                        : 'border-black/[0.06] dark:border-white/[0.08] hover:border-black/[0.12] text-slate-600 dark:text-zinc-400'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-sm font-bold">Só atribuídos a mim</span>
-                      {audioConfig.escopo === 'apenas_meus' && (
-                        <span className="w-2 h-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16]" />
-                      )}
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-snug">
-                      Toca apenas quando você for designado nominalmente como técnico do chamado.
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setAudioConfig({ escopo: 'todos' })}
-                    className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
-                      audioConfig.escopo === 'todos'
-                        ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10 text-[#1d1d1f] dark:text-white shadow-xs'
-                        : 'border-black/[0.06] dark:border-white/[0.08] hover:border-black/[0.12] text-slate-600 dark:text-zinc-400'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-sm font-bold">Fila inteira (todos)</span>
-                      {audioConfig.escopo === 'todos' && (
-                        <span className="w-2 h-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16]" />
-                      )}
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-snug">
-                      Toca para qualquer chamado que ingressar na fila, ideal para triagem geral.
-                    </p>
-                  </button>
+                <div className="space-y-2">
+                  {[
+                    { id: 'todos', titulo: 'Qualquer Chamado na Fila', desc: 'Toca quando qualquer cliente solicitar suporte na central' },
+                    { id: 'atribuidos', titulo: 'Apenas Chamados Atribuídos a Mim', desc: 'Toca exclusivamente quando o chamado estiver direcionado ao seu e-mail' },
+                  ].map((item) => (
+                    <label
+                      key={item.id}
+                      onClick={() => setAudioConfig({ escopo: item.id })}
+                      className={`p-3.5 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
+                        audioConfig.escopo === item.id
+                          ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10'
+                          : 'border-black/[0.06] dark:border-white/[0.08] hover:border-black/20'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="audio_escopo"
+                        checked={audioConfig.escopo === item.id}
+                        onChange={() => setAudioConfig({ escopo: item.id })}
+                        className="mt-0.5 text-[#4d7c0f] focus:ring-[#4d7c0f]"
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-[#1d1d1f] dark:text-white block">
+                          {item.titulo}
+                        </span>
+                        <span className="text-[11px] text-slate-500 dark:text-zinc-400 leading-tight block mt-0.5">
+                          {item.desc}
+                        </span>
+                      </div>
+                    </label>
+                  ))}
                 </div>
               </div>
 
-              {/* Card 3: Modo de Repetição e Frequência */}
               <div className="rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] shadow-sm space-y-4">
                 <div>
                   <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
                     Modo de Repetição do Alerta
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                    Defina a persistência do som enquanto o chamado estiver aguardando atendimento.
+                    Decida se o alerta deve tocar uma única vez ou insistir em loop até atendimento.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 pt-1">
+                <div className="space-y-2">
                   {[
-                    { id: 'uma_vez', label: 'Tocar 1 Vez', desc: 'Apenas no recebimento' },
-                    { id: 'continuo', label: 'Contínuo', desc: 'Até alguém aceitar' },
-                    { id: 'intervalo', label: 'Em Intervalo', desc: 'A cada X segundos' },
-                  ].map((m) => {
-                    const isSel = audioConfig.modoRepeticao === m.id;
-                    return (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => setAudioConfig({ modoRepeticao: m.id })}
-                        className={`p-3 rounded-2xl border text-center transition-all cursor-pointer ${
-                          isSel
-                            ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10 text-[#1d1d1f] dark:text-white font-bold'
-                            : 'border-black/[0.06] dark:border-white/[0.08] hover:border-black/[0.12] text-slate-600 dark:text-zinc-400'
-                        }`}
-                      >
-                        <span className="text-xs block">{m.label}</span>
-                        <span className="text-[9px] text-slate-400 block mt-0.5 leading-tight">{m.desc}</span>
-                      </button>
-                    );
-                  })}
+                    { id: 'uma_vez', titulo: 'Tocar uma única vez', desc: 'Emite o toque sonoro apenas no instante de entrada do chamado' },
+                    { id: 'loop', titulo: 'Repetir em Loop até Alguém Assumir', desc: 'Repete o alerta sonoro em intervalos regulares até o chamado ser aceito' },
+                  ].map((item) => (
+                    <label
+                      key={item.id}
+                      onClick={() => setAudioConfig({ modoRepeticao: item.id })}
+                      className={`p-3.5 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
+                        audioConfig.modoRepeticao === item.id
+                          ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10'
+                          : 'border-black/[0.06] dark:border-white/[0.08] hover:border-black/20'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="audio_modo"
+                        checked={audioConfig.modoRepeticao === item.id}
+                        onChange={() => setAudioConfig({ modoRepeticao: item.id })}
+                        className="mt-0.5 text-[#4d7c0f] focus:ring-[#4d7c0f]"
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-[#1d1d1f] dark:text-white block">
+                          {item.titulo}
+                        </span>
+                        <span className="text-[11px] text-slate-500 dark:text-zinc-400 leading-tight block mt-0.5">
+                          {item.desc}
+                        </span>
+                      </div>
+                    </label>
+                  ))}
                 </div>
 
-                {audioConfig.modoRepeticao === 'intervalo' && (
-                  <div className="flex items-center justify-between p-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] text-xs">
-                    <span className="text-slate-600 dark:text-zinc-300 font-medium">Intervalo de repetição:</span>
-                    <div className="flex items-center gap-1.5">
-                      {[15, 30, 60].map((s) => (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => setAudioConfig({ intervaloSegundos: s })}
-                          className={`px-2.5 py-1 rounded-lg font-mono text-xs font-semibold cursor-pointer ${
-                            audioConfig.intervaloSegundos === s
-                              ? 'bg-[#4d7c0f] text-white dark:bg-[#84cc16] dark:text-zinc-950'
-                              : 'bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-400'
-                          }`}
-                        >
-                          {s}s
-                        </button>
-                      ))}
-                      <input
-                        type="number"
-                        min="5"
-                        max="300"
-                        value={audioConfig.intervaloSegundos}
-                        onChange={(e) => setAudioConfig({ intervaloSegundos: parseInt(e.target.value || '30', 10) })}
-                        className="w-14 px-2 py-1 rounded-lg border border-black/10 dark:border-white/10 text-xs font-mono text-center focus:outline-none"
-                      />
-                      <span className="text-[10px] text-slate-400">seg</span>
+                {audioConfig.modoRepeticao === 'loop' && (
+                  <div className="pt-2">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300 block mb-1.5">
+                      Intervalo de Repetição: {audioConfig.intervaloSegundos || 30} segundos
+                    </label>
+                    <input
+                      type="range"
+                      min="10"
+                      max="120"
+                      step="5"
+                      value={audioConfig.intervaloSegundos || 30}
+                      onChange={(e) => setAudioConfig({ intervaloSegundos: parseInt(e.target.value, 10) })}
+                      className="w-full accent-[#4d7c0f] dark:accent-[#84cc16]"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-400 font-mono mt-1">
+                      <span>10s (rápido)</span>
+                      <span>30s (recomendado)</span>
+                      <span>120s (espaçado)</span>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Card 4: Catálogo de Toques Sonoros com Teste em Tempo Real */}
-              <div className="rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] shadow-sm space-y-4 lg:col-span-2">
+              <div className="lg:col-span-2 rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
-                      Biblioteca de Toques e Sons Sintetizados
+                      Timbre do Alerta Sonoro
                     </h4>
                     <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                      Toques gerados dinamicamente via síntese de frequências da Web Audio API nativa da Apple.
+                      Escolha a frequência acústica que melhor se adapta à rotina da sua equipe.
                     </p>
                   </div>
+
                   <button
-                    type="button"
                     onClick={() => handleTestarSom(audioConfig.tipoSom)}
                     disabled={somTocando}
-                    className="px-4 py-2 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-semibold text-xs shadow-sm hover:opacity-90 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                    className="px-4 py-2 rounded-full bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] text-xs font-semibold text-slate-800 dark:text-zinc-200 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
-                    <span>{somTocando ? '🔊 Tocando...' : '▶ Testar Toque Selecionado'}</span>
+                    <span>{somTocando ? 'Reproduzindo...' : 'Testar Som Atual'}</span>
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 pt-1">
-                  {opcoesSons.map((s) => {
-                    const isSel = audioConfig.tipoSom === s.id;
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {opcoesSons.map((som) => {
+                    const isSel = audioConfig.tipoSom === som.id;
                     return (
                       <div
-                        key={s.id}
-                        className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
+                        key={som.id}
+                        onClick={() => {
+                          setAudioConfig({ tipoSom: som.id });
+                          handleTestarSom(som.id);
+                        }}
+                        className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-2 flex flex-col justify-between ${
                           isSel
-                            ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10 text-[#1d1d1f] dark:text-white ring-1 ring-[#4d7c0f]/20'
-                            : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.01] dark:bg-white/[0.02]'
+                            ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10 shadow-sm'
+                            : 'border-black/[0.06] dark:border-white/[0.08] hover:border-black/20 bg-black/[0.01]'
                         }`}
                       >
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-[#1d1d1f] dark:text-white">
-                              {s.nome}
-                            </span>
-                            <span className="text-[9px] uppercase font-mono font-bold px-1.5 py-0.5 rounded bg-black/[0.04] dark:bg-white/[0.06] text-slate-500 dark:text-zinc-400">
-                              {s.tag}
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-snug">
-                            {s.desc}
-                          </p>
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-slate-700 dark:text-zinc-300">
+                            {som.tag}
+                          </span>
+                          {isSel && (
+                            <span className="w-2 h-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16]"></span>
+                          )}
                         </div>
-
-                        <div className="flex items-center justify-between pt-4 mt-2 border-t border-black/[0.04] dark:border-white/[0.06]">
-                          <button
-                            type="button"
-                            onClick={() => handleTestarSom(s.id)}
-                            className="text-xs font-semibold text-[#4d7c0f] dark:text-[#84cc16] hover:underline flex items-center gap-1 cursor-pointer"
-                          >
-                            <span>Ouvir</span>
-                            <span>▶</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setAudioConfig({ tipoSom: s.id })}
-                            className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                              isSel
-                                ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950'
-                                : 'bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-300 hover:bg-black/[0.08]'
-                            }`}
-                          >
-                            {isSel ? 'Selecionado' : 'Escolher'}
-                          </button>
+                        <div>
+                          <h5 className="text-xs font-bold text-[#1d1d1f] dark:text-white">
+                            {som.nome}
+                          </h5>
+                          <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-1 leading-tight">
+                            {som.desc}
+                          </p>
                         </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
-
             </div>
           )}
         </motion.div>
       )}
 
-      {/* ============================================================================== */}
-      {/* SUB-ABA 2: CANAIS DE ATENDIMENTO */}
-      {/* ============================================================================== */}
+      {/* BÁSICA 3: REGRAS DE SUPORTE & SENHA PADRÃO */}
+      {subTab === 'regras_suporte' && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+          className="space-y-6"
+        >
+          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                Acesso do Suporte
+              </span>
+              <h3 className="text-lg font-bold text-[#1d1d1f] dark:text-white mt-0.5">
+                Senha Padrão de Contingência
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
+                Utilizada pela equipe de suporte para redefinir rapidamente acessos de clientes ou colaboradores sem senha específica cadastrada.
+              </p>
+            </div>
+
+            <form onSubmit={handleSalvarSenhaPadrao} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <input
+                type="text"
+                value={senhaPadrao}
+                onChange={(e) => setSenhaPadrao(e.target.value)}
+                placeholder="Ex: RmSuporte@Padrao2026!"
+                required
+                className="flex-1 px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono focus:outline-none text-[#1d1d1f] dark:text-white font-bold"
+              />
+
+              <button
+                type="button"
+                onClick={() => setSenhaPadrao(generateSecurePassword(14))}
+                className="px-4 py-2.5 rounded-full border border-black/10 dark:border-white/15 hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-slate-700 dark:text-zinc-300 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <SparklesIcon className="w-3.5 h-3.5" />
+                <span>Gerar Nova</span>
+              </button>
+
+              <button
+                type="submit"
+                className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-sm hover:opacity-90 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <SaveIcon className="w-3.5 h-3.5" />
+                <span>{senhaSalva ? 'Salvo!' : 'Salvar Senha Padrão'}</span>
+              </button>
+            </form>
+          </div>
+
+          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
+                Governança Operacional
+              </span>
+              <h3 className="text-lg font-bold text-[#1d1d1f] dark:text-white mt-0.5">
+                Regras de Encerramento de Chamado
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
+                Configure os campos exigidos dos operadores antes de finalizar qualquer atendimento na Fila de Suporte.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {[
+                {
+                  campo: 'motivo_obrigatorio',
+                  titulo: 'Motivo Diagnosticado Obrigatório',
+                  desc: 'Exige que o técnico selecione o motivo do problema (ex: Queda de Instância, Redefinição de Senha)',
+                },
+                {
+                  campo: 'solucao_obrigatoria',
+                  titulo: 'Resumo da Solução Obrigatório',
+                  desc: 'Bloqueia a finalização se o campo de notas da solução estiver vazio',
+                },
+                {
+                  campo: 'colaborador_obrigatorio',
+                  titulo: 'Colaborador Solicitante Obrigatório',
+                  desc: 'Exige identificar qual colaborador da empresa cliente pediu atendimento',
+                },
+                {
+                  campo: 'atendente_obrigatorio',
+                  titulo: 'Identificação do Atendente Obrigatória',
+                  desc: 'Exige vincular formalmente o nome do técnico responsável pela finalização',
+                },
+              ].map((item) => {
+                const ativo = configSuporte[item.campo];
+                return (
+                  <div
+                    key={item.campo}
+                    onClick={() => handleToggleRegraSuporte(item.campo)}
+                    className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start justify-between gap-3 ${
+                      ativo
+                        ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10'
+                        : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.01] hover:border-black/20'
+                    }`}
+                  >
+                    <div>
+                      <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white">
+                        {item.titulo}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-1 leading-snug">
+                        {item.desc}
+                      </p>
+                    </div>
+
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
+                      ativo
+                        ? 'bg-[#4d7c0f] text-white dark:bg-[#84cc16] dark:text-zinc-950'
+                        : 'bg-black/[0.05] dark:bg-white/[0.1] text-slate-400'
+                    }`}>
+                      {ativo ? <CheckIcon className="w-3 h-3" /> : '○'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* AVANÇADA 1: CANAIS DE ATENDIMENTO */}
       {subTab === 'canais' && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25 }}
+          transition={{ duration: 0.2 }}
         >
           <ChannelsManagement userEmail={userEmail} />
         </motion.div>
       )}
 
-      {/* ============================================================================== */}
-      {/* SUB-ABA 3: SERVIDORES & EQUIPE */}
-      {/* ============================================================================== */}
+      {/* AVANÇADA 2: SERVIDORES & EQUIPE */}
       {subTab === 'servidores' && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25 }}
+          transition={{ duration: 0.2 }}
         >
-          <ServerConfigView userEmail={userEmail} />
+          <ServerConfigView />
         </motion.div>
       )}
 
-      {/* ============================================================================== */}
-      {/* SUB-ABA 4: AUDITORIA & LGPD */}
-      {/* ============================================================================== */}
+      {/* AVANÇADA 3: AUDITORIA & LGPD */}
       {subTab === 'auditoria' && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25 }}
+          transition={{ duration: 0.2 }}
         >
           <AuditLogsView userEmail={userEmail} />
         </motion.div>
       )}
+
     </div>
   );
 }
