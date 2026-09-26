@@ -747,6 +747,201 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
             );
           })}
         </div>
+      ) : (
+        <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <div className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-black/[0.05] dark:border-white/[0.06] text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 bg-black/[0.01] dark:bg-white/[0.02] min-w-[850px]">
+              <div className="col-span-2 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
+                if (sortFilaCol === 'status') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
+                else { setSortFilaCol('status'); setSortFilaDir('asc'); }
+              }}>
+                <span>Status</span>
+                {sortFilaCol === 'status' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
+              </div>
+              <div className="col-span-3 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
+                if (sortFilaCol === 'empresa') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
+                else { setSortFilaCol('empresa'); setSortFilaDir('asc'); }
+              }}>
+                <span>Empresa / Servidor</span>
+                {sortFilaCol === 'empresa' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
+              </div>
+              <div className="col-span-2 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
+                if (sortFilaCol === 'solicitante') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
+                else { setSortFilaCol('solicitante'); setSortFilaDir('asc'); }
+              }}>
+                <span>Solicitante</span>
+                {sortFilaCol === 'solicitante' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
+              </div>
+              <div className="col-span-2 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
+                if (sortFilaCol === 'cronometro') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
+                else { setSortFilaCol('cronometro'); setSortFilaDir('asc'); }
+              }}>
+                <HourglassIcon className="w-3 h-3 text-amber-500" />
+                <span>Cronômetros</span>
+                {sortFilaCol === 'cronometro' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
+              </div>
+              <div className="col-span-1 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
+                if (sortFilaCol === 'tecnico') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
+                else { setSortFilaCol('tecnico'); setSortFilaDir('asc'); }
+              }}>
+                <span>Técnico</span>
+                {sortFilaCol === 'tecnico' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
+              </div>
+              <div className="col-span-2 text-right">Ações</div>
+            </div>
+
+            <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05] min-w-[850px]">
+              {[...chamadosFiltrados].sort((a, b) => {
+                if (sortFilaCol === 'empresa') {
+                  return sortFilaDir === 'asc'
+                    ? (a.empresa_nome || '').localeCompare(b.empresa_nome || '')
+                    : (b.empresa_nome || '').localeCompare(a.empresa_nome || '');
+                }
+                if (sortFilaCol === 'solicitante') {
+                  const sA = a.solicitante_nome || a.solicitante || '';
+                  const sB = b.solicitante_nome || b.solicitante || '';
+                  return sortFilaDir === 'asc' ? sA.localeCompare(sB) : sB.localeCompare(sA);
+                }
+                if (sortFilaCol === 'tecnico') {
+                  const tA = a.tecnico_nome || '';
+                  const tB = b.tecnico_nome || '';
+                  return sortFilaDir === 'asc' ? tA.localeCompare(tB) : tB.localeCompare(tA);
+                }
+                if (sortFilaCol === 'cronometro') {
+                  const tA = a.status === 'em_andamento' ? (a.tempo_ativo_segundos || 0) : (a.tempo_espera_segundos || 0);
+                  const tB = b.status === 'em_andamento' ? (b.tempo_ativo_segundos || 0) : (b.tempo_espera_segundos || 0);
+                  return sortFilaDir === 'asc' ? tA - tB : tB - tA;
+                }
+                return sortFilaDir === 'asc'
+                  ? (a.status || '').localeCompare(b.status || '')
+                  : (b.status || '').localeCompare(a.status || '');
+              }).map((ch) => {
+                const isEmAndamento = ch.status === 'em_andamento';
+                const isAguardando = ch.status === 'aguardando_visualizacao' || ch.status === 'pendente';
+                const isFinalizado = ch.status === 'concluido' || ch.status === 'finalizado';
+                const empresaObj = empresasLista.find(
+                  (e) => (ch.empresa_id && e.id === ch.empresa_id) || 
+                         (ch.empresa_nome && e.nome && e.nome.trim().toLowerCase() === ch.empresa_nome.trim().toLowerCase())
+                ) || (ch.empresa_nome ? { id: ch.empresa_id || ch.empresa_nome, nome: ch.empresa_nome } : null);
+
+                return (
+                  <div key={ch.id} className="grid grid-cols-12 gap-3 px-5 py-3.5 items-center hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors text-xs">
+                    {/* Status */}
+                    <div className="col-span-2">
+                      {isEmAndamento && (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold inline-flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                          <span>Ativo</span>
+                        </span>
+                      )}
+                      {isAguardando && (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-[10px] font-bold inline-flex items-center gap-1.5">
+                          <ClockIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                          <span>Espera</span>
+                        </span>
+                      )}
+                      {isFinalizado && (
+                        <span className="px-2 py-0.5 rounded-full bg-slate-500/15 border border-slate-500/30 text-slate-700 dark:text-zinc-300 text-[10px] font-bold inline-flex items-center gap-1">
+                          <CheckIcon className="w-3 h-3 text-emerald-600" />
+                          <span>Concluído</span>
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Empresa / Servidor */}
+                    <div className="col-span-3 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-[#1d1d1f] dark:text-white truncate block">
+                          {ch.empresa_nome}
+                        </span>
+                        {empresaObj?.servidor_alocado && (
+                          <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-500 font-mono">
+                            {empresaObj.servidor_alocado === 'servidor_2' ? 'S2' : 'S1'}
+                          </span>
+                        )}
+                      </div>
+                      {ch.observacao_inicial && (
+                        <p className="text-[10px] text-slate-400 truncate italic">
+                          {ch.observacao_inicial}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Solicitante */}
+                    <div className="col-span-2 truncate text-slate-700 dark:text-zinc-300">
+                      {ch.solicitante_nome || ch.solicitante || '-'}
+                    </div>
+
+                    {/* Cronometros */}
+                    <div className="col-span-2 font-mono text-[11px] space-y-0.5">
+                      <div className="flex items-center gap-1 text-amber-800 dark:text-amber-300 font-bold">
+                        <HourglassIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                        <span className="text-[10px] text-slate-400 font-normal">Espera:</span>
+                        <span className="tabular-nums">{calcularTempoEspera(ch)}</span>
+                      </div>
+                      {isEmAndamento && (
+                        <div className="flex items-center gap-1 text-emerald-800 dark:text-emerald-300 font-bold">
+                          <HourglassIcon className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                          <span className="text-[10px] text-slate-400 font-normal">Ativo:</span>
+                          <span className="tabular-nums">{calcularTempoAtivo(ch)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Tecnico */}
+                    <div className="col-span-1 truncate text-slate-600 dark:text-zinc-400 font-mono text-[11px]">
+                      {(ch.tecnico_nome || ch.tecnico_email || '').split(' ')[0]}
+                    </div>
+
+                    {/* Acoes */}
+                    <div className="col-span-2 flex items-center justify-end gap-1.5">
+                      {isAguardando && (
+                        <button
+                          type="button"
+                          onClick={() => handleAceitarSuporte(ch)}
+                          className="px-2.5 py-1 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-[10px] hover:opacity-95 shadow-xs cursor-pointer flex items-center gap-1"
+                        >
+                          <PlayIcon className="w-3 h-3 fill-current" />
+                          <span>Assumir</span>
+                        </button>
+                      )}
+
+                      {isEmAndamento && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => onSelectEmpresa(empresaObj || ch.empresa_id)}
+                            className="px-2.5 py-1 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 text-[10px] font-semibold text-slate-700 dark:text-zinc-200 cursor-pointer"
+                          >
+                            Empresa
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setChamadoParaFinalizar(ch)}
+                            className="px-2.5 py-1 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-[10px] shadow-xs cursor-pointer"
+                          >
+                            Concluir
+                          </button>
+                        </>
+                      )}
+
+                      {!isFinalizado && (
+                        <button
+                          type="button"
+                          onClick={() => handleCancelarChamado(ch)}
+                          className="p-1 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-500/10 cursor-pointer"
+                          title="Cancelar chamado"
+                        >
+                          <XMarkIcon className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ============================================================================== */}
