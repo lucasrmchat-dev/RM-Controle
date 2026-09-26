@@ -2721,31 +2721,18 @@ export function getSolucoesSuporte({ empresa_id = null, query = '', tag = '', ti
     base = DEFAULT_SOLUCOES;
   }
 
-  const historico = getLocalData('historico_chamados', []);
+  // Deduplicação estrita de soluções para evitar qualquer duplicata no banco
+  const vistas = new Set();
+  const baseDeduplicada = [];
+  for (const s of base) {
+    const chave = `${s.empresa_id || 'global'}_${(s.titulo || '').toLowerCase().trim()}_${(s.solucao_passos || '').toLowerCase().trim()}`;
+    if (!vistas.has(chave)) {
+      vistas.add(chave);
+      baseDeduplicada.push(s);
+    }
+  }
 
-  // Extrai soluções implícitas de atendimentos concluídos que possuem observações
-  const solucoesHistorico = historico
-    .filter((h) => (h.observacoes && h.observacoes.trim().length > 10) || (h.resolucao && h.resolucao.trim().length > 10))
-    .map((h) => ({
-      id: 'sol_hist_' + h.id,
-      empresa_id: h.empresa_id,
-      empresa_nome: h.empresa_nome || 'Empresa',
-      titulo: `${h.motivo || 'Atendimento Concluído'} (${h.empresa_nome || 'Empresa'})`,
-      erro_codigo: 'RESOLUCAO_CHAMADO',
-      contexto: `Solução documentada durante atendimento de suporte por ${h.tecnico_nome || 'Técnico'}.`,
-      tipo_erro: h.motivo || 'Suporte Geral',
-      solucao_passos: h.observacoes || h.resolucao,
-      tags: [
-        'atendimento',
-        removerAcentos(h.motivo || '').replace(/[^a-z0-9]/g, ''),
-        removerAcentos(h.empresa_nome || '').replace(/[^a-z0-9]/g, '')
-      ].filter(Boolean),
-      autor_email: h.tecnico_email || 'suporte@rmcontrole.com',
-      created_at: h.finalizado_em || h.created_at || new Date().toISOString(),
-      is_from_history: true,
-    }));
-
-  let todas = [...base, ...solucoesHistorico];
+  let todas = [...baseDeduplicada];
 
   // Filtro por Tipo de Erro (insensível a acentuação)
   if (tipo && tipo !== 'todos') {
@@ -2800,7 +2787,8 @@ export async function addSolucaoSuporte({
     : String(tags || '').split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
 
   const nova = {
-    id: 'sol_usr_' + Date.now(), is_user_created: true + '_' + Math.random().toString(36).substr(2, 4),
+    id: 'sol_usr_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    is_user_created: true,
     empresa_id: empresa_id || null,
     empresa_nome: (empresa_nome || 'Global').trim(),
     titulo: titulo.trim(),
@@ -2812,6 +2800,21 @@ export async function addSolucaoSuporte({
     autor_email: userEmail,
     created_at: new Date().toISOString(),
   };
+
+  // Verifica duplicidade exata antes de adicionar
+  const duplicada = solucoes.find(
+    (s) => (s.empresa_id === nova.empresa_id) &&
+           (s.titulo.toLowerCase().trim() === nova.titulo.toLowerCase().trim()) &&
+           (s.solucao_passos.toLowerCase().trim() === nova.solucao_passos.toLowerCase().trim())
+  );
+
+  if (duplicada) {
+    duplicada.erro_codigo = nova.erro_codigo || duplicada.erro_codigo;
+    duplicada.contexto = nova.contexto || duplicada.contexto;
+    setLocalData('solucoes_suporte', solucoes);
+    window.dispatchEvent(new Event('solucoes_updated'));
+    return duplicada;
+  }
 
   solucoes.unshift(nova);
   setLocalData('solucoes_suporte', solucoes);

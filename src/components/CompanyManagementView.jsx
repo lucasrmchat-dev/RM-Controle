@@ -47,7 +47,7 @@ import {
   LightBulbIcon
 } from './Icons';
 import SupportCompletionModal from './SupportCompletionModal';
-import KnowledgeBaseModal from './KnowledgeBaseModal';
+import KnowledgeBaseTab from './KnowledgeBaseModal';
 import ConfirmModal from './ConfirmModal';
 import { showToast } from './ToastNotification';
 import {
@@ -67,7 +67,19 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
   const [activeTab, setActiveTab] = useState('canais'); // 'canais' | 'credenciais' | 'servidor' | 'observacoes' | 'chamados'
   const [catalogoCanais, setCatalogoCanais] = useState([]);
   const [isRegistrarModalOpen, setIsRegistrarModalOpen] = useState(false);
-  const [isKBOpen, setIsKBOpen] = useState(false);
+  const [solucoesCount, setSolucoesCount] = useState(0);
+
+  useEffect(() => {
+    const list = getSolucoesSuporte({ empresa_id: empresa.id });
+    setSolucoesCount(list.length);
+
+    const handleUpdate = () => {
+      const updated = getSolucoesSuporte({ empresa_id: empresa.id });
+      setSolucoesCount(updated.length);
+    };
+    window.addEventListener('solucoes_updated', handleUpdate);
+    return () => window.removeEventListener('solucoes_updated', handleUpdate);
+  }, [empresa.id]);
   const [confirmDialog, setConfirmDialog] = useState(null);
 
   // Estados de Servidor Dividido (Padrão vs Personalizado + Checklist de Implementação)
@@ -591,11 +603,15 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => setIsKBOpen(true)}
-                className="px-3.5 py-1.5 rounded-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-200 border border-amber-500/30 font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ml-1"
-                title="Pesquisar como resolver chamado na Base de Conhecimento"
+                onClick={() => setActiveTab('como_resolver')}
+                className={`px-3.5 py-1.5 rounded-full border font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ml-1 ${
+                  activeTab === 'como_resolver'
+                    ? 'bg-amber-500 text-white dark:text-zinc-950 border-amber-600 shadow-sm'
+                    : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 dark:text-amber-200 border-amber-500/30'
+                }`}
+                title="Acessar aba Como Resolver Chamado"
               >
-                <LightBulbIcon className="w-3.5 h-3.5 text-amber-700 dark:text-amber-300" />
+                <LightBulbIcon className="w-3.5 h-3.5" />
                 <span>Como Resolver Chamado</span>
               </motion.button>
 
@@ -779,18 +795,24 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
               { id: 'credenciais', label: 'Acessos & Senhas Técnicas', count: credenciaisList.length },
               { id: 'servidor', label: 'Configuração do Servidor', count: `${concluidosChecklist}/${totalChecklist}` },
               { id: 'chamados', label: 'Histórico de Suporte', count: chamadosEmpresa.length },
+              { id: 'como_resolver', label: 'Como Resolver Chamado', count: solucoesCount, highlight: true },
             ].map((tab) => {
               const isActive = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`py-2.5 px-3.5 text-xs font-semibold rounded-2xl transition-all whitespace-nowrap flex items-center gap-2 ${
+                  className={`py-2.5 px-3.5 text-xs font-semibold rounded-2xl transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer ${
                     isActive
-                      ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs'
-                      : 'text-slate-600 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5'
+                      ? tab.highlight 
+                        ? 'bg-amber-500 text-white dark:bg-amber-500 dark:text-zinc-950 shadow-xs'
+                        : 'bg-black text-white dark:bg-white dark:text-black shadow-xs'
+                      : tab.highlight
+                        ? 'text-amber-800 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20'
+                        : 'text-slate-600 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5'
                   }`}
                 >
+                  {tab.highlight && <LightBulbIcon className="w-3.5 h-3.5" />}
                   <span>{tab.label}</span>
                   <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
                     isActive
@@ -1834,6 +1856,16 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
             </div>
           )}
 
+          {/* ============================================================================== */}
+          {/* ABA 5: COMO RESOLVER CHAMADO (BASE DE CONHECIMENTO OPERACIONAL) */}
+          {/* ============================================================================== */}
+          {activeTab === 'como_resolver' && (
+            <KnowledgeBaseTab
+              empresa={empresa}
+              userEmail={userEmail}
+            />
+          )}
+
         </div>
 
       </div>
@@ -1862,15 +1894,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
         }}
       />
 
-      {/* Modal de Base de Conhecimento (Como Resolver Chamados) - TELA CHEIA */}
-      <KnowledgeBaseModal
-        isOpen={isKBOpen}
-        onClose={() => setIsKBOpen(false)}
-        empresa={empresa}
-        chamadoAtivo={chamadoAtivo}
-        tempoDecorrido={formatarTempo(tempoSuporteSegundos)}
-        userEmail={userEmail}
-      />
+
 
       {/* Modal de Confirmação Visual Apple / Vercel (Substitui confirm do navegador) */}
       <ConfirmModal
