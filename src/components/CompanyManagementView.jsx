@@ -43,7 +43,8 @@ import {
   CheckIcon,
   XMarkIcon,
   TrashIcon,
-  EditIcon
+  EditIcon,
+  LightBulbIcon
 } from './Icons';
 import SupportCompletionModal from './SupportCompletionModal';
 import KnowledgeBaseModal from './KnowledgeBaseModal';
@@ -594,7 +595,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 className="px-3.5 py-1.5 rounded-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-200 border border-amber-500/30 font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ml-1"
                 title="Pesquisar como resolver chamado na Base de Conhecimento"
               >
-                <span>💡</span>
+                <LightBulbIcon className="w-3.5 h-3.5 text-amber-700 dark:text-amber-300" />
                 <span>Como Resolver Chamado</span>
               </motion.button>
 
@@ -1458,61 +1459,6 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
           {activeTab === 'servidor' && (
             <div className="space-y-6">
               
-              {/* 1. PECULIARIDADES & NECESSIDADES ESPECIAIS DO SERVIDOR DA EMPRESA */}
-              <div className="rounded-3xl p-6 sm:p-7 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-black/[0.05] dark:border-white/[0.06]">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 inline-block mb-1">
-                      Necessidades & Particularidades
-                    </span>
-                    <h3 className="text-base sm:text-lg font-bold text-[#0a0a0c] dark:text-white">
-                      Peculiaridades & Anotações do Servidor de {empresa.nome}
-                    </h3>
-                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                      Descreva as particularidades técnicas, anotações de infraestrutura e requisitos específicos desta empresa.
-                    </p>
-                  </div>
-                  
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="button"
-                    disabled={salvandoServidorDetalhes}
-                    onClick={async () => {
-                      try {
-                        setSalvandoServidorDetalhes(true);
-                        await updateEmpresaServidorDetalhes(empresa.id, {
-                          peculiaridades: servidorPeculiaridades.trim(),
-                          observacoes_infra: servidorPeculiaridades.trim(),
-                        }, userEmail);
-                        showToast(`Peculiaridades do servidor de ${empresa.nome} salvas!`, 'success');
-                      } catch (err) {
-                        showToast(err.message || 'Erro ao salvar peculiaridades.', 'error');
-                      } finally {
-                        setSalvandoServidorDetalhes(false);
-                      }
-                    }}
-                    className="px-5 py-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 flex items-center gap-1.5 cursor-pointer self-start sm:self-center disabled:opacity-50"
-                  >
-                    {salvandoServidorDetalhes ? 'Salvando...' : 'Salvar Anotações'}
-                  </motion.button>
-                </div>
-
-                {/* Campo de Texto Livre de Peculiaridades & Anotações */}
-                <div className="space-y-1.5 pt-1">
-                  <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                    Anotações e Particularidades Técnicas
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={servidorPeculiaridades}
-                    onChange={(e) => setServidorPeculiaridades(e.target.value)}
-                    placeholder="Descreva exatamente o que este cliente pediu de diferente: ex: 'Cliente utiliza VPS própria na Hetzner', 'Backup diário enviado para SFTP interno do cliente', 'Porta 8080 redirecionada', 'Certificado SSL gerenciado por Cloudflare externa'..."
-                    className="w-full p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 leading-relaxed resize-none"
-                  />
-                </div>
-              </div>
-
               {/* 2. CHECKLIST OBRIGATÓRIO DE IMPLEMENTAÇÃO DE SERVIDOR NOVO (100% DINÂMICO & CUSTOMIZÁVEL) */}
               <div className="rounded-3xl p-6 sm:p-7 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] space-y-5 shadow-sm">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-black/[0.05] dark:border-white/[0.06]">
@@ -1916,11 +1862,13 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
         }}
       />
 
-      {/* Modal de Base de Conhecimento (Como Resolver Chamados) */}
+      {/* Modal de Base de Conhecimento (Como Resolver Chamados) - TELA CHEIA */}
       <KnowledgeBaseModal
         isOpen={isKBOpen}
         onClose={() => setIsKBOpen(false)}
         empresa={empresa}
+        chamadoAtivo={chamadoAtivo}
+        tempoDecorrido={tempoDecorrido}
         userEmail={userEmail}
       />
 

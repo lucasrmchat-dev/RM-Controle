@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
+  getDefaultViewMode,
+  removerAcentos,
   getChamadosSuporte, 
   iniciarSuporte, 
   adicionarChamadoFila, 
@@ -21,6 +23,9 @@ import SupportCompletionModal from './SupportCompletionModal';
 import ConfirmModal from './ConfirmModal';
 import { showToast } from './ToastNotification';
 import { 
+  ViewGridIcon,
+  ViewListIcon,
+  HourglassIcon,
   SupportQueueIcon, 
   ClockIcon, 
   CheckIcon, 

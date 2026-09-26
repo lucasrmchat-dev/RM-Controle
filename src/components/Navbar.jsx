@@ -193,28 +193,28 @@ export default function Navbar({
                   className="cursor-pointer"
                   onClick={() => setIslandExpanded(!islandExpanded)}
                 >
-                  {/* Cenário com 1 Chamado: Cápsula Preta Sólida Apple */}
+                  {/* Cenário com 1 Chamado: Cápsula Adaptativa ao Tema (Light & Dark) */}
                   {totalAtivos === 1 && (
-                    <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black text-white border border-white/20 shadow-lg ring-1 ring-black/10 select-none hover:border-white/35 transition-all">
+                    <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/95 dark:bg-[#18181b]/95 text-[#1d1d1f] dark:text-white border border-black/10 dark:border-white/15 shadow-sm ring-1 ring-black/5 dark:ring-white/5 select-none hover:border-black/25 dark:hover:border-white/30 transition-all">
                       <span className="relative flex h-2 w-2 flex-shrink-0">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                       </span>
 
-                      <svg className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
                         <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
                       </svg>
 
-                      <strong className="truncate max-w-[130px] sm:max-w-[160px] text-xs font-bold text-white tracking-tight">
+                      <strong className="truncate max-w-[130px] sm:max-w-[160px] text-xs font-bold text-[#1d1d1f] dark:text-white tracking-tight">
                         {chamadosAtivos[0].empresa_nome}
                       </strong>
 
-                      <span className="font-mono text-xs font-bold text-emerald-400 tabular-nums bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                      <span className="font-mono text-xs font-bold text-emerald-700 dark:text-emerald-400 tabular-nums bg-emerald-500/10 dark:bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/25">
                         {formatarTempo(chamadosAtivos[0].iniciado_em)}
                       </span>
 
-                      <svg className="w-3 h-3 text-white/50 ml-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <svg className="w-3 h-3 text-slate-400 dark:text-zinc-500 ml-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                         <polyline points="6 9 12 15 18 9"/>
                       </svg>
                     </div>
@@ -222,20 +222,20 @@ export default function Navbar({
 
                   {/* Cenário com 2 Chamados */}
                   {totalAtivos === 2 && (
-                    <div className="flex items-center gap-1.5 p-1 rounded-full bg-black border border-white/20 shadow-lg">
+                    <div className="flex items-center gap-1.5 p-1 rounded-full bg-white/95 dark:bg-[#18181b]/95 border border-black/10 dark:border-white/15 shadow-sm">
                       {chamadosAtivos.map((ch) => (
                         <div
                           key={ch.id}
-                          className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 hover:bg-white/15 text-[11px] font-semibold text-white transition-all"
+                          className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/[0.04] dark:bg-white/10 hover:bg-black/[0.07] dark:hover:bg-white/15 text-[11px] font-semibold text-[#1d1d1f] dark:text-white transition-all"
                         >
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                          <span className="truncate max-w-[80px] sm:max-w-[110px] text-white font-bold">{ch.empresa_nome}</span>
-                          <span className="font-mono text-[10px] font-bold text-emerald-400 tabular-nums">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                          <span className="truncate max-w-[80px] sm:max-w-[110px] text-[#1d1d1f] dark:text-white font-bold">{ch.empresa_nome}</span>
+                          <span className="font-mono text-[10px] font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
                             {formatarTempo(ch.iniciado_em)}
                           </span>
                         </div>
                       ))}
-                      <svg className="w-3 h-3 text-white/50 mr-1.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <svg className="w-3 h-3 text-slate-400 dark:text-zinc-500 mr-1.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                         <polyline points="6 9 12 15 18 9"/>
                       </svg>
                     </div>
@@ -243,23 +243,23 @@ export default function Navbar({
 
                   {/* Cenário com 3 ou mais Chamados */}
                   {totalAtivos >= 3 && (
-                    <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black text-white border border-white/20 shadow-lg select-none">
+                    <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/95 dark:bg-[#18181b]/95 text-[#1d1d1f] dark:text-white border border-black/10 dark:border-white/15 shadow-sm select-none">
                       <span className="relative flex h-2 w-2 flex-shrink-0">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                       </span>
-                      <span className="text-xs font-bold text-white">{totalAtivos} Suportes Ativos</span>
-                      <span className="font-mono text-xs font-bold text-emerald-400 tabular-nums bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                      <span className="text-xs font-bold text-[#1d1d1f] dark:text-white">{totalAtivos} Suportes Ativos</span>
+                      <span className="font-mono text-xs font-bold text-emerald-700 dark:text-emerald-400 tabular-nums bg-emerald-500/10 dark:bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/25">
                         {formatarTempo(chamadosAtivos[0].iniciado_em)}
                       </span>
-                      <svg className="w-3 h-3 text-white/50 ml-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <svg className="w-3 h-3 text-slate-400 dark:text-zinc-500 ml-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                         <polyline points="6 9 12 15 18 9"/>
                       </svg>
                     </div>
                   )}
                 </motion.div>
 
-                {/* MODAL EXPANDIDO DA DYNAMIC ISLAND: PRETO SÓLIDO LUXUOSO APPLE */}
+                {/* MODAL EXPANDIDO DA DYNAMIC ISLAND: CONTRASTADO E ADAPTADO AO TEMA (LIGHT & DARK) */}
                 <AnimatePresence>
                   {islandExpanded && (
                     <motion.div
@@ -267,24 +267,24 @@ export default function Navbar({
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 12, scale: 0.94 }}
                       transition={{ type: "spring", stiffness: 450, damping: 32 }}
-                      className="absolute left-0 mt-3 w-[340px] sm:w-[390px] rounded-[32px] bg-[#0c0c0e] text-white border border-white/20 p-5 shadow-2xl z-50 space-y-3.5 backdrop-blur-3xl"
+                      className="absolute left-0 mt-3 w-[340px] sm:w-[390px] rounded-[32px] bg-white dark:bg-[#16161a] text-[#1d1d1f] dark:text-[#f5f5f7] border border-black/10 dark:border-white/15 p-5 shadow-2xl z-50 space-y-3.5 backdrop-blur-3xl"
                     >
                       {/* Topo da Ilha */}
-                      <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                      <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/10 pb-3">
                         <div className="flex items-center gap-2">
                           <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                           </span>
-                          <span className="text-xs font-bold tracking-tight text-white">Ilha Dinâmica de Suporte</span>
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                          <span className="text-xs font-bold tracking-tight text-[#1d1d1f] dark:text-white">Ilha Dinâmica de Suporte</span>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/25">
                             {totalAtivos} {totalAtivos === 1 ? 'chamado ativo' : 'chamados ativos'}
                           </span>
                         </div>
 
                         <button
                           onClick={() => setIslandExpanded(false)}
-                          className="text-white/50 hover:text-white p-1 rounded-full text-xs cursor-pointer"
+                          className="text-slate-400 hover:text-black dark:hover:text-white p-1 rounded-full text-xs cursor-pointer"
                         >
                           ✕
                         </button>
@@ -295,20 +295,20 @@ export default function Navbar({
                         {chamadosAtivos.map((ch) => (
                           <div
                             key={ch.id}
-                            className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 hover:border-white/20 transition-all space-y-2.5"
+                            className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/10 hover:border-black/15 dark:hover:border-white/20 transition-all space-y-2.5"
                           >
                             <div className="flex items-center justify-between">
                               <div>
-                                <h4 className="text-xs font-bold text-white truncate max-w-[200px]">
+                                <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white truncate max-w-[200px]">
                                   {ch.empresa_nome}
                                 </h4>
-                                <p className="text-[10px] text-zinc-400 font-mono">
+                                <p className="text-[10px] text-slate-500 dark:text-zinc-400 font-mono">
                                   Técnico: {ch.tecnico_email?.split('@')[0]}
                                 </p>
                               </div>
 
                               <div className="text-right font-mono">
-                                <span className="text-xs font-bold text-emerald-400 tabular-nums bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 tabular-nums bg-emerald-500/10 dark:bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/25">
                                   {formatarTempo(ch.iniciado_em)}
                                 </span>
                               </div>
@@ -321,9 +321,9 @@ export default function Navbar({
                                   setIslandExpanded(false);
                                   onOpenChamadoAtivo && onOpenChamadoAtivo(ch.empresa_id);
                                 }}
-                                className="flex-1 py-1.5 px-2 rounded-xl bg-white/10 hover:bg-white/15 text-[10px] font-semibold text-white transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer"
+                                className="flex-1 py-1.5 px-2 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-[10px] font-semibold text-slate-700 dark:text-zinc-200 transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer"
                               >
-                                <svg className="w-3 h-3 text-white/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <svg className="w-3 h-3 text-slate-500 dark:text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                   <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
                                   <polyline points="15 3 21 3 21 9" />
                                   <line x1="10" y1="14" x2="21" y2="3" />
@@ -358,7 +358,7 @@ export default function Navbar({
                                     },
                                   });
                                 }}
-                                className="py-1.5 px-2.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1"
+                                className="py-1.5 px-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1"
                                 title="Cancelar chamado"
                               >
                                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -373,8 +373,8 @@ export default function Navbar({
                       </div>
 
                       {/* Rodapé da Ilha */}
-                      <div className="pt-2 border-t border-white/10 text-center">
-                        <span className="text-[10px] text-zinc-500 font-mono">
+                      <div className="pt-2 border-t border-black/[0.06] dark:border-white/10 text-center">
+                        <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono">
                           Cronômetros de precisão sincronizados
                         </span>
                       </div>
