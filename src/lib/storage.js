@@ -2654,7 +2654,7 @@ const DEFAULT_SOLUCOES = [
   },
 ];
 
-export function getSolucoesSuporte({ empresa_id = null, query = '', tag = '', tipo = '', buscaGeral = false } = {}) {
+export function getSolucoesSuporte({ empresa_id = null, query = '', tag = '', tipo = '' } = {}) {
   const base = getLocalData('solucoes_suporte', DEFAULT_SOLUCOES);
   const historico = getLocalData('historico_chamados', []);
 
@@ -2682,11 +2682,6 @@ export function getSolucoesSuporte({ empresa_id = null, query = '', tag = '', ti
 
   let todas = [...base, ...solucoesHistorico];
 
-  // Filtro de Escopo: Se buscaGeral for falso e empresa_id fornecido, restringe à empresa + globais
-  if (!buscaGeral && empresa_id) {
-    todas = todas.filter((s) => !s.empresa_id || s.empresa_id === empresa_id);
-  }
-
   // Filtro por Tipo de Erro
   if (tipo && tipo !== 'todos') {
     todas = todas.filter((s) => s.tipo_erro?.toLowerCase().includes(tipo.toLowerCase()));
@@ -2712,7 +2707,11 @@ export function getSolucoesSuporte({ empresa_id = null, query = '', tag = '', ti
     });
   }
 
-  return todas;
+  // Marcação inteligente: se o item for da empresa atual ou do banco geral
+  return todas.map((s) => ({
+    ...s,
+    is_empresa_atual: empresa_id ? s.empresa_id === empresa_id : true,
+  }));
 }
 
 export async function addSolucaoSuporte({
@@ -2875,5 +2874,28 @@ export async function toggleServidorChecklistItem(empresaId, itemId, userEmail =
   });
 
   dados.checklist_implementacao = checklist;
+  return updateEmpresaServidorDetalhes(empresaId, dados, userEmail);
+}
+
+export async function addEmpresaChecklistItem(empresaId, { titulo, desc = '' }, userEmail = 'admin@rmcontrole.com') {
+  if (!empresaId || !titulo || !titulo.trim()) return null;
+  const dados = getEmpresaServidorDetalhes(empresaId);
+  const novoItem = {
+    id: 'chk_custom_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+    titulo: titulo.trim(),
+    desc: desc.trim(),
+    obrigatorio: true,
+    concluido: false,
+    concluido_em: null,
+    responsavel: null,
+  };
+  dados.checklist_implementacao = [...(dados.checklist_implementacao || []), novoItem];
+  return updateEmpresaServidorDetalhes(empresaId, dados, userEmail);
+}
+
+export async function deleteEmpresaChecklistItem(empresaId, itemId, userEmail = 'admin@rmcontrole.com') {
+  if (!empresaId || !itemId) return null;
+  const dados = getEmpresaServidorDetalhes(empresaId);
+  dados.checklist_implementacao = (dados.checklist_implementacao || []).filter((i) => i.id !== itemId);
   return updateEmpresaServidorDetalhes(empresaId, dados, userEmail);
 }

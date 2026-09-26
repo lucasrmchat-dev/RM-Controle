@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function ConfirmModal({
@@ -14,13 +15,30 @@ export default function ConfirmModal({
   onClose,
   isProcessing = false,
 }) {
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Travar o scroll da página enquanto o modal estiver aberto
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isOpen]);
+
+  if (!mounted || !isOpen) return null;
 
   const variantStyles = {
     danger: {
-      badgeBg: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
+      badgeBg: 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/25',
       badgeText: 'Ação Crítica',
-      confirmButton: 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/25',
+      confirmButton: 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/30',
       icon: (
         <svg className="w-5 h-5 text-red-600 dark:text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M3 6h18" />
@@ -32,9 +50,9 @@ export default function ConfirmModal({
       ),
     },
     warning: {
-      badgeBg: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20',
+      badgeBg: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/25',
       badgeText: 'Atenção',
-      confirmButton: 'bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-600/25',
+      confirmButton: 'bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-600/30',
       icon: (
         <svg className="w-5 h-5 text-amber-600 dark:text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
@@ -44,9 +62,9 @@ export default function ConfirmModal({
       ),
     },
     info: {
-      badgeBg: 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20',
+      badgeBg: 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/25',
       badgeText: 'Informação',
-      confirmButton: 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/25',
+      confirmButton: 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/30',
       icon: (
         <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="10" />
@@ -56,9 +74,9 @@ export default function ConfirmModal({
       ),
     },
     success: {
-      badgeBg: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20',
+      badgeBg: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/25',
       badgeText: 'Concluir',
-      confirmButton: 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 shadow-lg shadow-[#4d7c0f]/25',
+      confirmButton: 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 shadow-lg shadow-[#4d7c0f]/30',
       icon: (
         <svg className="w-5 h-5 text-emerald-600 dark:text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="20 6 9 17 4 12" />
@@ -69,35 +87,48 @@ export default function ConfirmModal({
 
   const style = variantStyles[variant] || variantStyles.danger;
 
-  return (
+  // Portal direto para document.body para garantir que fique 100% fixo no viewport atual
+  return createPortal(
     <AnimatePresence>
-      <div className="fixed inset-0 w-screen h-screen z-50 bg-black/65 backdrop-blur-md flex items-center justify-center p-4">
-        {/* Backdrop click to dismiss */}
+      <div 
+        className="fixed inset-0 z-[999999] w-screen h-screen flex items-center justify-center p-4 overflow-hidden select-none"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 999999,
+        }}
+      >
+        {/* Backdrop com desfoque total na tela inteira visível */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute inset-0"
+          transition={{ duration: 0.18 }}
+          className="absolute inset-0 bg-black/75 backdrop-blur-md"
           onClick={!isProcessing ? onClose : undefined}
         />
 
-        {/* Modal Window with Apple-grade spring physics */}
+        {/* Janela do Modal Centralizada com Física de Molas Apple */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.92, y: 16 }}
+          initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.94, y: 12 }}
-          transition={{ type: 'spring', damping: 26, stiffness: 340 }}
-          className="relative w-full max-w-md rounded-[28px] border border-black/[0.08] dark:border-white/[0.12] bg-white/95 dark:bg-[#18181b]/95 backdrop-blur-2xl p-6 sm:p-7 shadow-2xl space-y-5 text-[#1d1d1f] dark:text-[#f5f5f7] z-10 overflow-hidden"
+          exit={{ opacity: 0, scale: 0.92, y: 15 }}
+          transition={{ type: 'spring', damping: 28, stiffness: 360 }}
+          className="relative w-full max-w-md rounded-[32px] border border-black/[0.08] dark:border-white/[0.14] bg-white dark:bg-[#18181b] backdrop-blur-3xl p-6 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] space-y-5 text-[#1d1d1f] dark:text-[#f5f5f7] z-10 overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
         >
-          {/* Top highlight glow */}
+          {/* Brilho sutil no topo */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-current to-transparent opacity-15" />
 
           <div className="flex items-start gap-4">
-            <div className={`p-3 rounded-2xl border ${style.badgeBg} flex-shrink-0 flex items-center justify-center`}>
+            <div className={`p-3 rounded-2xl border ${style.badgeBg} flex-shrink-0 flex items-center justify-center shadow-xs`}>
               {style.icon}
             </div>
 
-            <div className="space-y-1 min-w-0 flex-1">
+            <div className="space-y-1.5 min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${style.badgeBg}`}>
                   {style.badgeText}
@@ -106,14 +137,14 @@ export default function ConfirmModal({
               <h3 className="text-base sm:text-lg font-bold tracking-tight text-[#1d1d1f] dark:text-white leading-snug">
                 {title}
               </h3>
-              <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed pt-1">
+              <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed pt-0.5">
                 {message}
               </p>
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-black/[0.05] dark:border-white/[0.06]">
+          {/* Botões de Ação */}
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-black/[0.06] dark:border-white/[0.08]">
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -141,6 +172,7 @@ export default function ConfirmModal({
           </div>
         </motion.div>
       </div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

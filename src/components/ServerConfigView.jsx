@@ -45,6 +45,7 @@ import { generateSecurePassword } from '@/lib/security';
 
 export default function ServerConfigView() {
   const [subTab, setSubTab] = useState('checklist'); // 'checklist' | 'usuarios' | 'motivos' | 'geral' | 'formatos'
+  const [confirmDialog, setConfirmDialog] = useState(null);
   
   // Checklist Template
   const [checklistItems, setChecklistItems] = useState([]);

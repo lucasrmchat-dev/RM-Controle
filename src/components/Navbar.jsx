@@ -183,7 +183,7 @@ export default function Navbar({
             </span>
             
             {/* ============================================================================== */}
-            {/* DYNAMIC ISLAND DA APPLE COM TRANSIÇÃO EXPANSÍVEL E SUPORTE A MÚLTIPLOS CHAMADOS */}
+            {/* DYNAMIC ISLAND DA APPLE COM DESIGN SÓLIDO JET BLACK E ÍCONES SVG PUROS */}
             {/* ============================================================================== */}
             {totalAtivos > 0 && (
               <div className="relative">
@@ -193,53 +193,73 @@ export default function Navbar({
                   className="cursor-pointer"
                   onClick={() => setIslandExpanded(!islandExpanded)}
                 >
-                  {/* Cenário com 1 Chamado Adaptado a Tema */}
+                  {/* Cenário com 1 Chamado: Cápsula Preta Sólida Apple */}
                   {totalAtivos === 1 && (
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/95 dark:bg-[#16161a]/95 border border-black/[0.08] dark:border-white/[0.12] text-[11px] font-semibold text-[#1d1d1f] dark:text-white shadow-xs hover:border-black/[0.15] dark:hover:border-white/[0.2] transition-all">
-                      <span className="w-2 h-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] animate-ping"></span>
-                      <strong className="truncate max-w-[120px] sm:max-w-[150px]">
+                    <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black text-white border border-white/20 shadow-lg ring-1 ring-black/10 select-none hover:border-white/35 transition-all">
+                      <span className="relative flex h-2 w-2 flex-shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+
+                      <svg className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+                        <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+                      </svg>
+
+                      <strong className="truncate max-w-[130px] sm:max-w-[160px] text-xs font-bold text-white tracking-tight">
                         {chamadosAtivos[0].empresa_nome}
                       </strong>
-                      <span className="font-mono font-bold text-[#4d7c0f] dark:text-[#84cc16] tabular-nums">
+
+                      <span className="font-mono text-xs font-bold text-emerald-400 tabular-nums bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
                         {formatarTempo(chamadosAtivos[0].iniciado_em)}
                       </span>
-                      <span className="text-[10px] text-slate-400 ml-0.5">▼</span>
+
+                      <svg className="w-3 h-3 text-white/50 ml-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <polyline points="6 9 12 15 18 9"/>
+                      </svg>
                     </div>
                   )}
 
-                  {/* Cenário com 2 Chamados (Lado a Lado Compacto) */}
+                  {/* Cenário com 2 Chamados */}
                   {totalAtivos === 2 && (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 p-1 rounded-full bg-black border border-white/20 shadow-lg">
                       {chamadosAtivos.map((ch) => (
                         <div
                           key={ch.id}
-                          className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/15 dark:bg-amber-500/20 border border-amber-500/30 text-[10px] font-semibold text-amber-900 dark:text-amber-200 hover:bg-amber-500/25 transition-all"
+                          className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 hover:bg-white/15 text-[11px] font-semibold text-white transition-all"
                         >
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
-                          <span className="truncate max-w-[75px] sm:max-w-[110px]">{ch.empresa_nome}</span>
-                          <span className="font-mono font-bold text-[#4d7c0f] dark:text-[#84cc16] tabular-nums">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                          <span className="truncate max-w-[80px] sm:max-w-[110px] text-white font-bold">{ch.empresa_nome}</span>
+                          <span className="font-mono text-[10px] font-bold text-emerald-400 tabular-nums">
                             {formatarTempo(ch.iniciado_em)}
                           </span>
                         </div>
                       ))}
-                      <span className="text-[10px] text-amber-700 dark:text-amber-300">▼</span>
+                      <svg className="w-3 h-3 text-white/50 mr-1.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <polyline points="6 9 12 15 18 9"/>
+                      </svg>
                     </div>
                   )}
 
                   {/* Cenário com 3 ou mais Chamados */}
                   {totalAtivos >= 3 && (
-                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 dark:bg-amber-500/20 border border-amber-500/40 text-[11px] font-bold text-amber-900 dark:text-amber-200 hover:bg-amber-500/25 transition-all shadow-xs">
-                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
-                      <span>{totalAtivos} Suportes Ativos</span>
-                      <span className="text-[10px] font-mono text-slate-500">
-                        ({formatarTempo(chamadosAtivos[0].iniciado_em)})
+                    <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black text-white border border-white/20 shadow-lg select-none">
+                      <span className="relative flex h-2 w-2 flex-shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                       </span>
-                      <span className="text-[10px] text-amber-700 dark:text-amber-300">▼</span>
+                      <span className="text-xs font-bold text-white">{totalAtivos} Suportes Ativos</span>
+                      <span className="font-mono text-xs font-bold text-emerald-400 tabular-nums bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                        {formatarTempo(chamadosAtivos[0].iniciado_em)}
+                      </span>
+                      <svg className="w-3 h-3 text-white/50 ml-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <polyline points="6 9 12 15 18 9"/>
+                      </svg>
                     </div>
                   )}
                 </motion.div>
 
-                {/* MODAL EXPANDIDO DA DYNAMIC ISLAND (ESTILO APPLE CAPSULE) */}
+                {/* MODAL EXPANDIDO DA DYNAMIC ISLAND: PRETO SÓLIDO LUXUOSO APPLE */}
                 <AnimatePresence>
                   {islandExpanded && (
                     <motion.div
@@ -247,23 +267,24 @@ export default function Navbar({
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 12, scale: 0.94 }}
                       transition={{ type: "spring", stiffness: 450, damping: 32 }}
-                      className="absolute left-0 mt-3 w-[330px] sm:w-[380px] rounded-[30px] bg-white/95 dark:bg-[#16161a]/95 backdrop-blur-3xl text-[#1d1d1f] dark:text-[#f5f5f7] border border-black/[0.08] dark:border-white/[0.12] p-5 shadow-2xl z-50 space-y-3.5"
+                      className="absolute left-0 mt-3 w-[340px] sm:w-[390px] rounded-[32px] bg-[#0c0c0e] text-white border border-white/20 p-5 shadow-2xl z-50 space-y-3.5 backdrop-blur-3xl"
                     >
                       {/* Topo da Ilha */}
-                      <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.08] pb-3">
+                      <div className="flex items-center justify-between border-b border-white/10 pb-3">
                         <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                          <span className="text-xs font-bold tracking-tight">Ilha Dinâmica de Suporte</span>
-                          <span className="text-[10px] font-mono px-2 py-0.2 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                          </span>
+                          <span className="text-xs font-bold tracking-tight text-white">Ilha Dinâmica de Suporte</span>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                             {totalAtivos} {totalAtivos === 1 ? 'chamado ativo' : 'chamados ativos'}
                           </span>
                         </div>
+
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setIslandExpanded(false);
-                          }}
-                          className="text-slate-400 hover:text-black dark:hover:text-white text-xs font-bold p-1 cursor-pointer"
+                          onClick={() => setIslandExpanded(false)}
+                          className="text-white/50 hover:text-white p-1 rounded-full text-xs cursor-pointer"
                         >
                           ✕
                         </button>
@@ -274,35 +295,40 @@ export default function Navbar({
                         {chamadosAtivos.map((ch) => (
                           <div
                             key={ch.id}
-                            className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] hover:border-black/[0.12] transition-all space-y-2.5"
+                            className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 hover:border-white/20 transition-all space-y-2.5"
                           >
                             <div className="flex items-center justify-between">
                               <div>
                                 <h4 className="text-xs font-bold text-white truncate max-w-[200px]">
                                   {ch.empresa_nome}
                                 </h4>
-                                <p className="text-[10px] text-slate-400 font-mono">
-                                  Técnico: {ch.tecnico_email}
+                                <p className="text-[10px] text-zinc-400 font-mono">
+                                  Técnico: {ch.tecnico_email?.split('@')[0]}
                                 </p>
                               </div>
 
                               <div className="text-right font-mono">
-                                <span className="text-xs font-bold text-emerald-400 tabular-nums">
+                                <span className="text-xs font-bold text-emerald-400 tabular-nums bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
                                   {formatarTempo(ch.iniciado_em)}
                                 </span>
                               </div>
                             </div>
 
-                            {/* Botões de Ação Rápida */}
+                            {/* Botões de Ação com SVG */}
                             <div className="flex items-center gap-1.5 pt-1">
                               <button
                                 onClick={() => {
                                   setIslandExpanded(false);
                                   onOpenChamadoAtivo && onOpenChamadoAtivo(ch.empresa_id);
                                 }}
-                                className="flex-1 py-1.5 px-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.08] hover:bg-black/[0.08] text-[10px] font-semibold text-slate-700 dark:text-zinc-200 transition-all text-center"
+                                className="flex-1 py-1.5 px-2 rounded-xl bg-white/10 hover:bg-white/15 text-[10px] font-semibold text-white transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer"
                               >
-                                Abrir Empresa
+                                <svg className="w-3 h-3 text-white/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                  <polyline points="15 3 21 3 21 9" />
+                                  <line x1="10" y1="14" x2="21" y2="3" />
+                                </svg>
+                                <span>Abrir</span>
                               </button>
 
                               <button
@@ -310,35 +336,48 @@ export default function Navbar({
                                   setIslandExpanded(false);
                                   window.dispatchEvent(new CustomEvent('abrir_conclusao_chamado', { detail: ch }));
                                 }}
-                                className="py-1.5 px-3 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-[10px] font-bold transition-all"
+                                className="py-1.5 px-3 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer"
                               >
-                                Concluir
+                                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                  <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                                <span>Concluir</span>
                               </button>
 
                               <button
                                 onClick={() => {
                                   setConfirmDialog({
                                     title: 'Cancelar Atendimento?',
-                                    message: `Deseja realmente cancelar o suporte de "${ch.empresa_nome}"? O tempo será descartado.`,
+                                    message: 'Deseja realmente cancelar o suporte de "' + ch.empresa_nome + '"? O tempo será descartado.',
                                     confirmText: 'Sim, Cancelar',
                                     variant: 'danger',
                                     onConfirm: async () => {
                                       await cancelarSuporte({ chamado_id: ch.id, userEmail });
-                                      showToast(`Suporte de ${ch.empresa_nome} cancelado.`, 'info');
+                                      showToast('Suporte de ' + ch.empresa_nome + ' cancelado.', 'info');
                                       setConfirmDialog(null);
                                     },
                                   });
                                 }}
-                                className="py-1.5 px-2.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 text-[10px] font-semibold transition-all cursor-pointer"
+                                className="py-1.5 px-2.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1"
                                 title="Cancelar chamado"
                               >
-                                Cancelar
+                                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <line x1="18" y1="6" x2="6" y2="18" />
+                                  <line x1="6" y1="6" x2="18" y2="18" />
+                                </svg>
+                                <span>Cancelar</span>
                               </button>
                             </div>
                           </div>
                         ))}
                       </div>
 
+                      {/* Rodapé da Ilha */}
+                      <div className="pt-2 border-t border-white/10 text-center">
+                        <span className="text-[10px] text-zinc-500 font-mono">
+                          Cronômetros de precisão sincronizados
+                        </span>
+                      </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
