@@ -1019,7 +1019,6 @@ export default function ServerConfigView() {
         </div>
       )}
 
-    </di
       {/* Modal de Confirmação Visual Apple / Vercel (Zero popups nativos) */}
       <ConfirmModal
         isOpen={Boolean(confirmDialog)}
