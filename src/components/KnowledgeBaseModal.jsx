@@ -573,9 +573,7 @@ export default function KnowledgeBaseModal({
                     rows={6}
                     value={novosPassos}
                     onChange={(e) => setNovosPassos(e.target.value)}
-                    placeholder={"1. Acessar o Manager do Servidor
-2. Clicar em Reiniciar Instância
-3. Aguardar 10s e escanear o novo QR Code gerado"}
+                    placeholder="1. Acessar o Manager do Servidor\n2. Clicar em Reiniciar Instância\n3. Aguardar 10s e escanear o novo QR Code gerado"
                     required
                     className="w-full p-4 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 leading-relaxed"
                   />
