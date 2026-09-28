@@ -26,6 +26,7 @@ export default function KnowledgeBaseTab({
   const [novoContexto, setNovoContexto] = useState('');
   const [novosPassos, setNovosPassos] = useState('');
   const [novasTags, setNovasTags] = useState('');
+  const [associarEmpresa, setAssociarEmpresa] = useState(Boolean(empresa?.id));
   const [salvando, setSalvando] = useState(false);
 
   // Confirm delete modal
@@ -38,7 +39,16 @@ export default function KnowledgeBaseTab({
       tag: selectedTag,
       tipo: selectedTipo,
     });
-    setSolucoes(list);
+    // Ordena priorizando soluções desta empresa no topo do banco geral e depois por data
+    const sorted = [...list].sort((a, b) => {
+      if (empresa?.id) {
+        const aIsEmp = a.empresa_id === empresa.id ? 1 : 0;
+        const bIsEmp = b.empresa_id === empresa.id ? 1 : 0;
+        if (aIsEmp !== bIsEmp) return bIsEmp - aIsEmp;
+      }
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    });
+    setSolucoes(sorted);
   };
 
   useEffect(() => {
@@ -61,8 +71,8 @@ export default function KnowledgeBaseTab({
     try {
       setSalvando(true);
       await addSolucaoSuporte({
-        empresa_id: empresa?.id || null,
-        empresa_nome: empresa?.nome || 'Global',
+        empresa_id: associarEmpresa && empresa?.id ? empresa.id : null,
+        empresa_nome: associarEmpresa && empresa?.nome ? empresa.nome : 'Global',
         titulo: novoTitulo,
         erro_codigo: novoCodigo,
         contexto: novoContexto,
@@ -72,7 +82,7 @@ export default function KnowledgeBaseTab({
         userEmail,
       });
 
-      showToast('Nova solução catalogada com sucesso!', 'success');
+      showToast('Nova solução catalogada no Banco Geral com sucesso!', 'success');
       setNovoTitulo('');
       setNovoCodigo('');
       setNovoContexto('');
@@ -111,10 +121,6 @@ export default function KnowledgeBaseTab({
     new Set(solucoes.flatMap((s) => s.tags || []).filter(Boolean))
   );
 
-  // Separação inteligente: soluções desta empresa vs soluções do banco geral
-  const solucoesDestaEmpresa = empresa?.id ? solucoes.filter((s) => s.empresa_id === empresa.id) : [];
-  const solucoesBancoGeral = empresa?.id ? solucoes.filter((s) => s.empresa_id !== empresa.id) : solucoes;
-
   return (
     <div className="space-y-5">
       {/* CARD DO TOPO: PESQUISA & CONTROLES DA BASE DE CONHECIMENTO */}
@@ -130,7 +136,7 @@ export default function KnowledgeBaseTab({
               </h2>
             </div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
-              Catálogo de procedimentos técnicos e soluções operacionais para {empresa?.nome || 'esta empresa'} e banco geral.
+              Catálogo de procedimentos técnicos e soluções operacionais do banco geral.
             </p>
           </div>
 
@@ -169,7 +175,7 @@ export default function KnowledgeBaseTab({
           {query && (
             <button
               onClick={() => setQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black dark:hover:text-white text-xs font-bold p-1 rounded-full"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black dark:hover:text-white text-xs font-bold p-1 rounded-full cursor-pointer"
             >
               ✕
             </button>
@@ -209,13 +215,13 @@ export default function KnowledgeBaseTab({
         )}
       </div>
 
-      {/* FORMULÁRIO DE NOVA SOLUÇÃO OU LISTAGEM */}
+      {/* FORMULÁRIO DE NOVA SOLUÇÃO OU LISTAGEM UNIFICADA */}
       {isNovaSolucaoOpen ? (
         <form onSubmit={handleSalvarSolucao} className="space-y-5 p-6 sm:p-7 rounded-3xl border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] shadow-sm">
           <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs space-y-1">
             <span className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
               <LightBulbIcon className="w-4 h-4 text-emerald-600" />
-              <span>Catalogar Novo Procedimento Técnico</span>
+              <span>Catalogar Novo Procedimento Técnico no Banco Geral</span>
             </span>
             <p className="text-slate-600 dark:text-zinc-300 text-[11px]">
               Documente sintomas e resoluções para agilizar futuros chamados de qualquer operador da equipe.
@@ -268,6 +274,20 @@ export default function KnowledgeBaseTab({
               </select>
             </div>
 
+            {empresa?.nome && (
+              <div className="space-y-1 sm:col-span-2 pt-1">
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-zinc-300 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={associarEmpresa}
+                    onChange={(e) => setAssociarEmpresa(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-[#4d7c0f] focus:ring-[#4d7c0f]"
+                  />
+                  <span>Mencionar <strong>{empresa.nome}</strong> no card desta solução no Banco Geral</span>
+                </label>
+              </div>
+            )}
+
             <div className="space-y-1 sm:col-span-2">
               <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
                 Contexto ou Sintoma
@@ -289,7 +309,7 @@ export default function KnowledgeBaseTab({
                 rows={5}
                 value={novosPassos}
                 onChange={(e) => setNovosPassos(e.target.value)}
-                placeholder="1. Acessar o Manager do Servidor \n2. Clicar em Reiniciar Instância \n3. Aguardar 10s e escanear o novo QR Code gerado"
+                placeholder={'1. Acessar o Manager do Servidor\n2. Clicar em Reiniciar Instância\n3. Aguardar 10s e escanear o novo QR Code gerado'}
                 required
                 className="w-full p-4 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 leading-relaxed"
               />
@@ -327,128 +347,50 @@ export default function KnowledgeBaseTab({
           </div>
         </form>
       ) : (
-        <div className="space-y-6">
-          {/* 1. SEÇÃO ESPECÍFICA DA EMPRESA ATUAL */}
-          {empresa?.id && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-zinc-200">
-                <span className="w-2 h-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16]"></span>
-                <span>Soluções Específicas de {empresa.nome} ({solucoesDestaEmpresa.length})</span>
-              </div>
-
-              {solucoesDestaEmpresa.length === 0 ? (
-                <div className="p-6 rounded-3xl border border-dashed border-black/10 dark:border-white/10 text-center text-xs text-slate-400 bg-white dark:bg-[#16161a]">
-                  Nenhuma solução cadastrada especificamente para {empresa.nome} com este filtro.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {solucoesDestaEmpresa.map((s) => (
-                    <div
-                      key={s.id}
-                      className="rounded-3xl p-5 border border-emerald-500/25 dark:border-emerald-500/20 bg-emerald-500/[0.02] dark:bg-emerald-500/[0.04] space-y-3 relative group flex flex-col justify-between shadow-xs"
-                    >
-                      <div>
-                        <div className="flex items-start justify-between gap-3 mb-2">
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                              {s.erro_codigo && (
-                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 font-mono text-[10px] font-bold">
-                                  {s.erro_codigo}
-                                </span>
-                              )}
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-300 font-semibold">
-                                {s.tipo_erro}
-                              </span>
-                            </div>
-                            <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
-                              {s.titulo}
-                            </h4>
-                            {s.contexto && (
-                              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5 italic">
-                                {s.contexto}
-                              </p>
-                            )}
-                          </div>
-
-                          <button
-                            onClick={() => setSolucaoParaExcluir(s)}
-                            className="text-slate-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer"
-                            title="Excluir Solução"
-                          >
-                            <XMarkIcon className="w-4 h-4" />
-                          </button>
-                        </div>
-
-                        <div className="p-4 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.06] dark:border-white/[0.08] text-xs font-mono text-slate-800 dark:text-zinc-200 whitespace-pre-line leading-relaxed shadow-xs">
-                          {s.solucao_passos}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-2 border-t border-black/[0.04] dark:border-white/[0.06] text-xs">
-                        <div className="flex items-center gap-1.5 flex-wrap font-mono text-[10px] text-slate-400">
-                          {s.tags && s.tags.map((t, idx) => (
-                            <span key={idx}>#{t}</span>
-                          ))}
-                        </div>
-                        <button
-                          onClick={() => handleCopyPassos(s.id, s.solucao_passos)}
-                          className="px-2.5 py-1 rounded-lg bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.08] text-[10px] font-semibold text-slate-700 dark:text-zinc-300 cursor-pointer flex items-center gap-1"
-                        >
-                          {copiedId === s.id ? (
-                            <>
-                              <CheckIcon className="w-3 h-3 text-emerald-600" />
-                              <span>Copiado!</span>
-                            </>
-                          ) : (
-                            <span>Copiar Passos</span>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-zinc-200">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+              <span>Banco Geral de Soluções ({solucoes.length})</span>
             </div>
-          )}
+            <span className="text-[11px] font-normal text-slate-400">
+              Procedimentos aplicáveis e resoluções catalogadas
+            </span>
+          </div>
 
-          {/* 2. SEÇÃO BANCO GERAL */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-zinc-200 border-t border-black/[0.05] dark:border-white/[0.06] pt-4">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                <span>Banco Geral de Soluções ({solucoesBancoGeral.length})</span>
-              </div>
-              {empresa?.id && (
-                <span className="text-[10px] font-normal text-slate-400">
-                  (Procedimentos aplicáveis a qualquer empresa)
-                </span>
-              )}
+          {solucoes.length === 0 ? (
+            <div className="p-8 rounded-3xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#16161a] text-center space-y-3 shadow-xs">
+              <p className="text-xs text-slate-500 dark:text-zinc-400">
+                Nenhuma solução encontrada no banco geral para os termos pesquisados.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsNovaSolucaoOpen(true)}
+                className="px-4 py-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-xs cursor-pointer inline-flex items-center gap-1.5 hover:opacity-95 transition-all"
+              >
+                <LightBulbIcon className="w-3.5 h-3.5" />
+                <span>Cadastrar a primeira solução</span>
+              </button>
             </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {solucoes.map((s) => {
+                const isDestaEmpresa = Boolean(empresa?.id && s.empresa_id === empresa.id);
+                const temEmpresa = Boolean(s.empresa_nome && s.empresa_nome !== 'Global');
 
-            {solucoesBancoGeral.length === 0 ? (
-              <div className="p-8 rounded-3xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#16161a] text-center space-y-3 shadow-xs">
-                <p className="text-xs text-slate-500 dark:text-zinc-400">
-                  Nenhuma solução encontrada no banco geral para os termos pesquisados.
-                </p>
-                <button
-                  onClick={() => setIsNovaSolucaoOpen(true)}
-                  className="px-4 py-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-xs cursor-pointer inline-flex items-center gap-1.5"
-                >
-                  <LightBulbIcon className="w-3.5 h-3.5" />
-                  <span>Cadastrar a primeira solução</span>
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {solucoesBancoGeral.map((s) => (
+                return (
                   <div
                     key={s.id}
-                    className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-3 relative group flex flex-col justify-between shadow-xs"
+                    className={`rounded-3xl p-5 border space-y-3 relative group flex flex-col justify-between shadow-xs transition-all ${
+                      isDestaEmpresa
+                        ? 'border-emerald-500/35 dark:border-emerald-500/25 bg-emerald-500/[0.02] dark:bg-emerald-500/[0.04]'
+                        : 'border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a]'
+                    }`}
                   >
                     <div>
                       <div className="flex items-start justify-between gap-3 mb-2">
                         <div>
-                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
                             {s.erro_codigo && (
                               <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-700 dark:text-red-400 font-mono text-[10px] font-bold">
                                 {s.erro_codigo}
@@ -457,10 +399,27 @@ export default function KnowledgeBaseTab({
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-300 font-semibold">
                               {s.tipo_erro}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-mono">
-                              • {s.empresa_nome || 'Global'}
-                            </span>
+
+                            {/* Menção direta da Empresa sem dividir o banco de soluções */}
+                            {temEmpresa ? (
+                              <span
+                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                                  isDestaEmpresa
+                                    ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30'
+                                    : 'bg-blue-500/10 text-blue-800 dark:text-blue-300 border border-blue-500/20'
+                                }`}
+                                title={`Empresa de origem: ${s.empresa_nome}`}
+                              >
+                                <span>🏢</span>
+                                <span>{s.empresa_nome}</span>
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                • Geral
+                              </span>
+                            )}
                           </div>
+
                           <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
                             {s.titulo}
                           </h4>
@@ -472,6 +431,7 @@ export default function KnowledgeBaseTab({
                         </div>
 
                         <button
+                          type="button"
                           onClick={() => setSolucaoParaExcluir(s)}
                           className="text-slate-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer"
                           title="Excluir Solução"
@@ -492,6 +452,7 @@ export default function KnowledgeBaseTab({
                         ))}
                       </div>
                       <button
+                        type="button"
                         onClick={() => handleCopyPassos(s.id, s.solucao_passos)}
                         className="px-2.5 py-1 rounded-lg bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.08] text-[10px] font-semibold text-slate-700 dark:text-zinc-300 cursor-pointer flex items-center gap-1"
                       >
@@ -506,10 +467,10 @@ export default function KnowledgeBaseTab({
                       </button>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -522,7 +483,7 @@ export default function KnowledgeBaseTab({
         cancelText="Cancelar"
         variant="danger"
         onConfirm={handleConfirmarExclusao}
-        onCancel={() => setSolucaoParaExcluir(null)}
+        onClose={() => setSolucaoParaExcluir(null)}
       />
     </div>
   );

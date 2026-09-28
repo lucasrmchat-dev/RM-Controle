@@ -600,24 +600,9 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 <span>Concluir Chamado</span>
               </button>
 
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setActiveTab('como_resolver')}
-                className={`px-3.5 py-1.5 rounded-full border font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ml-1 ${
-                  activeTab === 'como_resolver'
-                    ? 'bg-amber-500 text-white dark:text-zinc-950 border-amber-600 shadow-sm'
-                    : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 dark:text-amber-200 border-amber-500/30'
-                }`}
-                title="Acessar aba Como Resolver Chamado"
-              >
-                <LightBulbIcon className="w-3.5 h-3.5" />
-                <span>Como Resolver Chamado</span>
-              </motion.button>
-
               <button
                 onClick={handleCancelarChamado}
-                className="p-1.5 rounded-full hover:bg-red-500/20 text-slate-400 hover:text-red-500 transition-all cursor-pointer"
+                className="p-1.5 rounded-full hover:bg-red-500/20 text-slate-400 hover:text-red-500 transition-all cursor-pointer ml-1"
                 title="Cancelar atendimento"
               >
                 <XMarkIcon className="w-3.5 h-3.5" />
