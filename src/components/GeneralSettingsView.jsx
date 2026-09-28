@@ -139,7 +139,12 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
     }
   };
 
-  const opcoesSons = [\n    { id: 'harmonico', nome: 'Harmônico Apple', desc: 'Acorde suave em Dó Maior (arpejo cristalino)', tag: 'Padrão' },\n    { id: 'dinamico', nome: 'Alerta Dinâmico', desc: 'Bip duplo estilo radar/sonar de alta clareza', tag: 'Alerta' },\n    { id: 'sino', nome: 'Sino Suave / Marimba', desc: 'Timbre acústico acolhedor, não invasivo', tag: 'Calmo' },\n    { id: 'incisivo', nome: 'Incisivo / Alerta Urgente', desc: 'Frequência de atenção imediata para triagem rápida', tag: 'Urgência' },\n  ];
+  const opcoesSons = [
+    { id: 'harmonico', nome: 'Harmônico Apple', desc: 'Acorde suave em Dó Maior (arpejo cristalino)', tag: 'Padrão' },
+    { id: 'dinamico', nome: 'Alerta Dinâmico', desc: 'Bip duplo estilo radar/sonar de alta clareza', tag: 'Alerta' },
+    { id: 'sino', nome: 'Sino Suave / Marimba', desc: 'Timbre acústico acolhedor, não invasivo', tag: 'Calmo' },
+    { id: 'incisivo', nome: 'Incisivo / Alerta Urgente', desc: 'Frequência de atenção imediata para triagem rápida', tag: 'Urgência' },
+  ];
 
   const gruposNavegacao = [
     {
@@ -714,7 +719,8 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
                 Acesso do Suporte
               </span>
-              <h3 className="text-lg font-bold text-[#1d1d1f] dark:text-white mt-0.5">\n                Senha Padrão de Contingência
+              <h3 className="text-lg font-bold text-[#1d1d1f] dark:text-white mt-0.5">
+                Senha Padrão de Contingência
               </h3>
               <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
                 Utilizada pela equipe de suporte para redefinir rapidamente acessos de clientes ou colaboradores sem senha específica cadastrada.
@@ -817,4 +823,27 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
       )}
 
       {/* AVANÇADA 2: SERVIDORES & EQUIPE */}
-      {subTab === 'servidores' && (\n        <motion.div\n          initial={{ opacity: 0, y: 8 }}\n          animate={{ opacity: 1, y: 0 }}\n          transition={{ duration: 0.2 }}\n        >\n          <ServerConfigView />\n        </motion.div>\n      )}\n\n      {/* AVANÇADA 3: AUDITORIA & LGPD */}\n      {subTab === 'auditoria' && (\n        <motion.div\n          initial={{ opacity: 0, y: 8 }}\n          animate={{ opacity: 1, y: 0 }}\n          transition={{ duration: 0.2 }}\n        >\n          <AuditLogsView userEmail={userEmail} />\n        </motion.div>\n      )}\n\n    </div>\n  );\n}\n
+      {subTab === 'servidores' && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <ServerConfigView />
+        </motion.div>
+      )}
+
+      {/* AVANÇADA 3: AUDITORIA & LGPD */}
+      {subTab === 'auditoria' && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <AuditLogsView userEmail={userEmail} />
+        </motion.div>
+      )}
+
+    </div>
+  );
+}
