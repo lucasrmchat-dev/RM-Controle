@@ -253,42 +253,61 @@ export function removeMotivoSuporte(id) {
 // ==============================================================================
 // GESTÃO DE CATEGORIAS DE DEMANDAS / SUPORTE
 // ==============================================================================
-export const DEFAULT_CATEGORIAS_DEMANDAS = [
+// GESTÃO DE DEPARTAMENTOS / CATEGORIAS DE DEMANDAS
+// ==============================================================================
+export const DEFAULT_DEPARTAMENTOS = [
   'Suporte',
   'Financeiro',
   'Automação',
   'Implantação',
   'Dúvidas Gerais',
+  'Feedback / Bug RM',
 ];
+export const DEFAULT_CATEGORIAS_DEMANDAS = DEFAULT_DEPARTAMENTOS;
 
-export function getCategoriasDemandas() {
-  return getLocalData('categorias_demandas', DEFAULT_CATEGORIAS_DEMANDAS);
+export function getDepartamentos() {
+  return getLocalData('categorias_demandas', DEFAULT_DEPARTAMENTOS);
 }
 
-export function setCategoriasDemandas(categorias) {
-  setLocalData('categorias_demandas', categorias);
+export function setDepartamentos(departamentos) {
+  setLocalData('categorias_demandas', departamentos);
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('categorias_demandas_updated'));
+    window.dispatchEvent(new Event('departamentos_updated'));
   }
 }
 
-export function addCategoriaDemanda(nome) {
-  if (!nome || !nome.trim()) throw new Error('Nome da categoria é obrigatório.');
+export function addDepartamento(nome) {
+  if (!nome || !nome.trim()) throw new Error('Nome do departamento é obrigatório.');
   const nomeTrim = nome.trim();
-  const cats = getCategoriasDemandas();
-  if (cats.some((c) => c.toLowerCase() === nomeTrim.toLowerCase())) {
-    throw new Error('Esta categoria já está cadastrada.');
+  const deps = getDepartamentos();
+  if (deps.some((d) => d.toLowerCase() === nomeTrim.toLowerCase())) {
+    throw new Error('Este departamento já está cadastrado.');
   }
-  const novas = [...cats, nomeTrim];
-  setCategoriasDemandas(novas);
-  return novas;
+  const novos = [...deps, nomeTrim];
+  setDepartamentos(novos);
+  return novos;
 }
 
+export function removeDepartamento(nome) {
+  const deps = getDepartamentos();
+  const novos = deps.filter((d) => d.toLowerCase() !== nome.toLowerCase());
+  setDepartamentos(novos);
+  return novos;
+}
+
+// Aliases para compatibilidade total
+export function getCategoriasDemandas() {
+  return getDepartamentos();
+}
+export function setCategoriasDemandas(categorias) {
+  return setDepartamentos(categorias);
+}
+export function addCategoriaDemanda(nome) {
+  return addDepartamento(nome);
+}
 export function removeCategoriaDemanda(nome) {
-  const cats = getCategoriasDemandas();
-  const novas = cats.filter((c) => c.toLowerCase() !== nome.toLowerCase());
-  setCategoriasDemandas(novas);
-  return novas;
+  return removeDepartamento(nome);
 }
 
 // ==============================================================================
@@ -3354,54 +3373,6 @@ export async function deleteEmpresaChecklistItem(empresaId, itemId, userEmail = 
   return updateEmpresaServidorDetalhes(empresaId, dados, userEmail);
 }
 
-// ==============================================================================
-// GESTÃO DE DEPARTAMENTOS (ANTIGAS CATEGORIAS DE DEMANDAS)
-// ==============================================================================
-export const DEFAULT_DEPARTAMENTOS = [
-  'Suporte',
-  'Financeiro',
-  'Automação',
-  'Implantação',
-  'Dúvidas Gerais',
-  'Feedback / Bug RM',
-];
-
-export function getDepartamentos() {
-  return getLocalData('categorias_demandas', DEFAULT_DEPARTAMENTOS);
-}
-
-export function setDepartamentos(departamentos) {
-  setLocalData('categorias_demandas', departamentos);
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new Event('categorias_demandas_updated'));
-    window.dispatchEvent(new Event('departamentos_updated'));
-  }
-}
-
-export function addDepartamento(nome) {
-  if (!nome || !nome.trim()) throw new Error('Nome do departamento é obrigatório.');
-  const nomeTrim = nome.trim();
-  const deps = getDepartamentos();
-  if (deps.some((d) => d.toLowerCase() === nomeTrim.toLowerCase())) {
-    throw new Error('Este departamento já está cadastrado.');
-  }
-  const novos = [...deps, nomeTrim];
-  setDepartamentos(novos);
-  return novos;
-}
-
-export function removeDepartamento(nome) {
-  const deps = getDepartamentos();
-  const novos = deps.filter((d) => d.toLowerCase() !== nome.toLowerCase());
-  setDepartamentos(novos);
-  return novos;
-}
-
-// Aliases para compatibilidade total
-export const getCategoriasDemandas = getDepartamentos;
-export const setCategoriasDemandas = setDepartamentos;
-export const addCategoriaDemanda = addDepartamento;
-export const removeCategoriaDemanda = removeDepartamento;
 
 // ==============================================================================
 // GESTÃO DE FEEDBACKS & RELATO DE BUGS
