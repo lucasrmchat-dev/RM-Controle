@@ -270,16 +270,30 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   };
 
   const handleCancelarChamado = (chamado) => {
+    const isHistorico = chamado.status === 'concluido' || chamado.status === 'finalizado';
     setConfirmDialog({
-      title: 'Cancelar Chamado da Fila?',
-      message: `Deseja realmente cancelar o atendimento de "${chamado.empresa_nome}"? O tempo será descartado.`,
-      confirmText: 'Sim, Cancelar',
+      title: isHistorico ? 'Excluir Atendimento do Histórico?' : 'Cancelar Chamado da Fila?',
+      message: isHistorico
+        ? `Deseja realmente remover o atendimento de "${chamado.empresa_nome}" do histórico e da fila?`
+        : `Deseja realmente cancelar o atendimento de "${chamado.empresa_nome}"? O tempo e o registro serão descartados.`,
+      confirmText: isHistorico ? 'Sim, Excluir' : 'Sim, Cancelar',
+      cancelText: 'Voltar',
       variant: 'danger',
       onConfirm: async () => {
-        await cancelarSuporte({ chamado_id: chamado.id, userEmail });
-        stopSupportNotificationLoop();
-        showToast(`Chamado de ${chamado.empresa_nome} cancelado.`, 'info');
-        setConfirmDialog(null);
+        try {
+          await cancelarSuporte({ chamado_id: chamado.id, userEmail });
+          stopSupportNotificationLoop();
+          showToast(
+            isHistorico 
+              ? `Atendimento de ${chamado.empresa_nome} removido do histórico.` 
+              : `Chamado de ${chamado.empresa_nome} cancelado com sucesso.`, 
+            'info'
+          );
+          setConfirmDialog(null);
+          await carregarDados();
+        } catch (err) {
+          showToast(err.message || 'Erro ao cancelar chamado.', 'error');
+        }
       },
     });
   };
@@ -745,6 +759,17 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                       </>
                     )}
 
+                    {/* Ações para Chamado Finalizado */}
+                    {isFinalizado && (
+                      <button
+                        onClick={() => handleCancelarChamado(ch)}
+                        className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer"
+                        title="Excluir do histórico"
+                      >
+                        <XMarkIcon className="w-4 h-4" />
+                      </button>
+                    )}
+
                   </div>
 
                 </div>
@@ -930,16 +955,14 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                         </>
                       )}
 
-                      {!isFinalizado && (
-                        <button
-                          type="button"
-                          onClick={() => handleCancelarChamado(ch)}
-                          className="p-1 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-500/10 cursor-pointer"
-                          title="Cancelar chamado"
-                        >
-                          <XMarkIcon className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleCancelarChamado(ch)}
+                        className="p-1 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-500/10 cursor-pointer"
+                        title={isFinalizado ? "Excluir do histórico" : "Cancelar chamado"}
+                      >
+                        <XMarkIcon className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 );
@@ -1439,6 +1462,18 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
           userEmail={userEmail}
         />
       )}
+
+      {/* Modal de Confirmação de Cancelamento / Exclusão de Chamado */}
+      <ConfirmModal
+        isOpen={Boolean(confirmDialog)}
+        title={confirmDialog?.title || 'Cancelar Chamado?'}
+        message={confirmDialog?.message || ''}
+        confirmText={confirmDialog?.confirmText || 'Sim, Cancelar'}
+        cancelText={confirmDialog?.cancelText || 'Voltar'}
+        variant={confirmDialog?.variant || 'danger'}
+        onConfirm={confirmDialog?.onConfirm}
+        onClose={() => setConfirmDialog(null)}
+      />
 
     </div>
   );

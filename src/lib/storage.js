@@ -596,23 +596,42 @@ export async function finalizarSuporte({
 }
 
 export async function cancelarSuporte({ chamado_id, userEmail = 'admin@rmcontrole.com' }) {
-  const chamados = getLocalData('chamados_suporte', []);
+  let chamados = getLocalData('chamados_suporte', []);
   const idx = chamados.findIndex((c) => c.id === chamado_id);
-  if (idx === -1) return null;
+  const anteriorChamado = idx !== -1 ? chamados[idx] : null;
 
-  const anterior = chamados[idx];
-  chamados.splice(idx, 1);
-  setLocalData('chamados_suporte', chamados);
+  if (idx !== -1) {
+    chamados.splice(idx, 1);
+    setLocalData('chamados_suporte', chamados);
+  }
+
+  // Remove também do histórico de chamados (garante que saia dos históricos)
+  let historico = getLocalData('historico_chamados', []);
+  const histItem = historico.find((c) => c.id === chamado_id);
+  historico = historico.filter((c) => c.id !== chamado_id);
+  setLocalData('historico_chamados', historico);
+
+  const empresaId = anteriorChamado?.empresa_id || histItem?.empresa_id || null;
+  const empresaNome = anteriorChamado?.empresa_nome || histItem?.empresa_nome || '';
+
+  // Remove no Supabase se configurado
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('suporte_chamados').delete().eq('id', chamado_id);
+    } catch (e) {
+      console.warn('Erro ao excluir chamado no Supabase ao cancelar:', e);
+    }
+  }
 
   try {
     stopSupportNotificationLoop();
   } catch (e) {}
 
   await logAuditoria({
-    empresaId: anterior.empresa_id,
+    empresaId,
     usuarioEmail: userEmail,
     acao: 'cancelou_suporte_tecnico',
-    detalhes: { empresa_nome: anterior.empresa_nome, modulo: 'Fila de Suporte' },
+    detalhes: { chamado_id, empresa_nome: empresaNome, modulo: 'Fila de Suporte' },
   });
 
   window.dispatchEvent(new Event('suporte_updated'));
