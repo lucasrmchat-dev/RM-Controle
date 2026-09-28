@@ -66,22 +66,31 @@ import {
 import RegisterSupportModal from './RegisterSupportModal';
 
 export default function CompanyManagementView({ empresa, onBack, onUpdated, userEmail }) {
-  const [activeTab, setActiveTab] = useState('canais'); // 'canais' | 'credenciais' | 'servidor' | 'observacoes' | 'chamados'
+  const [activeTab, setActiveTab] = useState('como_resolver'); // 'como_resolver' | 'canais' | 'credenciais' | 'servidor' | 'observacoes' | 'chamados'
   const [catalogoCanais, setCatalogoCanais] = useState([]);
   const [isRegistrarModalOpen, setIsRegistrarModalOpen] = useState(false);
   const [solucoesCount, setSolucoesCount] = useState(0);
 
+  // Garante que ao abrir a tela de suporte de uma empresa, a aba padrão seja sempre "Como Resolver Chamado"
   useEffect(() => {
-    const list = getSolucoesSuporte({ empresa_id: empresa.id });
-    setSolucoesCount(list.length);
+    setActiveTab('como_resolver');
+  }, [empresa?.id]);
 
-    const handleUpdate = () => {
-      const updated = getSolucoesSuporte({ empresa_id: empresa.id });
-      setSolucoesCount(updated.length);
+  useEffect(() => {
+    const carregarContagemSolucoes = () => {
+      const list = getSolucoesSuporte({ empresa_id: empresa.id });
+      const listEmpresa = list.filter((s) => s.empresa_id === empresa.id || (s.empresa_nome && empresa.nome && s.empresa_nome.toLowerCase().trim() === empresa.nome.toLowerCase().trim()));
+      setSolucoesCount(listEmpresa.length > 0 ? listEmpresa.length : list.length);
     };
-    window.addEventListener('solucoes_updated', handleUpdate);
-    return () => window.removeEventListener('solucoes_updated', handleUpdate);
-  }, [empresa.id]);
+
+    carregarContagemSolucoes();
+    window.addEventListener('solucoes_updated', carregarContagemSolucoes);
+    window.addEventListener('suporte_updated', carregarContagemSolucoes);
+    return () => {
+      window.removeEventListener('solucoes_updated', carregarContagemSolucoes);
+      window.removeEventListener('suporte_updated', carregarContagemSolucoes);
+    };
+  }, [empresa.id, empresa.nome]);
   const [confirmDialog, setConfirmDialog] = useState(null);
 
   // Estados de Servidor Dividido (Padrão vs Personalizado + Checklist de Implementação)
@@ -593,7 +602,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
 
         {/* Ações de Suporte (Sem redundância: Concluir ou Cancelar se ativo; Iniciar se inativo) */}
         <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-          {!chamadoAtivo ? (
+          {!chamadoAtivo && (
             <>
               <motion.button
                 whileHover={{ scale: 1.01 }}
@@ -613,20 +622,6 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 <span>+ Registrar Suporte</span>
               </button>
             </>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="px-3 py-1.5 rounded-full bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/25 text-xs font-semibold flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
-                <span>Atendimento Ativo</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsRegistrarModalOpen(true)}
-                className="px-3.5 py-1.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-[#1d1d1f] dark:text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <span>+ Registrar Suporte</span>
-              </button>
-            </div>
           )}
         </div>
       </div>
@@ -827,11 +822,11 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
           {/* Abas Apple Minimalistas */}
           <div className="flex border-b border-black/8 dark:border-white/10 gap-1.5 overflow-x-auto pb-1">
             {[
+              { id: 'como_resolver', label: 'Como Resolver Chamado', count: solucoesCount, highlight: true },
               { id: 'canais', label: 'Canais de Atendimento', count: empresa.canais?.length || 0 },
               { id: 'credenciais', label: 'Acessos & Senhas Técnicas', count: credenciaisList.length },
               { id: 'servidor', label: 'Configuração do Servidor', count: `${concluidosChecklist}/${totalChecklist}` },
               { id: 'chamados', label: 'Histórico de Suporte', count: chamadosEmpresa.length },
-              { id: 'como_resolver', label: 'Como Resolver Chamado', count: solucoesCount, highlight: true },
             ].map((tab) => {
               const isActive = activeTab === tab.id;
               return (

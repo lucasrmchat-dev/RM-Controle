@@ -63,6 +63,17 @@ export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
     return () => window.removeEventListener('feedbacks_updated', handleUpdate);
   }, []);
 
+  // Trava scroll da tela enquanto o modal estiver aberto
+  useEffect(() => {
+    if (modalAberto) {
+      const orig = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = orig;
+      };
+    }
+  }, [modalAberto]);
+
   // Compressão inteligente da imagem no cliente (Canvas Web API) para economizar armazenamento
   const handleSelecionarArquivo = (e) => {
     const file = e.target.files?.[0];
@@ -394,13 +405,17 @@ export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
       {/* Modal de Cadastro de Novo Feedback / Bug (Layout 2 Colunas Widescreen) */}
       <AnimatePresence>
         {modalAberto && (
-          <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6 overflow-hidden">
+          <div 
+            className="fixed inset-0 z-[99999] bg-black/60 dark:bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6 overflow-hidden"
+            onClick={() => setModalAberto(false)}
+          >
             <motion.div
               initial={{ opacity: 0, scale: 0.96, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 12 }}
               transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
               className="w-full max-w-4xl max-h-[92vh] rounded-[32px] bg-white dark:bg-[#16161a] border border-black/[0.08] dark:border-white/[0.1] p-6 sm:p-8 shadow-2xl flex flex-col text-[#1d1d1f] dark:text-[#f5f5f7] relative"
+              onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-white/[0.08] flex-shrink-0">
                 <div>

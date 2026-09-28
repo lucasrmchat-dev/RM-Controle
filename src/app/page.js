@@ -1415,6 +1415,14 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                   userEmail={userEmail}
                 />
               )}
+
+              {/* ABA 7: FEEDBACKS */}
+              {activeTab === 'feedbacks' && (
+                <FeedbacksView
+                  userEmail={userEmail}
+                  onSelectEmpresa={handleSelectEmpresaGlobal}
+                />
+              )}
           </div>
         )}
       </main>

@@ -41,9 +41,9 @@ export default function KnowledgeBaseTab({
     });
     // Ordena priorizando soluções desta empresa no topo do banco geral e depois por data
     const sorted = [...list].sort((a, b) => {
-      if (empresa?.id) {
-        const aIsEmp = a.empresa_id === empresa.id ? 1 : 0;
-        const bIsEmp = b.empresa_id === empresa.id ? 1 : 0;
+      if (empresa?.id || empresa?.nome) {
+        const aIsEmp = (empresa?.id && a.empresa_id === empresa.id) || (empresa?.nome && a.empresa_nome && a.empresa_nome.toLowerCase().trim() === empresa.nome.toLowerCase().trim()) ? 1 : 0;
+        const bIsEmp = (empresa?.id && b.empresa_id === empresa.id) || (empresa?.nome && b.empresa_nome && b.empresa_nome.toLowerCase().trim() === empresa.nome.toLowerCase().trim()) ? 1 : 0;
         if (aIsEmp !== bIsEmp) return bIsEmp - aIsEmp;
       }
       return new Date(b.created_at || 0) - new Date(a.created_at || 0);
@@ -375,7 +375,10 @@ export default function KnowledgeBaseTab({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {solucoes.map((s) => {
-                const isDestaEmpresa = Boolean(empresa?.id && s.empresa_id === empresa.id);
+                const isDestaEmpresa = Boolean(
+                  (empresa?.id && s.empresa_id === empresa.id) ||
+                  (empresa?.nome && s.empresa_nome && s.empresa_nome.toLowerCase().trim() === empresa.nome.toLowerCase().trim())
+                );
                 const temEmpresa = Boolean(s.empresa_nome && s.empresa_nome !== 'Global');
 
                 return (

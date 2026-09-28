@@ -261,12 +261,18 @@ export const DEFAULT_DEPARTAMENTOS = [
   'Automação',
   'Implantação',
   'Dúvidas Gerais',
+  'Feedback',
   'Feedback / Bug RM',
 ];
 export const DEFAULT_CATEGORIAS_DEMANDAS = DEFAULT_DEPARTAMENTOS;
 
 export function getDepartamentos() {
-  return getLocalData('categorias_demandas', DEFAULT_DEPARTAMENTOS);
+  const deps = getLocalData('categorias_demandas', DEFAULT_DEPARTAMENTOS);
+  if (!deps.some((d) => d.toLowerCase().trim() === 'feedback')) {
+    deps.push('Feedback');
+    setLocalData('categorias_demandas', deps);
+  }
+  return deps;
 }
 
 export function setDepartamentos(departamentos) {
@@ -822,6 +828,25 @@ export async function finalizarSuporte({
     },
   });
 
+  // Cataloga automaticamente o procedimento adotado na base de "Como Resolver Chamados"
+  if (chamadoFinalizado.observacoes && chamadoFinalizado.observacoes.trim()) {
+    try {
+      await addSolucaoSuporte({
+        empresa_id: chamadoFinalizado.empresa_id || null,
+        empresa_nome: chamadoFinalizado.empresa_nome || 'Global',
+        titulo: `${chamadoFinalizado.motivo || 'Atendimento'} (${chamadoFinalizado.empresa_nome || 'Empresa'})`,
+        erro_codigo: '',
+        contexto: `Procedimento registrado na conclusão do chamado por ${chamadoFinalizado.atendente_nome || chamadoFinalizado.tecnico_nome || 'atendente'}.`,
+        tipo_erro: chamadoFinalizado.motivo || 'Suporte Geral',
+        solucao_passos: chamadoFinalizado.observacoes.trim(),
+        tags: [chamadoFinalizado.motivo, chamadoFinalizado.empresa_nome, 'suporte_finalizado'],
+        userEmail,
+      });
+    } catch (e) {
+      console.warn('Erro ao catalogar solução em finalizarSuporte:', e);
+    }
+  }
+
   window.dispatchEvent(new Event('suporte_updated'));
   return chamadoFinalizado;
 }
@@ -1144,6 +1169,25 @@ export async function registrarSuporteRetroativo({
       modulo: 'Registro de Suporte',
     },
   });
+
+  // Cataloga automaticamente o procedimento adotado na base de "Como Resolver Chamados"
+  if (novoChamado.observacoes && novoChamado.observacoes.trim()) {
+    try {
+      await addSolucaoSuporte({
+        empresa_id: novoChamado.empresa_id || null,
+        empresa_nome: novoChamado.empresa_nome || 'Global',
+        titulo: `${novoChamado.motivo || 'Atendimento'} (${novoChamado.empresa_nome || 'Empresa'})`,
+        erro_codigo: '',
+        contexto: `Procedimento registrado em atendimento por ${novoChamado.atendente_nome || 'atendente'}.`,
+        tipo_erro: novoChamado.motivo || 'Suporte Geral',
+        solucao_passos: novoChamado.observacoes.trim(),
+        tags: [novoChamado.motivo, novoChamado.empresa_nome, 'suporte_finalizado'],
+        userEmail,
+      });
+    } catch (e) {
+      console.warn('Erro ao catalogar solução em registrarSuporteRetroativo:', e);
+    }
+  }
 
   window.dispatchEvent(new Event('suporte_updated'));
   return novoChamado;
@@ -3117,19 +3161,50 @@ const DEFAULT_SOLUCOES = [
 ];
 
 export function getSolucoesSuporte({ empresa_id = null, query = '', tag = '', tipo = '' } = {}) {
-  const mockAtivo = isMockDataEnabled();
   let base = getLocalData('solucoes_suporte', []);
-  if (!mockAtivo) {
-    base = base.filter((s) => s.is_user_created || s.id?.startsWith('sol_usr_'));
-  } else if (base.length === 0) {
-    base = DEFAULT_SOLUCOES;
-  }
+
+  // Extrai dinamicamente procedimentos adotados em chamados já finalizados no histórico
+  const historico = getLocalData('historico_chamados', []);
+  const chamados = getLocalData('chamados_suporte', []);
+  const todosChamados = [...historico, ...chamados];
+
+  const chamadosComResolucao = todosChamados.filter((c) => 
+    (c.status === 'concluido' || c.status === 'finalizado') &&
+    ((c.observacoes && String(c.observacoes).trim()) || (c.resolucao && String(c.resolucao).trim()))
+  );
+
+  const solucoesDoHistorico = chamadosComResolucao.map((c) => {
+    const textoPassos = (c.observacoes || c.resolucao || '').trim();
+    const tituloSolucao = c.motivo 
+      ? `${c.motivo} (${c.empresa_nome || 'Empresa'})` 
+      : `Resolução (${c.empresa_nome || 'Empresa'})`;
+    return {
+      id: 'sol_chamado_' + (c.id || Math.random().toString(36).substr(2, 6)),
+      is_user_created: true,
+      empresa_id: c.empresa_id || null,
+      empresa_nome: (c.empresa_nome || 'Global').trim(),
+      titulo: tituloSolucao,
+      erro_codigo: c.erro_codigo || '',
+      contexto: `Procedimento registrado na conclusão do chamado por ${c.atendente_nome || c.tecnico_nome || c.atendente || 'atendente'}.`,
+      tipo_erro: c.motivo || 'Suporte Geral',
+      solucao_passos: textoPassos,
+      tags: [c.motivo, c.empresa_nome, 'suporte_finalizado'].filter(Boolean),
+      autor_email: c.tecnico_email || 'admin@rmcontrole.com',
+      created_at: c.finalizado_em || c.created_at || new Date().toISOString(),
+    };
+  });
+
+  // Une soluções salvas no banco com as derivadas de chamados finalizados e o catálogo padrão
+  base = [...base, ...solucoesDoHistorico, ...DEFAULT_SOLUCOES];
 
   // Deduplicação estrita de soluções para evitar qualquer duplicata no banco
   const vistas = new Set();
   const baseDeduplicada = [];
   for (const s of base) {
-    const chave = `${s.empresa_id || 'global'}_${(s.titulo || '').toLowerCase().trim()}_${(s.solucao_passos || '').toLowerCase().trim()}`;
+    const passosNorm = (s.solucao_passos || '').toLowerCase().trim();
+    const tituloNorm = (s.titulo || '').toLowerCase().trim();
+    const empNorm = (s.empresa_id || s.empresa_nome || 'global').toLowerCase().trim();
+    const chave = `${empNorm}_${tituloNorm}_${passosNorm}`;
     if (!vistas.has(chave)) {
       vistas.add(chave);
       baseDeduplicada.push(s);
@@ -3456,14 +3531,14 @@ export async function createFeedback({
     }
   }
 
-  // 2. Abre automaticamente uma demanda na Fila na categoria/departamento 'Feedback / Bug RM'
+  // 2. Abre automaticamente uma demanda na Fila no departamento 'Feedback'
   try {
     await adicionarChamadoFila({
       empresa_id: null,
-      empresa_nome: `[Bug/Feedback] ${novoFeedback.empresa_nome}`,
+      empresa_nome: `[Feedback] ${novoFeedback.empresa_nome}`,
       solicitante_nome: autor_nome,
       solicitante_email: autor_email,
-      categorias: ['Feedback / Bug RM'],
+      categorias: ['Feedback'],
       observacao_inicial: `[${tipo.toUpperCase()} - ${prioridade.toUpperCase()}] ${novoFeedback.titulo}: ${novoFeedback.descricao}`,
       iniciarAgora: false,
       userEmail: autor_email,
