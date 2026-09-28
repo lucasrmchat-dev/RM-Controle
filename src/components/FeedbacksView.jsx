@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   getFeedbacks, 
@@ -24,6 +25,11 @@ export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
   const [empresasLista, setEmpresasLista] = useState([]);
   const [modalAberto, setModalAberto] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Filtros
   const [filtroStatus, setFiltroStatus] = useState('todos'); // 'todos' | 'em_analise' | 'em_correcao' | 'resolvido'
@@ -32,7 +38,7 @@ export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
   // Formulário de Novo Feedback
   const [titulo, setTitulo] = useState('');
   const [descricao, setDescricao] = useState('');
-  const [empresaSelecionada, setEmpresaSelecionada] = useState('RM Controle Interno');
+  const [moduloAfetado, setModuloAfetado] = useState('Fila de Demandas');
   const [tipo, setTipo] = useState('bug');
   const [prioridade, setPrioridade] = useState('normal');
   const [imagemBase64, setImagemBase64] = useState(null);
@@ -144,7 +150,8 @@ export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
       await createFeedback({
         titulo: titulo.trim(),
         descricao: descricao.trim(),
-        empresa_nome: empresaSelecionada,
+        modulo_afetado: moduloAfetado,
+        empresa_nome: 'RM Controle',
         tipo,
         prioridade,
         imagem_base64: imagemBase64,
@@ -156,6 +163,7 @@ export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
       setModalAberto(false);
       setTitulo('');
       setDescricao('');
+      setModuloAfetado('Fila de Demandas');
       setTipo('bug');
       setPrioridade('normal');
       setImagemBase64(null);
@@ -334,7 +342,7 @@ export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
                       {fb.titulo}
                     </h3>
                     <span className="text-[11px] font-medium text-slate-400">
-                      Empresa / Contexto: <strong className="text-slate-600 dark:text-zinc-300">{fb.empresa_nome}</strong>
+                      Módulo: <strong className="text-[#4d7c0f] dark:text-[#84cc16] font-semibold">{fb.modulo_afetado || 'Geral'}</strong>
                     </span>
                   </div>
 
@@ -374,49 +382,54 @@ export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
       )}
 
       {/* Lightbox para Visualização do Print em Tela Cheia */}
-      <AnimatePresence>
-        {lightboxImagem && (
-          <div 
-            onClick={() => setLightboxImagem(null)}
-            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="max-w-5xl max-h-[90vh] overflow-hidden rounded-3xl border border-white/20 shadow-2xl relative"
+      {isClient && createPortal(
+        <AnimatePresence>
+          {lightboxImagem && (
+            <div 
+              onClick={() => setLightboxImagem(null)}
+              className="fixed inset-0 w-screen h-screen z-[100000] bg-black/85 backdrop-blur-xl flex items-center justify-center p-4 cursor-zoom-out overflow-hidden"
             >
-              <img 
-                src={lightboxImagem} 
-                alt="Print ampliado" 
-                className="w-auto h-auto max-h-[85vh] object-contain rounded-2xl"
-              />
-              <button
-                onClick={() => setLightboxImagem(null)}
-                className="absolute top-4 right-4 p-2 rounded-full bg-black/60 text-white hover:bg-black cursor-pointer"
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="max-w-5xl max-h-[90vh] overflow-hidden rounded-3xl border border-white/20 shadow-2xl relative"
+                onClick={(e) => e.stopPropagation()}
               >
-                <XMarkIcon className="w-4 h-4" />
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                <img 
+                  src={lightboxImagem} 
+                  alt="Print ampliado" 
+                  className="w-auto h-auto max-h-[85vh] object-contain rounded-2xl"
+                />
+                <button
+                  onClick={() => setLightboxImagem(null)}
+                  className="absolute top-4 right-4 p-2 rounded-full bg-black/60 text-white hover:bg-black cursor-pointer"
+                >
+                  <XMarkIcon className="w-4 h-4" />
+                </button>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
-      {/* Modal de Cadastro de Novo Feedback / Bug (Layout 2 Colunas Widescreen) */}
-      <AnimatePresence>
-        {modalAberto && (
-          <div 
-            className="fixed inset-0 z-[99999] bg-black/60 dark:bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6 overflow-hidden"
-            onClick={() => setModalAberto(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
-              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-              className="w-full max-w-4xl max-h-[92vh] rounded-[32px] bg-white dark:bg-[#16161a] border border-black/[0.08] dark:border-white/[0.1] p-6 sm:p-8 shadow-2xl flex flex-col text-[#1d1d1f] dark:text-[#f5f5f7] relative"
-              onClick={(e) => e.stopPropagation()}
+      {/* Modal de Cadastro de Novo Feedback / Bug com Portal e Backdrop Blur Apple */}
+      {isClient && createPortal(
+        <AnimatePresence>
+          {modalAberto && (
+            <div 
+              className="fixed inset-0 w-screen h-screen z-[99999] bg-black/60 dark:bg-black/80 backdrop-blur-xl flex items-center justify-center p-3 sm:p-6 overflow-hidden"
+              onClick={() => setModalAberto(false)}
             >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                className="w-full max-w-4xl max-h-[92vh] rounded-[32px] bg-white dark:bg-[#16161a] border border-black/[0.08] dark:border-white/[0.1] p-6 sm:p-8 shadow-2xl flex flex-col text-[#1d1d1f] dark:text-[#f5f5f7] relative"
+                onClick={(e) => e.stopPropagation()}
+              >
               <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-white/[0.08] flex-shrink-0">
                 <div>
                   <h3 className="text-lg font-bold text-[#1d1d1f] dark:text-white">
@@ -455,22 +468,35 @@ export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
                         />
                       </div>
 
-                      <div className="space-y-1">
+                      <div className="space-y-1.5">
                         <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
-                          Empresa / Módulo Afetado
+                          Módulo / Aba Afetada <span className="text-red-500">*</span>
                         </label>
-                        <select
-                          value={empresaSelecionada}
-                          onChange={(e) => setEmpresaSelecionada(e.target.value)}
-                          className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none cursor-pointer"
-                        >
-                          <option value="RM Controle Interno">RM Controle Interno (Sistema Geral)</option>
-                          {empresasLista.map((emp) => (
-                            <option key={emp.id} value={emp.nome}>
-                              {emp.nome}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { id: 'Empresas', label: 'Empresas' },
+                            { id: 'Fila de Demandas', label: 'Fila de Demandas' },
+                            { id: 'Dashboard', label: 'Dashboard' },
+                            { id: 'Configurações Gerais', label: 'Configurações Gerais' },
+                          ].map((m) => {
+                            const isSel = moduloAfetado === m.id;
+                            return (
+                              <button
+                                key={m.id}
+                                type="button"
+                                onClick={() => setModuloAfetado(m.id)}
+                                className={`px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition-all border text-left cursor-pointer flex items-center justify-between ${
+                                  isSel
+                                    ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] border-[#4d7c0f]/40 dark:border-[#84cc16]/40 shadow-xs'
+                                    : 'bg-black/[0.02] dark:bg-white/[0.04] text-slate-600 dark:text-zinc-400 border-black/[0.08] dark:border-white/[0.1] hover:border-black/20'
+                                }`}
+                              >
+                                <span>{m.label}</span>
+                                {isSel && <span className="text-[11px] font-bold">✓</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2.5">
@@ -601,7 +627,9 @@ export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
+    )}
 
     </div>
   );

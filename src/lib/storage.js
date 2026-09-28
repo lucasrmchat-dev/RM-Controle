@@ -3478,7 +3478,8 @@ export async function fetchFeedbacks() {
 export async function createFeedback({
   titulo,
   descricao,
-  empresa_nome = 'RM Controle Interno',
+  modulo_afetado = 'Fila de Demandas',
+  empresa_nome = 'RM Controle',
   tipo = 'bug',
   prioridade = 'normal',
   imagem_base64 = null,
@@ -3493,7 +3494,8 @@ export async function createFeedback({
     id: 'fb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
     titulo: titulo.trim(),
     descricao: descricao.trim(),
-    empresa_nome: empresa_nome.trim() || 'RM Controle Interno',
+    empresa_nome: 'RM Controle',
+    modulo_afetado: modulo_afetado || 'Geral',
     tipo,
     prioridade,
     imagem_url: imagem_base64 || null,
@@ -3512,8 +3514,8 @@ export async function createFeedback({
     try {
       const payload = {
         titulo: novoFeedback.titulo,
-        descricao: novoFeedback.descricao,
-        empresa_nome: novoFeedback.empresa_nome,
+        descricao: `[Módulo: ${novoFeedback.modulo_afetado}] ${novoFeedback.descricao}`,
+        empresa_nome: 'RM Controle',
         tipo: novoFeedback.tipo,
         prioridade: novoFeedback.prioridade,
         imagem_url: novoFeedback.imagem_url,
@@ -3535,11 +3537,11 @@ export async function createFeedback({
   try {
     await adicionarChamadoFila({
       empresa_id: null,
-      empresa_nome: `[Feedback] ${novoFeedback.empresa_nome}`,
+      empresa_nome: `RM Controle (${novoFeedback.modulo_afetado})`,
       solicitante_nome: autor_nome,
       solicitante_email: autor_email,
       categorias: ['Feedback'],
-      observacao_inicial: `[${tipo.toUpperCase()} - ${prioridade.toUpperCase()}] ${novoFeedback.titulo}: ${novoFeedback.descricao}`,
+      observacao_inicial: `[${tipo.toUpperCase()} - ${prioridade.toUpperCase()}] [Módulo: ${novoFeedback.modulo_afetado}] ${novoFeedback.titulo}: ${novoFeedback.descricao}`,
       iniciarAgora: false,
       userEmail: autor_email,
     });
