@@ -262,6 +262,9 @@ export default function Home() {
             const role = resolveUserRole(savedUser);
             setCurrentUserRole(role);
             localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
+
+            const pendente = await isPrimeiroAcessoPendente(savedUser);
+            setPrimeiroAcessoPendente(pendente);
           } else {
             setIsAuthenticated(false);
             setUserEmail('');
@@ -279,7 +282,7 @@ export default function Home() {
     checkSession();
 
     if (isSupabaseConfigured && supabase) {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
         if (session?.user) {
           const email = session.user.email || 'admin@rmcontrole.com';
           setIsAuthenticated(true);
@@ -287,6 +290,9 @@ export default function Home() {
           const role = resolveUserRole(email);
           setCurrentUserRole(role);
           localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
+
+          const pendente = await isPrimeiroAcessoPendente(email);
+          setPrimeiroAcessoPendente(pendente);
         }
       });
       return () => subscription.unsubscribe();
@@ -555,11 +561,14 @@ export default function Home() {
     }
   };
 
-  const handleBypassDevLogin = () => {
+  const handleBypassDevLogin = async () => {
     setIsAuthenticated(true);
     setUserEmail('admin@rmcontrole.com');
     localStorage.setItem('rm_auth_user', 'admin@rmcontrole.com');
     localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
+
+    const pendente = await isPrimeiroAcessoPendente('admin@rmcontrole.com');
+    setPrimeiroAcessoPendente(pendente);
   };
 
   const handleLogout = async () => {
@@ -627,6 +636,27 @@ export default function Home() {
         handleBypassDevLogin={handleBypassDevLogin}
         theme={theme}
         handleToggleTheme={handleToggleTheme}
+      />
+    );
+  }
+
+  // ==============================================================================
+  // TELA DE PRIMEIRO ACESSO / ONBOARDING (ESTILO SETUP ASSISTANT APPLE)
+  // ==============================================================================
+  if (primeiroAcessoPendente) {
+    return (
+      <FirstAccessSetupView
+        userEmail={userEmail}
+        userName={getNomeTecnico(userEmail)}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
+        onConcluido={async (config) => {
+          await concluirPrimeiroAcesso(userEmail, config);
+          setPrimeiroAcessoPendente(false);
+          if (config.viewMode) {
+            setEmpresasViewMode(config.viewMode === 'cards' || config.viewMode === 'grid' ? 'grid' : 'list');
+          }
+        }}
       />
     );
   }
