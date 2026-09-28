@@ -87,6 +87,20 @@ Colaboradores internos da RM com papéis e controle de primeiro acesso.
 | `primeiro_acesso_data` | `TIMESTAMPTZ` | `NULL` | Data de conclusão do setup inicial |
 | `created_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT now()` | Data de admissão/cadastro |
 
+### 3.6 Tabela  (Controle de Qualidade & Bugs)
+| Coluna | Tipo | Modificadores | Descrição |
+| :--- | :--- | :--- | :--- |
+| uid=501(lucasamorim) gid=20(staff) groups=20(staff),12(everyone),61(localaccounts),79(_appserverusr),80(admin),81(_appserveradm),33(_appstore),98(_lpadmin),100(_lpoperator),204(_developer),250(_analyticsusers),395(com.apple.access_ftp),398(com.apple.access_screensharing),399(com.apple.access_ssh),400(com.apple.access_remote_ae),701(com.apple.sharepoint.group.1) |  |  | Identificador do relato |
+|  |  |  | Resumo da falha ou sugestão |
+|  |  |  | Detalhes do erro e passos para reprodução |
+|  |  |  | Empresa ou contexto afetado |
+|  |  |  | Classificação (, , , ) |
+|  |  |  | Nível de severidade (, , ) |
+|  |  |  | Base64 compactado (< 150KB) com print anexado |
+|  |  |  | Operador que abriu o reporte |
+|  |  |  | Status (, , ) |
+|  |  |  | Carimbo de registro |
+
 ### 3.5 Tabela `public.auditoria_logs` (Imutável - Art. 37 LGPD)
 | Coluna | Tipo | Modificadores | Descrição |
 | :--- | :--- | :--- | :--- |

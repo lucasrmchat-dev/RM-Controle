@@ -27,7 +27,8 @@ export function getAudioConfig() {
       tipoSom: 'harmonico',
       modoRepeticao: 'uma_vez', // 'uma_vez' | 'intermitente' | 'intervalo'
       intervaloSegundos: 30,
-      escopo: 'todos', // 'apenas_meus' | 'todos'
+      escopo: 'todos', // 'todos' | 'departamentos' | 'apenas_meus'
+      notificarCriador: false, // se true, toca som para quem acabou de abrir o chamado
     };
   }
 
@@ -37,6 +38,7 @@ export function getAudioConfig() {
     modoRepeticao: localStorage.getItem('rm_audio_modo') || 'uma_vez',
     intervaloSegundos: parseInt(localStorage.getItem('rm_audio_intervalo') || '30', 10),
     escopo: localStorage.getItem('rm_audio_escopo') || 'todos',
+    notificarCriador: localStorage.getItem('rm_audio_notificar_criador') === 'true',
   };
 }
 
@@ -56,6 +58,9 @@ export function setAudioConfig(newConfig) {
   }
   if (newConfig.escopo !== undefined) {
     localStorage.setItem('rm_audio_escopo', newConfig.escopo);
+  }
+  if (newConfig.notificarCriador !== undefined) {
+    localStorage.setItem('rm_audio_notificar_criador', newConfig.notificarCriador ? 'true' : 'false');
   }
   window.dispatchEvent(new Event('rm_audio_config_updated'));
 }
@@ -162,17 +167,51 @@ export function playNotificationTone(tipo = 'harmonico') {
 /**
  * Dispara notificação sonora para um novo chamado respeitando as regras configuradas
  */
-export function triggerSupportNotification({ chamado, userEmail }) {
+export function triggerSupportNotification({ chamado, userEmail, criadoPorMim = false }) {
   const config = getAudioConfig();
   if (!config.habilitado) return;
 
-  // Filtro de escopo: apenas meus ou todos
+  // Se foi o próprio usuário que criou a demanda e a opção notificarCriador estiver desligada, silencia o som
+  if (criadoPorMim && !config.notificarCriador) {
+    return;
+  }
+
+  const myEmail = (userEmail || '').toLowerCase().trim();
+  const chamadoTecnicoEmail = (chamado?.tecnico_email || '').toLowerCase().trim();
+
+  // 1. Filtro de escopo: apenas meus
   if (config.escopo === 'apenas_meus' || config.escopo === 'atribuidos') {
-    const chamadoTecnicoEmail = (chamado?.tecnico_email || '').toLowerCase().trim();
-    const myEmail = (userEmail || '').toLowerCase().trim();
     if (chamadoTecnicoEmail && chamadoTecnicoEmail !== myEmail) {
       return; // Chamado atribuído a outro técnico, não toca
     }
+  }
+
+  // 2. Filtro de escopo: departamentos do colaborador
+  if (config.escopo === 'departamentos') {
+    try {
+      if (typeof window !== 'undefined') {
+        const rawUsers = localStorage.getItem('rm_equipe_usuarios');
+        const role = localStorage.getItem('rm_user_role') || '';
+        const isAdmin = role === 'administrador' || myEmail === 'admin@rmcontrole.com' || myEmail === 'lucas.rmchat@gmail.com' || myEmail.includes('admin') || myEmail.includes('lucas');
+
+        if (!isAdmin && rawUsers) {
+          const equipe = JSON.parse(rawUsers);
+          const me = equipe.find((u) => (u.email || '').toLowerCase().trim() === myEmail);
+          const meusDeps = Array.isArray(me?.departamentos) && me.departamentos.length > 0
+            ? me.departamentos.map((d) => d.toLowerCase().trim())
+            : ['suporte'];
+
+          const chamadoCats = Array.isArray(chamado?.categorias)
+            ? chamado.categorias.map((c) => c.toLowerCase().trim())
+            : (chamado?.motivo ? chamado.motivo.split(',').map((s) => s.trim().toLowerCase()) : ['suporte']);
+
+          const pertenceAoMeuDep = chamadoCats.some((c) => meusDeps.includes(c));
+          if (!pertenceAoMeuDep && chamadoTecnicoEmail !== myEmail) {
+            return; // Demanda não pertence a nenhum departamento do operador
+          }
+        }
+      }
+    } catch (e) {}
   }
 
   // Toca o som imediatamente

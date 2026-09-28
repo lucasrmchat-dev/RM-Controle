@@ -644,42 +644,39 @@ export async function fetchChamadosFila() {
         .from('suporte_chamados')
         .select('*')
         .in('status', ['aguardando_visualizacao', 'em_andamento', 'pendente'])
-        .order('created_at', { ascending: false });
+        .order('iniciado_em', { ascending: false });
 
-      if (!error && data) {
-        const local = getLocalData('chamados_suporte', []);
-        const map = new Map();
-        local.forEach((c) => {
-          if (c.id) map.set(c.id, c);
-        });
-
-        data.forEach((d) => {
-          const prev = map.get(d.id) || {};
-          const cats = d.motivo ? d.motivo.split(',').map((s) => s.trim()).filter(Boolean) : (prev.categorias || ['Suporte']);
-          map.set(d.id, {
-            ...prev,
+      if (!error && Array.isArray(data)) {
+        const cloudIds = new Set(data.map((d) => d.id));
+        const cloudChamados = data.map((d) => {
+          const cats = d.motivo ? d.motivo.split(',').map((s) => s.trim()).filter(Boolean) : ['Suporte'];
+          return {
             id: d.id,
             empresa_id: d.empresa_id,
             empresa_nome: d.empresa_nome,
-            solicitante_nome: d.colaborador_solicitante || prev.solicitante_nome || 'Colaborador da Empresa',
-            tecnico_email: d.tecnico_email || prev.tecnico_email || '',
+            solicitante_nome: d.colaborador_solicitante || 'Colaborador da Empresa',
+            tecnico_email: d.tecnico_email || '',
             tecnico_nome: d.atendente || getNomeTecnico(d.tecnico_email),
-            observacao_inicial: d.observacoes || prev.observacao_inicial || '',
+            observacao_inicial: d.observacoes || '',
             status: d.status,
             categorias: cats,
-            created_at: d.created_at || d.iniciado_em || prev.created_at || new Date().toISOString(),
-            tempo_espera_inicio: prev.tempo_espera_inicio || d.iniciado_em || d.created_at,
-            tempo_espera_fim: prev.tempo_espera_fim || (d.status === 'em_andamento' ? (prev.tempo_espera_fim || d.iniciado_em) : null),
-            tempo_espera_segundos: prev.tempo_espera_segundos || 0,
-            tempo_ativo_inicio: d.status === 'em_andamento' ? (prev.tempo_ativo_inicio || d.iniciado_em) : null,
-            tempo_ativo_fim: prev.tempo_ativo_fim || null,
-            tempo_ativo_segundos: prev.tempo_ativo_segundos || 0,
+            created_at: d.created_at || d.iniciado_em || new Date().toISOString(),
+            tempo_espera_inicio: d.iniciado_em || d.created_at,
+            tempo_espera_fim: d.status === 'em_andamento' ? d.iniciado_em : null,
+            tempo_espera_segundos: 0,
+            tempo_ativo_inicio: d.status === 'em_andamento' ? d.iniciado_em : null,
+            tempo_ativo_fim: null,
+            tempo_ativo_segundos: 0,
             iniciado_em: d.iniciado_em,
             finalizado_em: d.finalizado_em,
-          });
+          };
         });
 
-        const merged = Array.from(map.values()).filter((c) => c.status !== 'finalizado' && c.status !== 'concluido' && c.status !== 'cancelado');
+        // Mantém chamados locais estritamente se forem mock ou offline (IDs sem hífen UUID)
+        const local = getLocalData('chamados_suporte', []);
+        const localMocks = local.filter((c) => c.id && !c.id.includes('-') && !cloudIds.has(c.id));
+
+        const merged = [...cloudChamados, ...localMocks];
         setLocalData('chamados_suporte', merged);
         return merged;
       }
@@ -1579,9 +1576,9 @@ export async function deleteEmpresaCredencial(empresaId, credId, userEmail = 'ad
 // GESTÃO DE USUÁRIOS E PERMISSÕES POR ABA (SUPORTE, VENDAS, ADMIN)
 // ==============================================================================
 export const PERMISSOES_PADRAO = {
-  administrador: ['empresas', 'fila', 'dashboard', 'configuracoes', 'canais', 'servidores', 'auditoria'],
-  suporte: ['empresas', 'fila', 'dashboard', 'configuracoes'],
-  vendas: ['empresas', 'fila', 'dashboard', 'configuracoes'],
+  administrador: ['empresas', 'fila', 'dashboard', 'feedbacks', 'configuracoes', 'canais', 'servidores', 'auditoria'],
+  suporte: ['empresas', 'fila', 'dashboard', 'feedbacks', 'configuracoes'],
+  vendas: ['empresas', 'fila', 'dashboard', 'feedbacks', 'configuracoes'],
 };
 
 export function resolveUserRole(email) {
@@ -2234,7 +2231,8 @@ export async function createEmpresa({
         .insert([
           {
             nome: trimmedNome,
-            formato_atendimento: 'colaborativo',
+            formato_atendimento: formato_atendimento || 'colaborativo',
+            servidor_alocado: servidor_alocado || 'servidor_1',
             ativo: true,
           }
         ])
@@ -2608,6 +2606,7 @@ export async function updateEmpresa(id, dados, userEmail = 'admin@rmcontrole.com
       };
       if (dados.nome !== undefined) updatePayload.nome = dados.nome;
       if (dados.formato_atendimento !== undefined) updatePayload.formato_atendimento = dados.formato_atendimento;
+      if (dados.servidor_alocado !== undefined) updatePayload.servidor_alocado = dados.servidor_alocado;
       if (dados.ativo !== undefined) updatePayload.ativo = dados.ativo;
 
       await supabase.from('empresas').update(updatePayload).eq('id', id);
@@ -3353,4 +3352,164 @@ export async function deleteEmpresaChecklistItem(empresaId, itemId, userEmail = 
   const dados = getEmpresaServidorDetalhes(empresaId);
   dados.checklist_implementacao = (dados.checklist_implementacao || []).filter((i) => i.id !== itemId);
   return updateEmpresaServidorDetalhes(empresaId, dados, userEmail);
+}
+
+// ==============================================================================
+// GESTÃO DE DEPARTAMENTOS (ANTIGAS CATEGORIAS DE DEMANDAS)
+// ==============================================================================
+export const DEFAULT_DEPARTAMENTOS = [
+  'Suporte',
+  'Financeiro',
+  'Automação',
+  'Implantação',
+  'Dúvidas Gerais',
+  'Feedback / Bug RM',
+];
+
+export function getDepartamentos() {
+  return getLocalData('categorias_demandas', DEFAULT_DEPARTAMENTOS);
+}
+
+export function setDepartamentos(departamentos) {
+  setLocalData('categorias_demandas', departamentos);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('categorias_demandas_updated'));
+    window.dispatchEvent(new Event('departamentos_updated'));
+  }
+}
+
+export function addDepartamento(nome) {
+  if (!nome || !nome.trim()) throw new Error('Nome do departamento é obrigatório.');
+  const nomeTrim = nome.trim();
+  const deps = getDepartamentos();
+  if (deps.some((d) => d.toLowerCase() === nomeTrim.toLowerCase())) {
+    throw new Error('Este departamento já está cadastrado.');
+  }
+  const novos = [...deps, nomeTrim];
+  setDepartamentos(novos);
+  return novos;
+}
+
+export function removeDepartamento(nome) {
+  const deps = getDepartamentos();
+  const novos = deps.filter((d) => d.toLowerCase() !== nome.toLowerCase());
+  setDepartamentos(novos);
+  return novos;
+}
+
+// Aliases para compatibilidade total
+export const getCategoriasDemandas = getDepartamentos;
+export const setCategoriasDemandas = setDepartamentos;
+export const addCategoriaDemanda = addDepartamento;
+export const removeCategoriaDemanda = removeDepartamento;
+
+// ==============================================================================
+// GESTÃO DE FEEDBACKS & RELATO DE BUGS
+// ==============================================================================
+export function getFeedbacks() {
+  return getLocalData('feedbacks_lista', []);
+}
+
+export async function fetchFeedbacks() {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('feedbacks')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setLocalData('feedbacks_lista', data);
+        return data;
+      }
+    } catch (e) {
+      console.warn('Erro ao buscar feedbacks do Supabase:', e);
+    }
+  }
+  return getFeedbacks();
+}
+
+export async function createFeedback({
+  titulo,
+  descricao,
+  empresa_nome = 'RM Controle Interno',
+  tipo = 'bug',
+  prioridade = 'normal',
+  imagem_base64 = null,
+  autor_email = 'admin@rmcontrole.com',
+  autor_nome = 'Colaborador',
+}) {
+  if (!titulo || !titulo.trim()) throw new Error('Título do feedback é obrigatório.');
+  if (!descricao || !descricao.trim()) throw new Error('Descrição do feedback é obrigatória.');
+
+  const agora = new Date().toISOString();
+  const novoFeedback = {
+    id: 'fb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    titulo: titulo.trim(),
+    descricao: descricao.trim(),
+    empresa_nome: empresa_nome.trim() || 'RM Controle Interno',
+    tipo,
+    prioridade,
+    imagem_url: imagem_base64 || null,
+    autor_email,
+    autor_nome,
+    status: 'em_analise',
+    created_at: agora,
+  };
+
+  const lista = getFeedbacks();
+  lista.unshift(novoFeedback);
+  setLocalData('feedbacks_lista', lista);
+
+  // 1. Grava no Supabase se configurado
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const payload = {
+        titulo: novoFeedback.titulo,
+        descricao: novoFeedback.descricao,
+        empresa_nome: novoFeedback.empresa_nome,
+        tipo: novoFeedback.tipo,
+        prioridade: novoFeedback.prioridade,
+        imagem_url: novoFeedback.imagem_url,
+        autor_email,
+        autor_nome,
+        status: 'em_analise',
+        created_at: agora,
+      };
+      const { data: dbSaved } = await supabase.from('feedbacks').insert([payload]).select().maybeSingle();
+      if (dbSaved?.id) {
+        novoFeedback.id = dbSaved.id;
+      }
+    } catch (e) {
+      console.warn('Aviso ao salvar feedback no Supabase:', e);
+    }
+  }
+
+  // 2. Abre automaticamente uma demanda na Fila na categoria/departamento 'Feedback / Bug RM'
+  try {
+    await adicionarChamadoFila({
+      empresa_id: null,
+      empresa_nome: `[Bug/Feedback] ${novoFeedback.empresa_nome}`,
+      solicitante_nome: autor_nome,
+      solicitante_email: autor_email,
+      categorias: ['Feedback / Bug RM'],
+      observacao_inicial: `[${tipo.toUpperCase()} - ${prioridade.toUpperCase()}] ${novoFeedback.titulo}: ${novoFeedback.descricao}`,
+      iniciarAgora: false,
+      userEmail: autor_email,
+    });
+  } catch (errFila) {
+    console.warn('Aviso ao criar chamado para feedback:', errFila);
+  }
+
+  await logAuditoria({
+    usuarioEmail: autor_email,
+    acao: 'registrou_feedback_ou_bug',
+    detalhes: { titulo: novoFeedback.titulo, tipo, prioridade, modulo: 'Feedbacks' },
+  });
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('feedbacks_updated'));
+  }
+
+  return novoFeedback;
 }

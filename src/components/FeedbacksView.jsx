@@ -1,0 +1,593 @@
+'use client';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  getFeedbacks, 
+  fetchFeedbacks, 
+  createFeedback, 
+  getEmpresas,
+  getNomeTecnico 
+} from '@/lib/storage';
+import { 
+  CheckIcon, 
+  XMarkIcon, 
+  SparklesIcon, 
+  ClockIcon, 
+  WrenchIcon,
+  ShieldCheckIcon 
+} from './Icons';
+import { showToast } from './ToastNotification';
+
+export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
+  const [feedbacks, setFeedbacks] = useState([]);
+  const [empresasLista, setEmpresasLista] = useState([]);
+  const [modalAberto, setModalAberto] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Filtros
+  const [filtroStatus, setFiltroStatus] = useState('todos'); // 'todos' | 'em_analise' | 'em_correcao' | 'resolvido'
+  const [filtroTipo, setFiltroTipo] = useState('todos');
+
+  // Formulário de Novo Feedback
+  const [titulo, setTitulo] = useState('');
+  const [descricao, setDescricao] = useState('');
+  const [empresaSelecionada, setEmpresaSelecionada] = useState('RM Controle Interno');
+  const [tipo, setTipo] = useState('bug');
+  const [prioridade, setPrioridade] = useState('normal');
+  const [imagemBase64, setImagemBase64] = useState(null);
+  const [imagemPreview, setImagemPreview] = useState(null);
+  const [lightboxImagem, setLightboxImagem] = useState(null);
+
+  const fileInputRef = useRef(null);
+
+  const carregarDados = async () => {
+    try {
+      const res = await fetchFeedbacks();
+      setFeedbacks(res);
+    } catch (e) {
+      setFeedbacks(getFeedbacks());
+    }
+
+    try {
+      const resEmp = await getEmpresas({ pageSize: 1000 });
+      const lista = Array.isArray(resEmp) ? resEmp : (resEmp?.items || []);
+      setEmpresasLista(lista);
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    carregarDados();
+    const handleUpdate = () => carregarDados();
+    window.addEventListener('feedbacks_updated', handleUpdate);
+    return () => window.removeEventListener('feedbacks_updated', handleUpdate);
+  }, []);
+
+  // Compressão inteligente da imagem no cliente (Canvas Web API) para economizar armazenamento
+  const handleSelecionarArquivo = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('Por favor, selecione apenas arquivos de imagem (PNG, JPG, WebP).', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1280;
+        const MAX_HEIGHT = 1280;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Comprime para WebP/JPEG com qualidade balanceada (50KB a 150KB)
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.72);
+        setImagemBase64(compressedBase64);
+        setImagemPreview(compressedBase64);
+        showToast('Captura de tela anexada e otimizada!', 'success');
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoverImagem = () => {
+    setImagemBase64(null);
+    setImagemPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleSubmitFeedback = async (e) => {
+    e.preventDefault();
+    if (!titulo.trim()) {
+      showToast('Informe o título do feedback ou falha.', 'error');
+      return;
+    }
+    if (!descricao.trim()) {
+      showToast('Descreva detalhadamente o erro ou melhoria.', 'error');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      await createFeedback({
+        titulo: titulo.trim(),
+        descricao: descricao.trim(),
+        empresa_nome: empresaSelecionada,
+        tipo,
+        prioridade,
+        imagem_base64: imagemBase64,
+        autor_email: userEmail || 'admin@rmcontrole.com',
+        autor_nome: getNomeTecnico(userEmail),
+      });
+
+      showToast('Feedback registrado! Uma demanda correspondente foi enviada para a Fila de Demandas.', 'success');
+      setModalAberto(false);
+      setTitulo('');
+      setDescricao('');
+      setTipo('bug');
+      setPrioridade('normal');
+      setImagemBase64(null);
+      setImagemPreview(null);
+      carregarDados();
+    } catch (err) {
+      showToast(err.message || 'Erro ao registrar feedback.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const feedbacksFiltrados = feedbacks.filter((fb) => {
+    if (filtroStatus !== 'todos' && fb.status !== filtroStatus) return false;
+    if (filtroTipo !== 'todos' && fb.tipo !== filtroTipo) return false;
+    return true;
+  });
+
+  const totalBugs = feedbacks.filter((f) => f.tipo === 'bug').length;
+  const totalResolvidos = feedbacks.filter((f) => f.status === 'resolvido').length;
+  const totalEmAnalise = feedbacks.filter((f) => f.status === 'em_analise').length;
+
+  return (
+    <div className="space-y-6 text-[#1d1d1f] dark:text-[#f5f5f7]">
+      
+      {/* Cabeçalho Apple Widescreen */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400 font-mono">
+              Controle de Qualidade & Sugestões
+            </span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#1d1d1f] dark:text-white">
+            Central de Feedbacks & Reporte de Falhas
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-0.5">
+            Cadastre relatos de erros com print, aprimoramentos de interface ou ideias operacionais.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setModalAberto(true)}
+            className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 flex items-center gap-2 transition-all cursor-pointer"
+          >
+            <span className="text-base leading-none font-bold">+</span>
+            <span>Reportar Falha / Sugestão</span>
+          </motion.button>
+        </div>
+      </div>
+
+      {/* Cards de Métricas de Feedbacks */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="p-4 sm:p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-1">
+          <span className="text-xs text-slate-400 uppercase font-bold tracking-wider">Total de Relatos</span>
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-bold font-mono text-[#1d1d1f] dark:text-white">{feedbacks.length}</span>
+            <span className="text-xs text-slate-400">itens registrados</span>
+          </div>
+        </div>
+
+        <div className="p-4 sm:p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-1">
+          <span className="text-xs text-amber-600 dark:text-amber-400 uppercase font-bold tracking-wider">Em Análise / Fila</span>
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-bold font-mono text-amber-600 dark:text-amber-400">{totalEmAnalise}</span>
+            <span className="text-xs text-slate-400">aguardando triagem</span>
+          </div>
+        </div>
+
+        <div className="p-4 sm:p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-1">
+          <span className="text-xs text-emerald-600 dark:text-emerald-400 uppercase font-bold tracking-wider">Resolvidos</span>
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-bold font-mono text-emerald-600 dark:text-emerald-400">{totalResolvidos}</span>
+            <span className="text-xs text-slate-400">concluídos com sucesso</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Barra de Filtros */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs">
+        <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
+          <span className="text-slate-400 font-semibold px-2">Status:</span>
+          {[
+            { id: 'todos', label: 'Todos' },
+            { id: 'em_analise', label: 'Em Análise' },
+            { id: 'em_correcao', label: 'Em Correção' },
+            { id: 'resolvido', label: 'Resolvidos' },
+          ].map((st) => (
+            <button
+              key={st.id}
+              onClick={() => setFiltroStatus(st.id)}
+              className={`px-3 py-1 rounded-full font-semibold transition-all cursor-pointer ${
+                filtroStatus === st.id
+                  ? 'bg-black text-white dark:bg-white dark:text-black font-bold shadow-xs'
+                  : 'bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.08]'
+              }`}
+            >
+              {st.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-slate-400 font-semibold">Tipo:</span>
+          <select
+            value={filtroTipo}
+            onChange={(e) => setFiltroTipo(e.target.value)}
+            className="px-3 py-1.5 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.02] dark:bg-white/[0.04] text-xs font-semibold focus:outline-none cursor-pointer"
+          >
+            <option value="todos">Todos os Tipos</option>
+            <option value="bug">Falha / Bug</option>
+            <option value="melhoria">Melhoria Visual / UX</option>
+            <option value="sugestao">Nova Funcionalidade</option>
+            <option value="outro">Outro</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Listagem de Feedbacks */}
+      {feedbacksFiltrados.length === 0 ? (
+        <div className="p-12 text-center rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-2">
+          <span className="text-3xl">✨</span>
+          <h3 className="text-sm font-bold text-[#1d1d1f] dark:text-white">Nenhum feedback encontrado</h3>
+          <p className="text-xs text-slate-400 max-w-sm mx-auto">
+            Utilize o botão acima para reportar uma falha, anexar uma captura de tela ou sugerir uma melhoria para a plataforma.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {feedbacksFiltrados.map((fb) => {
+            const isBug = fb.tipo === 'bug';
+            const isResolvido = fb.status === 'resolvido';
+
+            return (
+              <motion.div
+                key={fb.id}
+                layout
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`p-5 rounded-3xl border transition-all shadow-xs flex flex-col justify-between space-y-4 ${
+                  isResolvido
+                    ? 'border-emerald-500/30 bg-emerald-500/[0.02] dark:bg-[#16161a]'
+                    : isBug
+                    ? 'border-red-500/25 bg-red-500/[0.015] dark:bg-[#16161a]'
+                    : 'border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a]'
+                }`}
+              >
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                      fb.status === 'resolvido'
+                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25'
+                        : fb.status === 'em_correcao'
+                        ? 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/25'
+                        : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25'
+                    }`}>
+                      {fb.status === 'resolvido' ? 'Resolvido' : fb.status === 'em_correcao' ? 'Em Correção' : 'Em Análise'}
+                    </span>
+
+                    <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-400">
+                      <span>Prioridade:</span>
+                      <strong className={`capitalize ${
+                        fb.prioridade === 'critica' ? 'text-red-500 font-bold' : fb.prioridade === 'alta' ? 'text-amber-500' : 'text-slate-600 dark:text-zinc-300'
+                      }`}>
+                        {fb.prioridade}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-bold text-[#1d1d1f] dark:text-white leading-snug">
+                      {fb.titulo}
+                    </h3>
+                    <span className="text-[11px] font-medium text-slate-400">
+                      Empresa / Contexto: <strong className="text-slate-600 dark:text-zinc-300">{fb.empresa_nome}</strong>
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-600 dark:text-zinc-400 leading-relaxed bg-black/[0.02] dark:bg-white/[0.03] p-3 rounded-2xl border border-black/[0.04] dark:border-white/[0.05] whitespace-pre-wrap">
+                    {fb.descricao}
+                  </p>
+
+                  {/* Thumbnail do Print Anexado */}
+                  {fb.imagem_url && (
+                    <div className="pt-1">
+                      <span className="text-[10px] font-semibold text-slate-400 block mb-1">Evidência / Print Anexado:</span>
+                      <div 
+                        onClick={() => setLightboxImagem(fb.imagem_url)}
+                        className="relative w-36 h-24 rounded-2xl overflow-hidden border border-black/[0.1] dark:border-white/[0.15] cursor-pointer group shadow-xs hover:border-black/30"
+                      >
+                        <img 
+                          src={fb.imagem_url} 
+                          alt="Evidência do erro" 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold">
+                          Ampliar 🔍
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-2 border-t border-black/[0.04] dark:border-white/[0.05] flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                  <span>Autor: {fb.autor_nome || fb.autor_email}</span>
+                  <span>{new Date(fb.created_at).toLocaleDateString('pt-BR')}</span>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Lightbox para Visualização do Print em Tela Cheia */}
+      <AnimatePresence>
+        {lightboxImagem && (
+          <div 
+            onClick={() => setLightboxImagem(null)}
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="max-w-5xl max-h-[90vh] overflow-hidden rounded-3xl border border-white/20 shadow-2xl relative"
+            >
+              <img 
+                src={lightboxImagem} 
+                alt="Print ampliado" 
+                className="w-auto h-auto max-h-[85vh] object-contain rounded-2xl"
+              />
+              <button
+                onClick={() => setLightboxImagem(null)}
+                className="absolute top-4 right-4 p-2 rounded-full bg-black/60 text-white hover:bg-black cursor-pointer"
+              >
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de Cadastro de Novo Feedback / Bug (Layout 2 Colunas Widescreen) */}
+      <AnimatePresence>
+        {modalAberto && (
+          <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6 overflow-hidden">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              className="w-full max-w-4xl max-h-[92vh] rounded-[32px] bg-white dark:bg-[#16161a] border border-black/[0.08] dark:border-white/[0.1] p-6 sm:p-8 shadow-2xl flex flex-col text-[#1d1d1f] dark:text-[#f5f5f7] relative"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-white/[0.08] flex-shrink-0">
+                <div>
+                  <h3 className="text-lg font-bold text-[#1d1d1f] dark:text-white">
+                    Reportar Falha ou Sugerir Melhoria
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-zinc-400">
+                    O relato gerará automaticamente uma demanda correspondente na Fila de Demandas para a equipe técnica.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalAberto(false)}
+                  className="p-2 text-slate-400 hover:text-black dark:hover:text-white rounded-full hover:bg-black/[0.04] dark:hover:bg-white/[0.06] cursor-pointer"
+                >
+                  <XMarkIcon className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmitFeedback} className="flex flex-col flex-1 min-h-0 pt-4">
+                <div className="overflow-y-auto pr-1 flex-1 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    
+                    {/* Coluna 1: Dados do Relato */}
+                    <div className="space-y-3.5">
+                      <div className="space-y-1">
+                        <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                          Título Resumido do Erro / Ideia <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={titulo}
+                          onChange={(e) => setTitulo(e.target.value)}
+                          placeholder="Ex: Falha ao salvar servidor 2 ou botão cortado"
+                          className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                          Empresa / Módulo Afetado
+                        </label>
+                        <select
+                          value={empresaSelecionada}
+                          onChange={(e) => setEmpresaSelecionada(e.target.value)}
+                          className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none cursor-pointer"
+                        >
+                          <option value="RM Controle Interno">RM Controle Interno (Sistema Geral)</option>
+                          {empresasLista.map((emp) => (
+                            <option key={emp.id} value={emp.nome}>
+                              {emp.nome}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div className="space-y-1">
+                          <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                            Classificação
+                          </label>
+                          <select
+                            value={tipo}
+                            onChange={(e) => setTipo(e.target.value)}
+                            className="w-full px-3 py-2 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none cursor-pointer"
+                          >
+                            <option value="bug">🐛 Erro / Bug</option>
+                            <option value="melhoria">🎨 Melhoria Visual / UX</option>
+                            <option value="sugestao">💡 Sugestão / Ideia</option>
+                            <option value="outro">💬 Outro</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                            Prioridade
+                          </label>
+                          <select
+                            value={prioridade}
+                            onChange={(e) => setPrioridade(e.target.value)}
+                            className="w-full px-3 py-2 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none cursor-pointer"
+                          >
+                            <option value="normal">Normal</option>
+                            <option value="alta">Alta</option>
+                            <option value="critica">Crítica (Bloqueante)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                          Descrição Detalhada do Problema <span className="text-red-500">*</span>
+                        </label>
+                        <textarea
+                          rows={4}
+                          required
+                          value={descricao}
+                          onChange={(e) => setDescricao(e.target.value)}
+                          placeholder="Explique o que aconteceu, passos para reproduzir ou o resultado esperado..."
+                          className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none leading-relaxed"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Coluna 2: Anexo de Print / Evidência */}
+                    <div className="space-y-3">
+                      <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                        Anexar Captura de Tela (Opcional)
+                      </label>
+
+                      {!imagemPreview ? (
+                        <div
+                          onClick={() => fileInputRef.current?.click()}
+                          className="border-2 border-dashed border-black/[0.12] dark:border-white/[0.15] hover:border-[#4d7c0f] dark:hover:border-[#84cc16] rounded-3xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center min-h-[220px] bg-black/[0.01] dark:bg-white/[0.02]"
+                        >
+                          <span className="text-3xl mb-2">📸</span>
+                          <span className="text-xs font-bold text-[#1d1d1f] dark:text-white block">
+                            Clique ou arraste o print aqui
+                          </span>
+                          <p className="text-[11px] text-slate-400 mt-1 max-w-xs">
+                            A imagem é comprimida automaticamente no seu navegador para não pesar o banco.
+                          </p>
+                          <span className="mt-3 px-3 py-1 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
+                            PNG, JPG ou WebP
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="relative rounded-3xl overflow-hidden border border-black/[0.1] dark:border-white/[0.15] max-h-[240px] bg-black/5 flex items-center justify-center">
+                            <img 
+                              src={imagemPreview} 
+                              alt="Print selecionado" 
+                              className="w-full h-full max-h-[240px] object-contain"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleRemoverImagem}
+                              className="absolute top-2.5 right-2.5 p-1.5 rounded-full bg-red-500 text-white shadow-md hover:bg-red-600 transition-all cursor-pointer"
+                              title="Remover imagem"
+                            >
+                              <XMarkIcon className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold text-center">
+                            ✓ Imagem otimizada e pronta para envio
+                          </p>
+                        </div>
+                      )}
+
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleSelecionarArquivo}
+                        accept="image/*"
+                        className="hidden"
+                      />
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* Rodapé Fixo */}
+                <div className="flex items-center justify-end gap-3 pt-3 mt-3 border-t border-black/[0.06] dark:border-white/[0.08] flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setModalAberto(false)}
+                    className="px-4 py-2 rounded-full text-xs font-medium text-slate-600 dark:text-zinc-400 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-all cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
+                    disabled={submitting}
+                    type="submit"
+                    className="px-6 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold shadow-md hover:opacity-95 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {submitting ? 'Gravando e Encaminhando...' : 'Enviar Feedback & Criar Demanda'}
+                  </motion.button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+    </div>
+  );
+}

@@ -173,8 +173,8 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           ),
         },
         {
-          id: 'categorias_demandas',
-          label: 'Categorias de Demandas',
+          id: 'departamentos',
+          label: 'Departamentos',
           badge: `${categoriasDemandas.length}`,
           icon: (
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
@@ -458,8 +458,9 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
 
                   <div className="space-y-2">
                     {[
-                      { id: 'todos', titulo: 'Qualquer Demanda na Fila', desc: 'Toca quando qualquer cliente solicitar demanda na central' },
-                      { id: 'atribuidos', titulo: 'Apenas Demandas Atribuídas a Mim', desc: 'Toca exclusivamente quando a demanda estiver direcionada ao seu e-mail' },
+                      { id: 'todos', titulo: 'Qualquer Demanda na Fila', desc: 'Toca quando qualquer chamado entrar na central de atendimento' },
+                      { id: 'departamentos', titulo: 'Demandas dos meus Departamentos', desc: 'Toca quando a demanda pertencer aos departamentos vinculados ao meu perfil' },
+                      { id: 'atribuidos', titulo: 'Apenas Demandas Atribuídas a Mim', desc: 'Toca exclusivamente quando a demanda estiver direcionada diretamente ao seu e-mail' },
                     ].map((item) => (
                       <label
                         key={item.id}
@@ -487,6 +488,27 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                         </div>
                       </label>
                     ))}
+                  </div>
+
+                  {/* Opção de silenciar som para demandas que o próprio usuário abrir */}
+                  <div className="pt-3 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-[#1d1d1f] dark:text-white block">
+                        Notificar ao Criar Demanda
+                      </span>
+                      <span className="text-[11px] text-slate-500 dark:text-zinc-400 block mt-0.5">
+                        Tocar som no meu aparelho mesmo quando for eu mesmo que cadastrei a demanda.
+                      </span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={audioConfig.notificarCriador || false}
+                        onChange={(e) => setAudioState({ ...audioConfig, notificarCriador: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-800 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-zinc-600 peer-checked:bg-[#4d7c0f] dark:peer-checked:bg-[#84cc16]"></div>
+                    </label>
                   </div>
                 </div>
 
@@ -654,7 +676,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
       )}
 
       {/* BÁSICA 3: CATEGORIAS DE DEMANDAS */}
-      {subTab === 'categorias_demandas' && (
+      {(subTab === 'departamentos' || subTab === 'categorias_demandas') && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -667,10 +689,10 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                 Segmentação Operacional
               </span>
               <h3 className="text-lg font-bold text-[#1d1d1f] dark:text-white mt-0.5">
-                Categorias de Demandas & Chamados
+                Departamentos da Central
               </h3>
               <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
-                Cadastre as áreas e tipos de atendimento da empresa (ex: Suporte, Financeiro, Automação, Implantação). Essas categorias ficam disponíveis para seleção na abertura de demandas, na Fila e nos filtros do Dashboard.
+                Cadastre e gerencie os departamentos operacionais da empresa (ex: Suporte, Financeiro, Automação, Implantação, Feedback / Bug RM). Essas categorias ficam disponíveis para seleção na abertura de demandas, na Fila e nos filtros do Dashboard.
               </p>
             </div>
 
@@ -680,21 +702,21 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                 type="text"
                 value={novaCategoriaInput}
                 onChange={(e) => setNovaCategoriaInput(e.target.value)}
-                placeholder="Nome da nova categoria (ex: Financeiro, Automação, Implantação)..."
+                placeholder="Nome do novo departamento (ex: Financeiro, Suporte, Automação)..."
                 className="flex-1 px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20"
               />
               <button
                 type="submit"
                 className="px-6 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
               >
-                <span>+ Adicionar Categoria</span>
+                <span>+ Adicionar Departamento</span>
               </button>
             </form>
 
             {/* Lista de Categorias Atuais */}
             <div className="space-y-2 pt-2 border-t border-black/[0.05] dark:border-white/[0.06]">
               <div className="flex items-center justify-between text-xs font-semibold text-slate-800 dark:text-zinc-200">
-                <span>Categorias Cadastradas ({categoriasDemandas.length})</span>
+                <span>Departamentos Cadastrados ({categoriasDemandas.length})</span>
                 <span className="text-[10px] text-slate-400 font-normal">Disponíveis em todo o sistema</span>
               </div>
 

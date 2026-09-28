@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   getDefaultViewMode,
@@ -98,6 +99,12 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   const [categoriasDisponiveis, setCategoriasDisponiveis] = useState([]);
   const [filtroCategoria, setFiltroCategoria] = useState('todas');
   const [novasCategoriasModal, setNovasCategoriasModal] = useState(['Suporte']);
+  const [silenciarMeuDispositivo, setSilenciarMeuDispositivo] = useState(true);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const carregarDados = async () => {
     try {
@@ -1056,29 +1063,31 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       )}
 
       {/* ============================================================================== */}
-      {/* MODAL DE CRIAÇÃO DE CHAMADO COM BUSCA DE EMPRESA E SOLICITANTE */}
+      {/* ============================================================================== */}
+      {/* MODAL DE CRIAÇÃO DE CHAMADO COM LAYOUT WIDESCREEN 16:9 E 2 COLUNAS */}
       {/* ============================================================================== */}
       <AnimatePresence>
-        {modalNovoChamadoOpen && (
-          <div className="fixed inset-0 w-screen h-screen z-50 bg-black/60 dark:bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+        {modalNovoChamadoOpen && isClient && createPortal(
+          <div className="fixed inset-0 w-screen h-screen z-50 bg-black/60 dark:bg-black/80 backdrop-blur-xl flex items-center justify-center p-3 sm:p-6 overflow-hidden">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
               transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-              className="w-full max-w-xl rounded-[32px] bg-white dark:bg-[#16161a] border border-black/[0.08] dark:border-white/[0.1] p-6 sm:p-8 shadow-2xl space-y-5 text-[#1d1d1f] dark:text-[#f5f5f7] relative my-auto"
+              className="w-full max-w-4xl max-h-[92vh] rounded-[32px] bg-white dark:bg-[#16161a] border border-black/[0.08] dark:border-white/[0.1] p-5 sm:p-7 shadow-2xl flex flex-col text-[#1d1d1f] dark:text-[#f5f5f7] relative"
             >
-              
-              <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-white/[0.08]">
+              {/* Cabeçalho Fixo do Modal */}
+              <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-white/[0.08] flex-shrink-0">
                 <div>
                   <h3 className="text-lg font-bold text-[#1d1d1f] dark:text-white">
                     Abrir Chamado de Suporte
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-zinc-400">
-                    Selecione a empresa, o solicitante e atribua o técnico responsável.
+                    Selecione a empresa, o solicitante e atribua o departamento e técnico responsável.
                   </p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setModalNovoChamadoOpen(false)}
                   className="p-2 text-slate-400 hover:text-black dark:hover:text-white rounded-full hover:bg-black/[0.04] dark:hover:bg-white/[0.06] cursor-pointer"
                 >
@@ -1086,486 +1095,505 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                 </button>
               </div>
 
-              <form onSubmit={handleCriarChamado} className="space-y-4">
-                
-                {/* 1. Empresa com Busca Instantânea */}
-                <div className="space-y-1.5 relative">
-                  <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                    Empresa do Cliente <span className="text-red-500">*</span>
-                  </label>
-                  
-                  {/* Seletor Estilizado com Busca */}
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setDropdownEmpresaAberto(!dropdownEmpresaAberto)}
-                      className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-left flex items-center justify-between cursor-pointer"
-                    >
-                      <span className="text-xs font-medium truncate">
-                        {empresaSelecionada ? empresaSelecionada.nome : 'Selecione uma empresa...'}
-                      </span>
-                      <svg className="w-4 h-4 text-slate-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="6 9 12 15 18 9" />
-                      </svg>
-                    </button>
-
-                    {dropdownEmpresaAberto && (
-                      <div className="absolute top-full mt-1.5 left-0 w-full z-30 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.12] shadow-2xl p-2 space-y-1.5 backdrop-blur-2xl max-h-56 overflow-y-auto">
-                        <input
-                          type="text"
-                          value={buscaEmpresa}
-                          onChange={(e) => setBuscaEmpresa(e.target.value)}
-                          placeholder="Digitar nome da empresa..."
-                          className="w-full px-3 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-xs focus:outline-none mb-1 text-[#1d1d1f] dark:text-white"
-                          autoFocus
-                        />
-                        {empresasFiltradasBusca.length === 0 ? (
-                          <div className="p-3 text-center text-xs text-slate-400">
-                            Nenhuma empresa encontrada com este nome.
-                          </div>
-                        ) : (
-                          empresasFiltradasBusca.map((emp) => {
-                            const isSel = empresaSelecionada?.id === emp.id;
-                            return (
-                              <button
-                                key={emp.id}
-                                type="button"
-                                onClick={() => {
-                                  setEmpresaSelecionada(emp);
-                                  setDropdownEmpresaAberto(false);
-                                  setSolicitanteSelecionado(null);
-                                }}
-                                className={`w-full p-2 rounded-xl text-left flex items-center justify-between text-xs cursor-pointer ${
-                                  isSel 
-                                    ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold' 
-                                    : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
-                                }`}
-                              >
-                                <span>{emp.nome}</span>
-                                {isSel && <CheckIcon className="w-3.5 h-3.5" />}
-                              </button>
-                            );
-                          })
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* 2. Colaborador Solicitante com Busca e Cadastro Rápido */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between pl-1">
-                    <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
-                      Colaborador Solicitante na Empresa
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setModoCadastroColab(!modoCadastroColab)}
-                      className="text-[11px] text-[#4d7c0f] dark:text-[#84cc16] font-semibold hover:underline cursor-pointer"
-                    >
-                      {modoCadastroColab ? '← Escolher da Lista' : '+ Cadastrar Novo Solicitante'}
-                    </button>
-                  </div>
-
-                  {modoCadastroColab ? (
-                    /* Formulário Inline de Cadastro Rápido de Solicitante */
-                    <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.08] space-y-2.5">
-                      <div className="text-[11px] font-bold text-slate-700 dark:text-zinc-300">
-                        Adicionar Solicitante à Empresa:
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <input
-                          type="text"
-                          value={novoColabNome}
-                          onChange={(e) => setNovoColabNome(e.target.value)}
-                          placeholder="Nome do colaborador *"
-                          className="px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-800 border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none"
-                        />
-                        <input
-                          type="text"
-                          value={novoColabCargo}
-                          onChange={(e) => setNovoColabCargo(e.target.value)}
-                          placeholder="Cargo ou setor (ex: Gerente)"
-                          className="px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-800 border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none"
-                        />
-                        <input
-                          type="email"
-                          value={novoColabEmail}
-                          onChange={(e) => setNovoColabEmail(e.target.value)}
-                          placeholder="E-mail (opcional)"
-                          className="px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-800 border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none"
-                        />
-                        <input
-                          type="text"
-                          value={novoColabTelefone}
-                          onChange={(e) => setNovoColabTelefone(e.target.value)}
-                          placeholder="Telefone / Contato (opcional)"
-                          className="px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-800 border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleCadastrarNovoColaboradorInline}
-                        className="px-3.5 py-1.5 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold hover:opacity-90 cursor-pointer"
-                      >
-                        Salvar e Selecionar Solicitante
-                      </button>
-                    </div>
-                  ) : (
-                    /* Dropdown Estilizado com Busca */
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setDropdownSolicitanteAberto(!dropdownSolicitanteAberto)}
-                        className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-left flex items-center justify-between cursor-pointer"
-                      >
-                        <span className="text-xs font-medium truncate">
-                          {solicitanteSelecionado ? `${solicitanteSelecionado.nome} (${solicitanteSelecionado.cargo || 'Colaborador'})` : 'Selecione ou busque o solicitante...'}
-                        </span>
-                        <svg className="w-4 h-4 text-slate-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <polyline points="6 9 12 15 18 9" />
-                        </svg>
-                      </button>
-
-                      {dropdownSolicitanteAberto && (
-                        <div className="absolute top-full mt-1.5 left-0 w-full z-30 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.12] shadow-2xl p-2 space-y-1.5 backdrop-blur-2xl max-h-52 overflow-y-auto">
-                          <input
-                            type="text"
-                            value={buscaSolicitante}
-                            onChange={(e) => setBuscaSolicitante(e.target.value)}
-                            placeholder="Buscar nome do colaborador..."
-                            className="w-full px-3 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-xs focus:outline-none mb-1 text-[#1d1d1f] dark:text-white"
-                            autoFocus
-                          />
-                          {colaboradoresFiltradosBusca.length === 0 ? (
-                            <div className="p-3 text-center text-xs text-slate-400">
-                              Nenhum colaborador encontrado. Você pode cadastrar acima.
-                            </div>
-                          ) : (
-                            colaboradoresFiltradosBusca.map((c) => {
-                              const isSel = solicitanteSelecionado?.id === c.id;
-                              return (
-                                <button
-                                  key={c.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setSolicitanteSelecionado(c);
-                                    setDropdownSolicitanteAberto(false);
-                                  }}
-                                  className={`w-full p-2 rounded-xl text-left flex items-center justify-between text-xs cursor-pointer ${
-                                    isSel
-                                      ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold'
-                                      : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
-                                  }`}
-                                >
-                                  <div>
-                                    <span className="block">{c.nome}</span>
-                                    {c.cargo && <span className="text-[10px] text-slate-400 block">{c.cargo}</span>}
-                                  </div>
-                                  {isSel && <CheckIcon className="w-3.5 h-3.5" />}
-                                </button>
-                              );
-                            })
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* 3. Atribuição de Atendente Técnico (Seletor Apple Elegante com Avatar) */}
-                <div className="space-y-1.5 relative">
-                  <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                    Atribuir Atendimento a
-                  </label>
-                  
-                  {(() => {
-                    const isParaMim = !tecnicoAtribuido || 
-                      (userEmail && tecnicoAtribuido.toLowerCase() === userEmail.toLowerCase()) || 
-                      (tecnicoAtribuido === 'admin@rmcontrole.com' && (!userEmail || userEmail === 'admin@rmcontrole.com'));
+              {/* Formulário com Scroll Interno e Grid de 2 Colunas */}
+              <form onSubmit={handleCriarChamado} className="flex flex-col flex-1 min-h-0 pt-3">
+                <div className="overflow-y-auto pr-1 sm:pr-2 flex-1 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     
-                    const membroSelecionado = equipeLista.find(
-                      (eq) => (eq.email || '').toLowerCase() === (tecnicoAtribuido || '').toLowerCase()
-                    );
-                    
-                    const rotuloAtual = !tecnicoAtribuido 
-                      ? 'Fila Geral (Aguardando Atendente Livre)'
-                      : isParaMim
-                      ? `Para mim (${getNomeTecnico(userEmail)}) [Padrão]`
-                      : membroSelecionado?.nome || getNomeTecnico(tecnicoAtribuido);
+                    {/* COLUNA ESQUERDA: Origem e Atendente */}
+                    <div className="space-y-3.5">
+                      
+                      {/* 1. Empresa do Cliente */}
+                      <div className="space-y-1.5 relative">
+                        <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
+                          Empresa do Cliente <span className="text-red-500">*</span>
+                        </label>
+                        
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setDropdownEmpresaAberto(!dropdownEmpresaAberto)}
+                            className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-left flex items-center justify-between hover:border-black/20 dark:hover:border-white/20 transition-all cursor-pointer"
+                          >
+                            <span className={empresaSelecionada ? 'text-[#1d1d1f] dark:text-white font-semibold' : 'text-slate-400'}>
+                              {empresaSelecionada ? empresaSelecionada.nome : 'Selecione a empresa...'}
+                            </span>
+                            <span className="text-slate-400 text-xs">▼</span>
+                          </button>
 
-                    const papelAtual = membroSelecionado?.papel || (isParaMim ? 'Responsável' : 'Geral');
-
-                    return (
-                      <div className="relative">
-                        <button
-                          type="button"
-                          onClick={() => setDropdownTecnicoAberto(!dropdownTecnicoAberto)}
-                          className="w-full p-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] hover:border-black/[0.15] dark:hover:border-white/[0.2] transition-all flex items-center justify-between text-left cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-slate-200 to-slate-100 dark:from-zinc-700 dark:to-zinc-800 text-slate-800 dark:text-zinc-100 flex items-center justify-center font-bold text-xs flex-shrink-0 border border-black/[0.06] dark:border-white/[0.08]">
-                              {rotuloAtual.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="min-w-0">
-                              <span className="text-xs font-semibold text-[#1d1d1f] dark:text-white block truncate">
-                                {rotuloAtual}
-                              </span>
-                              <span className="text-[10px] text-slate-400 capitalize font-medium block">
-                                {papelAtual}
-                              </span>
-                            </div>
-                          </div>
-
-                          <svg className="w-4 h-4 text-slate-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <polyline points="6 9 12 15 18 9" />
-                          </svg>
-                        </button>
-
-                        {/* Dropdown Menu com visual de luxo Apple */}
-                        {dropdownTecnicoAberto && (
-                          <div className="absolute top-full mt-1.5 left-0 w-full z-30 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.12] shadow-2xl p-2 space-y-1 backdrop-blur-2xl max-h-60 overflow-y-auto">
-                            
-                            {/* Opção 1: Para mim */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setTecnicoAtribuido(userEmail || 'admin@rmcontrole.com');
-                                setDropdownTecnicoAberto(false);
-                              }}
-                              className={`w-full p-2 rounded-xl text-left flex items-center justify-between text-xs transition-all cursor-pointer ${
-                                isParaMim 
-                                  ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold' 
-                                  : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-[10px] flex items-center justify-center">
-                                  ✓
-                                </div>
-                                <div>
-                                  <span className="block font-semibold">Para mim ({getNomeTecnico(userEmail)})</span>
-                                  <span className="text-[10px] opacity-70 block font-mono">{userEmail || 'admin@rmcontrole.com'}</span>
-                                </div>
-                              </div>
-                              <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06]">
-                                Padrão
-                              </span>
-                            </button>
-
-                            {/* Membros da Equipe Cadastrados */}
-                            {equipeLista
-                              .filter((eq) => (eq.email || '').toLowerCase() !== (userEmail || '').toLowerCase())
-                              .map((eq) => {
-                                const isSel = (tecnicoAtribuido || '').toLowerCase() === (eq.email || '').toLowerCase();
-                                return (
+                          {dropdownEmpresaAberto && (
+                            <div className="absolute top-full left-0 right-0 mt-1 z-30 rounded-2xl bg-white dark:bg-[#1c1c20] border border-black/[0.1] dark:border-white/[0.15] shadow-xl p-2 max-h-56 overflow-y-auto space-y-1">
+                              <input
+                                type="text"
+                                autoFocus
+                                value={buscaEmpresa}
+                                onChange={(e) => setBuscaEmpresa(e.target.value)}
+                                placeholder="Buscar empresa..."
+                                className="w-full px-3 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.06] text-xs focus:outline-none mb-1 text-[#1d1d1f] dark:text-white"
+                              />
+                              {empresasFiltradasDropdown.length === 0 ? (
+                                <p className="text-[11px] text-slate-400 p-2 text-center">Nenhuma empresa encontrada.</p>
+                              ) : (
+                                empresasFiltradasDropdown.map((emp) => (
                                   <button
-                                    key={eq.id}
+                                    key={emp.id}
                                     type="button"
                                     onClick={() => {
-                                      setTecnicoAtribuido(eq.email);
-                                      setIniciarDireto(false); // Atribuído a outro -> sempre fila de espera por padrão
+                                      setEmpresaSelecionada(emp);
+                                      setDropdownEmpresaAberto(false);
+                                      setBuscaEmpresa('');
+                                      setSolicitanteSelecionado(null);
+                                    }}
+                                    className={`w-full p-2 rounded-xl text-left flex items-center justify-between text-xs transition-colors cursor-pointer ${
+                                      empresaSelecionada?.id === emp.id
+                                        ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold'
+                                        : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
+                                    }`}
+                                  >
+                                    <span>{emp.nome}</span>
+                                    {emp.servidor_alocado && (
+                                      <span className="text-[10px] opacity-70 font-mono">
+                                        {emp.servidor_alocado === 'servidor_2' ? 'S2' : 'S1'}
+                                      </span>
+                                    )}
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 2. Colaborador Solicitante */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between pl-1">
+                          <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                            Colaborador Solicitante na Empresa
+                          </label>
+                          {empresaSelecionada && !modoCadastroColab && (
+                            <button
+                              type="button"
+                              onClick={() => setModoCadastroColab(true)}
+                              className="text-[11px] font-bold text-[#4d7c0f] dark:text-[#84cc16] hover:underline cursor-pointer"
+                            >
+                              + Cadastrar Novo Solicitante
+                            </button>
+                          )}
+                        </div>
+
+                        {!modoCadastroColab ? (
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setDropdownSolicitanteAberto(!dropdownSolicitanteAberto)}
+                              className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-left flex items-center justify-between hover:border-black/20 dark:hover:border-white/20 transition-all cursor-pointer"
+                            >
+                              <span className={solicitanteSelecionado || solicitanteManual ? 'text-[#1d1d1f] dark:text-white font-semibold' : 'text-slate-400'}>
+                                {solicitanteSelecionado ? solicitanteSelecionado.nome : (solicitanteManual || 'Selecione ou busque o solicitante...')}
+                              </span>
+                              <span className="text-slate-400 text-xs">▼</span>
+                            </button>
+
+                            {dropdownSolicitanteAberto && (
+                              <div className="absolute top-full left-0 right-0 mt-1 z-30 rounded-2xl bg-white dark:bg-[#1c1c20] border border-black/[0.1] dark:border-white/[0.15] shadow-xl p-2 max-h-56 overflow-y-auto space-y-1">
+                                <input
+                                  type="text"
+                                  autoFocus
+                                  value={buscaSolicitante}
+                                  onChange={(e) => setBuscaSolicitante(e.target.value)}
+                                  placeholder="Buscar ou digitar nome do solicitante..."
+                                  className="w-full px-3 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.06] text-xs focus:outline-none mb-1 text-[#1d1d1f] dark:text-white"
+                                />
+
+                                {solicitantesEmpresa.length === 0 ? (
+                                  <div className="p-2 text-center space-y-1">
+                                    <p className="text-[11px] text-slate-400">Nenhum colaborador registrado nesta empresa.</p>
+                                    {buscaSolicitante.trim() && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSolicitanteManual(buscaSolicitante.trim());
+                                          setSolicitanteSelecionado(null);
+                                          setDropdownSolicitanteAberto(false);
+                                        }}
+                                        className="text-xs font-bold text-[#4d7c0f] dark:text-[#84cc16] hover:underline"
+                                      >
+                                        Usar "{buscaSolicitante.trim()}" como solicitante
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  solicitantesEmpresa
+                                    .filter((s) => !buscaSolicitante || (s.nome || '').toLowerCase().includes(buscaSolicitante.toLowerCase()))
+                                    .map((colab) => (
+                                      <button
+                                        key={colab.id || colab.nome}
+                                        type="button"
+                                        onClick={() => {
+                                          setSolicitanteSelecionado(colab);
+                                          setSolicitanteManual('');
+                                          setDropdownSolicitanteAberto(false);
+                                          setBuscaSolicitante('');
+                                        }}
+                                        className={`w-full p-2 rounded-xl text-left flex items-center justify-between text-xs transition-colors cursor-pointer ${
+                                          solicitanteSelecionado?.id === colab.id
+                                            ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold'
+                                            : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
+                                        }`}
+                                      >
+                                        <div>
+                                          <span className="block font-medium">{colab.nome}</span>
+                                          {colab.cargo && <span className="text-[10px] opacity-70 block">{colab.cargo}</span>}
+                                        </div>
+                                        {colab.telefone && (
+                                          <span className="text-[10px] font-mono text-slate-400">{colab.telefone}</span>
+                                        )}
+                                      </button>
+                                    ))
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="p-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.08] space-y-2">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] font-bold text-[#4d7c0f] dark:text-[#84cc16]">Novo Solicitante na Empresa</span>
+                              <button
+                                type="button"
+                                onClick={() => setModoCadastroColab(false)}
+                                className="text-[10px] text-slate-400 hover:text-black dark:hover:text-white"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                            <input
+                              type="text"
+                              value={novoColabNome}
+                              onChange={(e) => setNovoColabNome(e.target.value)}
+                              placeholder="Nome completo do solicitante *"
+                              className="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-800 border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none"
+                            />
+                            <div className="grid grid-cols-2 gap-2">
+                              <input
+                                type="text"
+                                value={novoColabCargo}
+                                onChange={(e) => setNovoColabCargo(e.target.value)}
+                                placeholder="Cargo / Setor (opcional)"
+                                className="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-800 border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none"
+                              />
+                              <input
+                                type="text"
+                                value={novoColabTelefone}
+                                onChange={(e) => setNovoColabTelefone(e.target.value)}
+                                placeholder="WhatsApp / Telefone"
+                                className="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-800 border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleSalvarNovoColaborador}
+                              className="w-full py-1.5 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-xs hover:opacity-95"
+                            >
+                              Salvar e Selecionar Colaborador
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 3. Atribuir Atendimento a */}
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
+                          Atribuir Atendimento a
+                        </label>
+
+                        {(() => {
+                          const membroSelecionado = equipeLista.find((e) => (e.email || '').toLowerCase() === (tecnicoAtribuido || '').toLowerCase());
+                          const isParaMim = !tecnicoAtribuido || (userEmail && tecnicoAtribuido.toLowerCase() === userEmail.toLowerCase());
+
+                          return (
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() => setDropdownTecnicoAberto(!dropdownTecnicoAberto)}
+                                className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-left flex items-center justify-between hover:border-black/20 dark:hover:border-white/20 transition-all cursor-pointer"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <div className="w-5 h-5 rounded-full bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-[10px] flex items-center justify-center">
+                                    {isParaMim ? (userEmail ? userEmail[0].toUpperCase() : 'M') : (tecnicoAtribuido ? tecnicoAtribuido[0].toUpperCase() : '👥')}
+                                  </div>
+                                  <span className="text-[#1d1d1f] dark:text-white font-semibold">
+                                    {isParaMim 
+                                      ? `Para mim (${getNomeTecnico(userEmail)}) [Padrão]`
+                                      : membroSelecionado?.nome || getNomeTecnico(tecnicoAtribuido)}
+                                  </span>
+                                </div>
+                                <span className="text-slate-400 text-xs">▼</span>
+                              </button>
+
+                              {dropdownTecnicoAberto && (
+                                <div className="absolute top-full left-0 right-0 mt-1 z-30 rounded-2xl bg-white dark:bg-[#1c1c20] border border-black/[0.1] dark:border-white/[0.15] shadow-xl p-2 max-h-52 overflow-y-auto space-y-1">
+                                  {/* Opção Para Mim */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setTecnicoAtribuido(userEmail || 'admin@rmcontrole.com');
                                       setDropdownTecnicoAberto(false);
                                     }}
                                     className={`w-full p-2 rounded-xl text-left flex items-center justify-between text-xs transition-all cursor-pointer ${
-                                      isSel 
+                                      isParaMim
+                                        ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold'
+                                        : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-6 h-6 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-[10px] flex items-center justify-center">
+                                        ★
+                                      </div>
+                                      <div>
+                                        <span className="block font-semibold">Para mim ({getNomeTecnico(userEmail)})</span>
+                                        <span className="text-[10px] opacity-70 block font-mono">{userEmail}</span>
+                                      </div>
+                                    </div>
+                                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#4d7c0f]/20 dark:bg-[#84cc16]/20">
+                                      Padrão
+                                    </span>
+                                  </button>
+
+                                  {/* Demais Membros */}
+                                  {equipeLista
+                                    .filter((eq) => (eq.email || '').toLowerCase() !== (userEmail || '').toLowerCase())
+                                    .map((eq) => (
+                                      <button
+                                        key={eq.id || eq.email}
+                                        type="button"
+                                        onClick={() => {
+                                          setTecnicoAtribuido(eq.email);
+                                          setDropdownTecnicoAberto(false);
+                                        }}
+                                        className={`w-full p-2 rounded-xl text-left flex items-center justify-between text-xs transition-all cursor-pointer ${
+                                          tecnicoAtribuido && tecnicoAtribuido.toLowerCase() === (eq.email || '').toLowerCase()
+                                            ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold'
+                                            : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-6 h-6 rounded-full bg-black/5 dark:bg-white/10 font-mono text-[10px] flex items-center justify-center">
+                                            {eq.nome ? eq.nome[0].toUpperCase() : 'U'}
+                                          </div>
+                                          <div>
+                                            <span className="block font-medium">{eq.nome}</span>
+                                            <span className="text-[10px] opacity-70 block font-mono">{eq.email}</span>
+                                          </div>
+                                        </div>
+                                        <span className="text-[10px] capitalize px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06]">
+                                          {eq.papel || 'suporte'}
+                                        </span>
+                                      </button>
+                                    ))}
+
+                                  {/* Opção Fila Geral */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setTecnicoAtribuido('');
+                                      setDropdownTecnicoAberto(false);
+                                    }}
+                                    className={`w-full p-2 rounded-xl text-left flex items-center justify-between text-xs transition-all cursor-pointer ${
+                                      !tecnicoAtribuido 
                                         ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold' 
                                         : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
                                     }`}
                                   >
                                     <div className="flex items-center gap-2">
-                                      <div className="w-6 h-6 rounded-full bg-black/[0.05] dark:bg-white/[0.08] text-slate-700 dark:text-zinc-200 font-bold text-[10px] flex items-center justify-center">
-                                        {(eq.nome || eq.email).charAt(0).toUpperCase()}
+                                      <div className="w-6 h-6 rounded-full bg-slate-300 dark:bg-zinc-700 text-slate-800 dark:text-zinc-200 font-bold text-[10px] flex items-center justify-center">
+                                        👥
                                       </div>
                                       <div>
-                                        <span className="block font-medium">{eq.nome}</span>
-                                        <span className="text-[10px] opacity-70 block font-mono">{eq.email}</span>
+                                        <span className="block font-medium">Fila Geral (Sem Atendente Fixo)</span>
+                                        <span className="text-[10px] opacity-70 block">Disponível para qualquer operador</span>
                                       </div>
                                     </div>
-                                    <span className="text-[10px] capitalize px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06]">
-                                      {eq.papel || 'suporte'}
-                                    </span>
                                   </button>
-                                );
-                              })}
-
-                            {/* Opção Fila Geral */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setTecnicoAtribuido('');
-                                setDropdownTecnicoAberto(false);
-                              }}
-                              className={`w-full p-2 rounded-xl text-left flex items-center justify-between text-xs transition-all cursor-pointer ${
-                                !tecnicoAtribuido 
-                                  ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold' 
-                                  : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-slate-300 dark:bg-zinc-700 text-slate-800 dark:text-zinc-200 font-bold text-[10px] flex items-center justify-center">
-                                  👥
                                 </div>
-                                <div>
-                                  <span className="block font-medium">Fila Geral (Sem Atendente Fixo)</span>
-                                  <span className="text-[10px] opacity-70 block">Disponível para qualquer operador</span>
-                                </div>
-                              </div>
-                            </button>
-
-                          </div>
-                        )}
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
-                    );
-                  })()}
-                </div>
 
-                {/* 4. Breve Descrição / Contexto do Problema */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                    Observação ou Solicitação do Cliente (Opcional)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={novaObservacao}
-                    onChange={(e) => setNovaObservacao(e.target.value)}
-                    placeholder="Ex: Cliente relata lentidão no envio de mensagens ou instabilidade na instância..."
-                    className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none leading-relaxed"
-                  />
-                </div>
-
-                {/* 4.1 Categorias da Demanda */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                    Categorias da Demanda <span className="text-red-500">*</span>
-                  </label>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {categoriasDisponiveis.map((cat) => {
-                      const isSel = novasCategoriasModal.includes(cat);
-                      return (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => {
-                            if (isSel) {
-                              if (novasCategoriasModal.length > 1) {
-                                setNovasCategoriasModal(novasCategoriasModal.filter((c) => c !== cat));
-                              }
-                            } else {
-                              setNovasCategoriasModal([...novasCategoriasModal, cat]);
-                            }
-                          }}
-                          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border ${
-                            isSel
-                              ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 border-[#4d7c0f] dark:border-[#84cc16] shadow-xs'
-                              : 'bg-black/[0.02] dark:bg-white/[0.04] text-slate-600 dark:text-zinc-400 border-black/[0.08] dark:border-white/[0.1] hover:border-black/20'
-                          }`}
-                        >
-                          {isSel && '✓ '}
-                          {cat}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <p className="text-[10px] text-slate-400 pl-1">
-                    Selecione uma ou mais categorias vinculadas a esta demanda.
-                  </p>
-                </div>
-
-                {/* 5. Início do Chamado: Cronômetro Ativo vs Fila de Espera */}
-                {(() => {
-                  const isParaMim = !tecnicoAtribuido || 
-                    (userEmail && tecnicoAtribuido.toLowerCase() === userEmail.toLowerCase()) || 
-                    (tecnicoAtribuido === 'admin@rmcontrole.com' && (!userEmail || userEmail === 'admin@rmcontrole.com'));
-
-                  if (!isParaMim) {
-                    return (
-                      <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-900 dark:text-amber-200 text-xs flex items-center gap-2.5">
-                        <span className="text-base flex-shrink-0">⏳</span>
-                        <div className="space-y-0.5 leading-relaxed">
-                          <span className="font-bold block">Encaminhamento para Fila de Espera</span>
-                          <p className="text-[11px] opacity-90">
-                            Como o chamado está atribuído a outro operador ({getNomeTecnico(tecnicoAtribuido)}), ele entrará automaticamente na fila em espera até que o colaborador visualize e inicie o atendimento.
-                          </p>
-                        </div>
+                      {/* 4. Breve Descrição / Contexto do Problema */}
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
+                          Observação ou Solicitação do Cliente (Opcional)
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={novaObservacao}
+                          onChange={(e) => setNovaObservacao(e.target.value)}
+                          placeholder="Ex: Cliente relata lentidão no envio de mensagens ou instabilidade na instância..."
+                          className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none leading-relaxed"
+                        />
                       </div>
-                    );
-                  }
 
-                  return (
-                    <div className="space-y-2 pt-1">
-                      <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                        Modo de Início do Chamado
-                      </label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        <button
-                          type="button"
-                          onClick={() => setIniciarDireto(false)}
-                          className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                            !iniciarDireto
-                              ? 'bg-amber-500/10 border-amber-500/35 text-amber-900 dark:text-amber-200 shadow-xs'
-                              : 'bg-black/[0.02] dark:bg-white/[0.04] border-black/[0.08] dark:border-white/[0.1] text-slate-600 dark:text-zinc-400 hover:border-black/[0.15]'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm">⏳</span>
-                            <span className="text-xs font-bold">Colocar na Fila de Espera</span>
-                          </div>
-                          <p className="text-[10px] text-slate-500 dark:text-zinc-400 leading-snug">
-                            Salvar na fila de triagem para atender depois ou como lembrete.
-                          </p>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setIniciarDireto(true)}
-                          className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                            iniciarDireto
-                              ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/15 border-[#4d7c0f]/35 dark:border-[#84cc16]/35 text-[#4d7c0f] dark:text-[#84cc16] shadow-xs'
-                              : 'bg-black/[0.02] dark:bg-white/[0.04] border-black/[0.08] dark:border-white/[0.1] text-slate-600 dark:text-zinc-400 hover:border-black/[0.15]'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm">⏱</span>
-                            <span className="text-xs font-bold">Iniciar Atendimento Agora</span>
-                          </div>
-                          <p className="text-[10px] text-slate-500 dark:text-zinc-400 leading-snug">
-                            O cronômetro ativo começa a contar imediatamente.
-                          </p>
-                        </button>
-                      </div>
                     </div>
-                  );
-                })()}
 
-                {/* Botões do Modal */}
-                <div className="flex items-center justify-end gap-3 pt-3 border-t border-black/[0.06] dark:border-white/[0.08]">
-                  <button
-                    type="button"
-                    onClick={() => setModalNovoChamadoOpen(false)}
-                    className="px-4 py-2 rounded-full text-xs font-medium text-slate-600 dark:text-zinc-400 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-all cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="submit"
-                    className="px-6 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold shadow-md hover:opacity-95 transition-all cursor-pointer"
-                  >
-                    {(() => {
-                      const isParaMim = !tecnicoAtribuido || 
-                        (userEmail && tecnicoAtribuido.toLowerCase() === userEmail.toLowerCase()) || 
-                        (tecnicoAtribuido === 'admin@rmcontrole.com' && (!userEmail || userEmail === 'admin@rmcontrole.com'));
-                      return (isParaMim && iniciarDireto) ? 'Iniciar Suporte Agora' : 'Adicionar à Fila de Espera';
-                    })()}
-                  </motion.button>
+                    {/* COLUNA DIREITA: Departamentos e Modo de Início */}
+                    <div className="space-y-4">
+                      
+                      {/* 5. Departamentos da Demanda */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between pl-1">
+                          <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                            Departamentos da Demanda <span className="text-red-500">*</span>
+                          </label>
+                          <span className="text-[10px] text-slate-400">Multi-seleção ativa</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {categoriasDisponiveis.map((cat) => {
+                            const isSel = novasCategoriasModal.includes(cat);
+                            return (
+                              <button
+                                key={cat}
+                                type="button"
+                                onClick={() => {
+                                  if (isSel) {
+                                    if (novasCategoriasModal.length > 1) {
+                                      setNovasCategoriasModal(novasCategoriasModal.filter((c) => c !== cat));
+                                    }
+                                  } else {
+                                    setNovasCategoriasModal([...novasCategoriasModal, cat]);
+                                  }
+                                }}
+                                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border ${
+                                  isSel
+                                    ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 border-[#4d7c0f] dark:border-[#84cc16] shadow-xs'
+                                    : 'bg-black/[0.02] dark:bg-white/[0.04] text-slate-600 dark:text-zinc-400 border-black/[0.08] dark:border-white/[0.1] hover:border-black/20'
+                                }`}
+                              >
+                                {isSel && '✓ '}
+                                {cat}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[10px] text-slate-400 pl-1">
+                          Apenas os colaboradores vinculados a estes departamentos receberão os alertas correspondentes.
+                        </p>
+                      </div>
+
+                      {/* 6. Início do Chamado: Cronômetro Ativo vs Fila de Espera */}
+                      {(() => {
+                        const isParaMim = !tecnicoAtribuido || 
+                          (userEmail && tecnicoAtribuido.toLowerCase() === userEmail.toLowerCase()) || 
+                          (tecnicoAtribuido === 'admin@rmcontrole.com' && (!userEmail || userEmail === 'admin@rmcontrole.com'));
+
+                        if (!isParaMim) {
+                          return (
+                            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-900 dark:text-amber-200 text-xs flex items-center gap-2.5">
+                              <span className="text-base flex-shrink-0">⏳</span>
+                              <div className="space-y-0.5 leading-relaxed">
+                                <span className="font-bold block">Encaminhamento para Fila de Espera</span>
+                                <p className="text-[11px] opacity-90">
+                                  Como o chamado está atribuído a outro operador ({getNomeTecnico(tecnicoAtribuido)}), ele entrará automaticamente na fila em espera até que o colaborador visualize e inicie o atendimento.
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="space-y-2 pt-1">
+                            <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
+                              Modo de Início do Chamado
+                            </label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              <button
+                                type="button"
+                                onClick={() => setIniciarDireto(false)}
+                                className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                                  !iniciarDireto
+                                    ? 'bg-amber-500/10 border-amber-500/35 text-amber-900 dark:text-amber-200 shadow-xs'
+                                    : 'bg-black/[0.02] dark:bg-white/[0.04] border-black/[0.08] dark:border-white/[0.1] text-slate-600 dark:text-zinc-400 hover:border-black/[0.15]'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-sm">⏳</span>
+                                  <span className="text-xs font-bold">Colocar na Fila de Espera</span>
+                                </div>
+                                <p className="text-[10px] text-slate-500 dark:text-zinc-400 leading-snug">
+                                  Salvar na fila de triagem para atender depois ou como lembrete.
+                                </p>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setIniciarDireto(true)}
+                                className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                                  iniciarDireto
+                                    ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/15 border-[#4d7c0f]/35 dark:border-[#84cc16]/35 text-[#4d7c0f] dark:text-[#84cc16] shadow-xs'
+                                    : 'bg-black/[0.02] dark:bg-white/[0.04] border-black/[0.08] dark:border-white/[0.1] text-slate-600 dark:text-zinc-400 hover:border-black/[0.15]'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-sm">⏱</span>
+                                  <span className="text-xs font-bold">Iniciar Atendimento Agora</span>
+                                </div>
+                                <p className="text-[10px] text-slate-500 dark:text-zinc-400 leading-snug">
+                                  O cronômetro ativo começa a contar imediatamente.
+                                </p>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* Rodapé Fixo do Modal com Botões Sempre Visíveis */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 mt-3 border-t border-black/[0.06] dark:border-white/[0.08] flex-shrink-0">
+                  {/* Opção de silenciar som local para quem cria */}
+                  <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-zinc-400 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={silenciarMeuDispositivo}
+                      onChange={(e) => setSilenciarMeuDispositivo(e.target.checked)}
+                      className="rounded accent-[#4d7c0f] dark:accent-[#84cc16]"
+                    />
+                    <span className="text-[11px]">Silenciar alerta sonoro neste meu dispositivo ao cadastrar</span>
+                  </label>
+
+                  <div className="flex items-center justify-end gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setModalNovoChamadoOpen(false)}
+                      className="px-4 py-2 rounded-full text-xs font-medium text-slate-600 dark:text-zinc-400 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-all cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <motion.button
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.98 }}
+                      type="submit"
+                      className="px-6 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold shadow-md hover:opacity-95 transition-all cursor-pointer"
+                    >
+                      {(() => {
+                        const isParaMim = !tecnicoAtribuido || 
+                          (userEmail && tecnicoAtribuido.toLowerCase() === userEmail.toLowerCase()) || 
+                          (tecnicoAtribuido === 'admin@rmcontrole.com' && (!userEmail || userEmail === 'admin@rmcontrole.com'));
+                        return (isParaMim && iniciarDireto) ? 'Iniciar Atendimento Agora' : 'Adicionar à Fila de Espera';
+                      })()}
+                    </motion.button>
+                  </div>
                 </div>
 
               </form>
 
             </motion.div>
-          </div>
+          </div>,
+          document.body
         )}
       </AnimatePresence>
 

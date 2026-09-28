@@ -44,6 +44,7 @@ import ToastContainer, { showToast } from '@/components/ToastNotification';
 import LoginView from '@/components/LoginView';
 import SupportCompletionModal from '@/components/SupportCompletionModal';
 import SupportQueueView from '@/components/SupportQueueView';
+import FeedbacksView from '@/components/FeedbacksView';
 import { 
   MessageChannelIcon, 
   ViewGridIcon, 

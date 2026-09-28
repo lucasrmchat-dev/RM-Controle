@@ -148,6 +148,17 @@ export default function Navbar({
       ) 
     },
     { 
+      id: 'feedbacks', 
+      label: 'Feedbacks', 
+      icon: (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          <path d="M12 7v4"/>
+          <path d="M12 15h.01"/>
+        </svg>
+      ) 
+    },
+    { 
       id: 'configuracoes', 
       label: 'Configurações Gerais', 
       icon: (
