@@ -379,6 +379,34 @@ export async function iniciarSuporte({
   chamados.unshift(novoChamado);
   setLocalData('chamados_suporte', chamados);
 
+  // Sincroniza em tempo real com o Supabase
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const payload = {
+        empresa_id: (empresa_id && empresa_id.includes('-')) ? empresa_id : null,
+        empresa_nome: empresa_nome || 'Empresa',
+        tecnico_email: userEmail,
+        atendente: getNomeTecnico(userEmail),
+        colaborador_solicitante: (solicitante_nome || solicitante || 'Colaborador').trim(),
+        status: 'em_andamento',
+        observacoes: descricao || '',
+        motivo: categoriasValidas.join(', '),
+        iniciado_em: agora,
+      };
+      const { data: dbSaved } = await supabase.from('suporte_chamados').insert([payload]).select().maybeSingle();
+      if (dbSaved?.id) {
+        novoChamado.id = dbSaved.id;
+        const chAtual = getLocalData('chamados_suporte', []);
+        if (chAtual.length > 0 && chAtual[0].iniciado_em === agora) {
+          chAtual[0].id = dbSaved.id;
+          setLocalData('chamados_suporte', chAtual);
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao inserir chamado ativo no Supabase:', e);
+    }
+  }
+
   try {
     stopSupportNotificationLoop();
   } catch (e) {}
@@ -439,6 +467,34 @@ export async function adicionarChamadoFila({
     chamados.unshift(novoChamado);
     setLocalData('chamados_suporte', chamados);
 
+    // Sincroniza em tempo real com o Supabase
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const payload = {
+          empresa_id: (empresa_id && empresa_id.includes('-')) ? empresa_id : null,
+          empresa_nome: empresa_nome || 'Empresa',
+          tecnico_email: userEmail,
+          atendente: getNomeTecnico(userEmail),
+          colaborador_solicitante: (solicitante_nome || 'Colaborador').trim(),
+          status: 'em_andamento',
+          observacoes: observacao_inicial ? observacao_inicial.trim() : '',
+          motivo: categoriasValidas.join(', '),
+          iniciado_em: agora,
+        };
+        const { data: dbSaved } = await supabase.from('suporte_chamados').insert([payload]).select().maybeSingle();
+        if (dbSaved?.id) {
+          novoChamado.id = dbSaved.id;
+          const chAtual = getLocalData('chamados_suporte', []);
+          if (chAtual.length > 0 && chAtual[0].tempo_espera_inicio === agora) {
+            chAtual[0].id = dbSaved.id;
+            setLocalData('chamados_suporte', chAtual);
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao inserir suporte_chamados direto no Supabase:', e);
+      }
+    }
+
     await logAuditoria({
       empresaId: empresa_id,
       usuarioEmail: userEmail,
@@ -481,27 +537,24 @@ export async function adicionarChamadoFila({
   // Sincroniza imediatamente na nuvem (Supabase) para que apareça em tempo real para toda a equipe
   if (isSupabaseConfigured && supabase) {
     try {
-      const isUuid = empresa_id && empresa_id.includes('-');
-      if (isUuid) {
-        const payload = {
-          empresa_id,
-          empresa_nome,
-          tecnico_email: tecnicoDesignado || userEmail,
-          atendente: getNomeTecnico(tecnicoDesignado || userEmail),
-          colaborador_solicitante: (solicitante_nome || 'Colaborador da Empresa').trim(),
-          status: statusInicial,
-          observacoes: observacao_inicial ? observacao_inicial.trim() : '',
-          motivo: categoriasValidas.join(', '),
-          iniciado_em: agora,
-        };
-        const { data: dbSaved } = await supabase.from('suporte_chamados').insert([payload]).select().maybeSingle();
-        if (dbSaved?.id) {
-          novoChamado.id = dbSaved.id;
-          const chAtual = getLocalData('chamados_suporte', []);
-          if (chAtual.length > 0 && (chAtual[0].id === novoChamado.id || chAtual[0].tempo_espera_inicio === agora)) {
-            chAtual[0].id = dbSaved.id;
-            setLocalData('chamados_suporte', chAtual);
-          }
+      const payload = {
+        empresa_id: (empresa_id && empresa_id.includes('-')) ? empresa_id : null,
+        empresa_nome: empresa_nome || 'Empresa',
+        tecnico_email: tecnicoDesignado || userEmail,
+        atendente: getNomeTecnico(tecnicoDesignado || userEmail),
+        colaborador_solicitante: (solicitante_nome || 'Colaborador da Empresa').trim(),
+        status: statusInicial,
+        observacoes: observacao_inicial ? observacao_inicial.trim() : '',
+        motivo: categoriasValidas.join(', '),
+        iniciado_em: agora,
+      };
+      const { data: dbSaved } = await supabase.from('suporte_chamados').insert([payload]).select().maybeSingle();
+      if (dbSaved?.id) {
+        novoChamado.id = dbSaved.id;
+        const chAtual = getLocalData('chamados_suporte', []);
+        if (chAtual.length > 0 && (chAtual[0].id === novoChamado.id || chAtual[0].tempo_espera_inicio === agora)) {
+          chAtual[0].id = dbSaved.id;
+          setLocalData('chamados_suporte', chAtual);
         }
       }
     } catch (e) {

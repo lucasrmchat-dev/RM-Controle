@@ -24,8 +24,11 @@ import {
   resolveUserRole,
   isPrimeiroAcessoPendente,
   concluirPrimeiroAcesso,
-  getNomeTecnico
+  getNomeTecnico,
+  fetchChamadosFila,
+  getChamadosSuporte
 } from '@/lib/storage';
+import { triggerSupportNotification, stopSupportNotificationLoop } from '@/lib/audioNotifications';
 import FirstAccessSetupView from '@/components/FirstAccessSetupView';
 import Navbar from '@/components/Navbar';
 import CompanyModal from '@/components/CompanyModal';
@@ -336,6 +339,126 @@ export default function Home() {
     window.addEventListener('storage_mock_updated', handleStorageUpdate);
     return () => window.removeEventListener('storage_mock_updated', handleStorageUpdate);
   }, []);
+
+  // ==============================================================================
+  // SINCRONIZAÇÃO GLOBAL EM TEMPO REAL DA FILA DE DEMANDAS & NOTIFICAÇÕES (SUPABASE)
+  // Ativo globalmente em qualquer aba do sistema (Empresas, Dashboard, Fila, etc.)
+  // ==============================================================================
+  useEffect(() => {
+    if (!isAuthenticated || primeiroAcessoPendente) return;
+
+    // 1. Solicita permissão de notificação nativa do sistema se disponível
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      try {
+        Notification.requestPermission().catch(() => {});
+      } catch (e) {}
+    }
+
+    // Sincronização inicial global da fila de demandas
+    fetchChamadosFila().then(() => {
+      window.dispatchEvent(new Event('suporte_updated'));
+    }).catch(() => {});
+
+    // 2. Canal Supabase Realtime Global com WebSockets
+    let realtimeChannel = null;
+    if (isSupabaseConfigured && supabase) {
+      try {
+        realtimeChannel = supabase
+          .channel('suporte_chamados_global_stream')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'suporte_chamados' },
+            async (payload) => {
+              const prevChamados = getChamadosSuporte();
+              const prevIds = new Set(prevChamados.map((c) => c.id));
+
+              await fetchChamadosFila();
+              const novosChamados = getChamadosSuporte();
+              window.dispatchEvent(new Event('suporte_updated'));
+
+              // Se for um novo chamado cadastrado na fila
+              if (payload.eventType === 'INSERT' && payload.new) {
+                const item = payload.new;
+                const isPendingOrWaiting = item.status === 'aguardando_visualizacao' || item.status === 'pendente' || item.status === 'em_andamento';
+
+                if (isPendingOrWaiting && !prevIds.has(item.id)) {
+                  // Dispara Alerta Sonoro de acordo com o escopo e timbre do usuário
+                  triggerSupportNotification({ chamado: item, userEmail });
+
+                  // Dispara Alerta Visual Toast
+                  const empresaNome = item.empresa_nome || 'Empresa';
+                  const motivoNome = item.motivo || 'Demanda Geral';
+                  showToast(`🔔 Nova demanda na fila: ${empresaNome} (${motivoNome})`, 'info');
+
+                  // Dispara Notificação Nativa do Sistema Operacional (Mac / Windows / Chrome)
+                  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                    try {
+                      new Notification('RM Controle — Nova Demanda', {
+                        body: `${empresaNome}
+Solicitante: ${item.colaborador_solicitante || 'Colaborador'} • Categoria: ${motivoNome}`,
+                        icon: '/favicon.ico',
+                        tag: item.id,
+                      });
+                    } catch (notifErr) {}
+                  }
+                }
+              } else if (payload.eventType === 'UPDATE' && payload.new) {
+                // Se o chamado foi assumido ou finalizado, interrompe o loop sonoro se não houver outros pendentes
+                const hasPending = novosChamados.some(
+                  (c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente'
+                );
+                if (!hasPending) {
+                  stopSupportNotificationLoop();
+                }
+              }
+            }
+          )
+          .subscribe();
+      } catch (err) {
+        console.warn('Erro ao conectar Supabase Realtime Global:', err);
+      }
+    }
+
+    // 3. Polling em segundo plano a cada 5 segundos para garantir recepção em qualquer aba ou navegador
+    const backgroundSyncTimer = setInterval(async () => {
+      try {
+        const antes = getChamadosSuporte();
+        const antesIds = new Set(antes.map((c) => c.id));
+        const atualizados = await fetchChamadosFila();
+
+        // Verifica se há chamados recém-chegados que não estavam na lista local
+        const novosEncontrados = atualizados.filter(
+          (c) => (c.status === 'aguardando_visualizacao' || c.status === 'pendente') && !antesIds.has(c.id)
+        );
+
+        if (novosEncontrados.length > 0) {
+          novosEncontrados.forEach((novoItem) => {
+            triggerSupportNotification({ chamado: novoItem, userEmail });
+            showToast(`🔔 Nova demanda na fila: ${novoItem.empresa_nome || 'Empresa'} (${novoItem.motivo || 'Geral'})`, 'info');
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              try {
+                new Notification('RM Controle — Nova Demanda', {
+                  body: `${novoItem.empresa_nome || 'Empresa'}
+Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
+                  icon: '/favicon.ico',
+                  tag: novoItem.id,
+                });
+              } catch (e) {}
+            }
+          });
+        }
+
+        window.dispatchEvent(new Event('suporte_updated'));
+      } catch (e) {}
+    }, 5000);
+
+    return () => {
+      if (realtimeChannel && supabase) {
+        supabase.removeChannel(realtimeChannel);
+      }
+      clearInterval(backgroundSyncTimer);
+    };
+  }, [isAuthenticated, userEmail, primeiroAcessoPendente]);
 
   const handleToggleMockData = (enabled) => {
     setShowMockData(enabled);
