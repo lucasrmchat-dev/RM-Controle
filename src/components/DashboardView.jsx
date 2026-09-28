@@ -12,7 +12,8 @@ import {
   deleteHistoricoChamado,
   getNomeTecnico,
   finalizarSuporte,
-  getEmpresas
+  getEmpresas,
+  getCategoriasDemandas
 } from '@/lib/storage';
 import SupportCompletionModal from './SupportCompletionModal';
 import ConfirmModal from './ConfirmModal';
@@ -53,10 +54,12 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
   const [chamadosRecentes, setChamadosRecentes] = useState([]);
   const [empresasLista, setEmpresasLista] = useState([]);
 
-  // Períodos e Filtros de Data
+  // Períodos e Filtros de Data e Categoria
   const [periodo, setPeriodo] = useState('mes_atual'); // 'hoje' | '7d' | '30d' | 'mes_atual' | 'personalizado'
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
+  const [categoriasLista, setCategoriasLista] = useState([]);
+  const [filtroCategoria, setFiltroCategoria] = useState('todas');
 
   // Modal para Finalizar Suporte
   const [chamadoParaFinalizar, setChamadoParaFinalizar] = useState(null);
@@ -102,7 +105,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
     } catch (e) {
       console.warn('Erro ao sincronizar historico:', e);
     }
-    const met = getMetricasSuporte({ periodo, dataInicio, dataFim });
+    const met = getMetricasSuporte({ periodo, dataInicio, dataFim, categoria: filtroCategoria });
     setMetricas(met);
     const hist = getHistoricoChamados();
     setChamadosRecentes(hist.slice(0, 50));
@@ -112,8 +115,15 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
   };
 
   useEffect(() => {
+    setCategoriasLista(getCategoriasDemandas());
+    const handleCats = () => setCategoriasLista(getCategoriasDemandas());
+    window.addEventListener('categorias_demandas_updated', handleCats);
+    return () => window.removeEventListener('categorias_demandas_updated', handleCats);
+  }, []);
+
+  useEffect(() => {
     carregarDados();
-  }, [periodo, dataInicio, dataFim]);
+  }, [periodo, dataInicio, dataFim, filtroCategoria]);
 
   useEffect(() => {
     const handleUpdate = () => carregarDados();
@@ -126,7 +136,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
       window.removeEventListener('suporte_updated', handleUpdate);
       clearInterval(timer);
     };
-  }, [periodo, dataInicio, dataFim]);
+  }, [periodo, dataInicio, dataFim, filtroCategoria]);
 
   const formatarDuracao = (segundos) => {
     if (!segundos || segundos <= 0) return '0s';
@@ -278,6 +288,23 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
             />
           </motion.div>
         )}
+
+        {/* Filtro por Categoria de Demanda */}
+        <div className="flex items-center gap-2 px-2 border-t sm:border-t-0 sm:border-l border-black/[0.06] dark:border-white/[0.08] pt-2 sm:pt-0">
+          <span className="text-xs font-semibold text-slate-500 dark:text-zinc-400">Categoria:</span>
+          <select
+            value={filtroCategoria}
+            onChange={(e) => setFiltroCategoria(e.target.value)}
+            className="px-3 py-1.5 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-200 focus:outline-none cursor-pointer shadow-xs"
+          >
+            <option value="todas">Todas as Categorias</option>
+            {categoriasLista.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* ============================================================================== */}
@@ -653,7 +680,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
           </p>
         ) : (
           <div className="space-y-3">
-            {metricas.metricasEmpresas.slice(0, 8).map((emp, idx) => {
+            {metricas.metricasEmpresas.slice(0, 4).map((emp, idx) => {
               const maxChamados = Math.max(1, ...metricas.metricasEmpresas.map((e) => e.total_chamados));
               const barWidth = Math.max(8, Math.round((emp.total_chamados / maxChamados) * 100));
               const empresaObj = Array.isArray(empresasLista) ? empresasLista.find(
@@ -664,7 +691,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
               return (
                 <div
                   key={emp.empresa_id}
-                  className="p-4 sm:p-5 rounded-2xl border border-black/[0.04] dark:border-white/[0.06] bg-black/[0.01] dark:bg-white/[0.02] hover:bg-white dark:hover:bg-zinc-900/60 hover:shadow-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  className="p-3.5 sm:p-4 rounded-2xl border border-black/[0.04] dark:border-white/[0.06] bg-black/[0.01] dark:bg-white/[0.02] hover:bg-white dark:hover:bg-zinc-900/60 hover:shadow-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                 >
                   <div className="min-w-0 flex-1 space-y-2">
                     <div className="flex items-center gap-2.5 flex-wrap">

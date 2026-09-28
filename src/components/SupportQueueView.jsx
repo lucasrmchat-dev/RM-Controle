@@ -359,6 +359,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
         solicitante_nome: solicitanteFinal,
         solicitante_email: solicitanteSelecionado?.email || '',
         solicitante_telefone: solicitanteSelecionado?.telefone || '',
+        categorias: novasCategoriasModal.length > 0 ? novasCategoriasModal : ['Suporte'],
         atribuido_a: tecnicoAtribuido,
         observacao_inicial: novaObservacao,
         iniciarAgora: iniciarDireto,
@@ -391,10 +392,10 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#1d1d1f] dark:text-white">
-            Fila de Suporte Técnico
+            Fila de Demandas
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-0.5">
-            Dois cronômetros simultâneos: acompanhe o tempo de espera (triagem) e o tempo de atendimento ativo.
+            Central operacional ao vivo: triagem, acompanhamento por categorias e controle de demandas.
           </p>
         </div>
 
@@ -404,12 +405,13 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
             whileTap={{ scale: 0.98 }}
             onClick={() => {
               setModalNovoChamadoOpen(true);
+              setNovasCategoriasModal(['Suporte']);
               setTecnicoAtribuido(userEmail || 'admin@rmcontrole.com');
             }}
             className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold shadow-md shadow-[#4d7c0f]/20 dark:shadow-[#84cc16]/20 hover:opacity-95 flex items-center gap-2 transition-all cursor-pointer"
           >
             <span className="text-sm font-bold">+</span>
-            <span>Novo Chamado na Fila</span>
+            <span>Abrir Demanda na Fila</span>
           </motion.button>
         </div>
       </div>
@@ -577,6 +579,41 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
           </div>
 
         </div>
+
+        {/* Barra Secundária de Filtro por Categorias de Demandas */}
+        {categoriasDisponiveis.length > 0 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pt-2.5 border-t border-black/[0.05] dark:border-white/[0.06] text-xs">
+            <span className="text-slate-400 text-[10px] uppercase font-mono mr-1">Categoria:</span>
+            <button
+              type="button"
+              onClick={() => setFiltroCategoria('todas')}
+              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                filtroCategoria === 'todas'
+                  ? 'bg-black text-white dark:bg-white dark:text-black font-bold shadow-xs'
+                  : 'bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.08]'
+              }`}
+            >
+              Todas as Categorias
+            </button>
+            {categoriasDisponiveis.map((cat) => {
+              const isSel = filtroCategoria === cat;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setFiltroCategoria(isSel ? 'todas' : cat)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                    isSel
+                      ? 'bg-[#4d7c0f] text-white dark:bg-[#84cc16] dark:text-zinc-950 font-bold shadow-xs'
+                      : 'bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.08]'
+                  }`}
+                >
+                  {cat}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ============================================================================== */}
@@ -674,8 +711,8 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
                     </div>
 
-                    {/* Nome da Empresa */}
-                    <div className="flex items-center gap-2.5 flex-wrap">
+                    {/* Nome da Empresa e Categorias */}
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-base font-bold text-[#1d1d1f] dark:text-white">
                         {ch.empresa_nome}
                       </h3>
@@ -684,6 +721,14 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           {empresaObj.servidor_alocado === 'servidor_2' ? 'Servidor 2' : 'Servidor 1'}
                         </span>
                       )}
+                      {(Array.isArray(ch.categorias) && ch.categorias.length > 0 ? ch.categorias : ['Suporte']).map((cat, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-mono text-[9px] font-bold border border-blue-500/20"
+                        >
+                          {cat}
+                        </span>
+                      ))}
                     </div>
 
                     {/* Solicitante & Observação Inicial */}
@@ -806,12 +851,15 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                 <span>Status</span>
                 {sortFilaCol === 'status' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
               </div>
-              <div className="col-span-3 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
+              <div className="col-span-2 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
                 if (sortFilaCol === 'empresa') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
                 else { setSortFilaCol('empresa'); setSortFilaDir('asc'); }
               }}>
                 <span>Empresa / Servidor</span>
                 {sortFilaCol === 'empresa' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
+              </div>
+              <div className="col-span-2 select-none flex items-center gap-1 text-slate-400 dark:text-zinc-500">
+                <span>Categorias</span>
               </div>
               <div className="col-span-2 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
                 if (sortFilaCol === 'solicitante') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -835,7 +883,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                 <span>Técnico</span>
                 {sortFilaCol === 'tecnico' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
               </div>
-              <div className="col-span-2 text-right">Ações</div>
+              <div className="col-span-1 text-right">Ações</div>
             </div>
 
             <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05] min-w-[850px]">
@@ -897,7 +945,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                     </div>
 
                     {/* Empresa / Servidor */}
-                    <div className="col-span-3 min-w-0">
+                    <div className="col-span-2 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-[#1d1d1f] dark:text-white truncate block">
                           {ch.empresa_nome}
@@ -913,6 +961,18 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           {ch.observacao_inicial}
                         </p>
                       )}
+                    </div>
+
+                    {/* Categorias */}
+                    <div className="col-span-2 flex items-center gap-1 flex-wrap">
+                      {(Array.isArray(ch.categorias) && ch.categorias.length > 0 ? ch.categorias : ['Suporte']).map((cat, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-mono text-[9px] font-bold border border-blue-500/20"
+                        >
+                          {cat}
+                        </span>
+                      ))}
                     </div>
 
                     {/* Solicitante */}
@@ -942,7 +1002,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                     </div>
 
                     {/* Acoes */}
-                    <div className="col-span-2 flex items-center justify-end gap-1.5">
+                    <div className="col-span-1 flex items-center justify-end gap-1">
                       {isAguardando && (
                         <button
                           type="button"
@@ -1367,6 +1427,44 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                     placeholder="Ex: Cliente relata lentidão no envio de mensagens ou instabilidade na instância..."
                     className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none leading-relaxed"
                   />
+                </div>
+
+                {/* 4.1 Categorias da Demanda */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
+                    Categorias da Demanda <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {categoriasDisponiveis.map((cat) => {
+                      const isSel = novasCategoriasModal.includes(cat);
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => {
+                            if (isSel) {
+                              if (novasCategoriasModal.length > 1) {
+                                setNovasCategoriasModal(novasCategoriasModal.filter((c) => c !== cat));
+                              }
+                            } else {
+                              setNovasCategoriasModal([...novasCategoriasModal, cat]);
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border ${
+                            isSel
+                              ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 border-[#4d7c0f] dark:border-[#84cc16] shadow-xs'
+                              : 'bg-black/[0.02] dark:bg-white/[0.04] text-slate-600 dark:text-zinc-400 border-black/[0.08] dark:border-white/[0.1] hover:border-black/20'
+                          }`}
+                        >
+                          {isSel && '✓ '}
+                          {cat}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-slate-400 pl-1">
+                    Selecione uma ou mais categorias vinculadas a esta demanda.
+                  </p>
                 </div>
 
                 {/* 5. Início do Chamado: Cronômetro Ativo vs Fila de Espera */}

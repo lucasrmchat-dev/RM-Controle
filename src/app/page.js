@@ -21,8 +21,12 @@ import {
   setCurrentUserRole,
   getCurrentUserRole,
   getAbasPermitidas,
-  resolveUserRole
+  resolveUserRole,
+  isPrimeiroAcessoPendente,
+  concluirPrimeiroAcesso,
+  getNomeTecnico
 } from '@/lib/storage';
+import FirstAccessSetupView from '@/components/FirstAccessSetupView';
 import Navbar from '@/components/Navbar';
 import CompanyModal from '@/components/CompanyModal';
 import CompanyManagementView from '@/components/CompanyManagementView';
@@ -86,6 +90,7 @@ export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [userEmail, setUserEmail] = useState('');
+  const [primeiroAcessoPendente, setPrimeiroAcessoPendente] = useState(false);
   
   // Formulário de Login
   const [loginEmail, setLoginEmail] = useState('');
@@ -230,6 +235,9 @@ export default function Home() {
             setCurrentUserRole(role);
             localStorage.setItem('rm_auth_user', email);
             localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
+
+            const pendente = await isPrimeiroAcessoPendente(email);
+            setPrimeiroAcessoPendente(pendente);
           } else {
             const savedUser = localStorage.getItem('rm_auth_user');
             if (savedUser) {
@@ -238,6 +246,9 @@ export default function Home() {
               const role = resolveUserRole(savedUser);
               setCurrentUserRole(role);
               localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
+
+              const pendente = await isPrimeiroAcessoPendente(savedUser);
+              setPrimeiroAcessoPendente(pendente);
             } else {
               setIsAuthenticated(false);
               setUserEmail('');
@@ -477,6 +488,9 @@ export default function Home() {
           setCurrentUserRole(role);
           localStorage.setItem('rm_auth_user', user.email);
           localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
+
+          const pendente = await isPrimeiroAcessoPendente(user.email);
+          setPrimeiroAcessoPendente(pendente);
           return;
         }
 
@@ -489,6 +503,9 @@ export default function Home() {
             setCurrentUserRole(role);
             localStorage.setItem('rm_auth_user', membroEquipe.email);
             localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
+
+            const pendente = await isPrimeiroAcessoPendente(membroEquipe.email);
+            setPrimeiroAcessoPendente(pendente);
             return;
           } else {
             throw new Error(`Senha incorreta para o colaborador ${membroEquipe.nome || emailFormal}.`);

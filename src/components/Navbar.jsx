@@ -131,7 +131,7 @@ export default function Navbar({
     },
     { 
       id: 'fila', 
-      label: 'Fila de Suporte', 
+      label: 'Fila de Demandas', 
       badge: totalFila > 0 ? totalFila : null,
       icon: <SupportQueueIcon className="w-4 h-4" />
     },

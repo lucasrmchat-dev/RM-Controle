@@ -1488,6 +1488,8 @@ export async function fetchEquipeUsuarios() {
             papel: u.papel || prev.papel || 'suporte',
             senha: u.senha || prev.senha || '',
             ativo: u.ativo !== false,
+            primeiro_acesso_concluido: u.primeiro_acesso_concluido === true,
+            primeiro_acesso_data: u.primeiro_acesso_data || null,
             criado_em: u.criado_em || prev.criado_em || new Date().toISOString(),
           });
         });
@@ -1667,6 +1669,139 @@ export async function deleteEquipeUsuario(id) {
 
   usuarios = usuarios.filter((u) => u.id !== id);
   setLocalData('equipe_usuarios', usuarios);
+  window.dispatchEvent(new Event('equipe_updated'));
+  return true;
+}
+
+// ==============================================================================
+// GESTÃO DE PRIMEIRO ACESSO / SETUP INICIAL (ONBOARDING)
+// ==============================================================================
+export async function isPrimeiroAcessoPendente(userEmail) {
+  if (!userEmail) return false;
+  const emailNorm = userEmail.toLowerCase().trim();
+
+  // 1. Checa flag direta e individual no localStorage
+  const localFlag = localStorage.getItem(`rm_primeiro_acesso_concluido_${emailNorm}`);
+  if (localFlag === 'true') {
+    return false;
+  }
+
+  // 2. Checa no registro da equipe local
+  const equipe = getEquipeUsuarios();
+  const membro = equipe.find((u) => (u.email || '').toLowerCase().trim() === emailNorm);
+  if (membro && membro.primeiro_acesso_concluido === true) {
+    localStorage.setItem(`rm_primeiro_acesso_concluido_${emailNorm}`, 'true');
+    return false;
+  }
+
+  // 3. Checa no Supabase se configurado
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('equipe_usuarios')
+        .select('primeiro_acesso_concluido')
+        .eq('email', emailNorm)
+        .maybeSingle();
+
+      if (!error && data && data.primeiro_acesso_concluido === true) {
+        localStorage.setItem(`rm_primeiro_acesso_concluido_${emailNorm}`, 'true');
+        return false;
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.user_metadata?.primeiro_acesso_concluido === true) {
+        localStorage.setItem(`rm_primeiro_acesso_concluido_${emailNorm}`, 'true');
+        return false;
+      }
+    } catch (e) {
+      console.warn('Aviso ao checar primeiro acesso no Supabase:', e);
+    }
+  }
+
+  // Se nenhum registro marcou como concluído, é o primeiro acesso!
+  return true;
+}
+
+export async function concluirPrimeiroAcesso(userEmail, {
+  novaSenha = '',
+  audioConfig = null,
+  viewMode = 'list',
+} = {}) {
+  if (!userEmail) return false;
+  const emailNorm = userEmail.toLowerCase().trim();
+  const agora = new Date().toISOString();
+
+  // 1. Salva flags no localStorage
+  localStorage.setItem(`rm_primeiro_acesso_concluido_${emailNorm}`, 'true');
+  localStorage.setItem(`rm_primeiro_acesso_data_${emailNorm}`, agora);
+
+  // 2. Aplica configurações de áudio se fornecidas
+  if (audioConfig) {
+    const { setAudioConfig } = await import('./audioNotifications');
+    setAudioConfig(audioConfig);
+  }
+
+  // 3. Aplica modo de visualização padrão
+  if (viewMode) {
+    setDefaultViewMode(viewMode);
+  }
+
+  // 4. Atualiza equipe_usuarios local
+  let equipe = getEquipeUsuarios();
+  const idx = equipe.findIndex((u) => (u.email || '').toLowerCase().trim() === emailNorm);
+  if (idx !== -1) {
+    equipe[idx] = {
+      ...equipe[idx],
+      primeiro_acesso_concluido: true,
+      primeiro_acesso_data: agora,
+      ...(novaSenha ? { senha: novaSenha } : {}),
+    };
+    setLocalData('equipe_usuarios', equipe);
+  }
+
+  // 5. Se Supabase configurado, persiste na tabela equipe_usuarios e no Auth
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const authUpdates = {
+        data: {
+          primeiro_acesso_concluido: true,
+          primeiro_acesso_data: agora,
+        },
+      };
+      if (novaSenha) {
+        authUpdates.password = novaSenha;
+      }
+      await supabase.auth.updateUser(authUpdates);
+
+      const updateDb = {
+        primeiro_acesso_concluido: true,
+        primeiro_acesso_data: agora,
+      };
+      if (novaSenha) {
+        updateDb.senha = novaSenha;
+      }
+      await supabase
+        .from('equipe_usuarios')
+        .update(updateDb)
+        .eq('email', emailNorm);
+    } catch (e) {
+      console.warn('Aviso ao registrar primeiro acesso no Supabase:', e);
+    }
+  }
+
+  // 6. Registra auditoria LGPD
+  await logAuditoria({
+    usuarioEmail: emailNorm,
+    acao: 'concluiu_primeiro_acesso_onboarding',
+    detalhes: {
+      email: emailNorm,
+      viewMode,
+      audioModo: audioConfig?.modoRepeticao,
+      modulo: 'Setup Inicial do Usuário (Onboarding)',
+    },
+  });
+
+  window.dispatchEvent(new Event('primeiro_acesso_concluido'));
   window.dispatchEvent(new Event('equipe_updated'));
   return true;
 }
