@@ -650,6 +650,7 @@ export default function Home() {
         userName={getNomeTecnico(userEmail)}
         theme={theme}
         onToggleTheme={handleToggleTheme}
+        onLogout={handleLogout}
         onConcluido={async (config) => {
           await concluirPrimeiroAcesso(userEmail, config);
           setPrimeiroAcessoPendente(false);

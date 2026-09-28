@@ -19,6 +19,7 @@ export default function FirstAccessSetupView({
   userEmail,
   userName = '',
   onConcluido,
+  onLogout,
   theme = 'light',
   onToggleTheme,
 }) {
@@ -152,9 +153,25 @@ export default function FirstAccessSetupView({
         />
       </div>
 
-      {/* Botão de Alternância de Tema no Canto Superior */}
-      {onToggleTheme && (
-        <div className="fixed top-5 right-5 sm:top-7 sm:right-7 z-20">
+      {/* Botões de Ação no Canto Superior (Sair e Tema) */}
+      <div className="fixed top-5 right-5 sm:top-7 sm:right-7 z-20 flex items-center gap-2">
+        {onLogout && (
+          <button
+            type="button"
+            onClick={onLogout}
+            className="px-3.5 py-2 rounded-full backdrop-blur-2xl bg-white/90 dark:bg-zinc-900/90 border border-black/10 dark:border-white/15 shadow-xs hover:scale-105 active:scale-95 transition-all text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:text-red-600 dark:hover:text-red-400 flex items-center gap-1.5 cursor-pointer"
+            title="Sair / Encerrar Sessão sem concluir o cadastro"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            <span>Sair</span>
+          </button>
+        )}
+
+        {onToggleTheme && (
           <button
             onClick={() => onToggleTheme(theme === 'light' ? 'dark' : 'light')}
             className="p-2.5 rounded-full backdrop-blur-2xl bg-white/90 dark:bg-zinc-900/90 border border-black/10 dark:border-white/15 shadow-xs hover:scale-105 active:scale-95 transition-all text-slate-800 dark:text-zinc-100 cursor-pointer"
@@ -170,8 +187,8 @@ export default function FirstAccessSetupView({
               </svg>
             )}
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Cartão Central Apple Setup Assistant */}
       <div className="w-full max-w-[620px] relative z-10 my-auto">

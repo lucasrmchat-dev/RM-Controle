@@ -12,7 +12,8 @@ import {
   setConfiguracoesSuporte,
   getCategoriasDemandas,
   addCategoriaDemanda,
-  removeCategoriaDemanda
+  removeCategoriaDemanda,
+  resolveUserRole
 } from '@/lib/storage';
 import { generateSecurePassword } from '@/lib/security';
 import ChannelsManagement from './ChannelsManagement';
@@ -32,6 +33,8 @@ import { showToast } from './ToastNotification';
 
 export default function GeneralSettingsView({ userEmail, initialSubTab = 'visualizacao' }) {
   const [subTab, setSubTab] = useState(initialSubTab);
+  const currentRole = resolveUserRole(userEmail);
+  const isAdmin = currentRole === 'administrador';
 
   // 1. Preferência de Visualização Global
   const [viewMode, setViewModeState] = useState('list');
@@ -229,6 +232,22 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
       ],
     },
   ];
+
+  const renderRestrictedNotice = (tituloSecao) => (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="p-6 sm:p-8 rounded-3xl border border-amber-500/25 bg-amber-500/10 dark:bg-amber-500/[0.08] text-amber-900 dark:text-amber-200 space-y-2.5 shadow-sm"
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-xl">🔒</span>
+        <h4 className="font-bold text-sm tracking-tight">Acesso Restrito ao Administrador</h4>
+      </div>
+      <p className="text-xs opacity-90 leading-relaxed max-w-xl">
+        A seção <strong>{tituloSecao}</strong> é exclusiva para administradores da infraestrutura. O seu perfil ({currentRole}) possui acesso total às <strong>Configurações Básicas</strong> (Visualização do Sistema, Alertas Sonoros, Categorias de Demandas e Regras de Atendimento).
+      </p>
+    </motion.div>
+  );
 
   return (
     <div className="space-y-6 text-[#1d1d1f] dark:text-[#f5f5f7]">
@@ -813,35 +832,47 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
 
       {/* AVANÇADA 1: CANAIS DE ATENDIMENTO */}
       {subTab === 'canais' && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          <ChannelsManagement userEmail={userEmail} />
-        </motion.div>
+        isAdmin ? (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <ChannelsManagement userEmail={userEmail} />
+          </motion.div>
+        ) : (
+          renderRestrictedNotice('Canais de Atendimento')
+        )
       )}
 
       {/* AVANÇADA 2: SERVIDORES & EQUIPE */}
       {subTab === 'servidores' && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          <ServerConfigView />
-        </motion.div>
+        isAdmin ? (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <ServerConfigView />
+          </motion.div>
+        ) : (
+          renderRestrictedNotice('Servidores & Equipe')
+        )
       )}
 
       {/* AVANÇADA 3: AUDITORIA & LGPD */}
       {subTab === 'auditoria' && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          <AuditLogsView userEmail={userEmail} />
-        </motion.div>
+        isAdmin ? (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <AuditLogsView userEmail={userEmail} />
+          </motion.div>
+        ) : (
+          renderRestrictedNotice('Auditoria & LGPD')
+        )
       )}
 
     </div>

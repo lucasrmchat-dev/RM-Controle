@@ -478,6 +478,37 @@ export async function adicionarChamadoFila({
   chamados.unshift(novoChamado);
   setLocalData('chamados_suporte', chamados);
 
+  // Sincroniza imediatamente na nuvem (Supabase) para que apareça em tempo real para toda a equipe
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const isUuid = empresa_id && empresa_id.includes('-');
+      if (isUuid) {
+        const payload = {
+          empresa_id,
+          empresa_nome,
+          tecnico_email: tecnicoDesignado || userEmail,
+          atendente: getNomeTecnico(tecnicoDesignado || userEmail),
+          colaborador_solicitante: (solicitante_nome || 'Colaborador da Empresa').trim(),
+          status: statusInicial,
+          observacoes: observacao_inicial ? observacao_inicial.trim() : '',
+          motivo: categoriasValidas.join(', '),
+          iniciado_em: agora,
+        };
+        const { data: dbSaved } = await supabase.from('suporte_chamados').insert([payload]).select().maybeSingle();
+        if (dbSaved?.id) {
+          novoChamado.id = dbSaved.id;
+          const chAtual = getLocalData('chamados_suporte', []);
+          if (chAtual.length > 0 && (chAtual[0].id === novoChamado.id || chAtual[0].tempo_espera_inicio === agora)) {
+            chAtual[0].id = dbSaved.id;
+            setLocalData('chamados_suporte', chAtual);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao inserir suporte_chamados na nuvem do Supabase:', e);
+    }
+  }
+
   try {
     triggerSupportNotification({ chamado: novoChamado, userEmail });
   } catch (e) {}
@@ -517,6 +548,23 @@ export async function assumirSuporte({ chamado_id, userEmail = 'admin@rmcontrole
 
   setLocalData('chamados_suporte', chamados);
 
+  // Atualiza em tempo real no Supabase
+  if (isSupabaseConfigured && supabase && anterior?.id) {
+    try {
+      await supabase
+        .from('suporte_chamados')
+        .update({
+          status: 'em_andamento',
+          tecnico_email: userEmail,
+          atendente: getNomeTecnico(userEmail),
+          iniciado_em: agora,
+        })
+        .eq('id', anterior.id);
+    } catch (e) {
+      console.warn('Erro ao atualizar chamado assumido no Supabase:', e);
+    }
+  }
+
   try {
     stopSupportNotificationLoop();
   } catch (e) {}
@@ -534,6 +582,59 @@ export async function assumirSuporte({ chamado_id, userEmail = 'admin@rmcontrole
 
   window.dispatchEvent(new Event('suporte_updated'));
   return chamados[idx];
+}
+
+export async function fetchChamadosFila() {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('suporte_chamados')
+        .select('*')
+        .in('status', ['aguardando_visualizacao', 'em_andamento', 'pendente'])
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        const local = getLocalData('chamados_suporte', []);
+        const map = new Map();
+        local.forEach((c) => {
+          if (c.id) map.set(c.id, c);
+        });
+
+        data.forEach((d) => {
+          const prev = map.get(d.id) || {};
+          const cats = d.motivo ? d.motivo.split(',').map((s) => s.trim()).filter(Boolean) : (prev.categorias || ['Suporte']);
+          map.set(d.id, {
+            ...prev,
+            id: d.id,
+            empresa_id: d.empresa_id,
+            empresa_nome: d.empresa_nome,
+            solicitante_nome: d.colaborador_solicitante || prev.solicitante_nome || 'Colaborador da Empresa',
+            tecnico_email: d.tecnico_email || prev.tecnico_email || '',
+            tecnico_nome: d.atendente || getNomeTecnico(d.tecnico_email),
+            observacao_inicial: d.observacoes || prev.observacao_inicial || '',
+            status: d.status,
+            categorias: cats,
+            created_at: d.created_at || d.iniciado_em || prev.created_at || new Date().toISOString(),
+            tempo_espera_inicio: prev.tempo_espera_inicio || d.iniciado_em || d.created_at,
+            tempo_espera_fim: prev.tempo_espera_fim || (d.status === 'em_andamento' ? (prev.tempo_espera_fim || d.iniciado_em) : null),
+            tempo_espera_segundos: prev.tempo_espera_segundos || 0,
+            tempo_ativo_inicio: d.status === 'em_andamento' ? (prev.tempo_ativo_inicio || d.iniciado_em) : null,
+            tempo_ativo_fim: prev.tempo_ativo_fim || null,
+            tempo_ativo_segundos: prev.tempo_ativo_segundos || 0,
+            iniciado_em: d.iniciado_em,
+            finalizado_em: d.finalizado_em,
+          });
+        });
+
+        const merged = Array.from(map.values()).filter((c) => c.status !== 'finalizado' && c.status !== 'concluido' && c.status !== 'cancelado');
+        setLocalData('chamados_suporte', merged);
+        return merged;
+      }
+    } catch (e) {
+      console.warn('Erro ao sincronizar chamados da fila com o Supabase:', e);
+    }
+  }
+  return getChamadosSuporte();
 }
 
 export function getFilaChamados() {
@@ -1426,18 +1527,18 @@ export async function deleteEmpresaCredencial(empresaId, credId, userEmail = 'ad
 // ==============================================================================
 export const PERMISSOES_PADRAO = {
   administrador: ['empresas', 'fila', 'dashboard', 'configuracoes', 'canais', 'servidores', 'auditoria'],
-  suporte: ['empresas', 'fila', 'dashboard'],
-  vendas: ['empresas', 'fila', 'dashboard'],
+  suporte: ['empresas', 'fila', 'dashboard', 'configuracoes'],
+  vendas: ['empresas', 'fila', 'dashboard', 'configuracoes'],
 };
 
 export function resolveUserRole(email) {
   if (!email) return 'suporte';
   const emailNorm = email.toLowerCase().trim();
-  if (emailNorm === 'admin@rmcontrole.com') return 'administrador';
+  if (emailNorm === 'admin@rmcontrole.com' || emailNorm === 'lucas.rmchat@gmail.com') return 'administrador';
   const equipe = getEquipeUsuarios();
   const membro = equipe.find((u) => (u.email || '').toLowerCase().trim() === emailNorm);
   if (membro && membro.papel) return membro.papel;
-  if (emailNorm.includes('admin')) return 'administrador';
+  if (emailNorm.includes('admin') || emailNorm.includes('lucas')) return 'administrador';
   if (emailNorm.includes('vendas') || emailNorm.includes('comercial')) return 'vendas';
   return 'suporte';
 }
@@ -1467,8 +1568,7 @@ export async function fetchEquipeUsuarios() {
     try {
       const { data, error } = await supabase
         .from('equipe_usuarios')
-        .select('*')
-        .order('criado_em', { ascending: true });
+        .select('*');
 
       if (!error && data && data.length > 0) {
         const local = getLocalData('equipe_usuarios', []);
@@ -1505,11 +1605,18 @@ export async function fetchEquipeUsuarios() {
 }
 
 export function getEquipeUsuarios() {
-  return getLocalData('equipe_usuarios', [
+  const lista = getLocalData('equipe_usuarios', [
     { id: 'usr_1', nome: 'Lucas Amorim (Administrador)', email: 'admin@rmcontrole.com', senha: 'RmControle@Admin2026!', papel: 'administrador', criado_em: new Date().toISOString() },
     { id: 'usr_2', nome: 'Equipe de Suporte Técnico', email: 'suporte@rmcontrole.com', senha: 'RmSuporte@Padrao2026!', papel: 'suporte', criado_em: new Date().toISOString() },
     { id: 'usr_3', nome: 'Equipe Comercial & Vendas', email: 'vendas@rmcontrole.com', papel: 'vendas', senha: 'RmVendas@Padrao2026!', criado_em: new Date().toISOString() },
   ]);
+  return lista.map((u) => {
+    const emailNorm = (u.email || '').toLowerCase().trim();
+    if (emailNorm === 'admin@rmcontrole.com' || emailNorm === 'lucas.rmchat@gmail.com' || emailNorm.includes('admin') || emailNorm.includes('lucas')) {
+      return { ...u, papel: 'administrador' };
+    }
+    return u;
+  });
 }
 
 export async function addEquipeUsuario({ nome, email, senha = '', papel = 'suporte' }) {

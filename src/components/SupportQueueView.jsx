@@ -17,8 +17,10 @@ import {
   getEmpresaById,
   addColaboradorEmpresa,
   getEmpresaCredenciais,
-  getCategoriasDemandas
+  getCategoriasDemandas,
+  fetchChamadosFila
 } from '@/lib/storage';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { stopSupportNotificationLoop } from '@/lib/audioNotifications';
 import SupportCompletionModal from './SupportCompletionModal';
 import ConfirmModal from './ConfirmModal';
@@ -98,6 +100,9 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   const [novasCategoriasModal, setNovasCategoriasModal] = useState(['Suporte']);
 
   const carregarDados = async () => {
+    try {
+      await fetchChamadosFila();
+    } catch (e) {}
     const todos = getChamadosSuporte();
     setChamados(todos);
     setEquipeLista(getEquipeUsuarios());
