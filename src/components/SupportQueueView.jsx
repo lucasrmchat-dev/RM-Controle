@@ -106,6 +106,17 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     setIsClient(true);
   }, []);
 
+  // Trava scroll da tela enquanto o modal estiver aberto (padrão Apple)
+  useEffect(() => {
+    if (modalNovoChamadoOpen) {
+      const origOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = origOverflow;
+      };
+    }
+  }, [modalNovoChamadoOpen]);
+
   const carregarDados = async () => {
     try {
       await fetchChamadosFila();
@@ -236,6 +247,10 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     );
   }, [colaboradoresEmpresaAtual, buscaSolicitante]);
 
+  // Aliases seguros para garantir retrocompatibilidade de referências no modal
+  const solicitantesEmpresa = colaboradoresEmpresaAtual;
+  const empresasFiltradasDropdown = empresasFiltradasBusca;
+
   // KPIs
   const emAndamento = useMemo(() => chamados.filter((c) => c.status === 'em_andamento'), [chamados]);
   const emEspera = useMemo(() => chamados.filter((c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente'), [chamados]);
@@ -355,6 +370,26 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     }
   };
 
+  const handleSalvarNovoColaborador = handleCadastrarNovoColaboradorInline;
+
+  // Função centralizada para abrir o modal de nova demanda resetando estados inconsistentes
+  const handleAbrirModalNovoChamado = () => {
+    setModalNovoChamadoOpen(true);
+    setNovasCategoriasModal(['Suporte']);
+    setTecnicoAtribuido(userEmail || 'admin@rmcontrole.com');
+    if (!empresaSelecionada && empresasLista.length > 0) {
+      setEmpresaSelecionada(empresasLista[0]);
+    }
+    setDropdownEmpresaAberto(false);
+    setDropdownSolicitanteAberto(false);
+    setDropdownTecnicoAberto(false);
+    setModoCadastroColab(false);
+    setBuscaEmpresa('');
+    setBuscaSolicitante('');
+    setNovaObservacao('');
+    setIniciarDireto(false);
+  };
+
   const handleCriarChamado = async (e) => {
     e.preventDefault();
     if (!empresaSelecionada) {
@@ -415,11 +450,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => {
-              setModalNovoChamadoOpen(true);
-              setNovasCategoriasModal(['Suporte']);
-              setTecnicoAtribuido(userEmail || 'admin@rmcontrole.com');
-            }}
+            onClick={handleAbrirModalNovoChamado}
             className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold shadow-md shadow-[#4d7c0f]/20 dark:shadow-[#84cc16]/20 hover:opacity-95 flex items-center gap-2 transition-all cursor-pointer"
           >
             <span className="text-sm font-bold">+</span>
@@ -642,7 +673,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
           </p>
           <div className="pt-2">
             <button
-              onClick={() => setModalNovoChamadoOpen(true)}
+              onClick={handleAbrirModalNovoChamado}
               className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold shadow-sm cursor-pointer"
             >
               + Adicionar Chamado à Fila
@@ -1066,16 +1097,21 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       {/* ============================================================================== */}
       {/* MODAL DE CRIAÇÃO DE CHAMADO COM LAYOUT WIDESCREEN 16:9 E 2 COLUNAS */}
       {/* ============================================================================== */}
-      <AnimatePresence>
-        {modalNovoChamadoOpen && isClient && createPortal(
-          <div className="fixed inset-0 w-screen h-screen z-50 bg-black/60 dark:bg-black/80 backdrop-blur-xl flex items-center justify-center p-3 sm:p-6 overflow-hidden">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
-              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-              className="w-full max-w-4xl max-h-[92vh] rounded-[32px] bg-white dark:bg-[#16161a] border border-black/[0.08] dark:border-white/[0.1] p-5 sm:p-7 shadow-2xl flex flex-col text-[#1d1d1f] dark:text-[#f5f5f7] relative"
+      {isClient && createPortal(
+        <AnimatePresence>
+          {modalNovoChamadoOpen && (
+            <div 
+              className="fixed inset-0 w-screen h-screen z-[99999] bg-black/60 dark:bg-black/80 backdrop-blur-xl flex items-center justify-center p-3 sm:p-6 overflow-hidden"
+              onClick={() => setModalNovoChamadoOpen(false)}
             >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                className="w-full max-w-4xl max-h-[92vh] rounded-[32px] bg-white dark:bg-[#16161a] border border-black/[0.08] dark:border-white/[0.1] p-5 sm:p-7 shadow-2xl flex flex-col text-[#1d1d1f] dark:text-[#f5f5f7] relative"
+                onClick={(e) => e.stopPropagation()}
+              >
               {/* Cabeçalho Fixo do Modal */}
               <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-white/[0.08] flex-shrink-0">
                 <div>
@@ -1131,10 +1167,10 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                 placeholder="Buscar empresa..."
                                 className="w-full px-3 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.06] text-xs focus:outline-none mb-1 text-[#1d1d1f] dark:text-white"
                               />
-                              {empresasFiltradasDropdown.length === 0 ? (
+                              {empresasFiltradasBusca.length === 0 ? (
                                 <p className="text-[11px] text-slate-400 p-2 text-center">Nenhuma empresa encontrada.</p>
                               ) : (
-                                empresasFiltradasDropdown.map((emp) => (
+                                empresasFiltradasBusca.map((emp) => (
                                   <button
                                     key={emp.id}
                                     type="button"
@@ -1205,7 +1241,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                   className="w-full px-3 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.06] text-xs focus:outline-none mb-1 text-[#1d1d1f] dark:text-white"
                                 />
 
-                                {solicitantesEmpresa.length === 0 ? (
+                                {colaboradoresEmpresaAtual.length === 0 ? (
                                   <div className="p-2 text-center space-y-1">
                                     <p className="text-[11px] text-slate-400">Nenhum colaborador registrado nesta empresa.</p>
                                     {buscaSolicitante.trim() && (
@@ -1222,10 +1258,25 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                       </button>
                                     )}
                                   </div>
+                                ) : colaboradoresFiltradosBusca.length === 0 ? (
+                                  <div className="p-2 text-center space-y-1">
+                                    <p className="text-[11px] text-slate-400">Nenhum colaborador encontrado com esta busca.</p>
+                                    {buscaSolicitante.trim() && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSolicitanteManual(buscaSolicitante.trim());
+                                          setSolicitanteSelecionado(null);
+                                          setDropdownSolicitanteAberto(false);
+                                        }}
+                                        className="text-xs font-bold text-[#4d7c0f] dark:text-[#84cc16] hover:underline"
+                                      >
+                                        Usar "{buscaSolicitante.trim()}" como solicitante
+                                      </button>
+                                    )}
+                                  </div>
                                 ) : (
-                                  solicitantesEmpresa
-                                    .filter((s) => !buscaSolicitante || (s.nome || '').toLowerCase().includes(buscaSolicitante.toLowerCase()))
-                                    .map((colab) => (
+                                  colaboradoresFiltradosBusca.map((colab) => (
                                       <button
                                         key={colab.id || colab.nome}
                                         type="button"
@@ -1291,7 +1342,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                             </div>
                             <button
                               type="button"
-                              onClick={handleSalvarNovoColaborador}
+                              onClick={handleCadastrarNovoColaboradorInline}
                               className="w-full py-1.5 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-xs hover:opacity-95"
                             >
                               Salvar e Selecionar Colaborador
@@ -1591,11 +1642,12 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
               </form>
 
-            </motion.div>
-          </div>,
-          document.body
-        )}
-      </AnimatePresence>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* Modal de Conclusão do Chamado */}
       {chamadoParaFinalizar && (
