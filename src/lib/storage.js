@@ -251,6 +251,47 @@ export function removeMotivoSuporte(id) {
 }
 
 // ==============================================================================
+// GESTÃO DE CATEGORIAS DE DEMANDAS / SUPORTE
+// ==============================================================================
+export const DEFAULT_CATEGORIAS_DEMANDAS = [
+  'Suporte',
+  'Financeiro',
+  'Automação',
+  'Implantação',
+  'Dúvidas Gerais',
+];
+
+export function getCategoriasDemandas() {
+  return getLocalData('categorias_demandas', DEFAULT_CATEGORIAS_DEMANDAS);
+}
+
+export function setCategoriasDemandas(categorias) {
+  setLocalData('categorias_demandas', categorias);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('categorias_demandas_updated'));
+  }
+}
+
+export function addCategoriaDemanda(nome) {
+  if (!nome || !nome.trim()) throw new Error('Nome da categoria é obrigatório.');
+  const nomeTrim = nome.trim();
+  const cats = getCategoriasDemandas();
+  if (cats.some((c) => c.toLowerCase() === nomeTrim.toLowerCase())) {
+    throw new Error('Esta categoria já está cadastrada.');
+  }
+  const novas = [...cats, nomeTrim];
+  setCategoriasDemandas(novas);
+  return novas;
+}
+
+export function removeCategoriaDemanda(nome) {
+  const cats = getCategoriasDemandas();
+  const novas = cats.filter((c) => c.toLowerCase() !== nome.toLowerCase());
+  setCategoriasDemandas(novas);
+  return novas;
+}
+
+// ==============================================================================
 // SISTEMA DE CHAMADOS & FILA DE SUPORTE (INICIAR, FILA, ASSUMIR, FINALIZAR & TIMER)
 // ==============================================================================
 export async function iniciarSuporte({ 
@@ -258,6 +299,7 @@ export async function iniciarSuporte({
   empresa_nome, 
   chamado_id = null,
   motivo = '',
+  categorias = [],
   prioridade = 'normal',
   descricao = '',
   solicitante = '',
@@ -267,6 +309,9 @@ export async function iniciarSuporte({
   const agora = new Date().toISOString();
   const agoraMs = new Date(agora).getTime();
   const chamados = getLocalData('chamados_suporte', []);
+  const categoriasValidas = Array.isArray(categorias) && categorias.length > 0 
+    ? categorias 
+    : (categorias ? [categorias] : ['Suporte']);
 
   // Se já existe um ID específico (ex: item que estava 'pendente' ou 'aguardando_visualizacao')
   if (chamado_id) {
@@ -279,6 +324,7 @@ export async function iniciarSuporte({
       chamados[idx] = {
         ...anterior,
         status: 'em_andamento',
+        categorias: (Array.isArray(categorias) && categorias.length > 0) ? categorias : (anterior.categorias || ['Suporte']),
         tecnico_email: userEmail,
         tecnico_nome: getNomeTecnico(userEmail),
         tempo_espera_fim: agora,
@@ -312,6 +358,7 @@ export async function iniciarSuporte({
     id: 'chamado_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
     empresa_id,
     empresa_nome,
+    categorias: categoriasValidas,
     tecnico_email: userEmail,
     tecnico_nome: getNomeTecnico(userEmail),
     status: 'em_andamento',
@@ -353,6 +400,7 @@ export async function adicionarChamadoFila({
   solicitante_nome = '',
   solicitante_email = '',
   solicitante_telefone = '',
+  categorias = [],
   atribuido_a = null,
   observacao_inicial = '',
   iniciarAgora = false,
@@ -361,12 +409,16 @@ export async function adicionarChamadoFila({
   const agora = new Date().toISOString();
   const agoraMs = Date.now();
   const chamados = getLocalData('chamados_suporte', []);
+  const categoriasValidas = Array.isArray(categorias) && categorias.length > 0 
+    ? categorias 
+    : (categorias ? [categorias] : ['Suporte']);
 
   if (iniciarAgora) {
     const novoChamado = {
       id: 'chamado_' + agoraMs + '_' + Math.random().toString(36).substr(2, 5),
       empresa_id,
       empresa_nome,
+      categorias: categoriasValidas,
       tecnico_email: userEmail,
       tecnico_nome: getNomeTecnico(userEmail),
       solicitante_nome: (solicitante_nome || 'Colaborador').trim(),
@@ -404,6 +456,7 @@ export async function adicionarChamadoFila({
     id: 'chamado_' + agoraMs + '_' + Math.random().toString(36).substr(2, 5),
     empresa_id,
     empresa_nome,
+    categorias: categoriasValidas,
     tecnico_email: tecnicoDesignado,
     tecnico_nome: getNomeTecnico(tecnicoDesignado),
     solicitante_nome: (solicitante_nome || 'Colaborador').trim(),
@@ -500,14 +553,17 @@ export async function finalizarSuporte({
   observacoes = '',
   colaborador_solicitante = '',
   atendente = '',
-  userEmail = 'admin@rmcontrole.com'
+  userEmail = 'admin@rmcontrole.com',
+  tempo_ativo_segundos = null,
+  tempo_ativo_inicio = null,
+  finalizado_em = null,
 }) {
   const chamados = getLocalData('chamados_suporte', []);
   const idx = chamados.findIndex((c) => c.id === chamado_id);
   if (idx === -1) throw new Error('Chamado não encontrado.');
 
   const chamado = chamados[idx];
-  const finalizadoEm = new Date().toISOString();
+  const finalizadoEm = finalizado_em || new Date().toISOString();
   const agoraMs = new Date(finalizadoEm).getTime();
 
   let esperaSegs = chamado.tempo_espera_segundos || 0;
@@ -515,8 +571,11 @@ export async function finalizarSuporte({
     esperaSegs = Math.max(0, Math.floor((agoraMs - new Date(chamado.tempo_espera_inicio).getTime()) / 1000));
   }
 
-  const ativoInicioMs = new Date(chamado.tempo_ativo_inicio || chamado.iniciado_em || finalizadoEm).getTime();
-  const ativoSegs = Math.max(1, Math.floor((agoraMs - ativoInicioMs) / 1000));
+  const inicioAtivoFinal = tempo_ativo_inicio || chamado.tempo_ativo_inicio || chamado.iniciado_em || finalizadoEm;
+  const ativoInicioMs = new Date(inicioAtivoFinal).getTime();
+  const ativoSegs = typeof tempo_ativo_segundos === 'number' && tempo_ativo_segundos >= 0
+    ? tempo_ativo_segundos
+    : Math.max(1, Math.floor((agoraMs - ativoInicioMs) / 1000));
 
   const chamadoFinalizado = {
     ...chamado,
@@ -525,6 +584,8 @@ export async function finalizarSuporte({
     solicitante_nome: colaborador_solicitante || chamado.solicitante_nome || 'Colaborador',
     resolucao: observacoes || '',
     observacoes: observacoes || '',
+    tempo_ativo_inicio: inicioAtivoFinal,
+    iniciado_em: inicioAtivoFinal,
     finalizado_em: finalizadoEm,
     tempo_espera_segundos: esperaSegs,
     tempo_ativo_segundos: ativoSegs,
@@ -962,7 +1023,7 @@ export function getChamadosSuporte({ empresa_id = null, status = 'todos' } = {})
   return chamados;
 }
 
-export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim = null } = {}) {
+export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim = null, categoria = null } = {}) {
   const chamadosAtivos = getLocalData('chamados_suporte', []);
   const historicoChamados = getLocalData('historico_chamados', []);
 
@@ -977,6 +1038,17 @@ export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim 
 
   let chamados = Array.from(mapa.values());
   const hoje = new Date();
+
+  // Filtro por Categoria se especificado
+  if (categoria && categoria !== 'todas') {
+    const catLower = categoria.toLowerCase().trim();
+    chamados = chamados.filter((c) => {
+      const cats = Array.isArray(c.categorias) && c.categorias.length > 0
+        ? c.categorias
+        : (c.categoria ? [c.categoria] : ['Suporte']);
+      return cats.some((cat) => (cat || '').toLowerCase().trim() === catLower);
+    });
+  }
 
   // Filtro de período dinâmico
   if (periodo === 'hoje') {

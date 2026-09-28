@@ -16,7 +16,8 @@ import {
   getNomeTecnico,
   getEmpresaById,
   addColaboradorEmpresa,
-  getEmpresaCredenciais
+  getEmpresaCredenciais,
+  getCategoriasDemandas
 } from '@/lib/storage';
 import { stopSupportNotificationLoop } from '@/lib/audioNotifications';
 import SupportCompletionModal from './SupportCompletionModal';
@@ -91,10 +92,16 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   const [novaObservacao, setNovaObservacao] = useState('');
   const [feedback, setFeedback] = useState('');
 
+  // Categorias de Demandas
+  const [categoriasDisponiveis, setCategoriasDisponiveis] = useState([]);
+  const [filtroCategoria, setFiltroCategoria] = useState('todas');
+  const [novasCategoriasModal, setNovasCategoriasModal] = useState(['Suporte']);
+
   const carregarDados = async () => {
     const todos = getChamadosSuporte();
     setChamados(todos);
     setEquipeLista(getEquipeUsuarios());
+    setCategoriasDisponiveis(getCategoriasDemandas());
     const resEmp = await getEmpresas({ pageSize: 1000 });
     const lista = Array.isArray(resEmp) ? resEmp : (resEmp?.items || []);
     setEmpresasLista(lista);
@@ -109,8 +116,10 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
   useEffect(() => {
     const handleUpdate = () => carregarDados();
+    const handleCatsUpdated = () => setCategoriasDisponiveis(getCategoriasDemandas());
     window.addEventListener('suporte_updated', handleUpdate);
     window.addEventListener('equipe_updated', handleUpdate);
+    window.addEventListener('categorias_demandas_updated', handleCatsUpdated);
 
     // Ticker a cada 1 segundo para atualizar os dois cronômetros em tempo real
     const timer = setInterval(() => setTick((t) => t + 1), 1000);
@@ -118,6 +127,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     return () => {
       window.removeEventListener('suporte_updated', handleUpdate);
       window.removeEventListener('equipe_updated', handleUpdate);
+      window.removeEventListener('categorias_demandas_updated', handleCatsUpdated);
       clearInterval(timer);
     };
   }, []);
@@ -244,6 +254,14 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
         if ((c.status !== 'concluido' && c.status !== 'finalizado') || !(c.finalizado_em || '').startsWith(hojeStr)) return false;
       }
 
+      if (filtroCategoria && filtroCategoria !== 'todas') {
+        const catQ = filtroCategoria.toLowerCase().trim();
+        const cats = Array.isArray(c.categorias) && c.categorias.length > 0 ? c.categorias : ['Suporte'];
+        if (!cats.some((cat) => (cat || '').toLowerCase().trim() === catQ)) {
+          return false;
+        }
+      }
+
       if (busca.trim()) {
         const q = busca.toLowerCase().trim();
         const nomeMatch = (c.empresa_nome || '').toLowerCase().includes(q);
@@ -260,7 +278,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       if (b.status === 'aguardando_visualizacao' && a.status !== 'aguardando_visualizacao') return 1;
       return new Date(b.created_at || 0) - new Date(a.created_at || 0);
     });
-  }, [chamados, filtroStatus, busca]);
+  }, [chamados, filtroStatus, filtroCategoria, busca]);
 
   // Ações de Chamado
   const handleAceitarSuporte = async (chamado) => {

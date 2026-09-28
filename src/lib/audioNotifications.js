@@ -167,8 +167,8 @@ export function triggerSupportNotification({ chamado, userEmail }) {
   if (!config.habilitado) return;
 
   // Filtro de escopo: apenas meus ou todos
-  if (config.escopo === 'apenas_meus') {
-    const chamadoTecnicoEmail = (chamado.tecnico_email || '').toLowerCase().trim();
+  if (config.escopo === 'apenas_meus' || config.escopo === 'atribuidos') {
+    const chamadoTecnicoEmail = (chamado?.tecnico_email || '').toLowerCase().trim();
     const myEmail = (userEmail || '').toLowerCase().trim();
     if (chamadoTecnicoEmail && chamadoTecnicoEmail !== myEmail) {
       return; // Chamado atribuído a outro técnico, não toca
@@ -184,16 +184,36 @@ export function triggerSupportNotification({ chamado, userEmail }) {
     activeLoopInterval = null;
   }
 
-  // Se modo for intermitente (loop a cada 4 segundos)
+  // Se modo for apenas uma vez, não agenda repetição
+  if (config.modoRepeticao === 'uma_vez') {
+    return;
+  }
+
+  const loopCallback = () => {
+    try {
+      if (typeof window !== 'undefined') {
+        const raw = localStorage.getItem('chamados_suporte');
+        if (raw) {
+          const list = JSON.parse(raw);
+          const hasPending = list.some(
+            (c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente'
+          );
+          if (!hasPending) {
+            stopSupportNotificationLoop();
+            return;
+          }
+        }
+      }
+    } catch (e) {}
+    playNotificationTone(config.tipoSom);
+  };
+
+  // Modo intermitente: sem tempo mínimo de espera, toca em ciclo contínuo (~1.1s logo após o término do toque)
   if (config.modoRepeticao === 'intermitente') {
-    activeLoopInterval = setInterval(() => {
-      playNotificationTone(config.tipoSom);
-    }, 4000);
-  } else if (config.modoRepeticao === 'intervalo') {
-    const segs = Math.max(5, config.intervaloSegundos || 30);
-    activeLoopInterval = setInterval(() => {
-      playNotificationTone(config.tipoSom);
-    }, segs * 1000);
+    activeLoopInterval = setInterval(loopCallback, 1100);
+  } else if (config.modoRepeticao === 'intervalo' || config.modoRepeticao === 'loop') {
+    const segs = Math.max(3, config.intervaloSegundos || 30);
+    activeLoopInterval = setInterval(loopCallback, segs * 1000);
   }
 }
 
