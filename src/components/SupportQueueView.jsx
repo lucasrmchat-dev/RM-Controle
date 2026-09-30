@@ -118,6 +118,8 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   const empresaDropdownRef = useRef(null);
   const solicitanteDropdownRef = useRef(null);
   const tecnicoDropdownRef = useRef(null);
+  const etiquetaDropdownRef = useRef(null);
+  const [highlightedEtiquetaIdx, setHighlightedEtiquetaIdx] = useState(0);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -129,6 +131,9 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       }
       if (tecnicoDropdownRef.current && !tecnicoDropdownRef.current.contains(e.target)) {
         if (activeModalDropdown === 'tecnico') setActiveModalDropdown(null);
+      }
+      if (etiquetaDropdownRef.current && !etiquetaDropdownRef.current.contains(e.target)) {
+        if (activeModalDropdown === 'etiqueta') setActiveModalDropdown(null);
       }
       if (filtroTecnicoRef.current && !filtroTecnicoRef.current.contains(e.target)) {
         setFiltroTecnicoDropdownAberto(false);
@@ -238,7 +243,25 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     setTimeout(() => setFeedback(''), 3500);
   };
 
-  // Cronômetro 1: Tempo em Espera (Real e Preciso)
+  // Função de formatação humanizada de duração: dias, horas, minutos e segundos (evita minutos gigantes)
+  const formatarTempoDinamico = (segundos) => {
+    if (!segundos || isNaN(segundos) || segundos <= 0) return '00:00';
+    const totalSeg = Math.floor(segundos);
+    const dias = Math.floor(totalSeg / 86400);
+    const horas = Math.floor((totalSeg % 86400) / 3600);
+    const mins = Math.floor((totalSeg % 3600) / 60);
+    const secs = totalSeg % 60;
+
+    if (dias > 0) {
+      return `${dias}d ${horas.toString().padStart(2, '0')}h ${mins.toString().padStart(2, '0')}m ${secs.toString().padStart(2, '0')}s`;
+    }
+    if (horas > 0) {
+      return `${horas.toString().padStart(2, '0')}h ${mins.toString().padStart(2, '0')}m ${secs.toString().padStart(2, '0')}s`;
+    }
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Cronômetro 1: Tempo em Espera (Real e Preciso com Dias, Horas, Minutos e Segundos)
   const calcularTempoEspera = (chamado) => {
     const agora = Date.now();
     const dataCriacao = chamado.created_at || chamado.tempo_espera_inicio;
@@ -246,53 +269,38 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     
     // 1. Se tem tempo_espera_segundos gravado maior que 0:
     if (chamado.tempo_espera_segundos && chamado.tempo_espera_segundos > 0) {
-      const segs = chamado.tempo_espera_segundos;
-      const mins = Math.floor(segs / 60);
-      const secs = segs % 60;
-      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      return formatarTempoDinamico(chamado.tempo_espera_segundos);
     }
 
     // 2. Se já foi aceito e possui tempo_espera_fim registrado:
     if (chamado.tempo_espera_fim && inicioEspera) {
       const fimEspera = new Date(chamado.tempo_espera_fim).getTime();
       const diff = Math.max(0, Math.floor((fimEspera - inicioEspera) / 1000));
-      if (diff > 0) {
-        const mins = Math.floor(diff / 60);
-        const secs = diff % 60;
-        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-      }
+      return formatarTempoDinamico(diff);
     }
 
     // 3. Se está em andamento (assumido) e possui horário de início ativo:
     if (chamado.status === 'em_andamento') {
       const fim = new Date(chamado.tempo_ativo_inicio || chamado.iniciado_em || agora).getTime();
       const diff = Math.max(0, Math.floor((fim - inicioEspera) / 1000));
-      if (diff > 0) {
-        const mins = Math.floor(diff / 60);
-        const secs = diff % 60;
-        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-      }
+      return formatarTempoDinamico(diff);
     }
 
     // 4. Se continua aguardando em espera (ao vivo):
     if (chamado.status === 'aguardando_visualizacao' || chamado.status === 'pendente') {
       const diffSeg = Math.max(0, Math.floor((agora - inicioEspera) / 1000));
-      const mins = Math.floor(diffSeg / 60);
-      const secs = diffSeg % 60;
-      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      return formatarTempoDinamico(diffSeg);
     }
 
     return '00:00';
   };
 
-  // Cronômetro 2: Tempo Ativo (Em Atendimento)
+  // Cronômetro 2: Tempo Ativo (Em Atendimento com Dias, Horas, Minutos e Segundos)
   const calcularTempoAtivo = (chamado) => {
     if (chamado.status !== 'em_andamento') {
       if (chamado.status === 'concluido' || chamado.status === 'finalizado') {
         const segs = chamado.tempo_ativo_segundos || chamado.duracao_segundos || 0;
-        const mins = Math.floor(segs / 60);
-        const secs = segs % 60;
-        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        return formatarTempoDinamico(segs);
       }
       return '00:00';
     }
@@ -300,9 +308,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     const agora = Date.now();
     const inicio = new Date(chamado.tempo_ativo_inicio || chamado.iniciado_em || agora).getTime();
     const diffSeg = Math.max(0, Math.floor((agora - inicio) / 1000));
-    const mins = Math.floor(diffSeg / 60);
-    const secs = diffSeg % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return formatarTempoDinamico(diffSeg);
   };
 
   // Colaboradores da empresa selecionada no modal
@@ -351,6 +357,29 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       c.nome.toLowerCase().includes(q) || (c.cargo || '').toLowerCase().includes(q)
     );
   }, [colaboradoresEmpresaAtual, buscaSolicitante]);
+
+  // Lista consolidada de todas as etiquetas já registradas no histórico ou padrões recomendados
+  const todasEtiquetasDisponiveis = useMemo(() => {
+    const padroes = ['Urgente', 'Alta Prioridade', 'Bug / Erro', 'Dúvida Operacional', 'Ajuste de Sistema', 'Financeiro', 'Treinamento', 'Implantação', 'Melhoria', 'Acesso'];
+    const setTags = new Set(padroes);
+    (chamados || []).forEach((c) => {
+      if (Array.isArray(c.etiquetas)) {
+        c.etiquetas.forEach((t) => {
+          if (t && typeof t === 'string' && t.trim()) setTags.add(t.trim().replace(/^#/, ''));
+        });
+      }
+    });
+    return Array.from(setTags);
+  }, [chamados]);
+
+  // Etiquetas filtradas para o autocomplete inteligente no modal de demandas
+  const etiquetasFiltradasModal = useMemo(() => {
+    const jaSelecionadas = new Set(novasEtiquetasModal.map((t) => t.toLowerCase().trim().replace(/^#/, '')));
+    const q = removerAcentos(inputEtiqueta.toLowerCase().trim().replace(/^#/, ''));
+    const disponiveis = todasEtiquetasDisponiveis.filter((t) => !jaSelecionadas.has(t.toLowerCase().trim()));
+    if (!q) return disponiveis.slice(0, 10);
+    return disponiveis.filter((t) => removerAcentos(t.toLowerCase()).includes(q));
+  }, [todasEtiquetasDisponiveis, novasEtiquetasModal, inputEtiqueta]);
 
   // Lista Filtrada com bloqueio de departamentos e filtro de etiquetas
   // Lista consolidada de colaboradores / técnicos (equipe + quem tem chamado atribuído)
@@ -540,9 +569,9 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     }
   }, [listaTecnicosKanban, userEmail, kanbanPreset, filtroTecnico]);
 
-  // Efeito ao alternar para visualização Kanban com um colaborador selecionado
+  // Efeito ao alternar para visualização Kanban com um colaborador selecionado (blindado contra reset por ticker/interval/polling)
   useEffect(() => {
-    if (filaViewMode === 'kanban' && targetTec) {
+    if (filaViewMode === 'kanban' && targetTec && kanbanPreset !== 'expandir_todos' && kanbanPreset !== 'recolher_todos') {
       const targetKey = getTecKey(targetTec);
       const outros = listaTecnicosKanban
         .filter((t) => getTecKey(t) !== targetKey)
@@ -561,7 +590,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
         } catch (e) {}
       }, 150);
     }
-  }, [filaViewMode, targetTec, listaTecnicosKanban]);
+  }, [filaViewMode, targetTec]);
 
   // Aliases seguros para garantir retrocompatibilidade de referências no modal
   const solicitantesEmpresa = colaboradoresEmpresaAtual;
@@ -1267,8 +1296,14 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                       : 'border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-slate-700 dark:text-zinc-200 hover:border-black/20'
                   }`}
                 >
-                  <div className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold text-[9px] flex items-center justify-center">
-                    {filtroTecnico === 'todos' ? '👥' : filtroTecnico === 'nao_atribuido' ? '⏳' : filtroTecnico[0].toUpperCase()}
+                  <div className="w-5 h-5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] flex items-center justify-center flex-shrink-0">
+                    {filtroTecnico === 'todos' ? (
+                      <UsersIcon className="w-3 h-3 text-emerald-700 dark:text-emerald-300" />
+                    ) : filtroTecnico === 'nao_atribuido' ? (
+                      <HourglassIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                    ) : (
+                      (targetTec?.nome || filtroTecnico).charAt(0).toUpperCase()
+                    )}
                   </div>
                   <span className="truncate max-w-[140px]">
                     {filtroTecnico === 'todos'
@@ -1301,7 +1336,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                         }`}
                       >
                         <div className="flex items-center gap-2">
-                          <span className="text-sm">👥</span>
+                          <UsersIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                           <span>Todos os Técnicos</span>
                         </div>
                         {filtroTecnico === 'todos' && <CheckIcon className="w-3.5 h-3.5" />}
@@ -1317,7 +1352,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                         }`}
                       >
                         <div className="flex items-center gap-2">
-                          <span className="text-sm">⏳</span>
+                          <HourglassIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                           <span>Sem Técnico / Em Espera</span>
                         </div>
                         {filtroTecnico === 'nao_atribuido' && <CheckIcon className="w-3.5 h-3.5" />}
@@ -1645,21 +1680,22 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                   <button
                     type="button"
                     onClick={() => {
+                      setFiltroTecnico('todos');
                       setColaboradoresRecolhidos([]);
                       setKanbanPreset('expandir_todos');
                     }}
                     className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      kanbanPreset === 'expandir_todos'
+                      kanbanPreset === 'expandir_todos' && filtroTecnico === 'todos'
                         ? 'bg-[#09090b] dark:bg-white text-white dark:text-black font-bold shadow-md shadow-black/10 ring-2 ring-black/20 dark:ring-white/20'
                         : 'bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-black/[0.06]'
                     }`}
                   >
                     <span>⤢</span>
-                    <span>Expandir Todos</span>
-                    {kanbanPreset === 'expandir_todos' && <CheckIcon className="w-3 h-3 stroke-[2.5]" />}
+                    <span>Expandir Todas</span>
+                    {kanbanPreset === 'expandir_todos' && filtroTecnico === 'todos' && <CheckIcon className="w-3 h-3 stroke-[2.5]" />}
                   </button>
 
-                  {/* Preset: Recolher Todos */}
+                  {/* Preset: Recolher / Ocultar Todos */}
                   <button
                     type="button"
                     onClick={() => {
@@ -1674,7 +1710,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                     }`}
                   >
                     <span>⤡</span>
-                    <span>Recolher Todos</span>
+                    <span>Ocultar Todas</span>
                     {kanbanPreset === 'recolher_todos' && <CheckIcon className="w-3 h-3 stroke-[2.5]" />}
                   </button>
                 </div>
@@ -1972,10 +2008,11 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           <button
                             type="button"
                             onClick={() => { setColaboradoresRecolhidos((prev) => [...prev, tecKey]); setKanbanPreset('custom'); }}
-                            className="w-6 h-6 rounded-lg text-slate-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-center"
-                            title={`Recolher coluna de ${tec.nome}`}
+                            className="px-2 py-0.5 rounded-lg border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.04] text-[10px] font-semibold text-slate-500 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                            title={`Ocultar coluna de ${tec.nome}`}
                           >
-                            <span className="text-sm font-bold font-mono leading-none">−</span>
+                            <span>Ocultar</span>
+                            <span className="font-mono text-xs leading-none">−</span>
                           </button>
                         </div>
                       </div>
@@ -2808,7 +2845,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                 type="text"
                                 value={novoColabTelefone}
                                 onChange={(e) => setNovoColabTelefone(e.target.value)}
-                                placeholder="WhatsApp / Telefone"
+                                placeholder="Telefone / Contato (ex: 84 99999-9999)"
                                 className="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-800 border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none"
                               />
                             </div>
@@ -3027,8 +3064,8 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                         </div>
                       </div>
 
-                      {/* Etiquetas Opcionais */}
-                      <div className="space-y-1.5">
+                      {/* Etiquetas / Tags com Autocomplete Inteligente (Sem botão de + tag) */}
+                      <div className="space-y-1.5" ref={etiquetaDropdownRef}>
                         <div className="flex items-center justify-between pl-1">
                           <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
                             Etiquetas / Tags da Demanda
@@ -3043,13 +3080,13 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                             {novasEtiquetasModal.map((etq) => (
                               <span
                                 key={etq}
-                                className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/25 font-mono text-[10px] font-bold flex items-center gap-1"
+                                className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/25 font-mono text-[10px] font-bold flex items-center gap-1.5"
                               >
                                 <span>#{etq}</span>
                                 <button
                                   type="button"
-                                  onClick={() => setNovasEtiquetasModal(novasEtiquetasModal.filter(e => e !== etq))}
-                                  className="text-amber-700 hover:text-red-500 cursor-pointer"
+                                  onClick={() => setNovasEtiquetasModal(novasEtiquetasModal.filter((e) => e !== etq))}
+                                  className="text-amber-700 dark:text-amber-400 hover:text-red-500 cursor-pointer font-bold leading-none"
                                 >
                                   ×
                                 </button>
@@ -3058,37 +3095,105 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           </div>
                         )}
 
-                        <div className="flex gap-2">
+                        <div className="relative">
                           <input
                             type="text"
                             value={inputEtiqueta}
-                            onChange={(e) => setInputEtiqueta(e.target.value)}
+                            onFocus={() => setActiveModalDropdown('etiqueta')}
+                            onChange={(e) => {
+                              setInputEtiqueta(e.target.value);
+                              setActiveModalDropdown('etiqueta');
+                              setHighlightedEtiquetaIdx(0);
+                            }}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
+                              if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                if (etiquetasFiltradasModal.length > 0) {
+                                  setHighlightedEtiquetaIdx((prev) => (prev + 1) % etiquetasFiltradasModal.length);
+                                }
+                              } else if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                if (etiquetasFiltradasModal.length > 0) {
+                                  setHighlightedEtiquetaIdx((prev) => (prev - 1 + etiquetasFiltradasModal.length) % etiquetasFiltradasModal.length);
+                                }
+                              } else if (e.key === 'Enter') {
                                 e.preventDefault();
                                 const limpo = inputEtiqueta.trim().replace(/^#/, '');
-                                if (limpo && !novasEtiquetasModal.includes(limpo)) {
-                                  setNovasEtiquetasModal([...novasEtiquetasModal, limpo]);
+                                if (activeModalDropdown === 'etiqueta' && etiquetasFiltradasModal.length > 0 && highlightedEtiquetaIdx < etiquetasFiltradasModal.length) {
+                                  const selecionada = etiquetasFiltradasModal[highlightedEtiquetaIdx];
+                                  if (!novasEtiquetasModal.includes(selecionada)) {
+                                    setNovasEtiquetasModal([...novasEtiquetasModal, selecionada]);
+                                  }
                                   setInputEtiqueta('');
+                                  setActiveModalDropdown(null);
+                                } else if (limpo) {
+                                  if (!novasEtiquetasModal.includes(limpo)) {
+                                    setNovasEtiquetasModal([...novasEtiquetasModal, limpo]);
+                                  }
+                                  setInputEtiqueta('');
+                                  setActiveModalDropdown(null);
                                 }
+                              } else if (e.key === 'Escape') {
+                                setActiveModalDropdown(null);
                               }
                             }}
-                            placeholder="Digite uma tag (ex: qr_code, financeiro, urgente)..."
-                            className="flex-1 px-3 py-2 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-1 focus:ring-black/20 dark:focus:ring-white/20 text-[#1d1d1f] dark:text-white"
+                            placeholder="Digite para buscar ou criar tag (ex: urgente, bug, financeiro)..."
+                            className="w-full px-3.5 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-1 focus:ring-black/20 dark:focus:ring-white/20 text-[#1d1d1f] dark:text-white placeholder:text-slate-400"
                           />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const limpo = inputEtiqueta.trim().replace(/^#/, '');
-                              if (limpo && !novasEtiquetasModal.includes(limpo)) {
-                                setNovasEtiquetasModal([...novasEtiquetasModal, limpo]);
-                                setInputEtiqueta('');
-                              }
-                            }}
-                            className="px-3.5 py-2 rounded-xl bg-black/[0.05] dark:bg-white/[0.08] text-xs font-semibold hover:bg-black/10 transition-all cursor-pointer"
-                          >
-                            + Tag
-                          </button>
+
+                          {/* Dropdown Popover de Sugestões com Navegação por Teclado */}
+                          {activeModalDropdown === 'etiqueta' && (
+                            <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-2xl bg-white dark:bg-[#1c1c20] border border-black/[0.1] dark:border-white/[0.15] shadow-2xl p-1.5 space-y-0.5 max-h-48 overflow-y-auto scrollbar-thin">
+                              {etiquetasFiltradasModal.map((etq, idx) => {
+                                const isHighlighted = idx === highlightedEtiquetaIdx;
+                                return (
+                                  <button
+                                    key={etq}
+                                    type="button"
+                                    onClick={() => {
+                                      if (!novasEtiquetasModal.includes(etq)) {
+                                        setNovasEtiquetasModal([...novasEtiquetasModal, etq]);
+                                      }
+                                      setInputEtiqueta('');
+                                      setActiveModalDropdown(null);
+                                    }}
+                                    onMouseEnter={() => setHighlightedEtiquetaIdx(idx)}
+                                    className={`w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between text-xs transition-colors cursor-pointer ${
+                                      isHighlighted
+                                        ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
+                                        : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
+                                    }`}
+                                  >
+                                    <span className="flex items-center gap-1.5">
+                                      <span className="text-[10px] text-slate-400 font-mono">#</span>
+                                      <span>{etq}</span>
+                                    </span>
+                                    {isHighlighted && (
+                                      <span className="text-[10px] opacity-60 font-mono">Enter ↵</span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+
+                              {inputEtiqueta.trim() && !etiquetasFiltradasModal.some(e => e.toLowerCase() === inputEtiqueta.trim().toLowerCase().replace(/^#/, '')) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const limpo = inputEtiqueta.trim().replace(/^#/, '');
+                                    if (limpo && !novasEtiquetasModal.includes(limpo)) {
+                                      setNovasEtiquetasModal([...novasEtiquetasModal, limpo]);
+                                    }
+                                    setInputEtiqueta('');
+                                    setActiveModalDropdown(null);
+                                  }}
+                                  className="w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between text-xs text-[#4d7c0f] dark:text-[#84cc16] hover:bg-[#4d7c0f]/10 font-bold transition-colors cursor-pointer border-t border-black/[0.04] dark:border-white/[0.05] mt-1 pt-1.5"
+                                >
+                                  <span>+ Criar nova tag "#{inputEtiqueta.trim().replace(/^#/, '')}"</span>
+                                  <span className="text-[10px] opacity-60 font-mono">Enter ↵</span>
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
 

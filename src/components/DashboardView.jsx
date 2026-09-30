@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   getDefaultViewMode,
@@ -82,6 +82,24 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
   // Paginação do Histórico de Atendimentos
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [itensPorPagina, setItensPorPagina] = useState(5);
+
+  // Auto-collapse no scroll e alternância manual dos Indicadores Principais com Motion Apple
+  const [indicadoresRecolhidos, setIndicadoresRecolhidos] = useState(false);
+  const lastScrollYRef = useRef(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      if (currentScrollY > 140 && currentScrollY > lastScrollYRef.current + 8) {
+        setIndicadoresRecolhidos(true);
+      } else if (currentScrollY < 60) {
+        setIndicadoresRecolhidos(false);
+      }
+      lastScrollYRef.current = currentScrollY;
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const totalPaginas = Math.max(1, Math.ceil((chamadosRecentes?.length || 0) / itensPorPagina));
 
@@ -260,110 +278,219 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
       <div className="flex flex-col lg:flex-row items-start gap-6">
 
         {/* -------------------------------------------------------------------------- */}
-        {/* COLUNA ESQUERDA: CARDS DE MÉTRICAS / KPIS (VERTICAL)                       */}
+        {/* COLUNA ESQUERDA: CARDS DE MÉTRICAS / KPIS COM MOTION APPLE                 */}
         {/* -------------------------------------------------------------------------- */}
-        <div className="w-full lg:w-72 xl:w-80 flex-shrink-0 space-y-3.5 sticky top-24">
-          <div className="flex items-center justify-between px-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500 font-mono">
-              Indicadores Principais
-            </span>
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          </div>
-
-          {/* ============================================================================== */}
-      {/* 4 CARDS DE KPI DE ALTA FIDELIDADE (APPLE HIG) */}
-      {/* ============================================================================== */}
-      <div className="space-y-3.5">
-        {/* KPI 1: Total de Chamados */}
-        <motion.div 
-          whileHover={{ y: -2 }}
-          transition={{ duration: 0.2 }}
-          className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2"
+        <motion.div
+          layout
+          transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+          className={`flex-shrink-0 sticky top-24 transition-all ${
+            indicadoresRecolhidos ? 'w-full lg:w-[68px] xl:w-[72px]' : 'w-full lg:w-72 xl:w-80'
+          }`}
         >
-          <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total de Chamados</span>
-            <span className="p-2 rounded-2xl bg-black/[0.03] dark:bg-white/[0.05]">
-              <ChartBarIcon className="w-4 h-4 text-[#4d7c0f] dark:text-[#84cc16]" />
-            </span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
-              {metricas.totalChamados}
-            </span>
-            <span className="text-[11px] text-slate-400">no período</span>
-          </div>
-        </motion.div>
+          {indicadoresRecolhidos ? (
+            /* ------------------------------------------------------------ */
+            /* TRILHO DE INDICADORES COMPACTO APPLE (NÚMEROS & CORES)       */
+            /* ------------------------------------------------------------ */
+            <motion.div
+              key="compact-kpis"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="space-y-2.5 rounded-3xl p-2 sm:p-2.5 border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/85 backdrop-blur-xl shadow-xs"
+            >
+              {/* Botão de Expansão Manual */}
+              <div className="flex justify-center pb-1 border-b border-black/[0.04] dark:border-white/[0.05]">
+                <button
+                  type="button"
+                  onClick={() => setIndicadoresRecolhidos(false)}
+                  className="w-7 h-7 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] text-slate-500 hover:text-black dark:hover:text-white flex items-center justify-center text-xs transition-colors cursor-pointer"
+                  title="Expandir indicadores principais"
+                >
+                  <span>⤢</span>
+                </button>
+              </div>
 
-        {/* KPI 2: Suportes Finalizados */}
-        <motion.div 
-          whileHover={{ y: -2 }}
-          transition={{ duration: 0.2 }}
-          className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2"
-        >
-          <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Resolvidos</span>
-            <span className="p-2 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <CheckIcon className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
-              {metricas.finalizadosCount}
-            </span>
-            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-              {taxaResolucaoGeral}% resolvidos
-            </span>
-          </div>
-        </motion.div>
+              {/* 1. Total Chamados */}
+              <div
+                className="rounded-2xl p-2 border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.03] flex flex-col items-center justify-center text-center shadow-xs cursor-default group relative"
+                title={`Total de Chamados no período: ${metricas.totalChamados}`}
+              >
+                <ChartBarIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16] mb-1" />
+                <span className="text-base font-bold font-mono tracking-tight text-[#1d1d1f] dark:text-white tabular-nums leading-none">
+                  {metricas.totalChamados}
+                </span>
+                <span className="text-[9px] uppercase font-bold tracking-wider text-slate-400 font-mono mt-1">
+                  Total
+                </span>
+              </div>
 
-        {/* KPI 3: Chamados em Andamento (Redireciona para a Fila ao Clicar) */}
-        <motion.div 
-          whileHover={{ y: -2 }}
-          transition={{ duration: 0.2 }}
-          onClick={() => onNavigate && onNavigate('fila')}
-          className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2 cursor-pointer hover:border-amber-500/40 hover:shadow-md transition-all group"
-          title="Clique para abrir a Fila de Suporte"
-        >
-          <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Em Andamento</span>
-            <span className="p-2 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
-              <ClockIcon className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
-              {metricas.emAndamentoCount}
-            </span>
-            {metricas.emAndamentoCount > 0 && (
-              <span className="flex items-center gap-1.5 text-[11px] font-bold text-amber-700 dark:text-amber-400">
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
-                ver na fila →
-              </span>
-            )}
-          </div>
-        </motion.div>
+              {/* 2. Resolvidos */}
+              <div
+                className="rounded-2xl p-2 border border-emerald-500/30 bg-emerald-500/[0.08] dark:bg-emerald-500/[0.12] flex flex-col items-center justify-center text-center shadow-xs cursor-default group relative"
+                title={`Suportes Resolvidos: ${metricas.finalizadosCount} (${taxaResolucaoGeral}%)`}
+              >
+                <CheckIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 mb-1" />
+                <span className="text-base font-bold font-mono tracking-tight text-emerald-900 dark:text-emerald-200 tabular-nums leading-none">
+                  {metricas.finalizadosCount}
+                </span>
+                <span className="text-[9px] uppercase font-bold tracking-wider text-emerald-700/90 dark:text-emerald-400 font-mono mt-1">
+                  {taxaResolucaoGeral}%
+                </span>
+              </div>
 
-        {/* KPI 4: Tempo Médio de Atendimento (TMA) */}
-        <motion.div 
-          whileHover={{ y: -2 }}
-          transition={{ duration: 0.2 }}
-          className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2"
-        >
-          <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Tempo Médio (TMA)</span>
-            <span className="p-2 rounded-2xl bg-[#4d7c0f]/10 text-[#4d7c0f] dark:text-[#84cc16]">
-              <ClockIcon className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
-              {metricas.tempoMedioMinutos}
-            </span>
-            <span className="text-xs text-slate-400 font-medium">minutos / chamado</span>
-          </div>
+              {/* 3. Em Andamento */}
+              <div
+                onClick={() => onNavigate && onNavigate('fila')}
+                className="rounded-2xl p-2 border border-amber-500/30 bg-amber-500/[0.08] dark:bg-amber-500/[0.12] flex flex-col items-center justify-center text-center shadow-xs cursor-pointer hover:scale-105 transition-all group relative"
+                title={`Chamados Em Andamento: ${metricas.emAndamentoCount} (Clique para abrir a fila)`}
+              >
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse mb-1"></span>
+                <span className="text-base font-bold font-mono tracking-tight text-amber-900 dark:text-amber-200 tabular-nums leading-none">
+                  {metricas.emAndamentoCount}
+                </span>
+                <span className="text-[9px] uppercase font-bold tracking-wider text-amber-700/90 dark:text-amber-400 font-mono mt-1">
+                  Ativo
+                </span>
+              </div>
+
+              {/* 4. TMA */}
+              <div
+                className="rounded-2xl p-2 border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.03] flex flex-col items-center justify-center text-center shadow-xs cursor-default group relative"
+                title={`Tempo Médio de Atendimento: ${metricas.tempoMedioMinutos} minutos`}
+              >
+                <ClockIcon className="w-3.5 h-3.5 text-slate-400 mb-1" />
+                <span className="text-base font-bold font-mono tracking-tight text-[#1d1d1f] dark:text-white tabular-nums leading-none">
+                  {metricas.tempoMedioMinutos}
+                </span>
+                <span className="text-[9px] uppercase font-bold tracking-wider text-slate-400 font-mono mt-1">
+                  TMA
+                </span>
+              </div>
+            </motion.div>
+          ) : (
+            /* ------------------------------------------------------------ */
+            /* PAINEL DE INDICADORES AMPLO COMPLETO COM MOTION APPLE       */
+            /* ------------------------------------------------------------ */
+            <motion.div
+              key="expanded-kpis"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="space-y-3.5"
+            >
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500 font-mono">
+                  Indicadores Principais
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <button
+                    type="button"
+                    onClick={() => setIndicadoresRecolhidos(true)}
+                    className="p-1 rounded-lg border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.04] text-slate-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-xs cursor-pointer"
+                    title="Recolher indicadores principais"
+                  >
+                    <span>⤡</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4 CARDS DE KPI DE ALTA FIDELIDADE (APPLE HIG) */}
+              <div className="space-y-3.5">
+                {/* KPI 1: Total de Chamados */}
+                <motion.div 
+                  whileHover={{ y: -2 }}
+                  transition={{ duration: 0.2 }}
+                  className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2"
+                >
+                  <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
+                    <span className="text-xs font-semibold uppercase tracking-wider">Total de Chamados</span>
+                    <span className="p-2 rounded-2xl bg-black/[0.03] dark:bg-white/[0.05]">
+                      <ChartBarIcon className="w-4 h-4 text-[#4d7c0f] dark:text-[#84cc16]" />
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
+                      {metricas.totalChamados}
+                    </span>
+                    <span className="text-[11px] text-slate-400">no período</span>
+                  </div>
+                </motion.div>
+
+                {/* KPI 2: Suportes Finalizados */}
+                <motion.div 
+                  whileHover={{ y: -2 }}
+                  transition={{ duration: 0.2 }}
+                  className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2"
+                >
+                  <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
+                    <span className="text-xs font-semibold uppercase tracking-wider">Resolvidos</span>
+                    <span className="p-2 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                      <CheckIcon className="w-4 h-4" />
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
+                      {metricas.finalizadosCount}
+                    </span>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                      {taxaResolucaoGeral}% resolvidos
+                    </span>
+                  </div>
+                </motion.div>
+
+                {/* KPI 3: Chamados em Andamento (Redireciona para a Fila ao Clicar) */}
+                <motion.div 
+                  whileHover={{ y: -2 }}
+                  transition={{ duration: 0.2 }}
+                  onClick={() => onNavigate && onNavigate('fila')}
+                  className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2 cursor-pointer hover:border-amber-500/40 hover:shadow-md transition-all group"
+                  title="Clique para abrir a Fila de Suporte"
+                >
+                  <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
+                    <span className="text-xs font-semibold uppercase tracking-wider">Em Andamento</span>
+                    <span className="p-2 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                      <ClockIcon className="w-4 h-4" />
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
+                      {metricas.emAndamentoCount}
+                    </span>
+                    {metricas.emAndamentoCount > 0 && (
+                      <span className="flex items-center gap-1.5 text-[11px] font-bold text-amber-700 dark:text-amber-400">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                        ver na fila →
+                      </span>
+                    )}
+                  </div>
+                </motion.div>
+
+                {/* KPI 4: Tempo Médio de Atendimento (TMA) */}
+                <motion.div 
+                  whileHover={{ y: -2 }}
+                  transition={{ duration: 0.2 }}
+                  className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2"
+                >
+                  <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
+                    <span className="text-xs font-semibold uppercase tracking-wider">Tempo Médio (TMA)</span>
+                    <span className="p-2 rounded-2xl bg-[#4d7c0f]/10 text-[#4d7c0f] dark:text-[#84cc16]">
+                      <ClockIcon className="w-4 h-4" />
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
+                      {metricas.tempoMedioMinutos}
+                    </span>
+                    <span className="text-xs text-slate-400 font-medium">minutos / chamado</span>
+                  </div>
+                </motion.div>
+              </div>
+            </motion.div>
+          )}
         </motion.div>
-      </div>
-        </div>
 
         {/* -------------------------------------------------------------------------- */}
         {/* COLUNA DIREITA: FILTROS + CONTEÚDO (GRÁFICOS, PRODUTIVIDADE E HISTÓRICO)   */}
