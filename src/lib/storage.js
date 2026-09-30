@@ -454,6 +454,9 @@ export async function adicionarChamadoFila({
   solicitante_email = '',
   solicitante_telefone = '',
   categorias = [],
+  etiquetas = [],
+  feedback_id = null,
+  is_demanda_interna = false,
   atribuido_a = null,
   observacao_inicial = '',
   iniciarAgora = false,
@@ -472,6 +475,9 @@ export async function adicionarChamadoFila({
       empresa_id,
       empresa_nome,
       categorias: categoriasValidas,
+      etiquetas: Array.isArray(etiquetas) ? etiquetas : [],
+      feedback_id: feedback_id || null,
+      is_demanda_interna: is_demanda_interna || Boolean(empresa_nome && empresa_nome.includes('RM Controle')),
       tecnico_email: userEmail,
       tecnico_nome: getNomeTecnico(userEmail),
       solicitante_nome: (solicitante_nome || 'Colaborador').trim(),
@@ -817,6 +823,39 @@ export async function finalizarSuporte({
   try {
     stopSupportNotificationLoop();
   } catch (e) {}
+
+  // Se o chamado for vinculado a feedback ou demanda interna RM Controle, conclui o feedback correspondente
+  try {
+    const feedbackId = chamado.feedback_id;
+    let feedbacks = getLocalData('feedbacks_lista', []);
+    let fbEncontrado = null;
+    if (feedbackId) {
+      fbEncontrado = feedbacks.find((f) => f.id === feedbackId);
+    } else if (chamado.empresa_nome && chamado.empresa_nome.includes('RM Controle')) {
+      fbEncontrado = feedbacks.find((f) => f.status === 'em_analise' || f.status === 'em_correcao');
+    }
+
+    if (fbEncontrado) {
+      fbEncontrado.status = 'resolvido';
+      fbEncontrado.resolvido_em = finalizadoEm;
+      fbEncontrado.resolucao = observacoes || 'Demanda técnica concluída com sucesso na fila de suporte';
+      setLocalData('feedbacks_lista', feedbacks);
+
+      if (isSupabaseConfigured && supabase && fbEncontrado.id) {
+        supabase
+          .from('feedbacks')
+          .update({ status: 'resolvido', updated_at: finalizadoEm })
+          .eq('id', fbEncontrado.id)
+          .then(() => {})
+          .catch(() => {});
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('feedbacks_updated'));
+      }
+    }
+  } catch (errFb) {
+    console.warn('Erro ao atualizar status do feedback na conclusão do chamado:', errFb);
+  }
 
   await logAuditoria({
     empresaId: chamado.empresa_id,
@@ -3100,40 +3139,30 @@ const DEFAULT_SOLUCOES = [];
 export function getSolucoesSuporte({ empresa_id = null, query = '', tag = '', tipo = '' } = {}) {
   let base = getLocalData('solucoes_suporte', []);
 
-  // Extrai dinamicamente procedimentos adotados em chamados já finalizados no histórico
-  const historico = getLocalData('historico_chamados', []);
-  const chamados = getLocalData('chamados_suporte', []);
-  const todosChamados = [...historico, ...chamados];
-
-  const chamadosComResolucao = todosChamados.filter((c) => 
-    (c.status === 'concluido' || c.status === 'finalizado') &&
-    ((c.observacoes && String(c.observacoes).trim()) || (c.resolucao && String(c.resolucao).trim()))
-  );
-
-  const solucoesDoHistorico = chamadosComResolucao.map((c) => {
-    const textoPassos = (c.observacoes || c.resolucao || '').trim();
-    const tituloSolucao = c.motivo 
-      ? `${c.motivo} (${c.empresa_nome || 'Empresa'})` 
-      : `Resolução (${c.empresa_nome || 'Empresa'})`;
-    return {
-      id: 'sol_chamado_' + (c.id || Math.random().toString(36).substr(2, 6)),
-      is_user_created: true,
-      empresa_id: c.empresa_id || null,
-      empresa_nome: (c.empresa_nome || 'Global').trim(),
-      titulo: tituloSolucao,
-      erro_codigo: c.erro_codigo || '',
-      contexto: `Procedimento registrado na conclusão do chamado por ${c.atendente_nome || c.tecnico_nome || c.atendente || 'atendente'}.`,
-      tipo_erro: c.motivo || 'Suporte Geral',
-      solucao_passos: textoPassos,
-      tags: [c.motivo, c.empresa_nome, 'suporte_finalizado'].filter(Boolean),
-      autor_email: c.tecnico_email || 'admin@rmcontrole.com',
-      created_at: c.finalizado_em || c.created_at || new Date().toISOString(),
-    };
+  // PURGAÇÃO ESTRITA DE MOCKS E ITENS SINTÉTICOS DO LOCALSTORAGE
+  const mockCodes = new Set(['AUTH_LOCKOUT_401', 'PG_MAX_CONNECTIONS', 'ERR_SSL_PROTOCOL_ERROR', 'ERR_EVOLUTION_DISCONNECTED', 'WABA_131026']);
+  const initialCount = base.length;
+  
+  base = base.filter((s) => {
+    if (!s) return false;
+    const id = String(s.id || '');
+    if (id.startsWith('sol_1') || id.startsWith('sol_2') || id.startsWith('sol_3') || id.startsWith('sol_4') || id.startsWith('sol_5')) return false;
+    if (id.startsWith('sol_chamado_')) return false; // remove sintéticos automáticos não cadastrados
+    if (s.erro_codigo && mockCodes.has(String(s.erro_codigo).trim().toUpperCase())) return false;
+    if (s.titulo && (
+      s.titulo.includes('PostgreSQL: Erro') ||
+      s.titulo.includes('Certificado SSL Let') ||
+      s.titulo.includes('Instância Desconectada') ||
+      s.titulo.includes('Erro 131026') ||
+      s.titulo.includes('Redefinição de Senha de Administrador & Desbloqueio')
+    )) return false;
+    return true;
   });
 
-  // Une soluções salvas no banco com as derivadas de chamados finalizados e o catálogo padrão
-  // Retorna apenas solucoes reais salvas pelo usuario no banco
-  base = [...base];
+  // Se algum mock foi expurgado, regrava no localStorage para eliminar permanentemente do navegador do usuário
+  if (base.length !== initialCount) {
+    setLocalData('solucoes_suporte', base);
+  }
 
   // Deduplicação estrita de soluções para evitar qualquer duplicata no banco
   const vistas = new Set();
@@ -3473,12 +3502,16 @@ export async function createFeedback({
 
   // 2. Abre automaticamente uma demanda na Fila no departamento 'Feedback'
   try {
+    const isIdeia = tipo === 'ideia';
     await adicionarChamadoFila({
       empresa_id: null,
       empresa_nome: `RM Controle (${novoFeedback.modulo_afetado})`,
       solicitante_nome: autor_nome,
       solicitante_email: autor_email,
-      categorias: ['Feedback'],
+      categorias: [isIdeia ? 'Ideias' : 'Feedback'],
+      etiquetas: [isIdeia ? 'ideia' : 'bug', prioridade],
+      feedback_id: novoFeedback.id,
+      is_demanda_interna: true,
       observacao_inicial: `[${tipo.toUpperCase()} - ${prioridade.toUpperCase()}] [Módulo: ${novoFeedback.modulo_afetado}] ${novoFeedback.titulo}: ${novoFeedback.descricao}`,
       iniciarAgora: false,
       userEmail: autor_email,
@@ -3498,4 +3531,45 @@ export async function createFeedback({
   }
 
   return novoFeedback;
+}
+
+export async function updateFeedbackStatus(feedbackId, newStatus, userEmail = 'admin@rmcontrole.com') {
+  const feedbacks = getLocalData('feedbacks_lista', []);
+  const idx = feedbacks.findIndex((f) => f.id === feedbackId);
+  const agora = new Date().toISOString();
+  if (idx !== -1) {
+    feedbacks[idx] = {
+      ...feedbacks[idx],
+      status: newStatus,
+      updated_at: agora,
+      ...(newStatus === 'resolvido' ? { finalizado_em: agora } : {}),
+    };
+    setLocalData('feedbacks_lista', feedbacks);
+  }
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase
+        .from('feedbacks')
+        .update({ 
+          status: newStatus, 
+          updated_at: agora,
+          ...(newStatus === 'resolvido' ? { finalizado_em: agora } : {})
+        })
+        .eq('id', feedbackId);
+    } catch (e) {
+      console.warn('Aviso ao atualizar status do feedback no Supabase:', e);
+    }
+  }
+
+  await logAuditoria({
+    usuarioEmail: userEmail,
+    acao: 'atualizou_status_feedback',
+    detalhes: { feedbackId, novo_status: newStatus },
+  });
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('feedbacks_updated'));
+  }
+  return true;
 }

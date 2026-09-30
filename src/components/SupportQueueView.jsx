@@ -25,6 +25,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { stopSupportNotificationLoop } from '@/lib/audioNotifications';
 import SupportCompletionModal from './SupportCompletionModal';
 import ConfirmModal from './ConfirmModal';
+import InternalDemandsKanbanModal from './InternalDemandsKanbanModal';
 import { showToast } from './ToastNotification';
 import { 
   ViewGridIcon,
@@ -99,6 +100,10 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   const [categoriasDisponiveis, setCategoriasDisponiveis] = useState([]);
   const [filtroCategoria, setFiltroCategoria] = useState('todas');
   const [novasCategoriasModal, setNovasCategoriasModal] = useState(['Suporte']);
+  const [novasEtiquetasModal, setNovasEtiquetasModal] = useState([]);
+  const [inputEtiqueta, setInputEtiqueta] = useState('');
+  const [filtroEtiqueta, setFiltroEtiqueta] = useState('todas');
+  const [kanbanAberto, setKanbanAberto] = useState(false);
   const [silenciarMeuDispositivo, setSilenciarMeuDispositivo] = useState(true);
   const [isClient, setIsClient] = useState(false);
 
@@ -265,9 +270,25 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     return Math.round((soma / concluidos.length) / 60);
   }, [resolvidosHoje]);
 
-  // Lista Filtrada
+  // Lista Filtrada com bloqueio de departamentos e filtro de etiquetas
   const chamadosFiltrados = useMemo(() => {
+    const usuarioLogado = Array.isArray(equipeLista) ? equipeLista.find((u) => (u.email || '').toLowerCase().trim() === (userEmail || '').toLowerCase().trim()) : null;
+    const depsBloqueados = Array.isArray(usuarioLogado?.departamentos_bloqueados) ? usuarioLogado.departamentos_bloqueados.map(d => d.toLowerCase().trim()) : [];
+    const ehAdmin = usuarioLogado?.papel === 'administrador' || (userEmail && (userEmail.includes('admin') || userEmail.includes('lucas')));
+
     return chamados.filter((c) => {
+      // Bloqueio de visibilidade por departamento se o colaborador estiver restrito
+      if (!ehAdmin && depsBloqueados.length > 0) {
+        const cats = Array.isArray(c.categorias) && c.categorias.length > 0 ? c.categorias : ['Suporte'];
+        const isBloqueado = cats.some((cat) => depsBloqueados.includes((cat || '').toLowerCase().trim()));
+        if (isBloqueado) return false;
+      }
+
+      if (filtroEtiqueta && filtroEtiqueta !== 'todas') {
+        const etqQ = filtroEtiqueta.toLowerCase().trim();
+        const etqs = Array.isArray(c.etiquetas) ? c.etiquetas : [];
+        if (!etqs.some((e) => (e || '').toLowerCase().trim() === etqQ)) return false;
+      }
       if (filtroStatus === 'ativos') {
         if (c.status !== 'em_andamento' && c.status !== 'pendente' && c.status !== 'aguardando_visualizacao') return false;
       } else if (filtroStatus === 'em_andamento') {
@@ -303,7 +324,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       if (b.status === 'aguardando_visualizacao' && a.status !== 'aguardando_visualizacao') return 1;
       return new Date(b.created_at || 0) - new Date(a.created_at || 0);
     });
-  }, [chamados, filtroStatus, filtroCategoria, busca]);
+  }, [chamados, filtroStatus, filtroCategoria, filtroEtiqueta, busca, equipeLista, userEmail]);
 
   // Ações de Chamado
   const handleAceitarSuporte = async (chamado) => {
@@ -374,6 +395,8 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   const handleAbrirModalNovoChamado = () => {
     setModalNovoChamadoOpen(true);
     setNovasCategoriasModal(['Suporte']);
+    setNovasEtiquetasModal([]);
+    setInputEtiqueta('');
     setTecnicoAtribuido(userEmail || 'admin@rmcontrole.com');
     if (!empresaSelecionada && empresasLista.length > 0) {
       setEmpresaSelecionada(empresasLista[0]);
@@ -405,6 +428,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
         solicitante_email: solicitanteSelecionado?.email || '',
         solicitante_telefone: solicitanteSelecionado?.telefone || '',
         categorias: novasCategoriasModal.length > 0 ? novasCategoriasModal : ['Suporte'],
+        etiquetas: novasEtiquetasModal,
         atribuido_a: tecnicoAtribuido,
         observacao_inicial: novaObservacao,
         iniciarAgora: iniciarDireto,
@@ -770,6 +794,14 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           {cat}
                         </span>
                       ))}
+                      {(Array.isArray(ch.etiquetas) ? ch.etiquetas : []).map((etq, idx) => (
+                        <span
+                          key={'etq_' + idx}
+                          className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 font-mono text-[9px] font-bold border border-amber-500/25"
+                        >
+                          #{etq}
+                        </span>
+                      ))}
                     </div>
 
                     {/* Solicitante & Observação Inicial */}
@@ -814,7 +846,15 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           <span>Aceitar e Iniciar Suporte</span>
                         </button>
 
-                        {onSelectEmpresa && (
+                        {Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle'))) ? (
+                          <button
+                            type="button"
+                            onClick={() => setKanbanAberto(true)}
+                            className="px-3.5 py-2 rounded-full bg-blue-500/10 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 text-xs font-semibold hover:bg-blue-500/20 transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
+                          >
+                            <span>🚀 Pipeline Kanban</span>
+                          </button>
+                        ) : onSelectEmpresa && (
                           <button
                             onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
                             className="px-3.5 py-2 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:bg-black/[0.03] transition-all cursor-pointer"
@@ -844,7 +884,15 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           <span>Concluir Atendimento</span>
                         </button>
 
-                        {onSelectEmpresa && (
+                        {Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle'))) ? (
+                          <button
+                            type="button"
+                            onClick={() => setKanbanAberto(true)}
+                            className="px-3.5 py-2 rounded-full bg-blue-500/10 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 text-xs font-semibold hover:bg-blue-500/20 transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
+                          >
+                            <span>🚀 Pipeline Kanban</span>
+                          </button>
+                        ) : onSelectEmpresa && (
                           <button
                             onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
                             className="px-3.5 py-2 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:bg-black/[0.03] transition-all cursor-pointer"
@@ -1004,7 +1052,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                       )}
                     </div>
 
-                    {/* Categorias */}
+                    {/* Categorias e Etiquetas */}
                     <div className="col-span-2 flex items-center gap-1 flex-wrap">
                       {(Array.isArray(ch.categorias) && ch.categorias.length > 0 ? ch.categorias : ['Suporte']).map((cat, idx) => (
                         <span
@@ -1012,6 +1060,14 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-mono text-[9px] font-bold border border-blue-500/20"
                         >
                           {cat}
+                        </span>
+                      ))}
+                      {(Array.isArray(ch.etiquetas) ? ch.etiquetas : []).map((etq, idx) => (
+                        <span
+                          key={'table_etq_' + idx}
+                          className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 font-mono text-[9px] font-bold border border-amber-500/25"
+                        >
+                          #{etq}
                         </span>
                       ))}
                     </div>
@@ -1533,6 +1589,100 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                         <p className="text-[10px] text-slate-400 pl-1">
                           Apenas os colaboradores vinculados a estes departamentos receberão os alertas correspondentes.
                         </p>
+                      </div>
+
+                      {/* Etiquetas da Demanda com criação inline ao digitar */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between pl-1">
+                          <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+                            <span>Etiquetas da Demanda</span>
+                            <span className="text-[10px] text-slate-400 font-normal">(Ex: crítico, urgente, vip)</span>
+                          </label>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {novasEtiquetasModal.length} selecionada(s)
+                          </span>
+                        </div>
+
+                        {/* Chips de etiquetas selecionadas */}
+                        {novasEtiquetasModal.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pb-1">
+                            {novasEtiquetasModal.map((etq) => (
+                              <span
+                                key={etq}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-mono font-bold bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] border border-[#4d7c0f]/30"
+                              >
+                                <span>#{etq}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setNovasEtiquetasModal(novasEtiquetasModal.filter(e => e !== etq))}
+                                  className="hover:text-red-500 cursor-pointer ml-0.5 text-xs"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Input com criação ao vivo ao digitar */}
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={inputEtiqueta}
+                            onChange={(e) => setInputEtiqueta(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const limpo = inputEtiqueta.trim().toLowerCase().replace(/^#/, '');
+                                if (limpo && !novasEtiquetasModal.includes(limpo)) {
+                                  setNovasEtiquetasModal([...novasEtiquetasModal, limpo]);
+                                  setInputEtiqueta('');
+                                }
+                              }
+                            }}
+                            placeholder="Digite para criar uma etiqueta (ex: crítico, vip, urgente)..."
+                            className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-mono"
+                          />
+                          {inputEtiqueta.trim() && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const limpo = inputEtiqueta.trim().toLowerCase().replace(/^#/, '');
+                                if (limpo && !novasEtiquetasModal.includes(limpo)) {
+                                  setNovasEtiquetasModal([...novasEtiquetasModal, limpo]);
+                                  setInputEtiqueta('');
+                                }
+                              }}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-[11px] font-bold shadow-xs hover:opacity-95 cursor-pointer"
+                            >
+                              + Adicionar &ldquo;#{inputEtiqueta.trim()}&rdquo;
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Sugestões rápidas de etiquetas */}
+                        <div className="flex items-center gap-1.5 flex-wrap pt-0.5 text-[11px]">
+                          <span className="text-[10px] text-slate-400 font-mono">Sugestões:</span>
+                          {['crítico', 'urgente', 'bloqueante', 'vip', 'dúvida', 'comercial'].map((sug) => {
+                            const jaTem = novasEtiquetasModal.includes(sug);
+                            return (
+                              <button
+                                key={sug}
+                                type="button"
+                                onClick={() => {
+                                  if (!jaTem) setNovasEtiquetasModal([...novasEtiquetasModal, sug]);
+                                }}
+                                className={`px-2 py-0.5 rounded-lg border text-[10px] font-mono transition-all cursor-pointer ${
+                                  jaTem 
+                                    ? 'opacity-40 cursor-default border-slate-300' 
+                                    : 'border-black/[0.08] dark:border-white/[0.1] bg-black/[0.02] dark:bg-white/[0.04] text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white'
+                                }`}
+                              >
+                                +{sug}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
 
                       {/* 6. Início do Chamado: Cronômetro Ativo vs Fila de Espera */}

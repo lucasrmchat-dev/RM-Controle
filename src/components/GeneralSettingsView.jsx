@@ -152,7 +152,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
   const gruposNavegacao = [
     {
       titulo: 'Configurações Básicas',
-      descricao: 'Preferências do sistema, alertas, categorias e regras acessíveis ao suporte',
+      descricao: 'Preferências do sistema, alertas sonoros e regras acessíveis ao suporte',
       abas: [
         {
           id: 'visualizacao',
@@ -173,16 +173,6 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           ),
         },
         {
-          id: 'departamentos',
-          label: 'Departamentos',
-          badge: `${categoriasDemandas.length}`,
-          icon: (
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-              <path d="M4 6h16M4 12h16M4 18h7" />
-            </svg>
-          ),
-        },
-        {
           id: 'regras_suporte',
           label: 'Regras de Atendimento & Senha',
           icon: (
@@ -196,8 +186,18 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
     },
     {
       titulo: 'Configurações Avançadas',
-      descricao: 'Gestão de infraestrutura, servidores, equipe e conformidade',
+      descricao: 'Gestão de departamentos, infraestrutura, servidores, equipe e conformidade',
       abas: [
+        {
+          id: 'departamentos',
+          label: 'Departamentos',
+          badge: `${categoriasDemandas.length}`,
+          icon: (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+              <path d="M4 6h16M4 12h16M4 18h7" />
+            </svg>
+          ),
+        },
         {
           id: 'canais',
           label: 'Canais de Atendimento',
@@ -458,9 +458,8 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
 
                   <div className="space-y-2">
                     {[
-                      { id: 'todos', titulo: 'Qualquer Demanda na Fila', desc: 'Toca quando qualquer chamado entrar na central de atendimento' },
-                      { id: 'departamentos', titulo: 'Demandas dos meus Departamentos', desc: 'Toca quando a demanda pertencer aos departamentos vinculados ao meu perfil' },
-                      { id: 'atribuidos', titulo: 'Apenas Demandas Atribuídas a Mim', desc: 'Toca exclusivamente quando a demanda estiver direcionada diretamente ao seu e-mail' },
+                      { id: 'departamentos', titulo: 'Demandas dos meus Departamentos', desc: 'Toca quando a demanda pertencer a qualquer um dos departamentos atribuídos ao seu perfil' },
+                      { id: 'atribuidos', titulo: 'Apenas Demandas Atribuídas Diretamente a Mim', desc: 'Toca exclusivamente quando a demanda estiver direcionada ao seu e-mail' },
                     ].map((item) => (
                       <label
                         key={item.id}

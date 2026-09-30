@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import ConfirmModal from './ConfirmModal';
 import { showToast } from './ToastNotification';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -22,7 +23,8 @@ import {
   getMotivosSuporte,
   addMotivoSuporte,
   removeMotivoSuporte,
-  updateEquipeUsuario
+  updateEquipeUsuario,
+  getCategoriasDemandas
 } from '@/lib/storage';
 import { 
   EyeIcon, 
@@ -69,6 +71,8 @@ export default function ServerConfigView() {
   const [editEmail, setEditEmail] = useState('');
   const [editPapel, setEditPapel] = useState('suporte');
   const [editSenha, setEditSenha] = useState('');
+  const [editDepartamentos, setEditDepartamentos] = useState([]);
+  const [editDepartamentosBloqueados, setEditDepartamentosBloqueados] = useState([]);
 
   // Motivos de Atendimento / Suporte
   const [motivosList, setMotivosList] = useState([]);
@@ -184,6 +188,8 @@ export default function ServerConfigView() {
     setEditEmail(u.email || '');
     setEditPapel(u.papel || 'suporte');
     setEditSenha('');
+    setEditDepartamentos(Array.isArray(u.departamentos) ? u.departamentos : []);
+    setEditDepartamentosBloqueados(Array.isArray(u.departamentos_bloqueados) ? u.departamentos_bloqueados : []);
   };
 
   const handleSalvarEdicao = async (e) => {
@@ -200,6 +206,8 @@ export default function ServerConfigView() {
         email: editEmail.trim(),
         papel: editPapel,
         senha: editSenha.trim() || undefined,
+        departamentos: editDepartamentos,
+        departamentos_bloqueados: editDepartamentosBloqueados,
       });
 
       showFeedbackMsg(`Perfil de ${editNome} atualizado com sucesso.`);
@@ -682,120 +690,212 @@ export default function ServerConfigView() {
             </div>
           </div>
 
-          {/* Modal Apple de Edição do Perfil de Membro */}
-          <AnimatePresence>
-            {usuarioEditando && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                  transition={{ duration: 0.2 }}
-                  className="w-full max-w-md rounded-3xl bg-white dark:bg-[#16161a] border border-black/[0.08] dark:border-white/[0.1] p-6 sm:p-7 shadow-2xl space-y-5"
+          {/* Modal Apple de Edição do Perfil de Membro montado no Root via Portal */}
+          {typeof document !== 'undefined' && createPortal(
+            <AnimatePresence>
+              {usuarioEditando && (
+                <div 
+                  className="fixed inset-0 w-screen h-screen z-[99999] flex items-center justify-center p-4 bg-black/65 backdrop-blur-md overflow-y-auto"
+                  onClick={() => setUsuarioEditando(null)}
                 >
-                  <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.08] pb-3.5">
-                    <div>
-                      <h3 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
-                        Editar Perfil do Membro
-                      </h3>
-                      <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-0.5">
-                        Altere nome, e-mail, papel de acesso ou redefina a senha.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setUsuarioEditando(null)}
-                      className="p-1 text-slate-400 hover:text-black dark:hover:text-white rounded-full cursor-pointer"
-                    >
-                      <XMarkIcon className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <form onSubmit={handleSalvarEdicao} className="space-y-4">
-                    <div className="space-y-1">
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 pl-1">
-                        Nome Completo <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={editNome}
-                        onChange={(e) => setEditNome(e.target.value)}
-                        required
-                        className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 pl-1">
-                        E-mail de Acesso <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="email"
-                        value={editEmail}
-                        onChange={(e) => setEditEmail(e.target.value)}
-                        required
-                        className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-mono"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 pl-1">
-                        Papel / Permissões de Acesso <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        value={editPapel}
-                        onChange={(e) => setEditPapel(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium cursor-pointer"
-                      >
-                        <option value="suporte" className="dark:bg-zinc-900">Suporte Técnico (Acesso a Empresas, Atendimento & Dashboard)</option>
-                        <option value="vendas" className="dark:bg-zinc-900">Comercial & Vendas (Acesso a Empresas & Dashboard)</option>
-                        <option value="administrador" className="dark:bg-zinc-900">Administrador Geral (Acesso Total: Servidores, Equipe e Auditoria)</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1 pt-1">
-                      <div className="flex items-center justify-between pl-1">
-                        <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
-                          Redefinir Senha de Acesso (Opcional)
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => setEditSenha(generateSecurePassword(14))}
-                          className="text-[10px] text-[#4d7c0f] dark:text-[#84cc16] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
-                        >
-                          <SparklesIcon className="w-3 h-3" />
-                          <span>Gerar Nova Senha</span>
-                        </button>
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                    transition={{ duration: 0.2 }}
+                    className="w-full max-w-lg rounded-3xl bg-white dark:bg-[#16161a] border border-black/[0.08] dark:border-white/[0.1] p-6 sm:p-7 shadow-2xl space-y-5 my-auto text-[#1d1d1f] dark:text-[#f5f5f7] relative max-h-[92vh] overflow-y-auto"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.08] pb-3.5">
+                      <div>
+                        <h3 className="text-base font-bold text-[#1d1d1f] dark:text-white">
+                          Editar Perfil do Membro
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                          Altere nome, e-mail, papel de acesso, departamentos e bloqueios de visualização.
+                        </p>
                       </div>
-                      <input
-                        type="text"
-                        value={editSenha}
-                        onChange={(e) => setEditSenha(e.target.value)}
-                        placeholder="Deixe em branco para manter a senha atual do membro"
-                        className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono focus:outline-none text-[#1d1d1f] dark:text-white"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-black/[0.06] dark:border-white/[0.08]">
                       <button
                         type="button"
                         onClick={() => setUsuarioEditando(null)}
-                        className="px-4 py-2 rounded-full text-xs font-semibold text-slate-600 dark:text-zinc-400 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] cursor-pointer transition-all"
+                        className="p-1.5 text-slate-400 hover:text-black dark:hover:text-white rounded-full cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-all"
                       >
-                        Cancelar
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-5 py-2 bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs rounded-full shadow-sm hover:opacity-90 cursor-pointer"
-                      >
-                        Salvar Alterações
+                        <XMarkIcon className="w-4 h-4" />
                       </button>
                     </div>
-                  </form>
-                </motion.div>
-              </div>
-            )}
-          </AnimatePresence>
+
+                    <form onSubmit={handleSalvarEdicao} className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 pl-1">
+                          Nome Completo <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={editNome}
+                          onChange={(e) => setEditNome(e.target.value)}
+                          required
+                          className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 pl-1">
+                          E-mail de Acesso <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          value={editEmail}
+                          onChange={(e) => setEditEmail(e.target.value)}
+                          required
+                          className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-mono"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 pl-1">
+                          Papel / Permissões de Acesso <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          value={editPapel}
+                          onChange={(e) => setEditPapel(e.target.value)}
+                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white font-medium cursor-pointer"
+                        >
+                          <option value="suporte">Suporte Técnico (Acesso a Empresas, Atendimento & Dashboard)</option>
+                          <option value="vendas">Comercial & Vendas (Acesso a Empresas & Dashboard)</option>
+                          <option value="administrador">Administrador Geral (Acesso Total: Servidores, Equipe e Auditoria)</option>
+                        </select>
+                      </div>
+
+                      {/* Seção 1: Departamentos Atribuídos (Recebe alertas sonoros) */}
+                      <div className="space-y-2 pt-2 border-t border-black/[0.05] dark:border-white/[0.06]">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+                            <span>Departamentos de Atuação</span>
+                            <span className="text-[10px] font-normal text-slate-400">(Alertas Sonoros)</span>
+                          </label>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {editDepartamentos.length} selecionado(s)
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-tight">
+                          O colaborador receberá alertas sonoros em tempo real para novas demandas de qualquer um destes departamentos.
+                        </p>
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {getCategoriasDemandas().map((cat) => {
+                            const isAtribuido = editDepartamentos.includes(cat);
+                            return (
+                              <button
+                                key={cat}
+                                type="button"
+                                onClick={() => {
+                                  if (isAtribuido) {
+                                    setEditDepartamentos(editDepartamentos.filter((d) => d !== cat));
+                                  } else {
+                                    setEditDepartamentos([...editDepartamentos, cat]);
+                                    setEditDepartamentosBloqueados(editDepartamentosBloqueados.filter((d) => d !== cat));
+                                  }
+                                }}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                  isAtribuido
+                                    ? 'bg-[#4d7c0f] text-white dark:bg-[#84cc16] dark:text-zinc-950 font-bold shadow-xs'
+                                    : 'bg-black/[0.03] dark:bg-white/[0.05] text-slate-600 dark:text-zinc-300 hover:bg-black/[0.06]'
+                                }`}
+                              >
+                                <span>{isAtribuido ? '✓' : '+'}</span>
+                                <span>{cat}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Seção 2: Bloquear / Restringir Visibilidade de Departamentos */}
+                      <div className="space-y-2 pt-2 border-t border-black/[0.05] dark:border-white/[0.06]">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                            <span>🔒 Restringir / Bloquear Visibilidade</span>
+                          </label>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {editDepartamentosBloqueados.length} bloqueado(s)
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-tight">
+                          Demandas dos departamentos selecionados abaixo serão completamente ocultadas na fila deste colaborador.
+                        </p>
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {getCategoriasDemandas().map((cat) => {
+                            const isBloqueado = editDepartamentosBloqueados.includes(cat);
+                            return (
+                              <button
+                                key={cat}
+                                type="button"
+                                onClick={() => {
+                                  if (isBloqueado) {
+                                    setEditDepartamentosBloqueados(editDepartamentosBloqueados.filter((d) => d !== cat));
+                                  } else {
+                                    setEditDepartamentosBloqueados([...editDepartamentosBloqueados, cat]);
+                                    setEditDepartamentos(editDepartamentos.filter((d) => d !== cat));
+                                  }
+                                }}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                  isBloqueado
+                                    ? 'bg-red-500 text-white dark:bg-red-600 dark:text-white font-bold shadow-xs'
+                                    : 'bg-black/[0.03] dark:bg-white/[0.05] text-slate-600 dark:text-zinc-300 hover:bg-black/[0.06]'
+                                }`}
+                              >
+                                <span>{isBloqueado ? '🚫' : '👁️'}</span>
+                                <span>{cat}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1 pt-2 border-t border-black/[0.05] dark:border-white/[0.06]">
+                        <div className="flex items-center justify-between pl-1">
+                          <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
+                            Redefinir Senha de Acesso (Opcional)
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setEditSenha(generateSecurePassword(14))}
+                            className="text-[10px] text-[#4d7c0f] dark:text-[#84cc16] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            <SparklesIcon className="w-3 h-3" />
+                            <span>Gerar Nova Senha</span>
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          value={editSenha}
+                          onChange={(e) => setEditSenha(e.target.value)}
+                          placeholder="Deixe em branco para manter a senha atual do membro"
+                          className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono focus:outline-none text-[#1d1d1f] dark:text-white"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-black/[0.06] dark:border-white/[0.08]">
+                        <button
+                          type="button"
+                          onClick={() => setUsuarioEditando(null)}
+                          className="px-4 py-2 rounded-full text-xs font-semibold text-slate-600 dark:text-zinc-400 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] cursor-pointer transition-all"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-5 py-2 bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs rounded-full shadow-sm hover:opacity-90 cursor-pointer"
+                        >
+                          Salvar Alterações
+                        </button>
+                      </div>
+                    </form>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>,
+            document.body
+          )}
 
         </div>
       )}

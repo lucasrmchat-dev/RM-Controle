@@ -27,7 +27,7 @@ export function getAudioConfig() {
       tipoSom: 'harmonico',
       modoRepeticao: 'uma_vez', // 'uma_vez' | 'intermitente' | 'intervalo'
       intervaloSegundos: 30,
-      escopo: 'todos', // 'todos' | 'departamentos' | 'apenas_meus'
+      escopo: 'departamentos', // 'departamentos' | 'atribuidos'
       notificarCriador: false, // se true, toca som para quem acabou de abrir o chamado
     };
   }
@@ -37,7 +37,7 @@ export function getAudioConfig() {
     tipoSom: localStorage.getItem('rm_audio_tipo_som') || 'harmonico',
     modoRepeticao: localStorage.getItem('rm_audio_modo') || 'uma_vez',
     intervaloSegundos: parseInt(localStorage.getItem('rm_audio_intervalo') || '30', 10),
-    escopo: localStorage.getItem('rm_audio_escopo') || 'todos',
+    escopo: (localStorage.getItem('rm_audio_escopo') === 'todos' ? 'departamentos' : (localStorage.getItem('rm_audio_escopo') || 'departamentos')),
     notificarCriador: localStorage.getItem('rm_audio_notificar_criador') === 'true',
   };
 }

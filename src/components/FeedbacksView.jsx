@@ -7,6 +7,7 @@ import {
   getFeedbacks, 
   fetchFeedbacks, 
   createFeedback, 
+  updateFeedbackStatus,
   getEmpresas,
   getNomeTecnico 
 } from '@/lib/storage';
@@ -17,7 +18,10 @@ import {
   CopyIcon, 
   ClockIcon, 
   WrenchIcon,
-  ShieldCheckIcon 
+  ShieldCheckIcon,
+  LightBulbIcon,
+  ViewGridIcon,
+  ViewListIcon
 } from './Icons';
 import { showToast } from './ToastNotification';
 
@@ -35,12 +39,24 @@ export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
   // Filtros
   const [filtroStatus, setFiltroStatus] = useState('todos'); // 'todos' | 'em_analise' | 'em_correcao' | 'resolvido'
   const [filtroTipo, setFiltroTipo] = useState('todos');
+  const [viewMode, setViewMode] = useState('lista'); // 'lista' | 'kanban'
+  const [categoriaAba, setCategoriaAba] = useState('todas'); // 'todas' | 'ideias' | 'bugs'
+
+  const handleMudarStatusFeedback = async (fbId, novoStatus) => {
+    try {
+      await updateFeedbackStatus(fbId, novoStatus, userEmail);
+      showToast(`Status atualizado para "${novoStatus.replace('_', ' ')}"!`, 'success');
+      carregarDados();
+    } catch (err) {
+      showToast(err.message || 'Erro ao atualizar feedback.', 'error');
+    }
+  };
 
   // Formulário de Novo Feedback
   const [titulo, setTitulo] = useState('');
   const [descricao, setDescricao] = useState('');
   const [moduloAfetado, setModuloAfetado] = useState('Fila de Demandas');
-  const [tipo, setTipo] = useState('bug');
+  const [tipo, setTipo] = useState('ideia');
   const [prioridade, setPrioridade] = useState('normal');
   const [imagemBase64, setImagemBase64] = useState(null);
   const [imagemPreview, setImagemPreview] = useState(null);
@@ -197,6 +213,8 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
   };
 
   const feedbacksFiltrados = feedbacks.filter((fb) => {
+    if (categoriaAba === 'ideias' && fb.tipo !== 'ideia' && fb.tipo !== 'sugestao') return false;
+    if (categoriaAba === 'bugs' && fb.tipo !== 'bug' && fb.tipo !== 'melhoria') return false;
     if (filtroStatus !== 'todos' && fb.status !== filtroStatus) return false;
     if (filtroTipo !== 'todos' && fb.tipo !== filtroTipo) return false;
     return true;
@@ -226,7 +244,35 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Alternador de Modo de Visualização: Lista vs Kanban */}
+          <div className="flex items-center gap-1 p-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.06] text-xs">
+            <button
+              type="button"
+              onClick={() => setViewMode('lista')}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 ${
+                viewMode === 'lista'
+                  ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs font-bold'
+                  : 'text-slate-500 hover:text-black dark:hover:text-white'
+              }`}
+            >
+              <ViewListIcon className="w-3.5 h-3.5" />
+              <span>Lista</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('kanban')}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 ${
+                viewMode === 'kanban'
+                  ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs font-bold'
+                  : 'text-slate-500 hover:text-black dark:hover:text-white'
+              }`}
+            >
+              <ViewGridIcon className="w-3.5 h-3.5" />
+              <span>Pipeline Kanban</span>
+            </button>
+          </div>
+
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -234,7 +280,7 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
             className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 flex items-center gap-2 transition-all cursor-pointer"
           >
             <span className="text-base leading-none font-bold">+</span>
-            <span>Reportar Falha / Sugestão</span>
+            <span>Adicionar Ideia / Falha</span>
           </motion.button>
         </div>
       </div>
@@ -266,9 +312,32 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
         </div>
       </div>
 
-      {/* Barra de Filtros */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs">
-        <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
+      {/* Barra de Filtros e Segmentação por Categoria (Ideias vs Bugs) */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-3 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs">
+        <div className="flex items-center gap-1.5 overflow-x-auto text-xs flex-wrap">
+          <span className="text-slate-400 font-semibold px-2">Visão:</span>
+          {[
+            { id: 'todas', label: 'Todos os Relatos', icon: '📋' },
+            { id: 'ideias', label: 'Ideias Futuras (Roadmap)', icon: '💡' },
+            { id: 'bugs', label: 'Bugs & Falhas', icon: '🐛' },
+          ].map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => setCategoriaAba(cat.id)}
+              className={`px-3 py-1.5 rounded-xl font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                categoriaAba === cat.id
+                  ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs font-bold'
+                  : 'bg-black/[0.03] dark:bg-white/[0.05] text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white'
+              }`}
+            >
+              <span>{cat.icon}</span>
+              <span>{cat.label}</span>
+            </button>
+          ))}
+
+          <span className="text-slate-300 dark:text-zinc-600 mx-1">|</span>
+
           <span className="text-slate-400 font-semibold px-2">Status:</span>
           {[
             { id: 'todos', label: 'Todos' },
@@ -306,8 +375,87 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
         </div>
       </div>
 
-      {/* Listagem de Feedbacks */}
-      {feedbacksFiltrados.length === 0 ? (
+      {/* Listagem de Feedbacks ou Pipeline Kanban */}
+      {viewMode === 'kanban' ? (
+        <div className="overflow-x-auto py-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 min-w-[950px]">
+            {[
+              { id: 'em_analise', titulo: 'Novas Ideias & Triagem', dot: 'bg-amber-500' },
+              { id: 'em_correcao', titulo: 'Em Correção / Andamento', dot: 'bg-blue-500' },
+              { id: 'no_roadmap', titulo: 'No Roadmap / Planejado', dot: 'bg-purple-500' },
+              { id: 'resolvido', titulo: 'Concluído / Implementado', dot: 'bg-emerald-500' },
+            ].map((col, cIdx, arr) => {
+              const cardsDaColuna = feedbacksFiltrados.filter((fb) => (fb.status || 'em_analise') === col.id);
+              return (
+                <div key={col.id} className="rounded-3xl p-3.5 bg-black/[0.015] dark:bg-white/[0.02] border border-black/[0.05] dark:border-white/[0.06] flex flex-col min-h-[500px]">
+                  <div className="flex items-center justify-between pb-3 px-1 border-b border-black/[0.04] dark:border-white/[0.05] mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${col.dot}`}></span>
+                      <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white">{col.titulo}</h4>
+                    </div>
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-black/[0.05] dark:bg-white/[0.08] text-slate-600 dark:text-zinc-300">
+                      {cardsDaColuna.length}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 flex-1 overflow-y-auto pr-1">
+                    {cardsDaColuna.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-slate-400 italic">Vazio</div>
+                    ) : (
+                      cardsDaColuna.map((fb) => {
+                        const isIdeia = fb.tipo === 'ideia' || fb.tipo === 'sugestao';
+                        return (
+                          <div key={fb.id} className="p-3.5 rounded-2xl bg-white dark:bg-[#16161a] border border-black/[0.06] dark:border-white/[0.08] space-y-2.5 shadow-2xs">
+                            <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                                isIdeia 
+                                  ? 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/25'
+                                  : 'bg-red-500/15 text-red-800 dark:text-red-300 border border-red-500/25'
+                              }`}>
+                                {isIdeia ? '💡 Ideia' : '🐛 Bug'}
+                              </span>
+                              <span className="text-[9px] font-mono text-slate-400">{fb.modulo_afetado || 'Geral'}</span>
+                            </div>
+
+                            <h5 className="text-xs font-bold text-[#1d1d1f] dark:text-white leading-snug">{fb.titulo}</h5>
+                            <p className="text-[11px] text-slate-600 dark:text-zinc-400 line-clamp-3 leading-relaxed">{fb.descricao}</p>
+
+                            <div className="pt-2 border-t border-black/[0.04] dark:border-white/[0.05] flex items-center justify-between text-[10px]">
+                              {cIdx > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleMudarStatusFeedback(fb.id, arr[cIdx - 1].id)}
+                                  className="px-2 py-0.5 rounded bg-black/[0.03] dark:bg-white/[0.05] text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white cursor-pointer"
+                                >
+                                  ← Voltar
+                                </button>
+                              )}
+                              {cIdx < arr.length - 1 ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleMudarStatusFeedback(fb.id, arr[cIdx + 1].id)}
+                                  className="ml-auto px-2 py-0.5 rounded bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold cursor-pointer"
+                                >
+                                  Avançar →
+                                </button>
+                              ) : (
+                                <span className="ml-auto text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                                  <CheckIcon className="w-3 h-3" />
+                                  <span>Concluído</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : feedbacksFiltrados.length === 0 ? (
         <div className="p-12 text-center rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-2">
           <span className="text-3xl">✨</span>
           <h3 className="text-sm font-bold text-[#1d1d1f] dark:text-white">Nenhum feedback encontrado</h3>
@@ -391,11 +539,30 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
                   )}
                 </div>
 
-                <div className="pt-2 border-t border-black/[0.04] dark:border-white/[0.05] flex items-center justify-between text-[11px] text-slate-400 font-mono">
-                  <div className="flex items-center gap-2">
-                    <span>Autor: {fb.autor_nome || fb.autor_email}</span>
-                    <span>•</span>
-                    <span>{new Date(fb.created_at).toLocaleDateString('pt-BR')}</span>
+                <div className="pt-2.5 border-t border-black/[0.05] dark:border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-[11px]">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Status Changer Rápido */}
+                    <select
+                      value={fb.status || 'em_analise'}
+                      onChange={(e) => handleMudarStatusFeedback(fb.id, e.target.value)}
+                      className="px-2.5 py-1 rounded-lg bg-black/[0.03] dark:bg-white/[0.06] border border-black/[0.08] dark:border-white/[0.1] text-[11px] font-bold text-slate-700 dark:text-zinc-200 cursor-pointer focus:outline-none"
+                    >
+                      <option value="em_analise">🟡 Em Análise / Triagem</option>
+                      <option value="em_correcao">🔵 Em Correção / Progresso</option>
+                      <option value="no_roadmap">🟣 No Roadmap Futuro</option>
+                      <option value="resolvido">🟢 Concluído / Implementado</option>
+                    </select>
+
+                    {fb.status !== 'resolvido' && (
+                      <button
+                        type="button"
+                        onClick={() => handleMudarStatusFeedback(fb.id, 'resolvido')}
+                        className="px-3 py-1 rounded-lg bg-[#4d7c0f]/15 hover:bg-[#4d7c0f]/25 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-[11px] cursor-pointer transition-all flex items-center gap-1 border border-[#4d7c0f]/20"
+                      >
+                        <CheckIcon className="w-3 h-3 stroke-[2.5]" />
+                        <span>Concluir</span>
+                      </button>
+                    )}
                   </div>
                   <button
                     type="button"

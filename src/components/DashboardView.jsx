@@ -1011,7 +1011,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
           </div>
         ) : historicoViewMode === 'cards' ? (
           <div className="p-4 sm:p-5 grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            {[...chamadosRecentes].map((ch) => {
+            {chamadosPaginados.map((ch) => {
               const nomeTecnico = ch.tecnico_nome || getNomeTecnico(ch.tecnico_email, ch.atendente_nome || ch.atendente);
               const isConcluido = ch.status === 'finalizado' || ch.status === 'concluido';
               return (
@@ -1100,7 +1100,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
             </div>
 
             <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05] min-w-[700px]">
-              {[...chamadosRecentes].sort((a, b) => {
+              {[...chamadosPaginados].sort((a, b) => {
                 if (sortHistCol === 'empresa') {
                   return sortHistDir === 'asc'
                     ? (a.empresa_nome || '').localeCompare(b.empresa_nome || '')
@@ -1216,6 +1216,58 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                       {ch.observacoes && (
                         <p className="text-[10px] text-slate-400 italic mt-1">{ch.observacoes}</p>
                       )}
+
+        {/* Barra de Paginação Apple do Histórico */}
+        {chamadosRecentes.length > 0 && (
+          <div className="px-5 py-3.5 border-t border-black/[0.05] dark:border-white/[0.06] bg-black/[0.015] dark:bg-white/[0.02] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-slate-500 dark:text-zinc-400">
+              <span>
+                Mostrando <strong>{Math.min(chamadosRecentes.length, (paginaAtual - 1) * itensPorPagina + 1)}</strong> a <strong>{Math.min(chamadosRecentes.length, paginaAtual * itensPorPagina)}</strong> de <strong>{chamadosRecentes.length}</strong>
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3 self-end sm:self-auto flex-wrap">
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-400 text-[11px]">Itens por página:</span>
+                <select
+                  value={itensPorPagina}
+                  onChange={(e) => {
+                    setItensPorPagina(Number(e.target.value));
+                    setPaginaAtual(1);
+                  }}
+                  className="px-2.5 py-1 rounded-xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs font-semibold text-[#1d1d1f] dark:text-white cursor-pointer focus:outline-none"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={15}>15</option>
+                  <option value={20}>20</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={paginaAtual <= 1}
+                  onClick={() => setPaginaAtual((p) => Math.max(1, p - 1))}
+                  className="px-3 py-1 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 disabled:opacity-40 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed transition-all shadow-2xs"
+                >
+                  ← Anterior
+                </button>
+                <span className="px-2.5 py-1 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] text-xs font-mono font-bold text-[#1d1d1f] dark:text-white">
+                  {paginaAtual} / {totalPaginas}
+                </span>
+                <button
+                  type="button"
+                  disabled={paginaAtual >= totalPaginas}
+                  onClick={() => setPaginaAtual((p) => Math.min(totalPaginas, p + 1))}
+                  className="px-3 py-1 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 disabled:opacity-40 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed transition-all shadow-2xs"
+                >
+                  Próxima →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
                     </div>
                     <button
                       onClick={() => {
