@@ -102,9 +102,9 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   const [kanbanPreset, setKanbanPreset] = useState('foco_mim'); // 'foco_mim' | 'expandir_todos' | 'recolher_todos' | 'custom'
 
   // Auxiliares para identificação de técnico e chaves canônicas no Kanban
-  const getTecKey = (tec) => (tec.id || tec.email || tec.nome);
+  const getTecKey = (tec) => (tec?.id || tec?.email || tec?.nome || '');
   const isTecnicoMim = (tec) => {
-    if (!userEmail) return false;
+    if (!tec || !userEmail) return false;
     const uClean = userEmail.toLowerCase().trim();
     const tEmail = (tec.email || '').toLowerCase().trim();
     const tNome = removerAcentos((tec.nome || '').toLowerCase().trim());
@@ -352,56 +352,6 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     );
   }, [colaboradoresEmpresaAtual, buscaSolicitante]);
 
-  // Efeito orquestrado: quando o preset for 'foco_mim', garante que os outros colaboradores fiquem recolhidos
-  useEffect(() => {
-    if (kanbanPreset === 'foco_mim' && listaTecnicosKanban.length > 0) {
-      const outros = listaTecnicosKanban
-        .filter((t) => !isTecnicoMim(t))
-        .map(getTecKey);
-      if (outros.length > 0) {
-        setColaboradoresRecolhidos((prev) => {
-          const prevSet = new Set(prev);
-          const isSame = outros.length === prev.length && outros.every((k) => prevSet.has(k));
-          return isSame ? prev : outros;
-        });
-      }
-    }
-  }, [listaTecnicosKanban, userEmail, kanbanPreset]);
-
-  // Aliases seguros para garantir retrocompatibilidade de referências no modal
-  const solicitantesEmpresa = colaboradoresEmpresaAtual;
-  const empresasFiltradasDropdown = empresasFiltradasBusca;
-
-  // KPIs
-  const emAndamento = useMemo(() => chamados.filter((c) => c.status === 'em_andamento'), [chamados]);
-  const emEspera = useMemo(() => chamados.filter((c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente'), [chamados]);
-  const isDataHoje = (dataStr) => {
-    if (!dataStr) return false;
-    const d = new Date(dataStr);
-    const now = new Date();
-    return (
-      d.getFullYear() === now.getFullYear() &&
-      d.getMonth() === now.getMonth() &&
-      d.getDate() === now.getDate()
-    );
-  };
-
-  const resolvidosHoje = useMemo(() => {
-    return chamados.filter((c) => {
-      const isConcluido = c.status === 'concluido' || c.status === 'finalizado';
-      if (!isConcluido) return false;
-      return isDataHoje(c.finalizado_em || c.created_at || c.iniciado_em);
-    });
-  }, [chamados]);
-
-  // Tempo Médio de Espera (TME) de hoje
-  const tmeHojeMinutos = useMemo(() => {
-    const concluidos = resolvidosHoje.filter((c) => c.tempo_espera_segundos > 0);
-    if (concluidos.length === 0) return 0;
-    const soma = concluidos.reduce((acc, c) => acc + (c.tempo_espera_segundos || 0), 0);
-    return Math.round((soma / concluidos.length) / 60);
-  }, [resolvidosHoje]);
-
   // Lista Filtrada com bloqueio de departamentos e filtro de etiquetas
   // Lista consolidada de colaboradores / técnicos (equipe + quem tem chamado atribuído)
   const listaTecnicosKanban = useMemo(() => {
@@ -455,6 +405,57 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
     return Array.from(mapa.values());
   }, [equipeLista, chamados, userEmail]);
+
+
+  // Efeito orquestrado: quando o preset for 'foco_mim', garante que os outros colaboradores fiquem recolhidos
+  useEffect(() => {
+    if (kanbanPreset === 'foco_mim' && listaTecnicosKanban.length > 0) {
+      const outros = listaTecnicosKanban
+        .filter((t) => !isTecnicoMim(t))
+        .map(getTecKey);
+      if (outros.length > 0) {
+        setColaboradoresRecolhidos((prev) => {
+          const prevSet = new Set(prev);
+          const isSame = outros.length === prev.length && outros.every((k) => prevSet.has(k));
+          return isSame ? prev : outros;
+        });
+      }
+    }
+  }, [listaTecnicosKanban, userEmail, kanbanPreset]);
+
+  // Aliases seguros para garantir retrocompatibilidade de referências no modal
+  const solicitantesEmpresa = colaboradoresEmpresaAtual;
+  const empresasFiltradasDropdown = empresasFiltradasBusca;
+
+  // KPIs
+  const emAndamento = useMemo(() => chamados.filter((c) => c.status === 'em_andamento'), [chamados]);
+  const emEspera = useMemo(() => chamados.filter((c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente'), [chamados]);
+  const isDataHoje = (dataStr) => {
+    if (!dataStr) return false;
+    const d = new Date(dataStr);
+    const now = new Date();
+    return (
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate()
+    );
+  };
+
+  const resolvidosHoje = useMemo(() => {
+    return chamados.filter((c) => {
+      const isConcluido = c.status === 'concluido' || c.status === 'finalizado';
+      if (!isConcluido) return false;
+      return isDataHoje(c.finalizado_em || c.created_at || c.iniciado_em);
+    });
+  }, [chamados]);
+
+  // Tempo Médio de Espera (TME) de hoje
+  const tmeHojeMinutos = useMemo(() => {
+    const concluidos = resolvidosHoje.filter((c) => c.tempo_espera_segundos > 0);
+    if (concluidos.length === 0) return 0;
+    const soma = concluidos.reduce((acc, c) => acc + (c.tempo_espera_segundos || 0), 0);
+    return Math.round((soma / concluidos.length) / 60);
+  }, [resolvidosHoje]);
 
   const chamadosFiltrados = useMemo(() => {
     const usuarioLogado = Array.isArray(equipeLista) ? equipeLista.find((u) => (u.email || '').toLowerCase().trim() === (userEmail || '').toLowerCase().trim()) : null;
