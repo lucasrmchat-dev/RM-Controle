@@ -295,7 +295,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
           <select
             value={filtroCategoria}
             onChange={(e) => setFiltroCategoria(e.target.value)}
-            className="px-3 py-1.5 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-200 focus:outline-none cursor-pointer shadow-xs"
+            className="px-3 py-1.5 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-xs font-semibold text-slate-700 dark:text-zinc-200 [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white focus:outline-none cursor-pointer shadow-xs"
           >
             <option value="todas">Todas as Categorias</option>
             {categoriasLista.map((cat) => (

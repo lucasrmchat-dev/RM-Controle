@@ -39,6 +39,7 @@ export default function SupportCompletionModal({
   const [buscaMotivo, setBuscaMotivo] = useState('');
   const [dropdownMotivoAberto, setDropdownMotivoAberto] = useState(false);
   const motivoRef = useRef(null);
+  const modalAbertoRef = useRef(false);
 
   // Colaborador solicitante
   const [colaboradorSelecionado, setColaboradorSelecionado] = useState(null);
@@ -134,41 +135,46 @@ export default function SupportCompletionModal({
 
   useEffect(() => {
     if (isOpen && chamado) {
-      const mot = getMotivosSuporte();
-      setMotivos(mot);
-      const motInicial = chamado.motivo || (mot.length > 0 ? mot[0].nome : 'Atendimento Geral');
-      setMotivo(motInicial);
-      setBuscaMotivo(motInicial);
+      if (!modalAbertoRef.current) {
+        modalAbertoRef.current = true;
+        const mot = getMotivosSuporte();
+        setMotivos(mot);
+        const motInicial = chamado.motivo || (mot.length > 0 ? mot[0].nome : 'Atendimento Geral');
+        setMotivo(motInicial);
+        setBuscaMotivo(motInicial);
 
-      const cfg = getConfiguracoesSuporte();
-      setConfig(cfg);
+        const cfg = getConfiguracoesSuporte();
+        setConfig(cfg);
 
-      carregarColaboradores();
+        carregarColaboradores();
 
-      const nomeOperador = getNomeTecnico(userEmail || chamado.tecnico_email);
-      setAtendente(nomeOperador);
+        const nomeOperador = getNomeTecnico(userEmail || chamado.tecnico_email);
+        setAtendente(nomeOperador);
 
-      // Calcula tempo em espera
-      const agora = Date.now();
-      let espera = chamado.tempo_espera_segundos || 0;
-      if (!espera && chamado.tempo_espera_inicio) {
-        const inicioEspera = new Date(chamado.tempo_espera_inicio).getTime();
-        const fimEspera = chamado.tempo_espera_fim ? new Date(chamado.tempo_espera_fim).getTime() : agora;
-        espera = Math.max(0, Math.floor((fimEspera - inicioEspera) / 1000));
+        // Calcula tempo em espera
+        const agora = Date.now();
+        let espera = chamado.tempo_espera_segundos || 0;
+        if (!espera && chamado.tempo_espera_inicio) {
+          const inicioEspera = new Date(chamado.tempo_espera_inicio).getTime();
+          const fimEspera = chamado.tempo_espera_fim ? new Date(chamado.tempo_espera_fim).getTime() : agora;
+          espera = Math.max(0, Math.floor((fimEspera - inicioEspera) / 1000));
+        }
+        setTempoEsperaSegundos(espera);
+
+        // Calcula tempo ativo inicial
+        const inicioAtivo = new Date(chamado.tempo_ativo_inicio || chamado.iniciado_em || agora);
+        const ativo = Math.max(1, Math.floor((agora - inicioAtivo.getTime()) / 1000));
+        setTempoAtivoSegundos(ativo);
+
+        setHorarioInicio(toLocalDatetimeInput(inicioAtivo));
+        setHorarioFim(toLocalDatetimeInput(new Date(agora)));
+        setEditandoTempo(false);
+        setErrorMsg('');
       }
-      setTempoEsperaSegundos(espera);
-
-      // Calcula tempo ativo inicial
-      const inicioAtivo = new Date(chamado.tempo_ativo_inicio || chamado.iniciado_em || agora);
-      const ativo = Math.max(1, Math.floor((agora - inicioAtivo.getTime()) / 1000));
-      setTempoAtivoSegundos(ativo);
-
-      setHorarioInicio(toLocalDatetimeInput(inicioAtivo));
-      setHorarioFim(toLocalDatetimeInput(new Date(agora)));
-      setEditandoTempo(false);
-      setErrorMsg('');
+    } else {
+      modalAbertoRef.current = false;
     }
-  }, [isOpen, chamado, userEmail]);
+  }, [isOpen, chamado?.id]);
 
   if (!isOpen || !chamado) return null;
 

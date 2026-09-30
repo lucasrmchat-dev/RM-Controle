@@ -782,28 +782,31 @@ export async function finalizarSuporte({
   if (isSupabaseConfigured && supabase) {
     try {
       const isUuid = chamado.empresa_id && chamado.empresa_id.includes('-');
-      if (isUuid) {
-        const payload = {
-          empresa_id: chamado.empresa_id,
-          empresa_nome: chamado.empresa_nome,
-          tecnico_email: chamadoFinalizado.tecnico_email || userEmail,
-          atendente: chamadoFinalizado.atendente_nome || chamadoFinalizado.tecnico_nome,
-          colaborador_solicitante: chamadoFinalizado.solicitante_nome || '',
-          status: 'finalizado',
-          iniciado_em: chamadoFinalizado.iniciado_em || finalizadoEm,
-          finalizado_em: finalizadoEm,
-          duracao_segundos: ativoSegs,
-          motivo: chamadoFinalizado.motivo || 'Atendimento Geral',
-          observacoes: chamadoFinalizado.observacoes || '',
-        };
-        const { data: dbSaved, error: errDb } = await supabase.from('suporte_chamados').insert([payload]).select().single();
-        if (!errDb && dbSaved) {
+      const payload = {
+        empresa_id: isUuid ? chamado.empresa_id : null,
+        empresa_nome: chamado.empresa_nome,
+        tecnico_email: chamadoFinalizado.tecnico_email || userEmail,
+        atendente: chamadoFinalizado.atendente_nome || chamadoFinalizado.tecnico_nome,
+        colaborador_solicitante: chamadoFinalizado.solicitante_nome || '',
+        status: 'finalizado',
+        iniciado_em: chamadoFinalizado.iniciado_em || finalizadoEm,
+        finalizado_em: finalizadoEm,
+        duracao_segundos: ativoSegs,
+        motivo: chamadoFinalizado.motivo || 'Atendimento Geral',
+        observacoes: chamadoFinalizado.observacoes || '',
+      };
+
+      const isChamadoUuid = chamado.id && chamado.id.includes('-');
+      if (isChamadoUuid) {
+        // Atualiza o chamado existente no banco de dados para finalizado
+        await supabase
+          .from('suporte_chamados')
+          .update(payload)
+          .eq('id', chamado.id);
+      } else {
+        const { data: dbSaved } = await supabase.from('suporte_chamados').insert([payload]).select().maybeSingle();
+        if (dbSaved?.id) {
           chamadoFinalizado.id = dbSaved.id;
-          const hAtual = getLocalData('historico_chamados', []);
-          if (hAtual.length > 0 && (hAtual[0].id === chamado.id || hAtual[0].created_at === chamadoFinalizado.created_at)) {
-            hAtual[0].id = dbSaved.id;
-            setLocalData('historico_chamados', hAtual);
-          }
         }
       }
     } catch (errSup) {
@@ -3092,73 +3095,7 @@ export async function logVisualizacaoSenha(empresaId, userEmail = 'admin@rmcontr
 // ==============================================================================
 // BASE DE CONHECIMENTO & SOLUÇÕES DE SUPORTE ("COMO RESOLVER CHAMADOS")
 // ==============================================================================
-const DEFAULT_SOLUCOES = [
-  {
-    id: 'sol_1',
-    empresa_id: null,
-    empresa_nome: 'Global (Todas as Empresas)',
-    titulo: 'Instância Desconectada / Falha de Pareamento QR Code',
-    erro_codigo: 'ERR_EVOLUTION_DISCONNECTED',
-    contexto: 'Instância do WhatsApp Baileys/Evolution desconectou após reinício ou inatividade do celular.',
-    tipo_erro: 'Desconexão de Instância',
-    solucao_passos: '1. Acesse o painel de instâncias do servidor VPS.\n2. Limpe a sessão corrompida clicando em Desconectar/Reset.\n3. Gere um novo QR Code.\n4. No WhatsApp do cliente, vá em Dispositivos Conectados e escaneie.\n5. Envie uma mensagem de teste e monitore os logs de webhook.',
-    tags: ['qrcode', 'evolution', 'pareamento', 'desconexao', 'sessao'],
-    autor_email: 'admin@rmcontrole.com',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
-  },
-  {
-    id: 'sol_2',
-    empresa_id: null,
-    empresa_nome: 'Global (Todas as Empresas)',
-    titulo: 'Erro 131026: Mensagem não entregue / Limite Meta Cloud API',
-    erro_codigo: 'WABA_131026',
-    contexto: 'Envio de mensagem via API Oficial falha com erro 131026 retornado pelo Graph API da Meta.',
-    tipo_erro: 'Envio de Mensagem',
-    solucao_passos: '1. Verifique se o template de mensagem está Aprovado no Gerenciador do WhatsApp.\n2. Cheque o saldo do cartão ou limite de crédito no Meta Business Suite.\n3. Confirme se o número do destinatário está no formato E.164 com código do país (+55).\n4. Caso a conta esteja em período de aquecimento, reduza a taxa de disparo.',
-    tags: ['meta', 'waba', '131026', 'template', 'envio', 'api'],
-    autor_email: 'admin@rmcontrole.com',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 6).toISOString(),
-  },
-  {
-    id: 'sol_3',
-    empresa_id: null,
-    empresa_nome: 'Global (Todas as Empresas)',
-    titulo: 'Certificado SSL Let\'s Encrypt Expirado / Erro de Conexão Não Segura',
-    erro_codigo: 'ERR_SSL_PROTOCOL_ERROR',
-    contexto: 'Portal do cliente ou endpoint de webhook fica inacessível com aviso de certificado inválido no navegador.',
-    tipo_erro: 'Servidor VPS & SSL',
-    solucao_passos: '1. Conecte via SSH no servidor VPS.\n2. Verifique o apontamento de DNS (registro A) apontando para o IP correto.\n3. Execute: certbot renew --force-renewal ou reinicie o Traefik/Nginx.\n4. Confirme que as portas 80 e 443 estão liberadas no UFW.\n5. Valide o HTTPS via curl -Iv https://dominio-do-cliente.com.',
-    tags: ['ssl', 'https', 'traefik', 'nginx', 'dns', 'vps'],
-    autor_email: 'admin@rmcontrole.com',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
-  },
-  {
-    id: 'sol_4',
-    empresa_id: null,
-    empresa_nome: 'Global (Todas as Empresas)',
-    titulo: 'PostgreSQL: Erro "FATAL: remaining connection slots are reserved"',
-    erro_codigo: 'PG_MAX_CONNECTIONS',
-    contexto: 'O sistema para de responder chamadas de banco por esgotamento de conexões abertas pela aplicação.',
-    tipo_erro: 'Banco de Dados',
-    solucao_passos: '1. Conecte ao container do PostgreSQL e cheque as conexões ativas: SELECT count(*) FROM pg_stat_activity;\n2. Identifique conexões em estado idle presas.\n3. Ative ou aumente o pool de conexões (PgBouncer) ou eleve max_connections no postgresql.conf para 200.\n4. Reinicie os contêineres de workers.',
-    tags: ['postgres', 'conexao', 'pool', 'banco', 'timeout'],
-    autor_email: 'admin@rmcontrole.com',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 4).toISOString(),
-  },
-  {
-    id: 'sol_5',
-    empresa_id: null,
-    empresa_nome: 'Global (Todas as Empresas)',
-    titulo: 'Redefinição de Senha de Administrador & Desbloqueio de Acesso',
-    erro_codigo: 'AUTH_LOCKOUT_401',
-    contexto: 'Cliente esqueceu a senha mestre ou usuário administrador foi bloqueado após tentativas incorretas.',
-    tipo_erro: 'Redefinição de Senha',
-    solucao_passos: '1. Abra a empresa no RM Controle e consulte a aba Credenciais.\n2. Clique em Copiar Senha de Suporte.\n3. Caso o cliente exija nova senha, use o botão Gerar Senha Segura.\n4. Salve a alteração para auditar o log de segurança LGPD.\n5. Envie a nova credencial ao contato autorizado da empresa via canal seguro.',
-    tags: ['senha', 'admin', 'credencial', 'bloqueio', 'redefinicao'],
-    autor_email: 'admin@rmcontrole.com',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
-  },
-];
+const DEFAULT_SOLUCOES = [];
 
 export function getSolucoesSuporte({ empresa_id = null, query = '', tag = '', tipo = '' } = {}) {
   let base = getLocalData('solucoes_suporte', []);
@@ -3195,7 +3132,8 @@ export function getSolucoesSuporte({ empresa_id = null, query = '', tag = '', ti
   });
 
   // Une soluções salvas no banco com as derivadas de chamados finalizados e o catálogo padrão
-  base = [...base, ...solucoesDoHistorico, ...DEFAULT_SOLUCOES];
+  // Retorna apenas solucoes reais salvas pelo usuario no banco
+  base = [...base];
 
   // Deduplicação estrita de soluções para evitar qualquer duplicata no banco
   const vistas = new Set();

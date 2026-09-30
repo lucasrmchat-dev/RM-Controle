@@ -128,9 +128,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     const resEmp = await getEmpresas({ pageSize: 1000 });
     const lista = Array.isArray(resEmp) ? resEmp : (resEmp?.items || []);
     setEmpresasLista(lista);
-    if (lista.length > 0 && !empresaSelecionada) {
-      setEmpresaSelecionada(lista[0]);
-    }
+    // Não sobrescreve empresaSelecionada em segundo plano para não resetar a seleção do usuário
   };
 
   useEffect(() => {
@@ -397,7 +395,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       return;
     }
 
-    const solicitanteFinal = solicitanteSelecionado?.nome || solicitanteManual.trim() || 'Colaborador da Empresa';
+    const solicitanteFinal = solicitanteSelecionado?.nome || solicitanteManual.trim() || buscaSolicitante.trim() || 'Colaborador da Empresa';
 
     try {
       await adicionarChamadoFila({
@@ -1236,44 +1234,49 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                   type="text"
                                   autoFocus
                                   value={buscaSolicitante}
-                                  onChange={(e) => setBuscaSolicitante(e.target.value)}
-                                  placeholder="Buscar ou digitar nome do solicitante..."
+                                  onChange={(e) => {
+                                    setBuscaSolicitante(e.target.value);
+                                    setSolicitanteManual(e.target.value);
+                                    if (solicitanteSelecionado && solicitanteSelecionado.nome !== e.target.value) {
+                                      setSolicitanteSelecionado(null);
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      if (buscaSolicitante.trim()) {
+                                        setSolicitanteManual(buscaSolicitante.trim());
+                                        setSolicitanteSelecionado(null);
+                                        setDropdownSolicitanteAberto(false);
+                                      }
+                                    }
+                                  }}
+                                  placeholder="Digite para buscar ou adicionar solicitante..."
                                   className="w-full px-3 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.06] text-xs focus:outline-none mb-1 text-[#1d1d1f] dark:text-white"
                                 />
+
+                                {buscaSolicitante.trim() && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSolicitanteManual(buscaSolicitante.trim());
+                                      setSolicitanteSelecionado(null);
+                                      setDropdownSolicitanteAberto(false);
+                                    }}
+                                    className="w-full p-2 rounded-xl text-left flex items-center justify-between text-xs bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-bold hover:bg-[#4d7c0f]/20 transition-all cursor-pointer mb-1 border border-[#4d7c0f]/25"
+                                  >
+                                    <span>+ Usar &ldquo;{buscaSolicitante.trim()}&rdquo; como solicitante</span>
+                                    <span className="text-[10px] opacity-75 font-mono">Pressione Enter ↵</span>
+                                  </button>
+                                )}
 
                                 {colaboradoresEmpresaAtual.length === 0 ? (
                                   <div className="p-2 text-center space-y-1">
                                     <p className="text-[11px] text-slate-400">Nenhum colaborador registrado nesta empresa.</p>
-                                    {buscaSolicitante.trim() && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setSolicitanteManual(buscaSolicitante.trim());
-                                          setSolicitanteSelecionado(null);
-                                          setDropdownSolicitanteAberto(false);
-                                        }}
-                                        className="text-xs font-bold text-[#4d7c0f] dark:text-[#84cc16] hover:underline"
-                                      >
-                                        Usar "{buscaSolicitante.trim()}" como solicitante
-                                      </button>
-                                    )}
                                   </div>
                                 ) : colaboradoresFiltradosBusca.length === 0 ? (
                                   <div className="p-2 text-center space-y-1">
-                                    <p className="text-[11px] text-slate-400">Nenhum colaborador encontrado com esta busca.</p>
-                                    {buscaSolicitante.trim() && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setSolicitanteManual(buscaSolicitante.trim());
-                                          setSolicitanteSelecionado(null);
-                                          setDropdownSolicitanteAberto(false);
-                                        }}
-                                        className="text-xs font-bold text-[#4d7c0f] dark:text-[#84cc16] hover:underline"
-                                      >
-                                        Usar "{buscaSolicitante.trim()}" como solicitante
-                                      </button>
-                                    )}
+                                    <p className="text-[11px] text-slate-400">Nenhum colaborador pré-cadastrado com este nome.</p>
                                   </div>
                                 ) : (
                                   colaboradoresFiltradosBusca.map((colab) => (

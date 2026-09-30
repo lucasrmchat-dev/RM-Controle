@@ -207,7 +207,7 @@ export default function RegisterSupportModal({
                   value={empresaId}
                   onChange={handleEmpresaChange}
                   required
-                  className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 cursor-pointer"
+                  className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 cursor-pointer"
                 >
                   {empresas.map((emp) => (
                     <option key={emp.id} value={emp.id} className="dark:bg-zinc-900 text-black dark:text-white">
@@ -254,7 +254,7 @@ export default function RegisterSupportModal({
                 <select
                   value={atendente}
                   onChange={(e) => setAtendente(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 cursor-pointer"
+                  className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 cursor-pointer"
                 >
                   {equipe.map((u) => (
                     <option key={u.id} value={u.nome} className="dark:bg-zinc-900 text-black dark:text-white">

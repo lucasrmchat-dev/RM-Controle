@@ -14,6 +14,7 @@ import {
   CheckIcon, 
   XMarkIcon, 
   SparklesIcon, 
+  CopyIcon, 
   ClockIcon, 
   WrenchIcon,
   ShieldCheckIcon 
@@ -44,6 +45,25 @@ export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
   const [imagemBase64, setImagemBase64] = useState(null);
   const [imagemPreview, setImagemPreview] = useState(null);
   const [lightboxImagem, setLightboxImagem] = useState(null);
+  const [copiadoId, setCopiadoId] = useState(null);
+
+  const handleCopiarRelato = (fb) => {
+    const texto = `Prioridade:
+${fb.prioridade || 'normal'}
+${fb.titulo}
+Módulo: ${fb.modulo_afetado || fb.empresa_nome || 'Geral'}
+[Módulo: ${fb.modulo_afetado || fb.empresa_nome || 'Geral'}] ${fb.descricao}
+
+Classificação: ${fb.tipo || 'bug'}
+Autor: ${fb.autor_nome || fb.autor_email || 'Usuário'}
+Data: ${new Date(fb.created_at).toLocaleDateString('pt-BR')}
+${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)' : ''}`;
+
+    navigator.clipboard?.writeText(texto);
+    setCopiadoId(fb.id);
+    showToast('Relato copiado com sucesso! Pronto para colar no Gemini.', 'success');
+    setTimeout(() => setCopiadoId(null), 2500);
+  };
 
   const fileInputRef = useRef(null);
 
@@ -275,7 +295,7 @@ export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
           <select
             value={filtroTipo}
             onChange={(e) => setFiltroTipo(e.target.value)}
-            className="px-3 py-1.5 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.02] dark:bg-white/[0.04] text-xs font-semibold focus:outline-none cursor-pointer"
+            className="px-3 py-1.5 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white text-xs font-semibold focus:outline-none cursor-pointer"
           >
             <option value="todos">Todos os Tipos</option>
             <option value="bug">Falha / Bug</option>
@@ -372,8 +392,29 @@ export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
                 </div>
 
                 <div className="pt-2 border-t border-black/[0.04] dark:border-white/[0.05] flex items-center justify-between text-[11px] text-slate-400 font-mono">
-                  <span>Autor: {fb.autor_nome || fb.autor_email}</span>
-                  <span>{new Date(fb.created_at).toLocaleDateString('pt-BR')}</span>
+                  <div className="flex items-center gap-2">
+                    <span>Autor: {fb.autor_nome || fb.autor_email}</span>
+                    <span>•</span>
+                    <span>{new Date(fb.created_at).toLocaleDateString('pt-BR')}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCopiarRelato(fb)}
+                    className="px-3 py-1 rounded-full bg-black/[0.03] dark:bg-white/[0.06] hover:bg-[#4d7c0f]/15 hover:text-[#4d7c0f] dark:hover:text-[#84cc16] text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer text-slate-600 dark:text-zinc-300"
+                    title="Copiar dados deste relato para colar no Gemini"
+                  >
+                    {copiadoId === fb.id ? (
+                      <>
+                        <CheckIcon className="w-3.5 h-3.5 text-emerald-500" />
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">Copiado!</span>
+                      </>
+                    ) : (
+                      <>
+                        <CopyIcon className="w-3.5 h-3.5" />
+                        <span>Copiar Relato</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </motion.div>
             );
@@ -507,7 +548,7 @@ export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
                           <select
                             value={tipo}
                             onChange={(e) => setTipo(e.target.value)}
-                            className="w-full px-3 py-2 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none cursor-pointer"
+                            className="w-full px-3 py-2 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white cursor-pointer"
                           >
                             <option value="bug">🐛 Erro / Bug</option>
                             <option value="melhoria">🎨 Melhoria Visual / UX</option>
@@ -523,7 +564,7 @@ export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
                           <select
                             value={prioridade}
                             onChange={(e) => setPrioridade(e.target.value)}
-                            className="w-full px-3 py-2 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none cursor-pointer"
+                            className="w-full px-3 py-2 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white cursor-pointer"
                           >
                             <option value="normal">Normal</option>
                             <option value="alta">Alta</option>
