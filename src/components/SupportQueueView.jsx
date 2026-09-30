@@ -522,7 +522,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
         {/* -------------------------------------------------------------------------- */}
         {/* COLUNA ESQUERDA: CARDS DE MÉTRICAS EM TEMPO REAL (VERTICAL)               */}
         {/* -------------------------------------------------------------------------- */}
-        <div className="w-full lg:w-72 xl:w-80 flex-shrink-0 space-y-3.5 sticky top-4">
+        <div className="w-full lg:w-72 xl:w-80 flex-shrink-0 space-y-3.5 sticky top-24">
           <div className="flex items-center justify-between px-1">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500 font-mono">
               Métricas Operacionais
@@ -871,25 +871,8 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                             className="px-4 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-90 flex items-center gap-1.5 cursor-pointer flex-1 justify-center"
                           >
                             <PlayIcon className="w-3 h-3 fill-current" />
-                            <span>Assumir</span>
+                            <span>Assumir Atendimento</span>
                           </button>
-
-                          {Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle'))) ? (
-                            <button
-                              type="button"
-                              onClick={() => setKanbanAberto(true)}
-                              className="px-3.5 py-2 rounded-full bg-blue-500/10 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 text-xs font-semibold hover:bg-blue-500/20 transition-all cursor-pointer shadow-xs flex items-center gap-1"
-                            >
-                              <span>🚀 Kanban</span>
-                            </button>
-                          ) : onSelectEmpresa && (
-                            <button
-                              onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
-                              className="px-3.5 py-2 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:bg-black/[0.03] transition-all cursor-pointer"
-                            >
-                              Ver Empresa
-                            </button>
-                          )}
 
                           <button
                             onClick={() => handleCancelarChamado(ch)}
@@ -1231,30 +1214,31 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                       </button>
                                     )}
 
-                                    {Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle'))) ? (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setKanbanAberto(true);
-                                        }}
-                                        className="px-4 py-2.5 rounded-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold text-xs border border-blue-500/30 cursor-pointer shadow-xs flex items-center gap-1.5"
-                                      >
-                                        <span>🚀 Abrir Pipeline Kanban</span>
-                                      </button>
-                                    ) : onSelectEmpresa && (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome });
-                                        }}
-                                        className="px-4 py-2.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer shadow-xs"
-                                      >
-                                        🏢 Acessar Empresa
-                                      </button>
+                                    {!isAguardando && (
+                                      Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle'))) ? (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setKanbanAberto(true);
+                                          }}
+                                          className="px-4 py-2.5 rounded-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold text-xs border border-blue-500/30 cursor-pointer shadow-xs flex items-center gap-1.5"
+                                        >
+                                          <span>🚀 Abrir Pipeline Kanban</span>
+                                        </button>
+                                      ) : onSelectEmpresa && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome });
+                                          }}
+                                          className="px-4 py-2.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer shadow-xs"
+                                        >
+                                          🏢 Acessar Empresa
+                                        </button>
+                                      )
                                     )}
-
                                     <button
                                       type="button"
                                       onClick={(e) => {

@@ -231,7 +231,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
     : 100;
 
   return (
-    <div className="space-y-7 text-[#1d1d1f] dark:text-[#f5f5f7]">
+    <div className="space-y-7 text-[#1d1d1f] dark:text-[#f5f5f7] pt-2 sm:pt-4">
       
       {/* ============================================================================== */}
       {/* CABEÇALHO DO DASHBOARD (ESTRITAMENTE MÉTRICAS E INDICADORES) */}
@@ -262,7 +262,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
         {/* -------------------------------------------------------------------------- */}
         {/* COLUNA ESQUERDA: CARDS DE MÉTRICAS / KPIS (VERTICAL)                       */}
         {/* -------------------------------------------------------------------------- */}
-        <div className="w-full lg:w-72 xl:w-80 flex-shrink-0 space-y-3.5 sticky top-4">
+        <div className="w-full lg:w-72 xl:w-80 flex-shrink-0 space-y-3.5 sticky top-24">
           <div className="flex items-center justify-between px-1">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500 font-mono">
               Indicadores Principais
