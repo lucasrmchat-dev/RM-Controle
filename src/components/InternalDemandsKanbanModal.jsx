@@ -43,12 +43,19 @@ export default function InternalDemandsKanbanModal({ isOpen, onClose, userEmail 
   if (!isOpen) return null;
 
   const handleMudarStatus = async (fbId, novoStatus) => {
+    const agora = new Date().toISOString();
+    setFeedbacks((prev) =>
+      prev.map((fb) =>
+        fb.id === fbId ? { ...fb, status: novoStatus, updated_at: agora } : fb
+      )
+    );
+
     try {
       await updateFeedbackStatus(fbId, novoStatus, userEmail);
       showToast(`Status atualizado para "${novoStatus.replace('_', ' ')}"!`, 'success');
-      carregar();
     } catch (err) {
       showToast(err.message || 'Erro ao mover card.', 'error');
+      carregar();
     }
   };
 
@@ -280,39 +287,57 @@ export default function InternalDemandsKanbanModal({ isOpen, onClose, userEmail 
                             )}
 
                             {/* Controles de Transição de Etapa */}
-                            <div className="pt-2 border-t border-black/[0.04] dark:border-white/[0.05] flex items-center justify-between gap-1 text-[10px]">
-                              {col.id !== 'em_analise' && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const prevIdx = colunas.findIndex((c) => c.id === col.id) - 1;
-                                    if (prevIdx >= 0) handleMudarStatus(fb.id, colunas[prevIdx].id);
-                                  }}
-                                  className="px-2 py-1 rounded-lg bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.07] text-slate-600 dark:text-zinc-400 cursor-pointer"
-                                  title="Mover para etapa anterior"
-                                >
-                                  ← Voltar
-                                </button>
-                              )}
+                            <div className="pt-2.5 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between gap-1.5 text-[10px]">
+                              <select
+                                value={fb.status || 'em_analise'}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  handleMudarStatus(fb.id, e.target.value);
+                                }}
+                                className="px-2 py-1 rounded-lg bg-black/[0.03] dark:bg-white/[0.06] border border-black/[0.08] dark:border-white/[0.1] text-[10px] font-bold text-slate-700 dark:text-zinc-200 cursor-pointer focus:outline-none"
+                              >
+                                <option value="em_analise">🟡 Triagem</option>
+                                <option value="em_correcao">🔵 Em Andamento</option>
+                                <option value="no_roadmap">🟣 No Roadmap</option>
+                                <option value="resolvido">🟢 Concluído</option>
+                              </select>
 
-                              {col.id !== 'resolvido' ? (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const nextIdx = colunas.findIndex((c) => c.id === col.id) + 1;
-                                    if (nextIdx < colunas.length) handleMudarStatus(fb.id, colunas[nextIdx].id);
-                                  }}
-                                  className="ml-auto px-2.5 py-1 rounded-lg bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 hover:bg-[#4d7c0f]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold cursor-pointer flex items-center gap-1 transition-all"
-                                  title="Avançar etapa"
-                                >
-                                  <span>Avançar →</span>
-                                </button>
-                              ) : (
-                                <span className="ml-auto text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
-                                  <CheckIcon className="w-3 h-3" />
-                                  <span>Finalizado</span>
-                                </span>
-                              )}
+                              <div className="flex items-center gap-1 ml-auto">
+                                {col.id !== 'em_analise' && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const prevIdx = colunas.findIndex((c) => c.id === col.id) - 1;
+                                      if (prevIdx >= 0) handleMudarStatus(fb.id, colunas[prevIdx].id);
+                                    }}
+                                    className="px-2 py-1 rounded-lg bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.07] text-slate-600 dark:text-zinc-400 cursor-pointer font-semibold"
+                                    title="Voltar etapa"
+                                  >
+                                    ←
+                                  </button>
+                                )}
+
+                                {col.id !== 'resolvido' ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const nextIdx = colunas.findIndex((c) => c.id === col.id) + 1;
+                                      if (nextIdx < colunas.length) handleMudarStatus(fb.id, colunas[nextIdx].id);
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 hover:bg-[#4d7c0f]/25 text-[#4d7c0f] dark:text-[#84cc16] font-bold cursor-pointer transition-all"
+                                    title="Avançar etapa"
+                                  >
+                                    →
+                                  </button>
+                                ) : (
+                                  <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-0.5 text-[9px]">
+                                    <CheckIcon className="w-3 h-3" />
+                                    <span>OK</span>
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </motion.div>
                         );

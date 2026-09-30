@@ -44,12 +44,20 @@ export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
   const [colunaArrastando, setColunaArrastando] = useState(null);
 
   const handleMudarStatusFeedback = async (fbId, novoStatus) => {
+    const agora = new Date().toISOString();
+    // 1. Atualização otimista imediata na interface
+    setFeedbacks((prev) =>
+      prev.map((fb) =>
+        fb.id === fbId ? { ...fb, status: novoStatus, updated_at: agora } : fb
+      )
+    );
+
     try {
       await updateFeedbackStatus(fbId, novoStatus, userEmail);
       showToast(`Status atualizado para "${novoStatus.replace('_', ' ')}"!`, 'success');
-      carregarDados();
     } catch (err) {
       showToast(err.message || 'Erro ao atualizar feedback.', 'error');
+      carregarDados();
     }
   };
 
@@ -453,30 +461,55 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
                             <h5 className="text-xs font-bold text-[#1d1d1f] dark:text-white leading-snug">{fb.titulo}</h5>
                             <p className="text-[11px] text-slate-600 dark:text-zinc-400 line-clamp-3 leading-relaxed">{fb.descricao}</p>
 
-                            <div className="pt-2 border-t border-black/[0.04] dark:border-white/[0.05] flex items-center justify-between text-[10px]">
-                              {cIdx > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleMudarStatusFeedback(fb.id, arr[cIdx - 1].id)}
-                                  className="px-2 py-0.5 rounded bg-black/[0.03] dark:bg-white/[0.05] text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white cursor-pointer"
-                                >
-                                  ← Voltar
-                                </button>
-                              )}
-                              {cIdx < arr.length - 1 ? (
-                                <button
-                                  type="button"
-                                  onClick={() => handleMudarStatusFeedback(fb.id, arr[cIdx + 1].id)}
-                                  className="ml-auto px-2 py-0.5 rounded bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold cursor-pointer"
-                                >
-                                  Avançar →
-                                </button>
-                              ) : (
-                                <span className="ml-auto text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
-                                  <CheckIcon className="w-3 h-3" />
-                                  <span>Concluído</span>
-                                </span>
-                              )}
+                            <div className="pt-2.5 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between gap-1 text-[10px]">
+                              {/* Seletor direto de etapa */}
+                              <select
+                                value={fb.status || 'em_analise'}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  handleMudarStatusFeedback(fb.id, e.target.value);
+                                }}
+                                className="px-2 py-1 rounded-lg bg-black/[0.03] dark:bg-white/[0.06] border border-black/[0.08] dark:border-white/[0.1] text-[10px] font-bold text-slate-700 dark:text-zinc-200 cursor-pointer focus:outline-none"
+                              >
+                                <option value="em_analise">🟡 Triagem</option>
+                                <option value="em_correcao">🔵 Em Andamento</option>
+                                <option value="no_roadmap">🟣 No Roadmap</option>
+                                <option value="resolvido">🟢 Concluído</option>
+                              </select>
+
+                              <div className="flex items-center gap-1 ml-auto">
+                                {cIdx > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMudarStatusFeedback(fb.id, arr[cIdx - 1].id);
+                                    }}
+                                    className="px-2 py-1 rounded-lg bg-black/[0.03] dark:bg-white/[0.05] text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white cursor-pointer font-semibold"
+                                    title="Voltar etapa"
+                                  >
+                                    ←
+                                  </button>
+                                )}
+                                {cIdx < arr.length - 1 ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMudarStatusFeedback(fb.id, arr[cIdx + 1].id);
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold cursor-pointer hover:bg-[#4d7c0f]/25 transition-all"
+                                    title="Avançar etapa"
+                                  >
+                                    →
+                                  </button>
+                                ) : (
+                                  <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-0.5 text-[9px]">
+                                    <CheckIcon className="w-3 h-3" />
+                                    <span>OK</span>
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         );

@@ -3461,9 +3461,24 @@ export async function fetchFeedbacks() {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && data) {
-        setLocalData('feedbacks_lista', data);
-        return data;
+      if (!error && Array.isArray(data)) {
+        const local = getLocalData('feedbacks_lista', []);
+        const localMap = new Map((local || []).map((f) => [f.id, f]));
+
+        const merged = data.map((cloudItem) => {
+          const localItem = localMap.get(cloudItem.id);
+          if (localItem && localItem.updated_at && (!cloudItem.updated_at || new Date(localItem.updated_at) > new Date(cloudItem.updated_at))) {
+            return { ...cloudItem, ...localItem };
+          }
+          return cloudItem;
+        });
+
+        const cloudIds = new Set(data.map((d) => d.id));
+        const onlyLocal = (local || []).filter((f) => f.id && !cloudIds.has(f.id));
+
+        const finalLista = [...merged, ...onlyLocal];
+        setLocalData('feedbacks_lista', finalLista);
+        return finalLista;
       }
     } catch (e) {
       console.warn('Erro ao buscar feedbacks do Supabase:', e);
