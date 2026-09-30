@@ -19,7 +19,10 @@ import {
   addColaboradorEmpresa,
   getEmpresaCredenciais,
   getCategoriasDemandas,
-  fetchChamadosFila
+  fetchChamadosFila,
+  fetchHistoricoChamados,
+  getHistoricoChamados,
+  createEmpresa
 } from '@/lib/storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { stopSupportNotificationLoop } from '@/lib/audioNotifications';
@@ -72,29 +75,50 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   const [chamadoParaFinalizar, setChamadoParaFinalizar] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
 
-  // Modal para Abrir Novo Chamado na Fila
+  // Modal para Abrir Nova Demanda na Fila
   const [modalNovoChamadoOpen, setModalNovoChamadoOpen] = useState(false);
   const [buscaEmpresa, setBuscaEmpresa] = useState('');
-  const [dropdownEmpresaAberto, setDropdownEmpresaAberto] = useState(false);
   const [empresaSelecionada, setEmpresaSelecionada] = useState(null);
 
-  // Solicitante
+  // Solicitante & Atendente
   const [buscaSolicitante, setBuscaSolicitante] = useState('');
-  const [dropdownSolicitanteAberto, setDropdownSolicitanteAberto] = useState(false);
+  const [buscaTecnicoModal, setBuscaTecnicoModal] = useState('');
   const [highlightedEmpresaIdx, setHighlightedEmpresaIdx] = useState(0);
   const [highlightedSolicitanteIdx, setHighlightedSolicitanteIdx] = useState(0);
+  const [highlightedTecnicoIdx, setHighlightedTecnicoIdx] = useState(0);
   const [expandedChamadoId, setExpandedChamadoId] = useState(null);
+
+  // Dropdown único e exclusivo no modal de demanda (abrir um fecha os outros)
+  const [activeModalDropdown, setActiveModalDropdown] = useState(null); // 'empresa' | 'solicitante' | 'tecnico' | null
+
+  // Filtro de Técnico Apple-Grade na Fila
+  const [filtroTecnicoDropdownAberto, setFiltroTecnicoDropdownAberto] = useState(false);
+  const [buscaFiltroTecnico, setBuscaFiltroTecnico] = useState('');
+  const filtroTecnicoRef = useRef(null);
+
+  // Kanban: Métricas Recolhíveis, Scroll Horizontal e Colunas Recolhíveis
+  const [metricasRecolhidasKanban, setMetricasRecolhidasKanban] = useState(true);
+  const [colaboradoresRecolhidos, setColaboradoresRecolhidos] = useState([]);
+  const kanbanScrollRef = useRef(null);
+
   const tableContainerRef = useRef(null);
   const empresaDropdownRef = useRef(null);
   const solicitanteDropdownRef = useRef(null);
+  const tecnicoDropdownRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (empresaDropdownRef.current && !empresaDropdownRef.current.contains(e.target)) {
-        setDropdownEmpresaAberto(false);
+        if (activeModalDropdown === 'empresa') setActiveModalDropdown(null);
       }
       if (solicitanteDropdownRef.current && !solicitanteDropdownRef.current.contains(e.target)) {
-        setDropdownSolicitanteAberto(false);
+        if (activeModalDropdown === 'solicitante') setActiveModalDropdown(null);
+      }
+      if (tecnicoDropdownRef.current && !tecnicoDropdownRef.current.contains(e.target)) {
+        if (activeModalDropdown === 'tecnico') setActiveModalDropdown(null);
+      }
+      if (filtroTecnicoRef.current && !filtroTecnicoRef.current.contains(e.target)) {
+        setFiltroTecnicoDropdownAberto(false);
       }
       if (tableContainerRef.current && !tableContainerRef.current.contains(e.target)) {
         setExpandedChamadoId(null);
@@ -102,7 +126,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [activeModalDropdown]);
   const [solicitanteSelecionado, setSolicitanteSelecionado] = useState(null);
   const [solicitanteManual, setSolicitanteManual] = useState('');
   const [modoCadastroColab, setModoCadastroColab] = useState(false);
@@ -147,16 +171,31 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
   const carregarDados = async () => {
     try {
-      await fetchChamadosFila();
+      await Promise.all([fetchChamadosFila(), fetchHistoricoChamados()]);
     } catch (e) {}
-    const todos = getChamadosSuporte();
-    setChamados(todos);
+    const ativos = getChamadosSuporte();
+    const historico = getHistoricoChamados();
+
+    // Mescla ativos com histórico sem duplicar chamados
+    const mapa = new Map();
+    (ativos || []).forEach((c) => {
+      mapa.set(c.id, c);
+    });
+    (historico || []).forEach((c) => {
+      if (!mapa.has(c.id)) {
+        mapa.set(c.id, {
+          ...c,
+          status: c.status || 'concluido',
+        });
+      }
+    });
+
+    setChamados(Array.from(mapa.values()));
     setEquipeLista(getEquipeUsuarios());
     setCategoriasDisponiveis(getCategoriasDemandas());
     const resEmp = await getEmpresas({ pageSize: 1000 });
     const lista = Array.isArray(resEmp) ? resEmp : (resEmp?.items || []);
     setEmpresasLista(lista);
-    // Não sobrescreve empresaSelecionada em segundo plano para não resetar a seleção do usuário
   };
 
   useEffect(() => {
@@ -307,9 +346,23 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   // KPIs
   const emAndamento = useMemo(() => chamados.filter((c) => c.status === 'em_andamento'), [chamados]);
   const emEspera = useMemo(() => chamados.filter((c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente'), [chamados]);
+  const isDataHoje = (dataStr) => {
+    if (!dataStr) return false;
+    const d = new Date(dataStr);
+    const now = new Date();
+    return (
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate()
+    );
+  };
+
   const resolvidosHoje = useMemo(() => {
-    const hojeStr = new Date().toISOString().split('T')[0];
-    return chamados.filter((c) => (c.status === 'concluido' || c.status === 'finalizado') && (c.finalizado_em || '').startsWith(hojeStr));
+    return chamados.filter((c) => {
+      const isConcluido = c.status === 'concluido' || c.status === 'finalizado';
+      if (!isConcluido) return false;
+      return isDataHoje(c.finalizado_em || c.created_at || c.iniciado_em);
+    });
   }, [chamados]);
 
   // Tempo Médio de Espera (TME) de hoje
@@ -399,8 +452,8 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       } else if (filtroStatus === 'espera') {
         if (c.status !== 'pendente' && c.status !== 'aguardando_visualizacao') return false;
       } else if (filtroStatus === 'resolvidos_hoje') {
-        const hojeStr = new Date().toISOString().split('T')[0];
-        if ((c.status !== 'concluido' && c.status !== 'finalizado') || !(c.finalizado_em || '').startsWith(hojeStr)) return false;
+        const isConcluido = c.status === 'concluido' || c.status === 'finalizado';
+        if (!isConcluido || !isDataHoje(c.finalizado_em || c.created_at || c.iniciado_em)) return false;
       }
 
       if (filtroCategoria && filtroCategoria !== 'todas') {
@@ -522,13 +575,14 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     setNovasCategoriasModal(['Suporte']);
     setNovasEtiquetasModal([]);
     setInputEtiqueta('');
-    setTecnicoAtribuido(userEmail || 'admin@rmcontrole.com');
+    // Pré-definido Fila Geral por padrão (conforme solicitado)
+    setTecnicoAtribuido('');
+    setBuscaTecnicoModal('');
+    setHighlightedTecnicoIdx(0);
     if (!empresaSelecionada && empresasLista.length > 0) {
       setEmpresaSelecionada(empresasLista[0]);
     }
-    setDropdownEmpresaAberto(false);
-    setDropdownSolicitanteAberto(false);
-    setDropdownTecnicoAberto(false);
+    setActiveModalDropdown(null);
     setModoCadastroColab(false);
     setBuscaEmpresa('');
     setBuscaSolicitante('');
@@ -539,22 +593,41 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   const handleCriarChamado = async (e) => {
     e.preventDefault();
     if (!empresaSelecionada) {
-      showToast('Selecione uma empresa.', 'error');
+      showToast('Selecione ou informe a empresa da demanda.', 'error');
       return;
+    }
+
+    let empresaIdFinal = empresaSelecionada.id;
+    let empresaNomeFinal = empresaSelecionada.nome;
+
+    // Se a empresa foi digitada como nova, cadastra de verdade no banco apenas agora ao salvar a demanda
+    if (empresaSelecionada.isNova) {
+      try {
+        const novaEmp = await createEmpresa({
+          nome: empresaSelecionada.nome.trim(),
+          userEmail: userEmail || 'admin@rmcontrole.com',
+        });
+        if (novaEmp?.id) {
+          empresaIdFinal = novaEmp.id;
+          empresaNomeFinal = novaEmp.nome || empresaSelecionada.nome;
+        }
+      } catch (errEmp) {
+        console.warn('Aviso ao cadastrar empresa digitada:', errEmp);
+      }
     }
 
     const solicitanteFinal = solicitanteSelecionado?.nome || solicitanteManual.trim() || buscaSolicitante.trim() || 'Colaborador da Empresa';
 
     try {
       await adicionarChamadoFila({
-        empresa_id: empresaSelecionada.id,
-        empresa_nome: empresaSelecionada.nome,
+        empresa_id: empresaIdFinal,
+        empresa_nome: empresaNomeFinal,
         solicitante_nome: solicitanteFinal,
         solicitante_email: solicitanteSelecionado?.email || '',
         solicitante_telefone: solicitanteSelecionado?.telefone || '',
         categorias: novasCategoriasModal.length > 0 ? novasCategoriasModal : ['Suporte'],
         etiquetas: novasEtiquetasModal,
-        atribuido_a: tecnicoAtribuido,
+        atribuido_a: tecnicoAtribuido || null,
         observacao_inicial: novaObservacao,
         iniciarAgora: iniciarDireto,
         userEmail: userEmail || 'admin@rmcontrole.com',
@@ -565,7 +638,10 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       setSolicitanteManual('');
       setBuscaEmpresa('');
       setBuscaSolicitante('');
-      showFeedbackMsg(iniciarDireto ? `Atendimento de ${empresaSelecionada.nome} iniciado agora!` : `Chamado de ${empresaSelecionada.nome} aberto na fila.`);
+      setBuscaTecnicoModal('');
+      setActiveModalDropdown(null);
+      await carregarDados();
+      showFeedbackMsg(iniciarDireto ? `Demanda de ${empresaNomeFinal} iniciada agora!` : `Demanda de ${empresaNomeFinal} aberta na fila.`);
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -624,7 +700,9 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
         {/* -------------------------------------------------------------------------- */}
         {/* COLUNA ESQUERDA: CARDS DE MÉTRICAS EM TEMPO REAL (VERTICAL)               */}
+        {/* Recolhida automaticamente quando o modo Kanban estiver ativo para liberar espaço */}
         {/* -------------------------------------------------------------------------- */}
+        {(!filaViewMode || filaViewMode !== 'kanban' || !metricasRecolhidasKanban) && (
         <div className="w-full lg:w-72 xl:w-80 flex-shrink-0 space-y-3.5 sticky top-24">
           <div className="flex items-center justify-between px-1">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500 font-mono">
@@ -691,6 +769,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
             </div>
           </div>
         </div>
+        )}
 
         {/* -------------------------------------------------------------------------- */}
         {/* COLUNA DIREITA: FILTROS + GESTÃO DA FILA (CARDS OU TABELA)                 */}
@@ -798,57 +877,190 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
             </div>
 
-            {/* Filtros de Linha: Departamento e Técnico Responsável */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-black/[0.04] dark:border-white/[0.05] text-xs">
-              <div className="flex items-center gap-1.5 overflow-x-auto p-0.5">
-                <span className="text-slate-400 font-semibold px-1 text-[11px] uppercase tracking-wider font-mono">
+            {/* Filtros de Linha: Departamento e Técnico Responsável (Custom Apple-Grade) */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2.5 border-t border-black/[0.04] dark:border-white/[0.05] text-xs">
+              <div className="flex items-center gap-1.5 overflow-x-auto p-0.5 scrollbar-thin">
+                <span className="text-slate-400 font-semibold px-1 text-[11px] uppercase tracking-wider font-mono flex-shrink-0">
                   Departamento:
                 </span>
                 <button
                   type="button"
                   onClick={() => setFiltroCategoria('todas')}
-                  className={`px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer transition-all ${
+                  className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-all flex items-center gap-1 flex-shrink-0 ${
                     filtroCategoria === 'todas'
-                      ? 'bg-black text-white dark:bg-white dark:text-black font-bold shadow-xs'
-                      : 'bg-black/[0.02] dark:bg-white/[0.04] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.06]'
+                      ? 'bg-[#09090b] text-white dark:bg-white dark:text-black font-bold shadow-xs'
+                      : 'bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.05]'
                   }`}
                 >
-                  Todos
+                  <span>Todos</span>
+                  <span className="text-[10px] font-mono opacity-70">({chamados.filter(c => c.status !== 'concluido' && c.status !== 'finalizado').length})</span>
                 </button>
-                {categoriasDisponiveis.map((cat) => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setFiltroCategoria(cat)}
-                    className={`px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer transition-all ${
-                      filtroCategoria === cat
-                        ? 'bg-black text-white dark:bg-white dark:text-black font-bold shadow-xs'
-                        : 'bg-black/[0.02] dark:bg-white/[0.04] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.06]'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
+                {categoriasDisponiveis.map((cat) => {
+                  const countNoDept = chamados.filter((c) => {
+                    if (c.status === 'concluido' || c.status === 'finalizado') return false;
+                    const cats = Array.isArray(c.categorias) && c.categorias.length > 0 ? c.categorias : ['Suporte'];
+                    return cats.some((d) => (d || '').toLowerCase().trim() === cat.toLowerCase().trim());
+                  }).length;
+
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setFiltroCategoria(cat)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-all flex items-center gap-1 flex-shrink-0 ${
+                        filtroCategoria === cat
+                          ? 'bg-[#09090b] text-white dark:bg-white dark:text-black font-bold shadow-xs'
+                          : 'bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.05]'
+                      }`}
+                    >
+                      <span>{cat}</span>
+                      {countNoDept > 0 && (
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                          filtroCategoria === cat
+                            ? 'bg-white/20 dark:bg-black/20 text-white dark:text-black'
+                            : 'bg-black/[0.05] dark:bg-white/[0.08] text-slate-600 dark:text-zinc-300'
+                        }`}>
+                          {countNoDept}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Filtro por Colaborador Responsável (Técnico) */}
-              <div className="flex items-center gap-2 flex-shrink-0 sm:border-l border-black/[0.06] dark:border-white/[0.08] sm:pl-3">
-                <span className="text-slate-400 font-semibold text-[11px] uppercase tracking-wider font-mono">
-                  Técnico:
-                </span>
-                <select
-                  value={filtroTecnico}
-                  onChange={(e) => setFiltroTecnico(e.target.value)}
-                  className="px-3 py-1 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-xs font-semibold text-slate-700 dark:text-zinc-200 focus:outline-none cursor-pointer shadow-xs [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white"
+              {/* Filtro por Colaborador Responsável (Apple-Grade Custom Popover) */}
+              <div ref={filtroTecnicoRef} className="relative flex-shrink-0 sm:border-l border-black/[0.06] dark:border-white/[0.08] sm:pl-3">
+                <button
+                  type="button"
+                  onClick={() => setFiltroTecnicoDropdownAberto(!filtroTecnicoDropdownAberto)}
+                  className={`px-3 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-xs ${
+                    filtroTecnico !== 'todos'
+                      ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300'
+                      : 'border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-slate-700 dark:text-zinc-200 hover:border-black/20'
+                  }`}
                 >
-                  <option value="todos">Todos os Técnicos</option>
-                  <option value="nao_atribuido">Sem Técnico / Em Espera</option>
-                  {listaTecnicosKanban.map((tec) => (
-                    <option key={tec.id || tec.email} value={tec.email || tec.nome}>
-                      {tec.nome}
-                    </option>
-                  ))}
-                </select>
+                  <div className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold text-[9px] flex items-center justify-center">
+                    {filtroTecnico === 'todos' ? '👥' : filtroTecnico === 'nao_atribuido' ? '⏳' : filtroTecnico[0].toUpperCase()}
+                  </div>
+                  <span className="truncate max-w-[140px]">
+                    {filtroTecnico === 'todos'
+                      ? 'Todos os Técnicos'
+                      : filtroTecnico === 'nao_atribuido'
+                      ? 'Sem Técnico / Em Espera'
+                      : listaTecnicosKanban.find((t) => t.email === filtroTecnico || t.nome === filtroTecnico)?.nome || filtroTecnico}
+                  </span>
+                  <span className="text-[10px] opacity-60">▼</span>
+                </button>
+
+                {filtroTecnicoDropdownAberto && (
+                  <div className="absolute right-0 top-full mt-1.5 z-40 w-72 rounded-2xl bg-white dark:bg-[#1c1c20] border border-black/[0.1] dark:border-white/[0.15] shadow-2xl p-2 space-y-1">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={buscaFiltroTecnico}
+                      onChange={(e) => setBuscaFiltroTecnico(e.target.value)}
+                      placeholder="Filtrar operador..."
+                      className="w-full px-3 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.06] text-xs focus:outline-none mb-1 text-[#1d1d1f] dark:text-white"
+                    />
+                    <div className="max-h-56 overflow-y-auto space-y-0.5 scrollbar-thin">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFiltroTecnico('todos');
+                          setFiltroTecnicoDropdownAberto(false);
+                          setBuscaFiltroTecnico('');
+                        }}
+                        className={`w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between text-xs transition-colors cursor-pointer ${
+                          filtroTecnico === 'todos'
+                            ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
+                            : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">👥</span>
+                          <span>Todos os Técnicos</span>
+                        </div>
+                        {filtroTecnico === 'todos' && <CheckIcon className="w-3.5 h-3.5" />}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFiltroTecnico('nao_atribuido');
+                          setFiltroTecnicoDropdownAberto(false);
+                          setBuscaFiltroTecnico('');
+                        }}
+                        className={`w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between text-xs transition-colors cursor-pointer ${
+                          filtroTecnico === 'nao_atribuido'
+                            ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
+                            : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">⏳</span>
+                          <span>Sem Técnico / Em Espera</span>
+                        </div>
+                        {filtroTecnico === 'nao_atribuido' && <CheckIcon className="w-3.5 h-3.5" />}
+                      </button>
+
+                      <div className="my-1 border-t border-black/[0.05] dark:border-white/[0.06]" />
+
+                      {listaTecnicosKanban
+                        .filter((t) => {
+                          if (!buscaFiltroTecnico.trim()) return true;
+                          const q = removerAcentos(buscaFiltroTecnico.toLowerCase().trim());
+                          return (
+                            removerAcentos((t.nome || '').toLowerCase()).includes(q) ||
+                            removerAcentos((t.email || '').toLowerCase()).includes(q)
+                          );
+                        })
+                        .map((tec) => {
+                          const isSel = filtroTecnico === (tec.email || tec.nome);
+                          const chamadosCount = chamados.filter(
+                            (c) => c.status === 'em_andamento' && (
+                              (c.tecnico_email && tec.email && c.tecnico_email.toLowerCase() === tec.email.toLowerCase()) ||
+                              (c.tecnico_nome && tec.nome && removerAcentos(c.tecnico_nome).includes(removerAcentos(tec.nome)))
+                            )
+                          ).length;
+
+                          return (
+                            <button
+                              key={tec.id || tec.email}
+                              type="button"
+                              onClick={() => {
+                                setFiltroTecnico(tec.email || tec.nome);
+                                setFiltroTecnicoDropdownAberto(false);
+                                setBuscaFiltroTecnico('');
+                              }}
+                              className={`w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between text-xs transition-colors cursor-pointer ${
+                                isSel
+                                  ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
+                                  : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-5 h-5 rounded-full bg-black/5 dark:bg-white/10 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                                  {tec.nome.charAt(0).toUpperCase()}
+                                </div>
+                                <div className="min-w-0 truncate">
+                                  <span className="block truncate font-medium">{tec.nome}</span>
+                                  <span className="text-[10px] opacity-60 font-mono block truncate">{tec.cargo || 'Técnico'}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                {chamadosCount > 0 && (
+                                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold">
+                                    {chamadosCount}
+                                  </span>
+                                )}
+                                {isSel && <CheckIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16]" />}
+                              </div>
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1078,330 +1290,474 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
             </div>
           ) : filaViewMode === 'kanban' ? (
             /* ==================================================================== */
-            /* VISUALIZAÇÃO KANBAN POR COLABORADOR / TÉCNICO                        */
+            /* VISUALIZAÇÃO KANBAN POR COLABORADOR / TÉCNICO COM CONTROLES ROBUSTOS  */
             /* ==================================================================== */
-            <div className="flex gap-5 overflow-x-auto pb-4 items-start scrollbar-thin">
+            <div className="space-y-4">
               
-              {/* ------------------------------------------------------------------ */}
-              {/* COLUNA FIXA 1: AGUARDANDO ATENDIMENTO (EM ESPERA / TRIAGEM GERAL) */}
-              {/* ------------------------------------------------------------------ */}
-              <div
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={async (e) => {
-                  e.preventDefault();
-                  const chId = e.dataTransfer.getData('text/plain');
-                  const ch = chamados.find((c) => c.id === chId);
-                  if (ch && ch.status === 'em_andamento') {
-                    showToast(`Chamado de ${ch.empresa_nome} na fila de espera.`, 'info');
-                  }
-                }}
-                className="w-[330px] sm:w-[360px] flex-shrink-0 rounded-3xl p-4 sm:p-5 border border-amber-500/30 bg-gradient-to-b from-amber-500/[0.05] via-white to-white dark:via-[#16161a] dark:to-[#16161a] shadow-xs flex flex-col min-h-[520px]"
-              >
-                {/* Header da Coluna de Espera */}
-                <div className="flex items-center justify-between gap-2 pb-3.5 border-b border-amber-500/20 mb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
-                    <div>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-amber-900 dark:text-amber-200 font-mono">
-                        Aguardando Atendimento
-                      </h3>
-                      <p className="text-[10px] text-amber-700/80 dark:text-amber-400">
-                        Fila geral em triagem
-                      </p>
-                    </div>
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-500/30">
-                    {chamadosFiltrados.filter((c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente').length}
+              {/* Barra Superior de Ferramentas e Presets do Kanban */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-2xl bg-white/80 dark:bg-[#16161a]/85 border border-black/[0.06] dark:border-white/[0.08] backdrop-blur-xl shadow-xs">
+                
+                {/* Presets de Foco e Visualização */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500 font-mono pl-1 pr-1">
+                    Visualização:
                   </span>
+                  
+                  {/* Preset: Focar em Mim & Espera */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const outros = listaTecnicosKanban
+                        .filter((t) => (t.email || '').toLowerCase() !== (userEmail || '').toLowerCase())
+                        .map((t) => t.id || t.email);
+                      setColaboradoresRecolhidos(outros);
+                    }}
+                    className="px-3 py-1 rounded-full text-xs font-semibold bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] border border-[#4d7c0f]/25 dark:border-[#84cc16]/30 hover:bg-[#4d7c0f]/20 transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                    title="Recolhe os demais operadores e foca na fila de espera e nas suas demandas"
+                  >
+                    <span>★ Focar em Mim & Espera</span>
+                  </button>
+
+                  {/* Preset: Expandir Todos */}
+                  <button
+                    type="button"
+                    onClick={() => setColaboradoresRecolhidos([])}
+                    className="px-3 py-1 rounded-full text-xs font-medium text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] transition-all cursor-pointer"
+                  >
+                    <span>⤢ Expandir Todos</span>
+                  </button>
+
+                  {/* Preset: Recolher Outros */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const todos = listaTecnicosKanban.map((t) => t.id || t.email);
+                      setColaboradoresRecolhidos(todos);
+                    }}
+                    className="px-3 py-1 rounded-full text-xs font-medium text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] transition-all cursor-pointer"
+                  >
+                    <span>⤡ Recolher Todos</span>
+                  </button>
                 </div>
 
-                {/* Cards de Chamados em Espera */}
-                <div className="space-y-3.5 flex-1">
-                  {chamadosFiltrados.filter((c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente').length === 0 ? (
-                    <div className="py-16 text-center text-xs text-slate-400 dark:text-zinc-500 space-y-1">
-                      <span className="text-xl block">🎉</span>
-                      <span>Nenhum chamado aguardando suporte na fila.</span>
-                    </div>
-                  ) : (
-                    chamadosFiltrados
-                      .filter((c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente')
-                      .map((ch) => (
-                        <motion.div
-                          key={ch.id}
-                          layout
-                          draggable
-                          onDragStart={(e) => {
-                            e.dataTransfer.setData('text/plain', ch.id);
-                            e.dataTransfer.effectAllowed = 'move';
-                          }}
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="p-4 rounded-2xl border border-amber-500/30 bg-white dark:bg-[#1a1a20] transition-all shadow-xs space-y-3 cursor-grab active:cursor-grabbing hover:border-amber-500/50"
-                        >
-                          {/* Tempo de Espera ao Vivo */}
-                          <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-[10px] font-mono font-bold">
-                              <HourglassIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                              <span>Espera: {calcularTempoEspera(ch)}</span>
-                            </div>
-                            <span className="text-[10px] text-slate-400 font-mono">
-                              Arraste p/ atribuir →
-                            </span>
-                          </div>
+                {/* Controles de Navegação Horizontal & Alternância de Métricas */}
+                <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
+                  {/* Botão para Exibir/Ocultar Métricas Operacionais */}
+                  <button
+                    type="button"
+                    onClick={() => setMetricasRecolhidasKanban(!metricasRecolhidasKanban)}
+                    className="px-3 py-1 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.02] dark:bg-white/[0.04] text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
+                    title="Alterna a exibição das métricas operacionais para dar mais espaço ao Kanban"
+                  >
+                    <span>📊</span>
+                    <span>{metricasRecolhidasKanban ? 'Exibir Métricas' : 'Ocultar Métricas'}</span>
+                  </button>
 
-                          {/* Empresa & Solicitante */}
-                          <div>
-                            <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white leading-snug">
-                              {ch.empresa_nome}
-                            </h4>
-                            <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                              Solicitante: <strong className="text-slate-700 dark:text-zinc-300">{ch.solicitante_nome || 'Colaborador da Empresa'}</strong>
-                            </p>
-                          </div>
-
-                          {/* Departamentos & Etiquetas */}
-                          <div className="flex items-center gap-1 flex-wrap">
-                            {(Array.isArray(ch.categorias) && ch.categorias.length > 0 ? ch.categorias : ['Suporte']).map((cat, idx) => (
-                              <span
-                                key={idx}
-                                className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-mono text-[9px] font-bold border border-blue-500/20"
-                              >
-                                {cat}
-                              </span>
-                            ))}
-                            {(Array.isArray(ch.etiquetas) ? ch.etiquetas : []).map((etq, idx) => (
-                              <span
-                                key={'kanban_etq_' + idx}
-                                className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-mono text-[9px] font-bold border border-amber-500/25"
-                              >
-                                #{etq}
-                              </span>
-                            ))}
-                          </div>
-
-                          {/* Observação Inicial */}
-                          {ch.observacao_inicial && (
-                            <p className="text-[11px] text-slate-600 dark:text-zinc-400 bg-black/[0.02] dark:bg-white/[0.03] p-2 rounded-xl border border-black/[0.04] dark:border-white/[0.05] line-clamp-2 leading-relaxed">
-                              {ch.observacao_inicial}
-                            </p>
-                          )}
-
-                          {/* Ações: Assumir e Cancelar */}
-                          <div className="pt-2 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleAceitarSuporte(ch)}
-                              className="px-3.5 py-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-[11px] hover:opacity-90 transition-all cursor-pointer flex-1 flex items-center justify-center gap-1 shadow-xs"
-                            >
-                              <PlayIcon className="w-2.5 h-2.5 fill-current" />
-                              <span>Assumir Atendimento</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleCancelarChamado(ch)}
-                              className="p-1.5 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 cursor-pointer"
-                              title="Cancelar chamado"
-                            >
-                              <XMarkIcon className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </motion.div>
-                      ))
-                  )}
+                  {/* Botões de Rolagem Horizontal para Mouse sem Trackpad */}
+                  <div className="flex items-center gap-1 pl-2 border-l border-black/[0.06] dark:border-white/[0.08]">
+                    <button
+                      type="button"
+                      onClick={() => kanbanScrollRef.current?.scrollBy({ left: -360, behavior: 'smooth' })}
+                      className="w-7 h-7 rounded-full border border-black/[0.08] dark:border-white/[0.1] flex items-center justify-center text-slate-600 dark:text-zinc-300 hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer transition-colors shadow-xs"
+                      title="Rolar Kanban para a esquerda"
+                    >
+                      ‹
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => kanbanScrollRef.current?.scrollBy({ left: 360, behavior: 'smooth' })}
+                      className="w-7 h-7 rounded-full border border-black/[0.08] dark:border-white/[0.1] flex items-center justify-center text-slate-600 dark:text-zinc-300 hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer transition-colors shadow-xs"
+                      title="Rolar Kanban para a direita"
+                    >
+                      ›
+                    </button>
+                  </div>
                 </div>
+
               </div>
 
-              {/* ------------------------------------------------------------------ */}
-              {/* COLUNAS DINÂMICAS: UMA COLUNA PARA CADA TÉCNICO / COLABORADOR     */}
-              {/* ------------------------------------------------------------------ */}
-              {listaTecnicosKanban.map((tec) => {
-                const chamadosTecnico = chamadosFiltrados.filter((c) => {
-                  if (c.status !== 'em_andamento') return false;
-                  const tEmail = (c.tecnico_email || '').toLowerCase();
-                  const tNome = removerAcentos((c.tecnico_nome || getNomeTecnico(c.tecnico_email, c.atendente) || '').toLowerCase());
-                  const cAtendente = removerAcentos((c.atendente || '').toLowerCase());
+              {/* Quadro Kanban com Barra de Rolagem Horizontal Visível e Altura Padronizada */}
+              <div
+                ref={kanbanScrollRef}
+                className="flex gap-4 overflow-x-auto pb-5 items-start scrollbar-thin scrollbar-thumb-zinc-400 dark:scrollbar-thumb-zinc-600 scrollbar-track-black/[0.02] dark:scrollbar-track-white/[0.02]"
+              >
+                
+                {/* ------------------------------------------------------------------ */}
+                {/* COLUNA FIXA 1: AGUARDANDO ATENDIMENTO (EM ESPERA / TRIAGEM GERAL) */}
+                {/* ------------------------------------------------------------------ */}
+                <div
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={async (e) => {
+                    e.preventDefault();
+                    const chId = e.dataTransfer.getData('text/plain');
+                    const ch = chamados.find((c) => c.id === chId);
+                    if (ch && ch.status === 'em_andamento') {
+                      showToast(`Chamado de ${ch.empresa_nome} na fila de espera.`, 'info');
+                    }
+                  }}
+                  className="w-[330px] sm:w-[350px] flex-shrink-0 rounded-3xl p-4 sm:p-5 border border-amber-500/30 bg-gradient-to-b from-amber-500/[0.05] via-white to-white dark:via-[#16161a] dark:to-[#16161a] shadow-xs flex flex-col min-h-[520px] max-h-[600px]"
+                >
+                  {/* Header da Coluna de Espera */}
+                  <div className="flex items-center justify-between gap-2 pb-3.5 border-b border-amber-500/20 mb-3 flex-shrink-0">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                      <div>
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-amber-900 dark:text-amber-200 font-mono">
+                          Aguardando Atendimento
+                        </h3>
+                        <p className="text-[10px] text-amber-700/80 dark:text-amber-400">
+                          Fila geral em triagem
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-500/30">
+                      {chamadosFiltrados.filter((c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente').length}
+                    </span>
+                  </div>
 
-                  const tecEmail = (tec.email || '').toLowerCase();
-                  const tecNome = removerAcentos((tec.nome || '').toLowerCase());
+                  {/* Cards de Chamados em Espera (Scroll interno limitado sem esticar a página) */}
+                  <div className="space-y-3 flex-1 overflow-y-auto pr-1 scrollbar-thin max-h-[490px]">
+                    {chamadosFiltrados.filter((c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente').length === 0 ? (
+                      <div className="py-20 text-center text-xs text-slate-400 dark:text-zinc-500 space-y-1">
+                        <span className="text-xl block">🎉</span>
+                        <span>Nenhum chamado aguardando suporte na fila.</span>
+                      </div>
+                    ) : (
+                      chamadosFiltrados
+                        .filter((c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente')
+                        .map((ch) => (
+                          <motion.div
+                            key={ch.id}
+                            layout
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('text/plain', ch.id);
+                              e.dataTransfer.effectAllowed = 'move';
+                            }}
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="p-4 rounded-2xl border border-amber-500/30 bg-white dark:bg-[#1a1a20] transition-all shadow-xs space-y-3 cursor-grab active:cursor-grabbing hover:border-amber-500/50"
+                          >
+                            {/* Tempo de Espera ao Vivo */}
+                            <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-[10px] font-mono font-bold">
+                                <HourglassIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                                <span>Espera: {calcularTempoEspera(ch)}</span>
+                              </div>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                Arraste p/ atribuir →
+                              </span>
+                            </div>
 
-                  return (tecEmail && tEmail === tecEmail) ||
-                         (tecNome && (tNome.includes(tecNome) || cAtendente.includes(tecNome)));
-                });
+                            {/* Empresa & Solicitante */}
+                            <div>
+                              <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white leading-snug">
+                                {ch.empresa_nome}
+                              </h4>
+                              <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                                Solicitante: <strong className="text-slate-700 dark:text-zinc-300">{ch.solicitante_nome || 'Colaborador da Empresa'}</strong>
+                              </p>
+                            </div>
 
-                return (
-                  <div
-                    key={tec.id || tec.email}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={async (e) => {
-                      e.preventDefault();
-                      const chId = e.dataTransfer.getData('text/plain');
-                      const ch = chamados.find((c) => c.id === chId);
-                      if (ch) {
-                        try {
-                          await assumirSuporte({ chamado_id: ch.id, userEmail: tec.email || userEmail });
-                          await carregarDados();
-                          showToast(`Chamado de ${ch.empresa_nome} atribuído para ${tec.nome}!`, 'success');
-                        } catch (err) {
-                          showToast(err.message || 'Erro ao atribuir chamado.', 'error');
-                        }
-                      }
-                    }}
-                    className="w-[330px] sm:w-[360px] flex-shrink-0 rounded-3xl p-4 sm:p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs flex flex-col min-h-[520px]"
-                  >
-                    {/* Header do Colaborador */}
-                    <div className="flex items-center justify-between gap-2 pb-3.5 border-b border-black/[0.05] dark:border-white/[0.06] mb-4">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 rounded-full bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-xs flex items-center justify-center flex-shrink-0">
-                          {tec.nome.charAt(0).toUpperCase()}
+                            {/* Departamentos & Etiquetas */}
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {(Array.isArray(ch.categorias) && ch.categorias.length > 0 ? ch.categorias : ['Suporte']).map((cat, idx) => (
+                                <span
+                                  key={idx}
+                                  className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-mono text-[9px] font-bold border border-blue-500/20"
+                                >
+                                  {cat}
+                                </span>
+                              ))}
+                              {(Array.isArray(ch.etiquetas) ? ch.etiquetas : []).map((etq, idx) => (
+                                <span
+                                  key={'kanban_etq_' + idx}
+                                  className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-mono text-[9px] font-bold border border-amber-500/25"
+                                >
+                                  #{etq}
+                                </span>
+                              ))}
+                            </div>
+
+                            {/* Observação Inicial */}
+                            {ch.observacao_inicial && (
+                              <p className="text-[11px] text-slate-600 dark:text-zinc-400 bg-black/[0.02] dark:bg-white/[0.03] p-2 rounded-xl border border-black/[0.04] dark:border-white/[0.05] line-clamp-2 leading-relaxed">
+                                {ch.observacao_inicial}
+                              </p>
+                            )}
+
+                            {/* Ações: Assumir e Cancelar */}
+                            <div className="pt-2 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleAceitarSuporte(ch)}
+                                className="px-3.5 py-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-[11px] hover:opacity-90 transition-all cursor-pointer flex-1 flex items-center justify-center gap-1 shadow-xs"
+                              >
+                                <PlayIcon className="w-2.5 h-2.5 fill-current" />
+                                <span>Assumir Atendimento</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleCancelarChamado(ch)}
+                                className="p-1.5 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 cursor-pointer"
+                                title="Cancelar chamado"
+                              >
+                                <XMarkIcon className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </motion.div>
+                        ))
+                    )}
+                  </div>
+                </div>
+
+                {/* ------------------------------------------------------------------ */}
+                {/* COLUNAS DINÂMICAS: UMA COLUNA PARA CADA TÉCNICO / COLABORADOR     */}
+                {/* ------------------------------------------------------------------ */}
+                {listaTecnicosKanban.map((tec) => {
+                  const tecKey = tec.id || tec.email;
+                  const isRecolhido = colaboradoresRecolhidos.includes(tecKey);
+
+                  const chamadosTecnico = chamadosFiltrados.filter((c) => {
+                    if (c.status !== 'em_andamento') return false;
+                    const tEmail = (c.tecnico_email || '').toLowerCase();
+                    const tNome = removerAcentos((c.tecnico_nome || getNomeTecnico(c.tecnico_email, c.atendente) || '').toLowerCase());
+                    const cAtendente = removerAcentos((c.atendente || '').toLowerCase());
+
+                    const tecEmail = (tec.email || '').toLowerCase();
+                    const tecNome = removerAcentos((tec.nome || '').toLowerCase());
+
+                    return (tecEmail && tEmail === tecEmail) ||
+                           (tecNome && (tNome.includes(tecNome) || cAtendente.includes(tecNome)));
+                  });
+
+                  // Renderização de Coluna Recolhida (Strip Vertical Compacta)
+                  if (isRecolhido) {
+                    return (
+                      <div
+                        key={tecKey}
+                        onClick={() => setColaboradoresRecolhidos((prev) => prev.filter((k) => k !== tecKey))}
+                        className="w-[60px] flex-shrink-0 min-h-[520px] max-h-[600px] p-3 rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.02] dark:bg-white/[0.03] flex flex-col items-center justify-between cursor-pointer hover:border-emerald-500/50 hover:bg-emerald-500/[0.04] transition-all select-none group shadow-xs"
+                        title={`Clique para expandir a coluna de ${tec.nome}`}
+                      >
+                        {/* Topo: Avatar e Contador */}
+                        <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-xs flex items-center justify-center group-hover:scale-105 transition-transform">
+                            {tec.nome.charAt(0).toUpperCase()}
+                          </div>
+                          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold border ${
+                            chamadosTecnico.length > 0
+                              ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30'
+                              : 'bg-black/[0.04] dark:bg-white/[0.06] text-slate-500 dark:text-zinc-400 border-black/[0.06]'
+                          }`}>
+                            {chamadosTecnico.length}
+                          </span>
                         </div>
-                        <div className="min-w-0 truncate">
-                          <h3 className="text-xs font-bold text-[#1d1d1f] dark:text-white truncate">
+
+                        {/* Centro: Nome do Técnico em Orientação Vertical */}
+                        <div className="flex-1 flex items-center justify-center my-4 py-2 overflow-hidden">
+                          <span
+                            className="text-xs font-bold text-slate-600 dark:text-zinc-400 tracking-wider uppercase font-mono whitespace-nowrap group-hover:text-black dark:group-hover:text-white transition-colors"
+                            style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
+                          >
                             {tec.nome}
-                          </h3>
-                          <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono truncate">
-                            {tec.cargo || 'Técnico'} • {tec.email || 'Suporte'}
-                          </p>
+                          </span>
+                        </div>
+
+                        {/* Base: Ícone de Expansão */}
+                        <div className="w-6 h-6 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center text-xs text-slate-500 group-hover:bg-[#4d7c0f] group-hover:text-white dark:group-hover:bg-[#84cc16] dark:group-hover:text-black transition-all flex-shrink-0">
+                          +
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Renderização de Coluna Expandida com Altura Limitada
+                  return (
+                    <div
+                      key={tecKey}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={async (e) => {
+                        e.preventDefault();
+                        const chId = e.dataTransfer.getData('text/plain');
+                        const ch = chamados.find((c) => c.id === chId);
+                        if (ch) {
+                          try {
+                            await assumirSuporte({ chamado_id: ch.id, userEmail: tec.email || userEmail });
+                            await carregarDados();
+                            showToast(`Chamado de ${ch.empresa_nome} atribuído para ${tec.nome}!`, 'success');
+                          } catch (err) {
+                            showToast(err.message || 'Erro ao atribuir chamado.', 'error');
+                          }
+                        }
+                      }}
+                      className="w-[330px] sm:w-[350px] flex-shrink-0 rounded-3xl p-4 sm:p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs flex flex-col min-h-[520px] max-h-[600px]"
+                    >
+                      {/* Header do Colaborador com Botão de Recolher */}
+                      <div className="flex items-center justify-between gap-2 pb-3.5 border-b border-black/[0.05] dark:border-white/[0.06] mb-3 flex-shrink-0">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-full bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-xs flex items-center justify-center flex-shrink-0">
+                            {tec.nome.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0 truncate">
+                            <h3 className="text-xs font-bold text-[#1d1d1f] dark:text-white truncate">
+                              {tec.nome}
+                            </h3>
+                            <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono truncate">
+                              {tec.cargo || 'Técnico'} • {tec.email || 'Suporte'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-bold border ${
+                            chamadosTecnico.length > 0
+                              ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30 font-bold'
+                              : 'bg-black/[0.04] dark:bg-white/[0.06] text-slate-500 dark:text-zinc-400 border-black/[0.06]'
+                          }`}>
+                            {chamadosTecnico.length}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setColaboradoresRecolhidos((prev) => [...prev, tecKey])}
+                            className="w-6 h-6 rounded-lg text-slate-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-center"
+                            title={`Recolher coluna de ${tec.nome}`}
+                          >
+                            <span className="text-sm font-bold font-mono leading-none">−</span>
+                          </button>
                         </div>
                       </div>
 
-                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-bold border flex-shrink-0 ${
-                        chamadosTecnico.length > 0
-                          ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30 font-bold'
-                          : 'bg-black/[0.04] dark:bg-white/[0.06] text-slate-500 dark:text-zinc-400 border-black/[0.06]'
-                      }`}>
-                        {chamadosTecnico.length} {chamadosTecnico.length === 1 ? 'demanda' : 'demandas'}
-                      </span>
-                    </div>
+                      {/* Cards do Técnico com Scroll Interno Limitado */}
+                      <div className="space-y-3 flex-1 overflow-y-auto pr-1 scrollbar-thin max-h-[490px]">
+                        {chamadosTecnico.length === 0 ? (
+                          <div className="py-20 text-center text-xs text-slate-400 dark:text-zinc-500 border border-dashed border-black/[0.06] dark:border-white/[0.08] rounded-2xl p-4">
+                            <span>Nenhuma demanda ativa com este operador.</span>
+                            <span className="block text-[10px] text-slate-400 mt-1">Arraste chamados aqui para atribuir</span>
+                          </div>
+                        ) : (
+                          chamadosTecnico.map((ch) => {
+                            const isRMControle = Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle')));
+                            const empresaObj = empresasLista.find(
+                              (e) => (ch.empresa_id && e.id === ch.empresa_id) || 
+                                     (ch.empresa_nome && e.nome && e.nome.trim().toLowerCase() === ch.empresa_nome.trim().toLowerCase())
+                            ) || (ch.empresa_nome ? { id: ch.empresa_id || ch.empresa_nome, nome: ch.empresa_nome } : null);
 
-                    {/* Cards do Técnico */}
-                    <div className="space-y-3.5 flex-1">
-                      {chamadosTecnico.length === 0 ? (
-                        <div className="py-16 text-center text-xs text-slate-400 dark:text-zinc-500 border border-dashed border-black/[0.06] dark:border-white/[0.08] rounded-2xl p-4">
-                          <span>Nenhuma demanda ativa com este operador.</span>
-                          <span className="block text-[10px] text-slate-400 mt-1">Arraste chamados aqui para atribuir</span>
-                        </div>
-                      ) : (
-                        chamadosTecnico.map((ch) => {
-                          const isRMControle = Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle')));
-                          const empresaObj = empresasLista.find(
-                            (e) => (ch.empresa_id && e.id === ch.empresa_id) || 
-                                   (ch.empresa_nome && e.nome && e.nome.trim().toLowerCase() === ch.empresa_nome.trim().toLowerCase())
-                          ) || (ch.empresa_nome ? { id: ch.empresa_id || ch.empresa_nome, nome: ch.empresa_nome } : null);
+                            return (
+                              <motion.div
+                                key={ch.id}
+                                layout
+                                draggable
+                                onDragStart={(e) => {
+                                  e.dataTransfer.setData('text/plain', ch.id);
+                                  e.dataTransfer.effectAllowed = 'move';
+                                }}
+                                initial={{ opacity: 0, y: 6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="p-4 rounded-2xl border border-emerald-500/30 bg-gradient-to-b from-emerald-500/[0.06] to-transparent dark:from-emerald-500/[0.08] dark:bg-[#1a1a20] transition-all shadow-xs space-y-3 cursor-grab active:cursor-grabbing hover:border-emerald-500/50"
+                              >
+                                {/* Status Ao Vivo & Cronômetros */}
+                                <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-[10px] font-mono font-bold">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                                      <span>Ativo: {calcularTempoAtivo(ch)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-[10px] font-mono">
+                                      <span>Espera: {calcularTempoEspera(ch)}</span>
+                                    </div>
+                                  </div>
 
-                          return (
-                            <motion.div
-                              key={ch.id}
-                              layout
-                              draggable
-                              onDragStart={(e) => {
-                                e.dataTransfer.setData('text/plain', ch.id);
-                                e.dataTransfer.effectAllowed = 'move';
-                              }}
-                              initial={{ opacity: 0, y: 6 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              className="p-4 rounded-2xl border border-emerald-500/30 bg-gradient-to-b from-emerald-500/[0.06] to-transparent dark:from-emerald-500/[0.08] dark:bg-[#1a1a20] transition-all shadow-xs space-y-3 cursor-grab active:cursor-grabbing hover:border-emerald-500/50"
-                            >
-                              {/* Status Ao Vivo & Cronômetros */}
-                              <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-[10px] font-mono font-bold">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
-                                    <span>Ativo: {calcularTempoAtivo(ch)}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-[10px] font-mono">
-                                    <span>Espera: {calcularTempoEspera(ch)}</span>
-                                  </div>
+                                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 text-[9px] font-bold">
+                                    Em Atendimento
+                                  </span>
                                 </div>
 
-                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 text-[9px] font-bold">
-                                  Em Atendimento
-                                </span>
-                              </div>
+                                {/* Empresa & Solicitante */}
+                                <div>
+                                  <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white leading-snug">
+                                    {ch.empresa_nome}
+                                  </h4>
+                                  <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                                    Solicitante: <strong className="text-slate-700 dark:text-zinc-300">{ch.solicitante_nome || 'Colaborador da Empresa'}</strong>
+                                  </p>
+                                </div>
 
-                              {/* Empresa & Solicitante */}
-                              <div>
-                                <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white leading-snug">
-                                  {ch.empresa_nome}
-                                </h4>
-                                <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                                  Solicitante: <strong className="text-slate-700 dark:text-zinc-300">{ch.solicitante_nome || 'Colaborador da Empresa'}</strong>
-                                </p>
-                              </div>
+                                {/* Departamentos & Etiquetas */}
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  {(Array.isArray(ch.categorias) && ch.categorias.length > 0 ? ch.categorias : ['Suporte']).map((cat, idx) => (
+                                    <span
+                                      key={idx}
+                                      className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-mono text-[9px] font-bold border border-blue-500/20"
+                                    >
+                                      {cat}
+                                    </span>
+                                  ))}
+                                  {(Array.isArray(ch.etiquetas) ? ch.etiquetas : []).map((etq, idx) => (
+                                    <span
+                                      key={'kanban_etq_' + idx}
+                                      className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-mono text-[9px] font-bold border border-amber-500/25"
+                                    >
+                                      #{etq}
+                                    </span>
+                                  ))}
+                                </div>
 
-                              {/* Departamentos & Etiquetas */}
-                              <div className="flex items-center gap-1 flex-wrap">
-                                {(Array.isArray(ch.categorias) && ch.categorias.length > 0 ? ch.categorias : ['Suporte']).map((cat, idx) => (
-                                  <span
-                                    key={idx}
-                                    className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-mono text-[9px] font-bold border border-blue-500/20"
-                                  >
-                                    {cat}
-                                  </span>
-                                ))}
-                                {(Array.isArray(ch.etiquetas) ? ch.etiquetas : []).map((etq, idx) => (
-                                  <span
-                                    key={'kanban_etq_' + idx}
-                                    className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-mono text-[9px] font-bold border border-amber-500/25"
-                                  >
-                                    #{etq}
-                                  </span>
-                                ))}
-                              </div>
-
-                              {/* Observação Inicial */}
-                              {ch.observacao_inicial && (
-                                <p className="text-[11px] text-slate-600 dark:text-zinc-400 bg-black/[0.02] dark:bg-white/[0.03] p-2 rounded-xl border border-black/[0.04] dark:border-white/[0.05] line-clamp-2 leading-relaxed">
-                                  {ch.observacao_inicial}
-                                </p>
-                              )}
-
-                              {/* Ações: Concluir, Acessar Empresa e Cancelar */}
-                              <div className="pt-2 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between gap-1.5 flex-wrap">
-                                <button
-                                  type="button"
-                                  onClick={() => setChamadoParaFinalizar(ch)}
-                                  className="px-3 py-1.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-[11px] hover:opacity-90 transition-all cursor-pointer flex-1 flex items-center justify-center gap-1 shadow-xs"
-                                >
-                                  <CheckIcon className="w-3 h-3 stroke-[2.5]" />
-                                  <span>Concluir</span>
-                                </button>
-
-                                {isRMControle ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => setKanbanAberto(true)}
-                                    className="px-2.5 py-1.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 text-[10px] font-bold hover:bg-blue-500/20 cursor-pointer shadow-xs"
-                                    title="Abrir Pipeline Kanban"
-                                  >
-                                    🚀 Kanban
-                                  </button>
-                                ) : onSelectEmpresa && (
-                                  <button
-                                    type="button"
-                                    onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
-                                    className="px-2.5 py-1.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-[10px] font-semibold text-slate-700 dark:text-zinc-200 hover:bg-black/5 cursor-pointer shadow-xs"
-                                  >
-                                    🏢 Empresa
-                                  </button>
+                                {/* Observação Inicial */}
+                                {ch.observacao_inicial && (
+                                  <p className="text-[11px] text-slate-600 dark:text-zinc-400 bg-black/[0.02] dark:bg-white/[0.03] p-2 rounded-xl border border-black/[0.04] dark:border-white/[0.05] line-clamp-2 leading-relaxed">
+                                    {ch.observacao_inicial}
+                                  </p>
                                 )}
 
-                                <button
-                                  type="button"
-                                  onClick={() => handleCancelarChamado(ch)}
-                                  className="p-1.5 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 cursor-pointer"
-                                  title="Cancelar chamado"
-                                >
-                                  <XMarkIcon className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </motion.div>
-                          );
-                        })
-                      )}
+                                {/* Ações: Concluir, Acessar Empresa e Cancelar */}
+                                <div className="pt-2 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between gap-1.5 flex-wrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => setChamadoParaFinalizar(ch)}
+                                    className="px-3 py-1.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-[11px] hover:opacity-90 transition-all cursor-pointer flex-1 flex items-center justify-center gap-1 shadow-xs"
+                                  >
+                                    <CheckIcon className="w-3 h-3 stroke-[2.5]" />
+                                    <span>Concluir</span>
+                                  </button>
+
+                                  {isRMControle ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setKanbanAberto(true)}
+                                      className="px-2.5 py-1.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 text-[10px] font-bold hover:bg-blue-500/20 cursor-pointer shadow-xs"
+                                      title="Abrir Pipeline Kanban"
+                                    >
+                                      🚀 Kanban
+                                    </button>
+                                  ) : onSelectEmpresa && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
+                                      className="px-2.5 py-1.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-[10px] font-semibold text-slate-700 dark:text-zinc-200 hover:bg-black/5 cursor-pointer shadow-xs"
+                                    >
+                                      🏢 Empresa
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCancelarChamado(ch)}
+                                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 cursor-pointer"
+                                    title="Cancelar chamado"
+                                  >
+                                    <XMarkIcon className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </motion.div>
+                            );
+                          })
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           ) : (
                         /* VISUALIZAÇÃO EM TABELA APPLE PREMIUM COM GAVETA EXPANSÍVEL DE AÇÕES */
@@ -1736,39 +2092,45 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
       {/* ============================================================================== */}
       {/* ============================================================================== */}
-      {/* MODAL DE CRIAÇÃO DE CHAMADO COM LAYOUT WIDESCREEN 16:9 E 2 COLUNAS */}
+      {/* MODAL DE CRIAÇÃO DE DEMANDA COM LAYOUT AMPLO E DROPDOWNS INTELIGENTES EXCLUSIVOS */}
       {/* ============================================================================== */}
       {isClient && createPortal(
         <AnimatePresence>
           {modalNovoChamadoOpen && (
             <div 
               className="fixed inset-0 w-screen h-screen z-[99999] bg-black/60 dark:bg-black/80 backdrop-blur-xl flex items-center justify-center p-3 sm:p-6 overflow-hidden"
-              onClick={() => setModalNovoChamadoOpen(false)}
+              onClick={() => {
+                setActiveModalDropdown(null);
+                setModalNovoChamadoOpen(false);
+              }}
             >
               <motion.div
                 initial={{ opacity: 0, scale: 0.96, y: 12 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96, y: 12 }}
                 transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                className="w-full max-w-4xl max-h-[92vh] rounded-[32px] bg-white dark:bg-[#16161a] border border-black/[0.08] dark:border-white/[0.1] p-5 sm:p-7 shadow-2xl flex flex-col text-[#1d1d1f] dark:text-[#f5f5f7] relative"
+                className="w-full max-w-4xl min-h-[580px] max-h-[92vh] rounded-[36px] bg-white dark:bg-[#16161a] border border-black/[0.08] dark:border-white/[0.1] p-6 sm:p-8 shadow-2xl flex flex-col text-[#1d1d1f] dark:text-[#f5f5f7] relative"
                 onClick={(e) => e.stopPropagation()}
               >
               {/* Cabeçalho Fixo do Modal */}
-              <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-white/[0.08] flex-shrink-0">
+              <div className="flex items-center justify-between pb-3.5 border-b border-black/[0.06] dark:border-white/[0.08] flex-shrink-0">
                 <div>
-                  <h3 className="text-lg font-bold text-[#1d1d1f] dark:text-white">
-                    Abrir Chamado de Suporte
+                  <h3 className="text-xl font-bold text-[#1d1d1f] dark:text-white">
+                    Abrir Demanda
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-zinc-400">
-                    Selecione a empresa, o solicitante e atribua o departamento e técnico responsável.
+                  <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                    Selecione a empresa, o solicitante, o departamento e o responsável pela demanda.
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setModalNovoChamadoOpen(false)}
+                  onClick={() => {
+                    setActiveModalDropdown(null);
+                    setModalNovoChamadoOpen(false);
+                  }}
                   className="p-2 text-slate-400 hover:text-black dark:hover:text-white rounded-full hover:bg-black/[0.04] dark:hover:bg-white/[0.06] cursor-pointer"
                 >
-                  <XMarkIcon className="w-4 h-4" />
+                  <XMarkIcon className="w-5 h-5" />
                 </button>
               </div>
 
@@ -1777,17 +2139,16 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                 onSubmit={handleCriarChamado}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && e.target.tagName?.toLowerCase() === 'input') {
-                    // Impede submissão acidental do formulário ao dar Enter em campos de texto
                     e.preventDefault();
                   }
                 }}
-                className="flex flex-col flex-1 min-h-0 pt-3"
+                className="flex flex-col flex-1 min-h-0 pt-4"
               >
                 <div className="overflow-y-auto pr-1 sm:pr-2 flex-1 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     
-                    {/* COLUNA ESQUERDA: Origem e Atendente */}
-                    <div className="space-y-3.5">
+                    {/* COLUNA ESQUERDA: Origem e Responsável */}
+                    <div className="space-y-4">
                       
                       {/* 1. Empresa do Cliente */}
                       <div className="space-y-1.5 relative">
@@ -1799,23 +2160,19 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           <button
                             type="button"
                             onClick={() => {
-                              const proximo = !dropdownEmpresaAberto;
-                              setDropdownEmpresaAberto(proximo);
-                              if (proximo) {
-                                setDropdownSolicitanteAberto(false);
-                                setHighlightedEmpresaIdx(0);
-                              }
+                              setActiveModalDropdown((prev) => (prev === 'empresa' ? null : 'empresa'));
+                              setHighlightedEmpresaIdx(0);
                             }}
                             className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-left flex items-center justify-between hover:border-black/20 dark:hover:border-white/20 transition-all cursor-pointer"
                           >
                             <span className={empresaSelecionada ? 'text-[#1d1d1f] dark:text-white font-semibold' : 'text-slate-400'}>
-                              {empresaSelecionada ? empresaSelecionada.nome : 'Selecione a empresa...'}
+                              {empresaSelecionada ? empresaSelecionada.nome : 'Selecione ou busque a empresa...'}
                             </span>
                             <span className="text-slate-400 text-xs">▼</span>
                           </button>
 
-                          {dropdownEmpresaAberto && (
-                            <div className="absolute top-full left-0 right-0 mt-1 z-30 rounded-2xl bg-white dark:bg-[#1c1c20] border border-black/[0.1] dark:border-white/[0.15] shadow-xl p-2 max-h-56 overflow-y-auto space-y-1">
+                          {activeModalDropdown === 'empresa' && (
+                            <div className="absolute top-full left-0 right-0 mt-1.5 z-40 rounded-2xl bg-white dark:bg-[#1c1c20] border border-black/[0.1] dark:border-white/[0.15] shadow-2xl p-2 max-h-64 overflow-y-auto space-y-1 scrollbar-thin">
                               <input
                                 type="text"
                                 autoFocus
@@ -1840,21 +2197,52 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                       const sel = empresasFiltradasBusca[highlightedEmpresaIdx];
                                       if (sel) {
                                         setEmpresaSelecionada(sel);
-                                        setDropdownEmpresaAberto(false);
+                                        setActiveModalDropdown(null);
                                         setBuscaEmpresa('');
                                         setSolicitanteSelecionado(null);
                                       }
+                                    } else if (buscaEmpresa.trim()) {
+                                      setEmpresaSelecionada({
+                                        id: 'temp_nova_' + Date.now(),
+                                        nome: buscaEmpresa.trim(),
+                                        isNova: true,
+                                      });
+                                      setActiveModalDropdown(null);
+                                      setBuscaEmpresa('');
+                                      setSolicitanteSelecionado(null);
                                     }
                                   } else if (e.key === 'Escape') {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    setDropdownEmpresaAberto(false);
+                                    setActiveModalDropdown(null);
                                   }
                                 }}
-                                placeholder="Buscar empresa (use setas ↑↓ e Enter)..."
+                                placeholder="Digite o nome da empresa..."
                                 className="w-full px-3 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.06] text-xs focus:outline-none mb-1 text-[#1d1d1f] dark:text-white"
                               />
-                              {empresasFiltradasBusca.length === 0 ? (
+
+                              {/* Opção para cadastrar nome digitado caso não exista no catálogo */}
+                              {buscaEmpresa.trim() && !empresasFiltradasBusca.some((e) => removerAcentos(e.nome) === removerAcentos(buscaEmpresa)) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEmpresaSelecionada({
+                                      id: 'temp_nova_' + Date.now(),
+                                      nome: buscaEmpresa.trim(),
+                                      isNova: true,
+                                    });
+                                    setActiveModalDropdown(null);
+                                    setBuscaEmpresa('');
+                                    setSolicitanteSelecionado(null);
+                                  }}
+                                  className="w-full p-2 rounded-xl text-left flex items-center justify-between text-xs bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-bold hover:bg-[#4d7c0f]/20 transition-all cursor-pointer mb-1 border border-[#4d7c0f]/25"
+                                >
+                                  <span>+ Usar &ldquo;{buscaEmpresa.trim()}&rdquo; (Cadastrar ao abrir demanda)</span>
+                                  <span className="text-[10px] opacity-75 font-mono">↵ Enter</span>
+                                </button>
+                              )}
+
+                              {empresasFiltradasBusca.length === 0 && !buscaEmpresa.trim() ? (
                                 <p className="text-[11px] text-slate-400 p-2 text-center">Nenhuma empresa encontrada.</p>
                               ) : (
                                 empresasFiltradasBusca.map((emp, empIdx) => {
@@ -1867,7 +2255,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                       onMouseEnter={() => setHighlightedEmpresaIdx(empIdx)}
                                       onClick={() => {
                                         setEmpresaSelecionada(emp);
-                                        setDropdownEmpresaAberto(false);
+                                        setActiveModalDropdown(null);
                                         setBuscaEmpresa('');
                                         setSolicitanteSelecionado(null);
                                       }}
@@ -1895,7 +2283,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                       </div>
 
                       {/* 2. Colaborador Solicitante */}
-                      <div className="space-y-1.5">
+                      <div className="space-y-1.5 relative">
                         <div className="flex items-center justify-between pl-1">
                           <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
                             Colaborador Solicitante na Empresa
@@ -1916,12 +2304,8 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                             <button
                               type="button"
                               onClick={() => {
-                                const proximo = !dropdownSolicitanteAberto;
-                                setDropdownSolicitanteAberto(proximo);
-                                if (proximo) {
-                                  setDropdownEmpresaAberto(false);
-                                  setHighlightedSolicitanteIdx(0);
-                                }
+                                setActiveModalDropdown((prev) => (prev === 'solicitante' ? null : 'solicitante'));
+                                setHighlightedSolicitanteIdx(0);
                               }}
                               className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-left flex items-center justify-between hover:border-black/20 dark:hover:border-white/20 transition-all cursor-pointer"
                             >
@@ -1931,8 +2315,8 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                               <span className="text-slate-400 text-xs">▼</span>
                             </button>
 
-                            {dropdownSolicitanteAberto && (
-                              <div className="absolute top-full left-0 right-0 mt-1 z-30 rounded-2xl bg-white dark:bg-[#1c1c20] border border-black/[0.1] dark:border-white/[0.15] shadow-xl p-2 max-h-56 overflow-y-auto space-y-1">
+                            {activeModalDropdown === 'solicitante' && (
+                              <div className="absolute top-full left-0 right-0 mt-1.5 z-40 rounded-2xl bg-white dark:bg-[#1c1c20] border border-black/[0.1] dark:border-white/[0.15] shadow-2xl p-2 max-h-64 overflow-y-auto space-y-1 scrollbar-thin">
                                 <input
                                   type="text"
                                   autoFocus
@@ -1957,63 +2341,57 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                     } else if (e.key === 'Enter') {
                                       e.preventDefault();
                                       e.stopPropagation();
+                                      // Se houver opções filtradas, a PRIMEIRA existente é priorizada (não cadastra automático!)
                                       if (colaboradoresFiltradosBusca.length > 0 && highlightedSolicitanteIdx >= 0 && colaboradoresFiltradosBusca[highlightedSolicitanteIdx]) {
                                         const sel = colaboradoresFiltradosBusca[highlightedSolicitanteIdx];
                                         setSolicitanteSelecionado(sel);
                                         setSolicitanteManual('');
-                                        setDropdownSolicitanteAberto(false);
+                                        setActiveModalDropdown(null);
                                         setBuscaSolicitante('');
                                       } else if (buscaSolicitante.trim()) {
                                         setSolicitanteManual(buscaSolicitante.trim());
                                         setSolicitanteSelecionado(null);
-                                        setDropdownSolicitanteAberto(false);
+                                        setActiveModalDropdown(null);
                                       }
                                     } else if (e.key === 'Escape') {
                                       e.preventDefault();
                                       e.stopPropagation();
-                                      setDropdownSolicitanteAberto(false);
+                                      setActiveModalDropdown(null);
                                     }
                                   }}
-                                  placeholder="Digite para buscar ou adicionar solicitante (↑↓ e Enter)..."
+                                  placeholder="Digite para filtrar solicitante (↑↓ e Enter)..."
                                   className="w-full px-3 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.06] text-xs focus:outline-none mb-1 text-[#1d1d1f] dark:text-white"
                                 />
 
-                                {buscaSolicitante.trim() && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setSolicitanteManual(buscaSolicitante.trim());
-                                      setSolicitanteSelecionado(null);
-                                      setDropdownSolicitanteAberto(false);
-                                    }}
-                                    className="w-full p-2 rounded-xl text-left flex items-center justify-between text-xs bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-bold hover:bg-[#4d7c0f]/20 transition-all cursor-pointer mb-1 border border-[#4d7c0f]/25"
-                                  >
-                                    <span>+ Usar &ldquo;{buscaSolicitante.trim()}&rdquo; como solicitante</span>
-                                    <span className="text-[10px] opacity-75 font-mono">Pressione Enter ↵</span>
-                                  </button>
-                                )}
-
+                                {/* 1. Lista de Colaboradores Existentes (Renderizados PRIMEIRO para o Enter pegar a opção existente) */}
                                 {colaboradoresEmpresaAtual.length === 0 ? (
                                   <div className="p-2 text-center space-y-1">
                                     <p className="text-[11px] text-slate-400">Nenhum colaborador registrado nesta empresa.</p>
                                   </div>
                                 ) : colaboradoresFiltradosBusca.length === 0 ? (
                                   <div className="p-2 text-center space-y-1">
-                                    <p className="text-[11px] text-slate-400">Nenhum colaborador pré-cadastrado com este nome.</p>
+                                    <p className="text-[11px] text-slate-400">Nenhum colaborador pré-cadastrado com este termo.</p>
                                   </div>
                                 ) : (
-                                  colaboradoresFiltradosBusca.map((colab) => (
+                                  colaboradoresFiltradosBusca.map((colab, colIdx) => {
+                                    const isHighlighted = colIdx === highlightedSolicitanteIdx;
+                                    const isSelected = solicitanteSelecionado?.id === colab.id;
+
+                                    return (
                                       <button
                                         key={colab.id || colab.nome}
                                         type="button"
+                                        onMouseEnter={() => setHighlightedSolicitanteIdx(colIdx)}
                                         onClick={() => {
                                           setSolicitanteSelecionado(colab);
                                           setSolicitanteManual('');
-                                          setDropdownSolicitanteAberto(false);
+                                          setActiveModalDropdown(null);
                                           setBuscaSolicitante('');
                                         }}
                                         className={`w-full p-2 rounded-xl text-left flex items-center justify-between text-xs transition-colors cursor-pointer ${
-                                          solicitanteSelecionado?.id === colab.id
+                                          isHighlighted
+                                            ? 'bg-[#4d7c0f]/20 dark:bg-[#84cc16]/25 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
+                                            : isSelected
                                             ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold'
                                             : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
                                         }`}
@@ -2026,13 +2404,29 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                           <span className="text-[10px] font-mono text-slate-400">{colab.telefone}</span>
                                         )}
                                       </button>
-                                    ))
+                                    );
+                                  })
+                                )}
+
+                                {/* 2. Opção de Solicitante Avulso ao Final da Lista */}
+                                {buscaSolicitante.trim() && !colaboradoresFiltradosBusca.some((c) => removerAcentos(c.nome) === removerAcentos(buscaSolicitante)) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSolicitanteManual(buscaSolicitante.trim());
+                                      setSolicitanteSelecionado(null);
+                                      setActiveModalDropdown(null);
+                                    }}
+                                    className="w-full p-2 rounded-xl text-left flex items-center justify-between text-xs bg-black/[0.03] dark:bg-white/[0.05] text-slate-700 dark:text-zinc-300 hover:bg-black/[0.06] transition-all cursor-pointer mt-1 border border-dashed border-black/10 dark:border-white/10"
+                                  >
+                                    <span>+ Usar &ldquo;{buscaSolicitante.trim()}&rdquo; como solicitante avulso</span>
+                                  </button>
                                 )}
                               </div>
                             )}
                           </div>
                         ) : (
-                          <div className="p-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.08] space-y-2">
+                          <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.08] space-y-2.5">
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-[11px] font-bold text-[#4d7c0f] dark:text-[#84cc16]">Novo Solicitante na Empresa</span>
                               <button
@@ -2077,120 +2471,163 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                         )}
                       </div>
 
-                      {/* 3. Atribuir Atendimento a */}
-                      <div className="space-y-1.5">
+                      {/* 3. Atribuir Atendimento a (Com digitação inteligente e Fila Geral por padrão) */}
+                      <div className="space-y-1.5 relative">
                         <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
                           Atribuir Atendimento a
                         </label>
 
                         {(() => {
                           const membroSelecionado = equipeLista.find((e) => (e.email || '').toLowerCase() === (tecnicoAtribuido || '').toLowerCase());
-                          const isParaMim = !tecnicoAtribuido || (userEmail && tecnicoAtribuido.toLowerCase() === userEmail.toLowerCase());
+                          const isFilaGeral = !tecnicoAtribuido;
+                          const isParaMim = userEmail && tecnicoAtribuido && tecnicoAtribuido.toLowerCase() === userEmail.toLowerCase();
+
+                          // Opções consolidadas para busca
+                          const opcoesTecnico = [
+                            {
+                              id: 'opt_fila_geral',
+                              email: '',
+                              nome: 'Fila Geral (Sem Atendente Fixo)',
+                              cargo: 'Disponível para qualquer operador',
+                              isGeral: true,
+                            },
+                            {
+                              id: 'opt_para_mim',
+                              email: userEmail || 'admin@rmcontrole.com',
+                              nome: `Para mim (${getNomeTecnico(userEmail)})`,
+                              cargo: userEmail || 'Operador',
+                              isMim: true,
+                            },
+                            ...equipeLista
+                              .filter((eq) => (eq.email || '').toLowerCase() !== (userEmail || '').toLowerCase())
+                              .map((eq) => ({
+                                id: eq.id || eq.email,
+                                email: eq.email,
+                                nome: eq.nome,
+                                cargo: eq.cargo || eq.papel || 'Técnico',
+                              }))
+                          ];
+
+                          const opcoesFiltradas = opcoesTecnico.filter((opt) => {
+                            if (!buscaTecnicoModal.trim()) return true;
+                            const q = removerAcentos(buscaTecnicoModal.toLowerCase().trim());
+                            return (
+                              removerAcentos(opt.nome).includes(q) ||
+                              removerAcentos(opt.email).includes(q) ||
+                              removerAcentos(opt.cargo).includes(q)
+                            );
+                          });
 
                           return (
-                            <div className="relative">
+                            <div ref={tecnicoDropdownRef} className="relative">
                               <button
                                 type="button"
-                                onClick={() => setDropdownTecnicoAberto(!dropdownTecnicoAberto)}
+                                onClick={() => {
+                                  setActiveModalDropdown((prev) => (prev === 'tecnico' ? null : 'tecnico'));
+                                  setBuscaTecnicoModal('');
+                                  setHighlightedTecnicoIdx(0);
+                                }}
                                 className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-left flex items-center justify-between hover:border-black/20 dark:hover:border-white/20 transition-all cursor-pointer"
                               >
                                 <div className="flex items-center gap-2">
                                   <div className="w-5 h-5 rounded-full bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-[10px] flex items-center justify-center">
-                                    {isParaMim ? (userEmail ? userEmail[0].toUpperCase() : 'M') : (tecnicoAtribuido ? tecnicoAtribuido[0].toUpperCase() : '👥')}
+                                    {isFilaGeral ? '👥' : isParaMim ? '★' : tecnicoAtribuido ? tecnicoAtribuido[0].toUpperCase() : '👥'}
                                   </div>
                                   <span className="text-[#1d1d1f] dark:text-white font-semibold">
-                                    {isParaMim 
-                                      ? `Para mim (${getNomeTecnico(userEmail)}) [Padrão]`
+                                    {isFilaGeral
+                                      ? 'Fila Geral (Disponível para qualquer operador) [Padrão]'
+                                      : isParaMim
+                                      ? `Para mim (${getNomeTecnico(userEmail)})`
                                       : membroSelecionado?.nome || getNomeTecnico(tecnicoAtribuido)}
                                   </span>
                                 </div>
                                 <span className="text-slate-400 text-xs">▼</span>
                               </button>
 
-                              {dropdownTecnicoAberto && (
-                                <div className="absolute top-full left-0 right-0 mt-1 z-30 rounded-2xl bg-white dark:bg-[#1c1c20] border border-black/[0.1] dark:border-white/[0.15] shadow-xl p-2 max-h-52 overflow-y-auto space-y-1">
-                                  {/* Opção Para Mim */}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setTecnicoAtribuido(userEmail || 'admin@rmcontrole.com');
-                                      setDropdownTecnicoAberto(false);
+                              {activeModalDropdown === 'tecnico' && (
+                                <div className="absolute top-full left-0 right-0 mt-1.5 z-40 rounded-2xl bg-white dark:bg-[#1c1c20] border border-black/[0.1] dark:border-white/[0.15] shadow-2xl p-2 max-h-64 overflow-y-auto space-y-1 scrollbar-thin">
+                                  <input
+                                    type="text"
+                                    autoFocus
+                                    value={buscaTecnicoModal}
+                                    onChange={(e) => {
+                                      setBuscaTecnicoModal(e.target.value);
+                                      setHighlightedTecnicoIdx(0);
                                     }}
-                                    className={`w-full p-2 rounded-xl text-left flex items-center justify-between text-xs transition-all cursor-pointer ${
-                                      isParaMim
-                                        ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold'
-                                        : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-6 h-6 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-[10px] flex items-center justify-center">
-                                        ★
-                                      </div>
-                                      <div>
-                                        <span className="block font-semibold">Para mim ({getNomeTecnico(userEmail)})</span>
-                                        <span className="text-[10px] opacity-70 block font-mono">{userEmail}</span>
-                                      </div>
-                                    </div>
-                                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#4d7c0f]/20 dark:bg-[#84cc16]/20">
-                                      Padrão
-                                    </span>
-                                  </button>
-
-                                  {/* Demais Membros */}
-                                  {equipeLista
-                                    .filter((eq) => (eq.email || '').toLowerCase() !== (userEmail || '').toLowerCase())
-                                    .map((eq) => (
-                                      <button
-                                        key={eq.id || eq.email}
-                                        type="button"
-                                        onClick={() => {
-                                          setTecnicoAtribuido(eq.email);
-                                          setDropdownTecnicoAberto(false);
-                                        }}
-                                        className={`w-full p-2 rounded-xl text-left flex items-center justify-between text-xs transition-all cursor-pointer ${
-                                          tecnicoAtribuido && tecnicoAtribuido.toLowerCase() === (eq.email || '').toLowerCase()
-                                            ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold'
-                                            : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
-                                        }`}
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          <div className="w-6 h-6 rounded-full bg-black/5 dark:bg-white/10 font-mono text-[10px] flex items-center justify-center">
-                                            {eq.nome ? eq.nome[0].toUpperCase() : 'U'}
-                                          </div>
-                                          <div>
-                                            <span className="block font-medium">{eq.nome}</span>
-                                            <span className="text-[10px] opacity-70 block font-mono">{eq.email}</span>
-                                          </div>
-                                        </div>
-                                        <span className="text-[10px] capitalize px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06]">
-                                          {eq.papel || 'suporte'}
-                                        </span>
-                                      </button>
-                                    ))}
-
-                                  {/* Opção Fila Geral */}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setTecnicoAtribuido('');
-                                      setDropdownTecnicoAberto(false);
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'ArrowDown') {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setHighlightedTecnicoIdx((prev) => Math.min(prev + 1, Math.max(0, opcoesFiltradas.length - 1)));
+                                      } else if (e.key === 'ArrowUp') {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setHighlightedTecnicoIdx((prev) => Math.max(prev - 1, 0));
+                                      } else if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        if (opcoesFiltradas.length > 0 && highlightedTecnicoIdx >= 0 && opcoesFiltradas[highlightedTecnicoIdx]) {
+                                          const sel = opcoesFiltradas[highlightedTecnicoIdx];
+                                          setTecnicoAtribuido(sel.email);
+                                          setActiveModalDropdown(null);
+                                          setBuscaTecnicoModal('');
+                                        }
+                                      } else if (e.key === 'Escape') {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setActiveModalDropdown(null);
+                                      }
                                     }}
-                                    className={`w-full p-2 rounded-xl text-left flex items-center justify-between text-xs transition-all cursor-pointer ${
-                                      !tecnicoAtribuido 
-                                        ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold' 
-                                        : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-6 h-6 rounded-full bg-slate-300 dark:bg-zinc-700 text-slate-800 dark:text-zinc-200 font-bold text-[10px] flex items-center justify-center">
-                                        👥
-                                      </div>
-                                      <div>
-                                        <span className="block font-medium">Fila Geral (Sem Atendente Fixo)</span>
-                                        <span className="text-[10px] opacity-70 block">Disponível para qualquer operador</span>
-                                      </div>
+                                    placeholder="Digite para filtrar (ex: Lucas, Fila Geral)..."
+                                    className="w-full px-3 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.06] text-xs focus:outline-none mb-1 text-[#1d1d1f] dark:text-white"
+                                  />
+
+                                  {opcoesFiltradas.length === 0 ? (
+                                    <div className="p-2.5 text-center text-xs text-slate-400">
+                                      Nenhum colaborador encontrado com este nome.
+                                      <span className="block text-[10px] mt-0.5 opacity-75">Colaboradores devem estar cadastrados na equipe.</span>
                                     </div>
-                                  </button>
+                                  ) : (
+                                    opcoesFiltradas.map((opt, optIdx) => {
+                                      const isHighlighted = optIdx === highlightedTecnicoIdx;
+                                      const isSelected = (!tecnicoAtribuido && opt.isGeral) || (tecnicoAtribuido && tecnicoAtribuido.toLowerCase() === opt.email.toLowerCase());
+
+                                      return (
+                                        <button
+                                          key={opt.id || opt.email}
+                                          type="button"
+                                          onMouseEnter={() => setHighlightedTecnicoIdx(optIdx)}
+                                          onClick={() => {
+                                            setTecnicoAtribuido(opt.email);
+                                            setActiveModalDropdown(null);
+                                            setBuscaTecnicoModal('');
+                                          }}
+                                          className={`w-full p-2 rounded-xl text-left flex items-center justify-between text-xs transition-all cursor-pointer ${
+                                            isHighlighted
+                                              ? 'bg-[#4d7c0f]/20 dark:bg-[#84cc16]/25 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
+                                              : isSelected
+                                              ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold'
+                                              : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
+                                          }`}
+                                        >
+                                          <div className="flex items-center gap-2.5 min-w-0">
+                                            <div className="w-6 h-6 rounded-full bg-black/5 dark:bg-white/10 font-bold text-[10px] flex items-center justify-center flex-shrink-0">
+                                              {opt.isGeral ? '👥' : opt.isMim ? '★' : opt.nome.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div className="min-w-0 truncate">
+                                              <span className="block font-medium truncate">{opt.nome}</span>
+                                              <span className="text-[10px] opacity-70 block font-mono truncate">{opt.cargo}</span>
+                                            </div>
+                                          </div>
+                                          {opt.isGeral && (
+                                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 flex-shrink-0">
+                                              Padrão
+                                            </span>
+                                          )}
+                                        </button>
+                                      );
+                                    })
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -2198,34 +2635,17 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                         })()}
                       </div>
 
-                      {/* 4. Breve Descrição / Contexto do Problema */}
-                      <div className="space-y-1.5">
-                        <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                          Observação ou Solicitação do Cliente (Opcional)
-                        </label>
-                        <textarea
-                          rows={2}
-                          value={novaObservacao}
-                          onChange={(e) => setNovaObservacao(e.target.value)}
-                          placeholder="Ex: Cliente relata lentidão no envio de mensagens ou instabilidade na instância..."
-                          className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none leading-relaxed"
-                        />
-                      </div>
-
                     </div>
 
-                    {/* COLUNA DIREITA: Departamentos e Modo de Início */}
+                    {/* COLUNA DIREITA: Departamento, Etiquetas e Descrição */}
                     <div className="space-y-4">
                       
-                      {/* 5. Departamentos da Demanda */}
+                      {/* Departamentos */}
                       <div className="space-y-1.5">
-                        <div className="flex items-center justify-between pl-1">
-                          <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
-                            Departamentos da Demanda <span className="text-red-500">*</span>
-                          </label>
-                          <span className="text-[10px] text-slate-400">Multi-seleção ativa</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
+                        <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
+                          Departamento / Categoria <span className="text-red-500">*</span>
+                        </label>
+                        <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-1 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.08]">
                           {categoriasDisponiveis.map((cat) => {
                             const isSel = novasCategoriasModal.includes(cat);
                             return (
@@ -2241,48 +2661,43 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                     setNovasCategoriasModal([...novasCategoriasModal, cat]);
                                   }
                                 }}
-                                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border ${
+                                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                                   isSel
-                                    ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 border-[#4d7c0f] dark:border-[#84cc16] shadow-xs'
-                                    : 'bg-black/[0.02] dark:bg-white/[0.04] text-slate-600 dark:text-zinc-400 border-black/[0.08] dark:border-white/[0.1] hover:border-black/20'
+                                    ? 'bg-[#09090b] text-white dark:bg-white dark:text-black shadow-xs font-bold'
+                                    : 'bg-white dark:bg-zinc-800 border border-black/[0.06] dark:border-white/[0.08] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.03]'
                                 }`}
                               >
-                                {isSel && '✓ '}
-                                {cat}
+                                {isSel && <CheckIcon className="w-3 h-3 stroke-[2.5]" />}
+                                <span>{cat}</span>
                               </button>
                             );
                           })}
                         </div>
-                        <p className="text-[10px] text-slate-400 pl-1">
-                          Apenas os colaboradores vinculados a estes departamentos receberão os alertas correspondentes.
-                        </p>
                       </div>
 
-                      {/* Etiquetas da Demanda com criação inline ao digitar */}
-                      <div className="space-y-2">
+                      {/* Etiquetas Opcionais */}
+                      <div className="space-y-1.5">
                         <div className="flex items-center justify-between pl-1">
-                          <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
-                            <span>Etiquetas da Demanda</span>
-                            <span className="text-[10px] text-slate-400 font-normal">(Ex: crítico, urgente, vip)</span>
+                          <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                            Etiquetas / Tags da Demanda
                           </label>
-                          <span className="text-[10px] text-slate-400 font-mono">
+                          <span className="text-[10px] text-slate-400">
                             {novasEtiquetasModal.length} selecionada(s)
                           </span>
                         </div>
 
-                        {/* Chips de etiquetas selecionadas */}
                         {novasEtiquetasModal.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 pb-1">
+                          <div className="flex flex-wrap gap-1.5 mb-1.5">
                             {novasEtiquetasModal.map((etq) => (
                               <span
                                 key={etq}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-mono font-bold bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] border border-[#4d7c0f]/30"
+                                className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/25 font-mono text-[10px] font-bold flex items-center gap-1"
                               >
                                 <span>#{etq}</span>
                                 <button
                                   type="button"
                                   onClick={() => setNovasEtiquetasModal(novasEtiquetasModal.filter(e => e !== etq))}
-                                  className="hover:text-red-500 cursor-pointer ml-0.5 text-xs"
+                                  className="text-amber-700 hover:text-red-500 cursor-pointer"
                                 >
                                   ×
                                 </button>
@@ -2291,8 +2706,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           </div>
                         )}
 
-                        {/* Input com criação ao vivo ao digitar */}
-                        <div className="relative">
+                        <div className="flex gap-2">
                           <input
                             type="text"
                             value={inputEtiqueta}
@@ -2300,123 +2714,45 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 e.preventDefault();
-                                const limpo = inputEtiqueta.trim().toLowerCase().replace(/^#/, '');
+                                const limpo = inputEtiqueta.trim().replace(/^#/, '');
                                 if (limpo && !novasEtiquetasModal.includes(limpo)) {
                                   setNovasEtiquetasModal([...novasEtiquetasModal, limpo]);
                                   setInputEtiqueta('');
                                 }
                               }
                             }}
-                            placeholder="Digite para criar uma etiqueta (ex: crítico, vip, urgente)..."
-                            className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-mono"
+                            placeholder="Digite uma tag (ex: qr_code, financeiro, urgente)..."
+                            className="flex-1 px-3 py-2 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-1 focus:ring-black/20 dark:focus:ring-white/20 text-[#1d1d1f] dark:text-white"
                           />
-                          {inputEtiqueta.trim() && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const limpo = inputEtiqueta.trim().toLowerCase().replace(/^#/, '');
-                                if (limpo && !novasEtiquetasModal.includes(limpo)) {
-                                  setNovasEtiquetasModal([...novasEtiquetasModal, limpo]);
-                                  setInputEtiqueta('');
-                                }
-                              }}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-[11px] font-bold shadow-xs hover:opacity-95 cursor-pointer"
-                            >
-                              + Adicionar &ldquo;#{inputEtiqueta.trim()}&rdquo;
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Sugestões rápidas de etiquetas */}
-                        <div className="flex items-center gap-1.5 flex-wrap pt-0.5 text-[11px]">
-                          <span className="text-[10px] text-slate-400 font-mono">Sugestões:</span>
-                          {['crítico', 'urgente', 'bloqueante', 'vip', 'dúvida', 'comercial'].map((sug) => {
-                            const jaTem = novasEtiquetasModal.includes(sug);
-                            return (
-                              <button
-                                key={sug}
-                                type="button"
-                                onClick={() => {
-                                  if (!jaTem) setNovasEtiquetasModal([...novasEtiquetasModal, sug]);
-                                }}
-                                className={`px-2 py-0.5 rounded-lg border text-[10px] font-mono transition-all cursor-pointer ${
-                                  jaTem 
-                                    ? 'opacity-40 cursor-default border-slate-300' 
-                                    : 'border-black/[0.08] dark:border-white/[0.1] bg-black/[0.02] dark:bg-white/[0.04] text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white'
-                                }`}
-                              >
-                                +{sug}
-                              </button>
-                            );
-                          })}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const limpo = inputEtiqueta.trim().replace(/^#/, '');
+                              if (limpo && !novasEtiquetasModal.includes(limpo)) {
+                                setNovasEtiquetasModal([...novasEtiquetasModal, limpo]);
+                                setInputEtiqueta('');
+                              }
+                            }}
+                            className="px-3.5 py-2 rounded-xl bg-black/[0.05] dark:bg-white/[0.08] text-xs font-semibold hover:bg-black/10 transition-all cursor-pointer"
+                          >
+                            + Tag
+                          </button>
                         </div>
                       </div>
 
-                      {/* 6. Início do Chamado: Cronômetro Ativo vs Fila de Espera */}
-                      {(() => {
-                        const isParaMim = !tecnicoAtribuido || 
-                          (userEmail && tecnicoAtribuido.toLowerCase() === userEmail.toLowerCase()) || 
-                          (tecnicoAtribuido === 'admin@rmcontrole.com' && (!userEmail || userEmail === 'admin@rmcontrole.com'));
-
-                        if (!isParaMim) {
-                          return (
-                            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-900 dark:text-amber-200 text-xs flex items-center gap-2.5">
-                              <span className="text-base flex-shrink-0">⏳</span>
-                              <div className="space-y-0.5 leading-relaxed">
-                                <span className="font-bold block">Encaminhamento para Fila de Espera</span>
-                                <p className="text-[11px] opacity-90">
-                                  Como o chamado está atribuído a outro operador ({getNomeTecnico(tecnicoAtribuido)}), ele entrará automaticamente na fila em espera até que o colaborador visualize e inicie o atendimento.
-                                </p>
-                              </div>
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <div className="space-y-2 pt-1">
-                            <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                              Modo de Início do Chamado
-                            </label>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                              <button
-                                type="button"
-                                onClick={() => setIniciarDireto(false)}
-                                className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                                  !iniciarDireto
-                                    ? 'bg-amber-500/10 border-amber-500/35 text-amber-900 dark:text-amber-200 shadow-xs'
-                                    : 'bg-black/[0.02] dark:bg-white/[0.04] border-black/[0.08] dark:border-white/[0.1] text-slate-600 dark:text-zinc-400 hover:border-black/[0.15]'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-sm">⏳</span>
-                                  <span className="text-xs font-bold">Colocar na Fila de Espera</span>
-                                </div>
-                                <p className="text-[10px] text-slate-500 dark:text-zinc-400 leading-snug">
-                                  Salvar na fila de triagem para atender depois ou como lembrete.
-                                </p>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => setIniciarDireto(true)}
-                                className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                                  iniciarDireto
-                                    ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/15 border-[#4d7c0f]/35 dark:border-[#84cc16]/35 text-[#4d7c0f] dark:text-[#84cc16] shadow-xs'
-                                    : 'bg-black/[0.02] dark:bg-white/[0.04] border-black/[0.08] dark:border-white/[0.1] text-slate-600 dark:text-zinc-400 hover:border-black/[0.15]'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-sm">⏱</span>
-                                  <span className="text-xs font-bold">Iniciar Atendimento Agora</span>
-                                </div>
-                                <p className="text-[10px] text-slate-500 dark:text-zinc-400 leading-snug">
-                                  O cronômetro ativo começa a contar imediatamente.
-                                </p>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })()}
+                      {/* Observações / Descrição Inicial */}
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
+                          Descrição / Contexto Inicial da Demanda
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={novaObservacao}
+                          onChange={(e) => setNovaObservacao(e.target.value)}
+                          placeholder="Informe detalhes importantes sobre o suporte, telefone de contato, etc."
+                          className="w-full p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-1 focus:ring-black/20 dark:focus:ring-white/20 text-[#1d1d1f] dark:text-white leading-relaxed resize-none"
+                        />
+                      </div>
 
                     </div>
 
@@ -2424,22 +2760,22 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                 </div>
 
                 {/* Rodapé Fixo do Modal com Botões Sempre Visíveis */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 mt-3 border-t border-black/[0.06] dark:border-white/[0.08] flex-shrink-0">
-                  {/* Opção de silenciar som local para quem cria */}
-                  <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-zinc-400 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={silenciarMeuDispositivo}
-                      onChange={(e) => setSilenciarMeuDispositivo(e.target.checked)}
-                      className="rounded accent-[#4d7c0f] dark:accent-[#84cc16]"
-                    />
-                    <span className="text-[11px]">Silenciar alerta sonoro neste meu dispositivo ao cadastrar</span>
-                  </label>
+                <div className="pt-4 mt-2 border-t border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between gap-3 flex-shrink-0">
+                  <div className="text-[11px] text-slate-400">
+                    {tecnicoAtribuido ? (
+                      <span>Responsável: <strong>{getNomeTecnico(tecnicoAtribuido)}</strong></span>
+                    ) : (
+                      <span className="text-amber-600 dark:text-amber-400 font-semibold">Fila Geral (Entrará na triagem em espera)</span>
+                    )}
+                  </div>
 
-                  <div className="flex items-center justify-end gap-2.5">
+                  <div className="flex items-center gap-2.5">
                     <button
                       type="button"
-                      onClick={() => setModalNovoChamadoOpen(false)}
+                      onClick={() => {
+                        setActiveModalDropdown(null);
+                        setModalNovoChamadoOpen(false);
+                      }}
                       className="px-4 py-2 rounded-full text-xs font-medium text-slate-600 dark:text-zinc-400 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-all cursor-pointer"
                     >
                       Cancelar
@@ -2450,12 +2786,9 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                       type="submit"
                       className="px-6 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold shadow-md hover:opacity-95 transition-all cursor-pointer"
                     >
-                      {(() => {
-                        const isParaMim = !tecnicoAtribuido || 
-                          (userEmail && tecnicoAtribuido.toLowerCase() === userEmail.toLowerCase()) || 
-                          (tecnicoAtribuido === 'admin@rmcontrole.com' && (!userEmail || userEmail === 'admin@rmcontrole.com'));
-                        return (isParaMim && iniciarDireto) ? 'Iniciar Atendimento Agora' : 'Adicionar à Fila de Espera';
-                      })()}
+                      {tecnicoAtribuido && tecnicoAtribuido === userEmail && iniciarDireto
+                        ? 'Iniciar Atendimento Agora'
+                        : 'Abrir Demanda na Fila'}
                     </motion.button>
                   </div>
                 </div>
