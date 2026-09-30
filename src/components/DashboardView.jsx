@@ -79,6 +79,18 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
   const [sortHistCol, setSortHistCol] = useState('data');
   const [sortHistDir, setSortHistDir] = useState('desc');
 
+  // Paginação do Histórico de Atendimentos
+  const [paginaAtual, setPaginaAtual] = useState(1);
+  const [itensPorPagina, setItensPorPagina] = useState(10);
+
+  const totalPaginas = Math.max(1, Math.ceil((chamadosRecentes?.length || 0) / itensPorPagina));
+
+  const chamadosPaginados = useMemo(() => {
+    if (!Array.isArray(chamadosRecentes)) return [];
+    const inicio = (paginaAtual - 1) * itensPorPagina;
+    return chamadosRecentes.slice(inicio, inicio + itensPorPagina);
+  }, [chamadosRecentes, paginaAtual, itensPorPagina]);
+
   useEffect(() => {
     const globalMode = getDefaultViewMode();
     const effective = globalMode === 'grid' || globalMode === 'cards' ? 'cards' : 'list';

@@ -81,6 +81,8 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   // Solicitante
   const [buscaSolicitante, setBuscaSolicitante] = useState('');
   const [dropdownSolicitanteAberto, setDropdownSolicitanteAberto] = useState(false);
+  const [highlightedEmpresaIdx, setHighlightedEmpresaIdx] = useState(0);
+  const [highlightedSolicitanteIdx, setHighlightedSolicitanteIdx] = useState(0);
   const [solicitanteSelecionado, setSolicitanteSelecionado] = useState(null);
   const [solicitanteManual, setSolicitanteManual] = useState('');
   const [modoCadastroColab, setModoCadastroColab] = useState(false);
@@ -703,7 +705,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
           </div>
         </div>
       ) : filaViewMode === 'cards' ? (
-        <div className="space-y-3.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {chamadosFiltrados.map((ch) => {
             const isEmAndamento = ch.status === 'em_andamento';
             const isAguardando = ch.status === 'aguardando_visualizacao' || ch.status === 'pendente';
@@ -720,199 +722,199 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className={`rounded-3xl p-5 border transition-all shadow-xs ${
+                className={`rounded-3xl p-5 border transition-all shadow-xs flex flex-col justify-between min-h-[310px] h-full ${
                   isEmAndamento
-                    ? 'border-emerald-500/40 bg-gradient-to-r from-emerald-500/[0.04] via-transparent to-transparent dark:from-emerald-500/[0.08] dark:bg-[#16161a]'
+                    ? 'border-emerald-500/40 bg-gradient-to-b from-emerald-500/[0.06] via-transparent to-transparent dark:from-emerald-500/[0.08] dark:bg-[#16161a]'
                     : isAguardando
-                    ? 'border-amber-500/40 bg-gradient-to-r from-amber-500/[0.04] via-transparent to-transparent dark:from-amber-500/[0.06] dark:bg-[#16161a]'
+                    ? 'border-amber-500/40 bg-gradient-to-b from-amber-500/[0.06] via-transparent to-transparent dark:from-amber-500/[0.06] dark:bg-[#16161a]'
                     : 'border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a]'
                 }`}
               >
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  
-                  {/* Informações da Empresa & Chamado */}
-                  <div className="space-y-2 flex-1 min-w-0">
-                    
-                    {/* Linha Superior: Status e os Dois Cronômetros */}
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                      
-                      {/* Badge de Status */}
-                      {isEmAndamento && (
-                        <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-                          <span>Em Atendimento Ao Vivo</span>
-                        </span>
-                      )}
+                {/* Informações Principais do Card (Topo e Corpo) */}
+                <div className="space-y-3 flex-1 flex flex-col justify-start">
+                  {/* Linha 1: Status e Cronômetros em destaque */}
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    {/* Badge de Status */}
+                    {isEmAndamento && (
+                      <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                        <span>Em Atendimento Ao Vivo</span>
+                      </span>
+                    )}
 
-                      {isAguardando && (
-                        <span className="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-[10px] font-bold flex items-center gap-1.5">
-                          <ClockIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                          <span>Aguardando Visualização</span>
-                        </span>
-                      )}
+                    {isAguardando && (
+                      <span className="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-[10px] font-bold flex items-center gap-1.5">
+                        <ClockIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                        <span>Aguardando Visualização</span>
+                      </span>
+                    )}
 
-                      {isFinalizado && (
-                        <span className="px-2.5 py-1 rounded-full bg-slate-500/15 border border-slate-500/30 text-slate-700 dark:text-zinc-300 text-[10px] font-bold flex items-center gap-1.5">
-                          <CheckIcon className="w-3 h-3 text-emerald-600" />
-                          <span>Concluído</span>
-                        </span>
-                      )}
+                    {isFinalizado && (
+                      <span className="px-2.5 py-1 rounded-full bg-slate-500/15 border border-slate-500/30 text-slate-700 dark:text-zinc-300 text-[10px] font-bold flex items-center gap-1.5">
+                        <CheckIcon className="w-3 h-3 text-emerald-600" />
+                        <span>Concluído</span>
+                      </span>
+                    )}
 
-                      {/* Cronômetro 1: Tempo em Espera */}
+                    {/* Cronômetros de Espera e Ativo */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-[11px] font-mono font-bold">
                         <HourglassIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                        <span>Espera:</span>
+                        <span className="text-[10px]">Espera:</span>
                         <span className="tabular-nums">{calcularTempoEspera(ch)}</span>
                       </div>
 
-                      {/* Cronômetro 2: Tempo Ativo */}
                       {isEmAndamento && (
                         <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-[11px] font-mono font-bold">
                           <HourglassIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                          <span>Ativo:</span>
+                          <span className="text-[10px]">Ativo:</span>
                           <span className="tabular-nums">{calcularTempoAtivo(ch)}</span>
                         </div>
                       )}
-
                     </div>
+                  </div>
 
-                    {/* Nome da Empresa e Categorias */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-base font-bold text-[#1d1d1f] dark:text-white">
+                  {/* Nome da Empresa & Servidor */}
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <h3 className="text-base font-bold text-[#1d1d1f] dark:text-white leading-snug">
                         {ch.empresa_nome}
                       </h3>
                       {empresaObj?.servidor_alocado && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-400 font-mono">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-400 font-mono font-semibold">
                           {empresaObj.servidor_alocado === 'servidor_2' ? 'Servidor 2' : 'Servidor 1'}
                         </span>
                       )}
+                    </div>
+
+                    {/* Departamentos & Etiquetas */}
+                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
                       {(Array.isArray(ch.categorias) && ch.categorias.length > 0 ? ch.categorias : ['Suporte']).map((cat, idx) => (
                         <span
                           key={idx}
                           className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-mono text-[9px] font-bold border border-blue-500/20"
+                          title="Departamento da Demanda"
                         >
                           {cat}
                         </span>
                       ))}
+
                       {(Array.isArray(ch.etiquetas) ? ch.etiquetas : []).map((etq, idx) => (
                         <span
-                          key={'etq_' + idx}
-                          className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 font-mono text-[9px] font-bold border border-amber-500/25"
+                          key={'card_etq_' + idx}
+                          className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-mono text-[9px] font-bold border border-amber-500/25"
+                          title="Etiqueta da Demanda"
                         >
                           #{etq}
                         </span>
                       ))}
                     </div>
-
-                    {/* Solicitante & Observação Inicial */}
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-zinc-300 font-medium">
-                        <span>
-                          Solicitante: <strong className="text-slate-800 dark:text-zinc-100">{ch.solicitante_nome || ch.solicitante || 'Não informado'}</strong>
-                        </span>
-                      </div>
-
-                      {ch.observacao_inicial && (
-                        <p className="text-xs text-slate-600 dark:text-zinc-400 bg-black/[0.02] dark:bg-white/[0.03] p-2.5 rounded-xl border border-black/[0.04] dark:border-white/[0.05] leading-relaxed">
-                          {ch.observacao_inicial}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Atendente Técnico Responsável */}
-                    <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono pt-1">
-                      <UserIcon className="w-3.5 h-3.5" />
-                      <span>
-                        Técnico:{' '}
-                        <strong className="text-slate-700 dark:text-zinc-300">
-                          {getNomeTecnico(ch.tecnico_email, ch.tecnico_nome)}
-                        </strong>
-                      </span>
-                    </div>
-
                   </div>
 
-                  {/* Botões de Ação Rápida */}
-                  <div className="flex items-center gap-2 flex-wrap self-end lg:self-center flex-shrink-0">
-                    
-                    {/* Ações para Chamado em Espera */}
-                    {isAguardando && (
-                      <>
-                        <button
-                          onClick={() => handleAceitarSuporte(ch)}
-                          className="px-4 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-90 flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <PlayIcon className="w-3 h-3 fill-current" />
-                          <span>Aceitar e Iniciar Suporte</span>
-                        </button>
+                  {/* Solicitante & Observação Inicial */}
+                  <div className="space-y-1.5 pt-1 text-xs">
+                    <div className="text-slate-600 dark:text-zinc-300 font-medium">
+                      Solicitante: <strong className="text-slate-900 dark:text-zinc-100">{ch.solicitante_nome || ch.solicitante || 'Não informado'}</strong>
+                    </div>
 
-                        {Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle'))) ? (
-                          <button
-                            type="button"
-                            onClick={() => setKanbanAberto(true)}
-                            className="px-3.5 py-2 rounded-full bg-blue-500/10 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 text-xs font-semibold hover:bg-blue-500/20 transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
-                          >
-                            <span>🚀 Pipeline Kanban</span>
-                          </button>
-                        ) : onSelectEmpresa && (
-                          <button
-                            onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
-                            className="px-3.5 py-2 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:bg-black/[0.03] transition-all cursor-pointer"
-                          >
-                            Ver Empresa
-                          </button>
-                        )}
-
-                        <button
-                          onClick={() => handleCancelarChamado(ch)}
-                          className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer"
-                          title="Cancelar chamado"
-                        >
-                          <XMarkIcon className="w-4 h-4" />
-                        </button>
-                      </>
+                    {ch.observacao_inicial && (
+                      <p className="text-xs text-slate-600 dark:text-zinc-400 bg-black/[0.02] dark:bg-white/[0.03] p-2.5 rounded-2xl border border-black/[0.04] dark:border-white/[0.05] leading-relaxed line-clamp-3">
+                        {ch.observacao_inicial}
+                      </p>
                     )}
 
-                    {/* Ações para Chamado Em Andamento */}
-                    {isEmAndamento && (
-                      <>
+                    {/* Técnico Atribuído */}
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono pt-0.5">
+                      <UserIcon className="w-3.5 h-3.5 text-slate-400" />
+                      <span>
+                        Técnico: <strong className="text-slate-700 dark:text-zinc-300">{getNomeTecnico(ch.tecnico_email, ch.tecnico_nome)}</strong>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rodapé do Card com Ações */}
+                <div className="pt-3.5 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between gap-2 mt-4 flex-wrap">
+                  {/* Ações para Chamado em Espera */}
+                  {isAguardando && (
+                    <>
+                      <button
+                        onClick={() => handleAceitarSuporte(ch)}
+                        className="px-4 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-90 flex items-center gap-1.5 cursor-pointer flex-1 justify-center"
+                      >
+                        <PlayIcon className="w-3 h-3 fill-current" />
+                        <span>Aceitar e Iniciar</span>
+                      </button>
+
+                      {Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle'))) ? (
                         <button
-                          onClick={() => setChamadoParaFinalizar(ch)}
-                          className="px-4 py-2.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs shadow-md hover:opacity-90 flex items-center gap-1.5 cursor-pointer"
+                          type="button"
+                          onClick={() => setKanbanAberto(true)}
+                          className="px-3.5 py-2 rounded-full bg-blue-500/10 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 text-xs font-semibold hover:bg-blue-500/20 transition-all cursor-pointer shadow-xs flex items-center gap-1"
                         >
-                          <CheckIcon className="w-3.5 h-3.5 stroke-[2.5]" />
-                          <span>Concluir Atendimento</span>
+                          <span>🚀 Kanban</span>
                         </button>
-
-                        {Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle'))) ? (
-                          <button
-                            type="button"
-                            onClick={() => setKanbanAberto(true)}
-                            className="px-3.5 py-2 rounded-full bg-blue-500/10 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 text-xs font-semibold hover:bg-blue-500/20 transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
-                          >
-                            <span>🚀 Pipeline Kanban</span>
-                          </button>
-                        ) : onSelectEmpresa && (
-                          <button
-                            onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
-                            className="px-3.5 py-2 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:bg-black/[0.03] transition-all cursor-pointer"
-                          >
-                            Acessar Empresa
-                          </button>
-                        )}
-
+                      ) : onSelectEmpresa && (
                         <button
-                          onClick={() => handleCancelarChamado(ch)}
-                          className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer"
-                          title="Cancelar chamado"
+                          onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
+                          className="px-3.5 py-2 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:bg-black/[0.03] transition-all cursor-pointer"
                         >
-                          <XMarkIcon className="w-4 h-4" />
+                          Ver Empresa
                         </button>
-                      </>
-                    )}
+                      )}
 
-                    {/* Ações para Chamado Finalizado */}
-                    {isFinalizado && (
+                      <button
+                        onClick={() => handleCancelarChamado(ch)}
+                        className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer"
+                        title="Cancelar chamado"
+                      >
+                        <XMarkIcon className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
+
+                  {/* Ações para Chamado Em Andamento */}
+                  {isEmAndamento && (
+                    <>
+                      <button
+                        onClick={() => setChamadoParaFinalizar(ch)}
+                        className="px-4 py-2.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs shadow-md hover:opacity-90 flex items-center gap-1.5 cursor-pointer flex-1 justify-center"
+                      >
+                        <CheckIcon className="w-3.5 h-3.5 stroke-[2.5]" />
+                        <span>Concluir</span>
+                      </button>
+
+                      {Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle'))) ? (
+                        <button
+                          type="button"
+                          onClick={() => setKanbanAberto(true)}
+                          className="px-3.5 py-2 rounded-full bg-blue-500/10 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 text-xs font-semibold hover:bg-blue-500/20 transition-all cursor-pointer shadow-xs flex items-center gap-1"
+                        >
+                          <span>🚀 Kanban</span>
+                        </button>
+                      ) : onSelectEmpresa && (
+                        <button
+                          onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
+                          className="px-3.5 py-2 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:bg-black/[0.03] transition-all cursor-pointer"
+                        >
+                          Acessar
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => handleCancelarChamado(ch)}
+                        className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer"
+                        title="Cancelar chamado"
+                      >
+                        <XMarkIcon className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
+
+                  {/* Ações para Chamado Finalizado */}
+                  {isFinalizado && (
+                    <div className="w-full flex items-center justify-between text-xs text-slate-400">
+                      <span>Atendimento Concluído</span>
                       <button
                         onClick={() => handleCancelarChamado(ch)}
                         className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer"
@@ -920,10 +922,8 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                       >
                         <XMarkIcon className="w-4 h-4" />
                       </button>
-                    )}
-
-                  </div>
-
+                    </div>
+                  )}
                 </div>
               </motion.div>
             );
@@ -932,8 +932,8 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       ) : (
         <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
-            <div className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-black/[0.05] dark:border-white/[0.06] text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 bg-black/[0.01] dark:bg-white/[0.02] min-w-[850px]">
-              <div className="col-span-2 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
+            <div className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-black/[0.05] dark:border-white/[0.06] text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 bg-black/[0.01] dark:bg-white/[0.02] min-w-[900px]">
+              <div className="col-span-1 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
                 if (sortFilaCol === 'status') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
                 else { setSortFilaCol('status'); setSortFilaDir('asc'); }
               }}>
@@ -948,7 +948,10 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                 {sortFilaCol === 'empresa' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
               </div>
               <div className="col-span-2 select-none flex items-center gap-1 text-slate-400 dark:text-zinc-500">
-                <span>Categorias</span>
+                <span>Departamentos</span>
+              </div>
+              <div className="col-span-2 select-none flex items-center gap-1 text-slate-400 dark:text-zinc-500">
+                <span>Etiquetas</span>
               </div>
               <div className="col-span-2 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
                 if (sortFilaCol === 'solicitante') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -964,13 +967,6 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                 <HourglassIcon className="w-3 h-3 text-amber-500" />
                 <span>Cronômetros</span>
                 {sortFilaCol === 'cronometro' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
-              </div>
-              <div className="col-span-1 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
-                if (sortFilaCol === 'tecnico') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
-                else { setSortFilaCol('tecnico'); setSortFilaDir('asc'); }
-              }}>
-                <span>Técnico</span>
-                {sortFilaCol === 'tecnico' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
               </div>
               <div className="col-span-1 text-right">Ações</div>
             </div>
@@ -1012,15 +1008,15 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                 return (
                   <div key={ch.id} className="grid grid-cols-12 gap-3 px-5 py-3.5 items-center hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors text-xs">
                     {/* Status */}
-                    <div className="col-span-2">
+                    <div className="col-span-1">
                       {isEmAndamento && (
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold inline-flex items-center gap-1.5">
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold inline-flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
                           <span>Ativo</span>
                         </span>
                       )}
                       {isAguardando && (
-                        <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-[10px] font-bold inline-flex items-center gap-1.5">
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-[10px] font-bold inline-flex items-center gap-1">
                           <ClockIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
                           <span>Espera</span>
                         </span>
@@ -1052,7 +1048,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                       )}
                     </div>
 
-                    {/* Categorias e Etiquetas */}
+                    {/* Departamentos */}
                     <div className="col-span-2 flex items-center gap-1 flex-wrap">
                       {(Array.isArray(ch.categorias) && ch.categorias.length > 0 ? ch.categorias : ['Suporte']).map((cat, idx) => (
                         <span
@@ -1062,14 +1058,22 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           {cat}
                         </span>
                       ))}
-                      {(Array.isArray(ch.etiquetas) ? ch.etiquetas : []).map((etq, idx) => (
-                        <span
-                          key={'table_etq_' + idx}
-                          className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 font-mono text-[9px] font-bold border border-amber-500/25"
-                        >
-                          #{etq}
-                        </span>
-                      ))}
+                    </div>
+
+                    {/* Etiquetas */}
+                    <div className="col-span-2 flex items-center gap-1 flex-wrap">
+                      {Array.isArray(ch.etiquetas) && ch.etiquetas.length > 0 ? (
+                        ch.etiquetas.map((etq, idx) => (
+                          <span
+                            key={'table_etq_' + idx}
+                            className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-mono text-[9px] font-bold border border-amber-500/25"
+                          >
+                            #{etq}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-[11px] text-slate-400 font-mono">—</span>
+                      )}
                     </div>
 
                     {/* Solicitante */}
@@ -1186,7 +1190,16 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
               </div>
 
               {/* Formulário com Scroll Interno e Grid de 2 Colunas */}
-              <form onSubmit={handleCriarChamado} className="flex flex-col flex-1 min-h-0 pt-3">
+              <form
+                onSubmit={handleCriarChamado}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.target.tagName?.toLowerCase() === 'input') {
+                    // Impede submissão acidental do formulário ao dar Enter em campos de texto
+                    e.preventDefault();
+                  }
+                }}
+                className="flex flex-col flex-1 min-h-0 pt-3"
+              >
                 <div className="overflow-y-auto pr-1 sm:pr-2 flex-1 space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     
@@ -1202,7 +1215,14 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                         <div className="relative">
                           <button
                             type="button"
-                            onClick={() => setDropdownEmpresaAberto(!dropdownEmpresaAberto)}
+                            onClick={() => {
+                              const proximo = !dropdownEmpresaAberto;
+                              setDropdownEmpresaAberto(proximo);
+                              if (proximo) {
+                                setDropdownSolicitanteAberto(false);
+                                setHighlightedEmpresaIdx(0);
+                              }
+                            }}
                             className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-left flex items-center justify-between hover:border-black/20 dark:hover:border-white/20 transition-all cursor-pointer"
                           >
                             <span className={empresaSelecionada ? 'text-[#1d1d1f] dark:text-white font-semibold' : 'text-slate-400'}>
@@ -1217,37 +1237,74 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                 type="text"
                                 autoFocus
                                 value={buscaEmpresa}
-                                onChange={(e) => setBuscaEmpresa(e.target.value)}
-                                placeholder="Buscar empresa..."
+                                onChange={(e) => {
+                                  setBuscaEmpresa(e.target.value);
+                                  setHighlightedEmpresaIdx(0);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'ArrowDown') {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setHighlightedEmpresaIdx((prev) => Math.min(prev + 1, Math.max(0, empresasFiltradasBusca.length - 1)));
+                                  } else if (e.key === 'ArrowUp') {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setHighlightedEmpresaIdx((prev) => Math.max(prev - 1, 0));
+                                  } else if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (empresasFiltradasBusca.length > 0 && highlightedEmpresaIdx >= 0) {
+                                      const sel = empresasFiltradasBusca[highlightedEmpresaIdx];
+                                      if (sel) {
+                                        setEmpresaSelecionada(sel);
+                                        setDropdownEmpresaAberto(false);
+                                        setBuscaEmpresa('');
+                                        setSolicitanteSelecionado(null);
+                                      }
+                                    }
+                                  } else if (e.key === 'Escape') {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setDropdownEmpresaAberto(false);
+                                  }
+                                }}
+                                placeholder="Buscar empresa (use setas ↑↓ e Enter)..."
                                 className="w-full px-3 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.06] text-xs focus:outline-none mb-1 text-[#1d1d1f] dark:text-white"
                               />
                               {empresasFiltradasBusca.length === 0 ? (
                                 <p className="text-[11px] text-slate-400 p-2 text-center">Nenhuma empresa encontrada.</p>
                               ) : (
-                                empresasFiltradasBusca.map((emp) => (
-                                  <button
-                                    key={emp.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setEmpresaSelecionada(emp);
-                                      setDropdownEmpresaAberto(false);
-                                      setBuscaEmpresa('');
-                                      setSolicitanteSelecionado(null);
-                                    }}
-                                    className={`w-full p-2 rounded-xl text-left flex items-center justify-between text-xs transition-colors cursor-pointer ${
-                                      empresaSelecionada?.id === emp.id
-                                        ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold'
-                                        : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
-                                    }`}
-                                  >
-                                    <span>{emp.nome}</span>
-                                    {emp.servidor_alocado && (
-                                      <span className="text-[10px] opacity-70 font-mono">
-                                        {emp.servidor_alocado === 'servidor_2' ? 'S2' : 'S1'}
-                                      </span>
-                                    )}
-                                  </button>
-                                ))
+                                empresasFiltradasBusca.map((emp, empIdx) => {
+                                  const isSelected = empresaSelecionada?.id === emp.id;
+                                  const isHighlighted = empIdx === highlightedEmpresaIdx;
+                                  return (
+                                    <button
+                                      key={emp.id}
+                                      type="button"
+                                      onMouseEnter={() => setHighlightedEmpresaIdx(empIdx)}
+                                      onClick={() => {
+                                        setEmpresaSelecionada(emp);
+                                        setDropdownEmpresaAberto(false);
+                                        setBuscaEmpresa('');
+                                        setSolicitanteSelecionado(null);
+                                      }}
+                                      className={`w-full p-2 rounded-xl text-left flex items-center justify-between text-xs transition-colors cursor-pointer ${
+                                        isHighlighted
+                                          ? 'bg-[#4d7c0f]/20 dark:bg-[#84cc16]/25 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
+                                          : isSelected
+                                          ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold'
+                                          : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
+                                      }`}
+                                    >
+                                      <span>{emp.nome}</span>
+                                      {emp.servidor_alocado && (
+                                        <span className="text-[10px] opacity-70 font-mono">
+                                          {emp.servidor_alocado === 'servidor_2' ? 'S2' : 'S1'}
+                                        </span>
+                                      )}
+                                    </button>
+                                  );
+                                })
                               )}
                             </div>
                           )}
@@ -1275,7 +1332,14 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           <div className="relative">
                             <button
                               type="button"
-                              onClick={() => setDropdownSolicitanteAberto(!dropdownSolicitanteAberto)}
+                              onClick={() => {
+                                const proximo = !dropdownSolicitanteAberto;
+                                setDropdownSolicitanteAberto(proximo);
+                                if (proximo) {
+                                  setDropdownEmpresaAberto(false);
+                                  setHighlightedSolicitanteIdx(0);
+                                }
+                              }}
                               className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-left flex items-center justify-between hover:border-black/20 dark:hover:border-white/20 transition-all cursor-pointer"
                             >
                               <span className={solicitanteSelecionado || solicitanteManual ? 'text-[#1d1d1f] dark:text-white font-semibold' : 'text-slate-400'}>
@@ -1293,21 +1357,41 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                   onChange={(e) => {
                                     setBuscaSolicitante(e.target.value);
                                     setSolicitanteManual(e.target.value);
+                                    setHighlightedSolicitanteIdx(0);
                                     if (solicitanteSelecionado && solicitanteSelecionado.nome !== e.target.value) {
                                       setSolicitanteSelecionado(null);
                                     }
                                   }}
                                   onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
+                                    if (e.key === 'ArrowDown') {
                                       e.preventDefault();
-                                      if (buscaSolicitante.trim()) {
+                                      e.stopPropagation();
+                                      setHighlightedSolicitanteIdx((prev) => Math.min(prev + 1, Math.max(0, colaboradoresFiltradosBusca.length - 1)));
+                                    } else if (e.key === 'ArrowUp') {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setHighlightedSolicitanteIdx((prev) => Math.max(prev - 1, 0));
+                                    } else if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      if (colaboradoresFiltradosBusca.length > 0 && highlightedSolicitanteIdx >= 0 && colaboradoresFiltradosBusca[highlightedSolicitanteIdx]) {
+                                        const sel = colaboradoresFiltradosBusca[highlightedSolicitanteIdx];
+                                        setSolicitanteSelecionado(sel);
+                                        setSolicitanteManual('');
+                                        setDropdownSolicitanteAberto(false);
+                                        setBuscaSolicitante('');
+                                      } else if (buscaSolicitante.trim()) {
                                         setSolicitanteManual(buscaSolicitante.trim());
                                         setSolicitanteSelecionado(null);
                                         setDropdownSolicitanteAberto(false);
                                       }
+                                    } else if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setDropdownSolicitanteAberto(false);
                                     }
                                   }}
-                                  placeholder="Digite para buscar ou adicionar solicitante..."
+                                  placeholder="Digite para buscar ou adicionar solicitante (↑↓ e Enter)..."
                                   className="w-full px-3 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.06] text-xs focus:outline-none mb-1 text-[#1d1d1f] dark:text-white"
                                 />
 
