@@ -36,14 +36,14 @@ export default function SupportCompletionModal({
     atendente_obrigatorio: false,
   });
 
-  // Motivo do suporte
+  // Motivo do suporte - INICIA TOTALMENTE LIMPO / SEM NENHUM PRÉ-DEFINIDO
   const [motivo, setMotivo] = useState('');
   const [buscaMotivo, setBuscaMotivo] = useState('');
   const [dropdownMotivoAberto, setDropdownMotivoAberto] = useState(false);
   const [highlightedMotivoIdx, setHighlightedMotivoIdx] = useState(0);
   const motivoRef = useRef(null);
 
-  // Colaborador solicitante
+  // Colaborador solicitante - INICIA TOTALMENTE LIMPO / SEM NENHUM PRÉ-DEFINIDO
   const [colaboradorSelecionado, setColaboradorSelecionado] = useState(null);
   const [buscaColab, setBuscaColab] = useState('');
   const [dropdownColabAberto, setDropdownColabAberto] = useState(false);
@@ -123,18 +123,8 @@ export default function SupportCompletionModal({
 
     setColaboradores(listaColabs);
 
-    if (chamado.solicitante_nome) {
-      const achado = listaColabs.find(
-        (c) => removerAcentos(c.nome) === removerAcentos(chamado.solicitante_nome)
-      );
-      if (achado) {
-        setColaboradorSelecionado(achado);
-      } else {
-        setColaboradorSelecionado({ id: 'chamado_' + Date.now(), nome: chamado.solicitante_nome });
-      }
-    } else {
-      setColaboradorSelecionado(null);
-    }
+    // O usuário especificou: NÃO quer que tenha colaborador nem motivo pré-definido!
+    setColaboradorSelecionado(null);
     setBuscaColab('');
     setHighlightedColabIdx(0);
   };
@@ -144,8 +134,8 @@ export default function SupportCompletionModal({
       const mot = getMotivosSuporte();
       setMotivos(mot);
 
-      const motInicial = chamado.motivo || (mot.length > 0 ? mot[0].nome : '');
-      setMotivo(motInicial);
+      // O usuário especificou: NÃO quer que tenha motivo pré-definido!
+      setMotivo('');
       setBuscaMotivo('');
       setHighlightedMotivoIdx(0);
 
@@ -512,7 +502,7 @@ export default function SupportCompletionModal({
                   )}
                 </div>
 
-                {/* Seção 1: Colaborador Solicitante com Autocomplete Inteligente (Opção existente primeiro) */}
+                {/* Seção 1: Colaborador Solicitante - SEM NENHUM PRÉ-DEFINIDO (CAMPO LIMPO) */}
                 <div ref={colabRef} className="space-y-1.5 relative">
                   <div className="flex items-center justify-between pl-1">
                     <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
@@ -559,7 +549,7 @@ export default function SupportCompletionModal({
                           }
                         }
                       }}
-                      placeholder={colaboradorSelecionado ? `Selecionado: ${colaboradorSelecionado.nome}` : "Ex: Digite o nome do solicitante..."}
+                      placeholder="Digite ou selecione o colaborador solicitante..."
                       className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 font-medium text-[#1d1d1f] dark:text-white"
                     />
                     <div className="absolute right-3 inset-y-0 flex items-center gap-1.5">
@@ -687,7 +677,7 @@ export default function SupportCompletionModal({
                   )}
                 </div>
 
-                {/* Seção 2: Motivo Diagnosticado com Autocomplete Inteligente (Opção existente primeiro) */}
+                {/* Seção 2: Motivo Diagnosticado - SEM NENHUM PRÉ-DEFINIDO (CAMPO LIMPO) */}
                 <div ref={motivoRef} className="space-y-1.5 relative">
                   <div className="flex items-center justify-between pl-1">
                     <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
@@ -730,7 +720,7 @@ export default function SupportCompletionModal({
                           }
                         }
                       }}
-                      placeholder={motivo ? `Motivo atual: ${motivo}` : "Ex: Lentidão no RM, Dúvida em NFe, Erro de autenticação..."}
+                      placeholder="Pesquise ou selecione o motivo do suporte..."
                       className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 font-medium text-[#1d1d1f] dark:text-white"
                     />
                     <div className="absolute right-3 inset-y-0 flex items-center gap-1.5">
@@ -879,7 +869,7 @@ export default function SupportCompletionModal({
                           type="text"
                           value={tituloProblema}
                           onChange={(e) => setTituloProblema(e.target.value)}
-                          placeholder={motivo ? `Ex: ${motivo} - ${chamado.empresa_nome}` : "Ex: Falha de conexão ao emitir NFe"}
+                          placeholder="Ex: Falha de conexão ao emitir NFe"
                           className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-[#121215] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20"
                         />
                       </div>

@@ -321,6 +321,59 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   }, [resolvidosHoje]);
 
   // Lista Filtrada com bloqueio de departamentos e filtro de etiquetas
+  // Lista consolidada de colaboradores / técnicos (equipe + quem tem chamado atribuído)
+  const listaTecnicosKanban = useMemo(() => {
+    const mapa = new Map();
+    (equipeLista || []).forEach((m) => {
+      const email = m.email || m.id || m.nome;
+      if (email) {
+        mapa.set(email.toLowerCase(), {
+          id: m.id || email,
+          nome: m.nome || getNomeTecnico(email),
+          email: m.email || email,
+          cargo: m.cargo || 'Técnico',
+        });
+      }
+    });
+
+    (chamados || []).forEach((c) => {
+      const email = c.tecnico_email;
+      const nome = c.tecnico_nome || c.atendente;
+      if (email) {
+        const key = email.toLowerCase();
+        if (!mapa.has(key)) {
+          mapa.set(key, {
+            id: key,
+            nome: nome || getNomeTecnico(email),
+            email: email,
+            cargo: 'Técnico',
+          });
+        }
+      } else if (nome && nome !== 'Não informado') {
+        const key = nome.toLowerCase();
+        if (!mapa.has(key)) {
+          mapa.set(key, {
+            id: key,
+            nome: nome,
+            email: '',
+            cargo: 'Técnico',
+          });
+        }
+      }
+    });
+
+    if (mapa.size === 0 && userEmail) {
+      mapa.set(userEmail.toLowerCase(), {
+        id: userEmail,
+        nome: getNomeTecnico(userEmail),
+        email: userEmail,
+        cargo: 'Operador',
+      });
+    }
+
+    return Array.from(mapa.values());
+  }, [equipeLista, chamados, userEmail]);
+
   const chamadosFiltrados = useMemo(() => {
     const usuarioLogado = Array.isArray(equipeLista) ? equipeLista.find((u) => (u.email || '').toLowerCase().trim() === (userEmail || '').toLowerCase().trim()) : null;
     const depsBloqueados = Array.isArray(usuarioLogado?.departamentos_bloqueados) ? usuarioLogado.departamentos_bloqueados.map(d => d.toLowerCase().trim()) : [];
@@ -358,6 +411,28 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
         }
       }
 
+      if (filtroTecnico && filtroTecnico !== 'todos') {
+        if (filtroTecnico === 'nao_atribuido') {
+          const isAguardando = c.status === 'aguardando_visualizacao' || c.status === 'pendente';
+          if (!isAguardando && (c.tecnico_email || c.tecnico_nome || c.atendente)) {
+            return false;
+          }
+        } else {
+          const fClean = removerAcentos(filtroTecnico.toLowerCase().trim());
+          const tecEmail = (c.tecnico_email || '').toLowerCase().trim();
+          const tecNome = removerAcentos((c.tecnico_nome || getNomeTecnico(c.tecnico_email, c.atendente) || '').toLowerCase().trim());
+          const atendente = removerAcentos((c.atendente || '').toLowerCase().trim());
+
+          const matchEmail = tecEmail.includes(fClean) || fClean.includes(tecEmail);
+          const matchNome = tecNome.includes(fClean) || fClean.includes(tecNome);
+          const matchAtendente = atendente.includes(fClean) || fClean.includes(atendente);
+
+          if (!matchEmail && !matchNome && !matchAtendente) {
+            return false;
+          }
+        }
+      }
+
       if (busca.trim()) {
         const q = busca.toLowerCase().trim();
         const nomeMatch = (c.empresa_nome || '').toLowerCase().includes(q);
@@ -374,7 +449,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       if (b.status === 'aguardando_visualizacao' && a.status !== 'aguardando_visualizacao') return 1;
       return new Date(b.created_at || 0) - new Date(a.created_at || 0);
     });
-  }, [chamados, filtroStatus, filtroCategoria, filtroEtiqueta, busca, equipeLista, userEmail]);
+  }, [chamados, filtroStatus, filtroCategoria, filtroTecnico, filtroEtiqueta, busca, equipeLista, userEmail]);
 
   // Ações de Chamado
   const handleAceitarSuporte = async (chamado) => {
@@ -768,8 +843,8 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                 >
                   <option value="todos">Todos os Técnicos</option>
                   <option value="nao_atribuido">Sem Técnico / Em Espera</option>
-                  {equipeLista.map((tec) => (
-                    <option key={tec.email || tec.id} value={tec.email || tec.nome}>
+                  {listaTecnicosKanban.map((tec) => (
+                    <option key={tec.id || tec.email} value={tec.email || tec.nome}>
                       {tec.nome}
                     </option>
                   ))}
@@ -1003,256 +1078,333 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
             </div>
           ) : filaViewMode === 'kanban' ? (
             /* ==================================================================== */
-            /* VISUALIZAÇÃO EM QUADRO KANBAN DA FILA DE DEMANDAS                    */
+            /* VISUALIZAÇÃO KANBAN POR COLABORADOR / TÉCNICO                        */
             /* ==================================================================== */
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
-              {[
-                {
-                  id: 'aguardando',
-                  titulo: 'Aguardando Atendimento',
-                  corBadge: 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30',
-                  dotCor: 'bg-amber-500',
-                  items: chamadosFiltrados.filter((c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente'),
-                  vazioMsg: 'Nenhum chamado aguardando na fila.',
-                  onDropAction: null,
-                },
-                {
-                  id: 'em_andamento',
-                  titulo: 'Em Atendimento Ao Vivo',
-                  corBadge: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30',
-                  dotCor: 'bg-emerald-500 animate-ping',
-                  items: chamadosFiltrados.filter((c) => c.status === 'em_andamento'),
-                  vazioMsg: 'Nenhum chamado em atendimento.',
-                  onDropAction: (ch) => {
-                    if (ch.status === 'aguardando_visualizacao' || ch.status === 'pendente') {
-                      handleAceitarSuporte(ch);
-                    }
-                  },
-                },
-                {
-                  id: 'concluidos',
-                  titulo: 'Resolvidos Hoje',
-                  corBadge: 'bg-blue-500/15 text-blue-800 dark:text-blue-300 border-blue-500/30',
-                  dotCor: 'bg-blue-500',
-                  items: chamadosFiltrados.filter((c) => c.status === 'concluido' || c.status === 'finalizado'),
-                  vazioMsg: 'Nenhum atendimento finalizado hoje.',
-                  onDropAction: (ch) => {
-                    if (ch.status === 'em_andamento') {
-                      setChamadoParaFinalizar(ch);
-                    }
-                  },
-                },
-              ].map((coluna) => (
-                <div
-                  key={coluna.id}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const chId = e.dataTransfer.getData('text/plain');
-                    const ch = chamados.find((c) => c.id === chId);
-                    if (ch && coluna.onDropAction) {
-                      coluna.onDropAction(ch);
-                    }
-                  }}
-                  className="rounded-3xl p-4 sm:p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs flex flex-col min-h-[480px]"
-                >
-                  {/* Cabeçalho da Coluna Kanban */}
-                  <div className="flex items-center justify-between gap-2 pb-3.5 border-b border-black/[0.05] dark:border-white/[0.06] mb-4">
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2.5 h-2.5 rounded-full ${coluna.dotCor}`}></span>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-[#1d1d1f] dark:text-white font-mono">
-                        {coluna.titulo}
+            <div className="flex gap-5 overflow-x-auto pb-4 items-start scrollbar-thin">
+              
+              {/* ------------------------------------------------------------------ */}
+              {/* COLUNA FIXA 1: AGUARDANDO ATENDIMENTO (EM ESPERA / TRIAGEM GERAL) */}
+              {/* ------------------------------------------------------------------ */}
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={async (e) => {
+                  e.preventDefault();
+                  const chId = e.dataTransfer.getData('text/plain');
+                  const ch = chamados.find((c) => c.id === chId);
+                  if (ch && ch.status === 'em_andamento') {
+                    showToast(`Chamado de ${ch.empresa_nome} na fila de espera.`, 'info');
+                  }
+                }}
+                className="w-[330px] sm:w-[360px] flex-shrink-0 rounded-3xl p-4 sm:p-5 border border-amber-500/30 bg-gradient-to-b from-amber-500/[0.05] via-white to-white dark:via-[#16161a] dark:to-[#16161a] shadow-xs flex flex-col min-h-[520px]"
+              >
+                {/* Header da Coluna de Espera */}
+                <div className="flex items-center justify-between gap-2 pb-3.5 border-b border-amber-500/20 mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-amber-900 dark:text-amber-200 font-mono">
+                        Aguardando Atendimento
                       </h3>
+                      <p className="text-[10px] text-amber-700/80 dark:text-amber-400">
+                        Fila geral em triagem
+                      </p>
                     </div>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${coluna.corBadge}`}>
-                      {coluna.items.length}
-                    </span>
                   </div>
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-500/30">
+                    {chamadosFiltrados.filter((c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente').length}
+                  </span>
+                </div>
 
-                  {/* Lista de Cards da Coluna */}
-                  <div className="space-y-3.5 flex-1">
-                    {coluna.items.length === 0 ? (
-                      <div className="py-12 text-center text-xs text-slate-400 dark:text-zinc-500">
-                        {coluna.vazioMsg}
+                {/* Cards de Chamados em Espera */}
+                <div className="space-y-3.5 flex-1">
+                  {chamadosFiltrados.filter((c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente').length === 0 ? (
+                    <div className="py-16 text-center text-xs text-slate-400 dark:text-zinc-500 space-y-1">
+                      <span className="text-xl block">🎉</span>
+                      <span>Nenhum chamado aguardando suporte na fila.</span>
+                    </div>
+                  ) : (
+                    chamadosFiltrados
+                      .filter((c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente')
+                      .map((ch) => (
+                        <motion.div
+                          key={ch.id}
+                          layout
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', ch.id);
+                            e.dataTransfer.effectAllowed = 'move';
+                          }}
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="p-4 rounded-2xl border border-amber-500/30 bg-white dark:bg-[#1a1a20] transition-all shadow-xs space-y-3 cursor-grab active:cursor-grabbing hover:border-amber-500/50"
+                        >
+                          {/* Tempo de Espera ao Vivo */}
+                          <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-[10px] font-mono font-bold">
+                              <HourglassIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                              <span>Espera: {calcularTempoEspera(ch)}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              Arraste p/ atribuir →
+                            </span>
+                          </div>
+
+                          {/* Empresa & Solicitante */}
+                          <div>
+                            <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white leading-snug">
+                              {ch.empresa_nome}
+                            </h4>
+                            <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                              Solicitante: <strong className="text-slate-700 dark:text-zinc-300">{ch.solicitante_nome || 'Colaborador da Empresa'}</strong>
+                            </p>
+                          </div>
+
+                          {/* Departamentos & Etiquetas */}
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {(Array.isArray(ch.categorias) && ch.categorias.length > 0 ? ch.categorias : ['Suporte']).map((cat, idx) => (
+                              <span
+                                key={idx}
+                                className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-mono text-[9px] font-bold border border-blue-500/20"
+                              >
+                                {cat}
+                              </span>
+                            ))}
+                            {(Array.isArray(ch.etiquetas) ? ch.etiquetas : []).map((etq, idx) => (
+                              <span
+                                key={'kanban_etq_' + idx}
+                                className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-mono text-[9px] font-bold border border-amber-500/25"
+                              >
+                                #{etq}
+                              </span>
+                            ))}
+                          </div>
+
+                          {/* Observação Inicial */}
+                          {ch.observacao_inicial && (
+                            <p className="text-[11px] text-slate-600 dark:text-zinc-400 bg-black/[0.02] dark:bg-white/[0.03] p-2 rounded-xl border border-black/[0.04] dark:border-white/[0.05] line-clamp-2 leading-relaxed">
+                              {ch.observacao_inicial}
+                            </p>
+                          )}
+
+                          {/* Ações: Assumir e Cancelar */}
+                          <div className="pt-2 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleAceitarSuporte(ch)}
+                              className="px-3.5 py-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-[11px] hover:opacity-90 transition-all cursor-pointer flex-1 flex items-center justify-center gap-1 shadow-xs"
+                            >
+                              <PlayIcon className="w-2.5 h-2.5 fill-current" />
+                              <span>Assumir Atendimento</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCancelarChamado(ch)}
+                              className="p-1.5 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 cursor-pointer"
+                              title="Cancelar chamado"
+                            >
+                              <XMarkIcon className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </motion.div>
+                      ))
+                  )}
+                </div>
+              </div>
+
+              {/* ------------------------------------------------------------------ */}
+              {/* COLUNAS DINÂMICAS: UMA COLUNA PARA CADA TÉCNICO / COLABORADOR     */}
+              {/* ------------------------------------------------------------------ */}
+              {listaTecnicosKanban.map((tec) => {
+                const chamadosTecnico = chamadosFiltrados.filter((c) => {
+                  if (c.status !== 'em_andamento') return false;
+                  const tEmail = (c.tecnico_email || '').toLowerCase();
+                  const tNome = removerAcentos((c.tecnico_nome || getNomeTecnico(c.tecnico_email, c.atendente) || '').toLowerCase());
+                  const cAtendente = removerAcentos((c.atendente || '').toLowerCase());
+
+                  const tecEmail = (tec.email || '').toLowerCase();
+                  const tecNome = removerAcentos((tec.nome || '').toLowerCase());
+
+                  return (tecEmail && tEmail === tecEmail) ||
+                         (tecNome && (tNome.includes(tecNome) || cAtendente.includes(tecNome)));
+                });
+
+                return (
+                  <div
+                    key={tec.id || tec.email}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={async (e) => {
+                      e.preventDefault();
+                      const chId = e.dataTransfer.getData('text/plain');
+                      const ch = chamados.find((c) => c.id === chId);
+                      if (ch) {
+                        try {
+                          await assumirSuporte({ chamado_id: ch.id, userEmail: tec.email || userEmail });
+                          await carregarDados();
+                          showToast(`Chamado de ${ch.empresa_nome} atribuído para ${tec.nome}!`, 'success');
+                        } catch (err) {
+                          showToast(err.message || 'Erro ao atribuir chamado.', 'error');
+                        }
+                      }
+                    }}
+                    className="w-[330px] sm:w-[360px] flex-shrink-0 rounded-3xl p-4 sm:p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs flex flex-col min-h-[520px]"
+                  >
+                    {/* Header do Colaborador */}
+                    <div className="flex items-center justify-between gap-2 pb-3.5 border-b border-black/[0.05] dark:border-white/[0.06] mb-4">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-xs flex items-center justify-center flex-shrink-0">
+                          {tec.nome.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 truncate">
+                          <h3 className="text-xs font-bold text-[#1d1d1f] dark:text-white truncate">
+                            {tec.nome}
+                          </h3>
+                          <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono truncate">
+                            {tec.cargo || 'Técnico'} • {tec.email || 'Suporte'}
+                          </p>
+                        </div>
                       </div>
-                    ) : (
-                      coluna.items.map((ch) => {
-                        const isEmAndamento = ch.status === 'em_andamento';
-                        const isAguardando = ch.status === 'aguardando_visualizacao' || ch.status === 'pendente';
-                        const isFinalizado = ch.status === 'concluido' || ch.status === 'finalizado';
-                        const isRMControle = Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle')));
-                        const empresaObj = empresasLista.find(
-                          (e) => (ch.empresa_id && e.id === ch.empresa_id) || 
-                                 (ch.empresa_nome && e.nome && e.nome.trim().toLowerCase() === ch.empresa_nome.trim().toLowerCase())
-                        ) || (ch.empresa_nome ? { id: ch.empresa_id || ch.empresa_nome, nome: ch.empresa_nome } : null);
 
-                        return (
-                          <motion.div
-                            key={ch.id}
-                            layout
-                            draggable
-                            onDragStart={(e) => {
-                              e.dataTransfer.setData('text/plain', ch.id);
-                              e.dataTransfer.effectAllowed = 'move';
-                            }}
-                            initial={{ opacity: 0, y: 6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className={`p-4 rounded-2xl border transition-all shadow-xs space-y-3 cursor-grab active:cursor-grabbing ${
-                              isEmAndamento
-                                ? 'border-emerald-500/40 bg-gradient-to-b from-emerald-500/[0.06] to-transparent dark:from-emerald-500/[0.08] dark:bg-[#1c1c22]'
-                                : isAguardando
-                                ? 'border-amber-500/40 bg-gradient-to-b from-amber-500/[0.06] to-transparent dark:from-amber-500/[0.06] dark:bg-[#1c1c22]'
-                                : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-[#1c1c22]'
-                            }`}
-                          >
-                            {/* Cronômetros & Status */}
-                            <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-[10px] font-mono font-bold">
-                                  <HourglassIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                                  <span>{calcularTempoEspera(ch)}</span>
-                                </div>
-                                {isEmAndamento && (
-                                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-[10px] font-mono font-bold">
-                                    <ClockIcon className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                                    <span>{calcularTempoAtivo(ch)}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-bold border flex-shrink-0 ${
+                        chamadosTecnico.length > 0
+                          ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30 font-bold'
+                          : 'bg-black/[0.04] dark:bg-white/[0.06] text-slate-500 dark:text-zinc-400 border-black/[0.06]'
+                      }`}>
+                        {chamadosTecnico.length} {chamadosTecnico.length === 1 ? 'demanda' : 'demandas'}
+                      </span>
+                    </div>
+
+                    {/* Cards do Técnico */}
+                    <div className="space-y-3.5 flex-1">
+                      {chamadosTecnico.length === 0 ? (
+                        <div className="py-16 text-center text-xs text-slate-400 dark:text-zinc-500 border border-dashed border-black/[0.06] dark:border-white/[0.08] rounded-2xl p-4">
+                          <span>Nenhuma demanda ativa com este operador.</span>
+                          <span className="block text-[10px] text-slate-400 mt-1">Arraste chamados aqui para atribuir</span>
+                        </div>
+                      ) : (
+                        chamadosTecnico.map((ch) => {
+                          const isRMControle = Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle')));
+                          const empresaObj = empresasLista.find(
+                            (e) => (ch.empresa_id && e.id === ch.empresa_id) || 
+                                   (ch.empresa_nome && e.nome && e.nome.trim().toLowerCase() === ch.empresa_nome.trim().toLowerCase())
+                          ) || (ch.empresa_nome ? { id: ch.empresa_id || ch.empresa_nome, nome: ch.empresa_nome } : null);
+
+                          return (
+                            <motion.div
+                              key={ch.id}
+                              layout
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData('text/plain', ch.id);
+                                e.dataTransfer.effectAllowed = 'move';
+                              }}
+                              initial={{ opacity: 0, y: 6 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="p-4 rounded-2xl border border-emerald-500/30 bg-gradient-to-b from-emerald-500/[0.06] to-transparent dark:from-emerald-500/[0.08] dark:bg-[#1a1a20] transition-all shadow-xs space-y-3 cursor-grab active:cursor-grabbing hover:border-emerald-500/50"
+                            >
+                              {/* Status Ao Vivo & Cronômetros */}
+                              <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-[10px] font-mono font-bold">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                                    <span>Ativo: {calcularTempoAtivo(ch)}</span>
                                   </div>
-                                )}
-                              </div>
-                              {isEmAndamento && (
+                                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-[10px] font-mono">
+                                    <span>Espera: {calcularTempoEspera(ch)}</span>
+                                  </div>
+                                </div>
+
                                 <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 text-[9px] font-bold">
-                                  Ao Vivo
+                                  Em Atendimento
                                 </span>
+                              </div>
+
+                              {/* Empresa & Solicitante */}
+                              <div>
+                                <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white leading-snug">
+                                  {ch.empresa_nome}
+                                </h4>
+                                <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                                  Solicitante: <strong className="text-slate-700 dark:text-zinc-300">{ch.solicitante_nome || 'Colaborador da Empresa'}</strong>
+                                </p>
+                              </div>
+
+                              {/* Departamentos & Etiquetas */}
+                              <div className="flex items-center gap-1 flex-wrap">
+                                {(Array.isArray(ch.categorias) && ch.categorias.length > 0 ? ch.categorias : ['Suporte']).map((cat, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-mono text-[9px] font-bold border border-blue-500/20"
+                                  >
+                                    {cat}
+                                  </span>
+                                ))}
+                                {(Array.isArray(ch.etiquetas) ? ch.etiquetas : []).map((etq, idx) => (
+                                  <span
+                                    key={'kanban_etq_' + idx}
+                                    className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-mono text-[9px] font-bold border border-amber-500/25"
+                                  >
+                                    #{etq}
+                                  </span>
+                                ))}
+                              </div>
+
+                              {/* Observação Inicial */}
+                              {ch.observacao_inicial && (
+                                <p className="text-[11px] text-slate-600 dark:text-zinc-400 bg-black/[0.02] dark:bg-white/[0.03] p-2 rounded-xl border border-black/[0.04] dark:border-white/[0.05] line-clamp-2 leading-relaxed">
+                                  {ch.observacao_inicial}
+                                </p>
                               )}
-                            </div>
 
-                            {/* Empresa & Solicitante */}
-                            <div>
-                              <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white leading-snug">
-                                {ch.empresa_nome}
-                              </h4>
-                              <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                                {ch.solicitante_nome || 'Colaborador da Empresa'}
-                              </p>
-                            </div>
-
-                            {/* Departamentos */}
-                            <div className="flex items-center gap-1 flex-wrap">
-                              {(Array.isArray(ch.categorias) && ch.categorias.length > 0 ? ch.categorias : ['Suporte']).map((cat, idx) => (
-                                <span
-                                  key={idx}
-                                  className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-mono text-[9px] font-bold border border-blue-500/20"
+                              {/* Ações: Concluir, Acessar Empresa e Cancelar */}
+                              <div className="pt-2 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between gap-1.5 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => setChamadoParaFinalizar(ch)}
+                                  className="px-3 py-1.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-[11px] hover:opacity-90 transition-all cursor-pointer flex-1 flex items-center justify-center gap-1 shadow-xs"
                                 >
-                                  {cat}
-                                </span>
-                              ))}
-                              {(Array.isArray(ch.etiquetas) ? ch.etiquetas : []).map((etq, idx) => (
-                                <span
-                                  key={'kanban_etq_' + idx}
-                                  className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-mono text-[9px] font-bold border border-amber-500/25"
-                                >
-                                  #{etq}
-                                </span>
-                              ))}
-                            </div>
+                                  <CheckIcon className="w-3 h-3 stroke-[2.5]" />
+                                  <span>Concluir</span>
+                                </button>
 
-                            {/* Observação Inicial */}
-                            {ch.observacao_inicial && (
-                              <p className="text-[11px] text-slate-600 dark:text-zinc-400 bg-black/[0.02] dark:bg-white/[0.03] p-2 rounded-xl border border-black/[0.04] dark:border-white/[0.05] line-clamp-2 leading-relaxed">
-                                {ch.observacao_inicial}
-                              </p>
-                            )}
-
-                            {/* Técnico Responsável */}
-                            <div className="flex items-center gap-1 text-[10px] text-slate-400 font-mono">
-                              <UserIcon className="w-3 h-3 text-slate-400" />
-                              <span>{getNomeTecnico(ch.tecnico_email, ch.tecnico_nome)}</span>
-                            </div>
-
-                            {/* Ações Rápidas do Card Kanban */}
-                            <div className="pt-2 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between gap-1.5 flex-wrap">
-                              {isAguardando && (
-                                <>
+                                {isRMControle ? (
                                   <button
                                     type="button"
-                                    onClick={() => handleAceitarSuporte(ch)}
-                                    className="px-3 py-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-[11px] hover:opacity-90 transition-all cursor-pointer flex-1 flex items-center justify-center gap-1 shadow-xs"
+                                    onClick={() => setKanbanAberto(true)}
+                                    className="px-2.5 py-1.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 text-[10px] font-bold hover:bg-blue-500/20 cursor-pointer shadow-xs"
+                                    title="Abrir Pipeline Kanban"
                                   >
-                                    <PlayIcon className="w-2.5 h-2.5 fill-current" />
-                                    <span>Assumir</span>
+                                    🚀 Kanban
                                   </button>
+                                ) : onSelectEmpresa && (
                                   <button
                                     type="button"
-                                    onClick={() => handleCancelarChamado(ch)}
-                                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 cursor-pointer"
-                                    title="Cancelar chamado"
+                                    onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
+                                    className="px-2.5 py-1.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-[10px] font-semibold text-slate-700 dark:text-zinc-200 hover:bg-black/5 cursor-pointer shadow-xs"
                                   >
-                                    <XMarkIcon className="w-3.5 h-3.5" />
+                                    🏢 Empresa
                                   </button>
-                                </>
-                              )}
+                                )}
 
-                              {isEmAndamento && (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() => setChamadoParaFinalizar(ch)}
-                                    className="px-3 py-1.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-[11px] hover:opacity-90 transition-all cursor-pointer flex-1 flex items-center justify-center gap-1 shadow-xs"
-                                  >
-                                    <CheckIcon className="w-3 h-3 stroke-[2.5]" />
-                                    <span>Concluir</span>
-                                  </button>
-
-                                  {isRMControle ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => setKanbanAberto(true)}
-                                      className="px-2.5 py-1.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 text-[10px] font-bold hover:bg-blue-500/20 cursor-pointer shadow-xs"
-                                      title="Abrir Pipeline Kanban"
-                                    >
-                                      🚀 Kanban
-                                    </button>
-                                  ) : onSelectEmpresa && (
-                                    <button
-                                      type="button"
-                                      onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
-                                      className="px-2.5 py-1.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-[10px] font-semibold text-slate-700 dark:text-zinc-200 hover:bg-black/5 cursor-pointer shadow-xs"
-                                    >
-                                      🏢 Empresa
-                                    </button>
-                                  )}
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleCancelarChamado(ch)}
-                                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 cursor-pointer"
-                                    title="Cancelar chamado"
-                                  >
-                                    <XMarkIcon className="w-3.5 h-3.5" />
-                                  </button>
-                                </>
-                              )}
-
-                              {isFinalizado && (
                                 <button
                                   type="button"
                                   onClick={() => handleCancelarChamado(ch)}
-                                  className="w-full text-center py-1 text-slate-400 hover:text-red-500 text-[10px] cursor-pointer"
+                                  className="p-1.5 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 cursor-pointer"
+                                  title="Cancelar chamado"
                                 >
-                                  Excluir do histórico
+                                  <XMarkIcon className="w-3.5 h-3.5" />
                                 </button>
-                              )}
-                            </div>
-                          </motion.div>
-                        );
-                      })
-                    )}
+                              </div>
+                            </motion.div>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
-            /* VISUALIZAÇÃO EM TABELA APPLE PREMIUM COM GAVETA EXPANSÍVEL DE AÇÕES */
+                        /* VISUALIZAÇÃO EM TABELA APPLE PREMIUM COM GAVETA EXPANSÍVEL DE AÇÕES */
             <div ref={tableContainerRef} className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs min-w-[920px]">
