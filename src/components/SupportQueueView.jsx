@@ -99,6 +99,19 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   // Kanban: Métricas Recolhíveis, Scroll Horizontal e Colunas Recolhíveis
   const [metricasRecolhidasKanban, setMetricasRecolhidasKanban] = useState(true);
   const [colaboradoresRecolhidos, setColaboradoresRecolhidos] = useState([]);
+  const [kanbanPreset, setKanbanPreset] = useState('foco_mim'); // 'foco_mim' | 'expandir_todos' | 'recolher_todos' | 'custom'
+
+  // Auxiliares para identificação de técnico e chaves canônicas no Kanban
+  const getTecKey = (tec) => (tec.id || tec.email || tec.nome);
+  const isTecnicoMim = (tec) => {
+    if (!userEmail) return false;
+    const uClean = userEmail.toLowerCase().trim();
+    const tEmail = (tec.email || '').toLowerCase().trim();
+    const tNome = removerAcentos((tec.nome || '').toLowerCase().trim());
+    const meuNome = removerAcentos(getNomeTecnico(userEmail).toLowerCase().trim());
+    return (tEmail && tEmail === uClean) ||
+           (tNome && meuNome && (tNome.includes(meuNome) || meuNome.includes(tNome)));
+  };
   const kanbanScrollRef = useRef(null);
 
   const tableContainerRef = useRef(null);
@@ -338,6 +351,22 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       c.nome.toLowerCase().includes(q) || (c.cargo || '').toLowerCase().includes(q)
     );
   }, [colaboradoresEmpresaAtual, buscaSolicitante]);
+
+  // Efeito orquestrado: quando o preset for 'foco_mim', garante que os outros colaboradores fiquem recolhidos
+  useEffect(() => {
+    if (kanbanPreset === 'foco_mim' && listaTecnicosKanban.length > 0) {
+      const outros = listaTecnicosKanban
+        .filter((t) => !isTecnicoMim(t))
+        .map(getTecKey);
+      if (outros.length > 0) {
+        setColaboradoresRecolhidos((prev) => {
+          const prevSet = new Set(prev);
+          const isSame = outros.length === prev.length && outros.every((k) => prevSet.has(k));
+          return isSame ? prev : outros;
+        });
+      }
+    }
+  }, [listaTecnicosKanban, userEmail, kanbanPreset]);
 
   // Aliases seguros para garantir retrocompatibilidade de referências no modal
   const solicitantesEmpresa = colaboradoresEmpresaAtual;
@@ -698,78 +727,191 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       {/* ============================================================================== */}
       <div className="flex flex-col lg:flex-row items-start gap-6">
 
-        {/* -------------------------------------------------------------------------- */}
-        {/* COLUNA ESQUERDA: CARDS DE MÉTRICAS EM TEMPO REAL (VERTICAL)               */}
-        {/* Recolhida automaticamente quando o modo Kanban estiver ativo para liberar espaço */}
-        {/* -------------------------------------------------------------------------- */}
-        {(!filaViewMode || filaViewMode !== 'kanban' || !metricasRecolhidasKanban) && (
-        <div className="w-full lg:w-72 xl:w-80 flex-shrink-0 space-y-3.5 sticky top-24">
-          <div className="flex items-center justify-between px-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500 font-mono">
-              Métricas Operacionais
-            </span>
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          </div>
+        {/* ============================================================================== */}
+        {/* COLUNA ESQUERDA: MÉTRICAS EM TEMPO REAL COM MOTION ORQUESTRADO APPLE           */}
+        {/* No modo Cards/Lista: painel amplo completo.                                   */}
+        {/* No modo Kanban: recolhe delicadamente para um trilho compacto (números+cores). */}
+        {/* ============================================================================== */}
+        {(() => {
+          const isCompact = filaViewMode === 'kanban' && metricasRecolhidasKanban;
 
-          {/* KPI 1: Em Atendimento Ativo */}
-          <div className="rounded-3xl p-5 border border-emerald-500/30 bg-emerald-500/[0.04] dark:bg-emerald-500/[0.08] shadow-xs space-y-2">
-            <div className="flex items-center justify-between text-emerald-800 dark:text-emerald-300">
-              <span className="text-xs font-semibold uppercase tracking-wider">Em Atendimento Ativo</span>
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold tracking-tight text-emerald-900 dark:text-emerald-200 font-mono tabular-nums">
-                {emAndamento.length}
-              </span>
-              <span className="text-xs text-emerald-700/80 dark:text-emerald-400 font-medium">ao vivo</span>
-            </div>
-          </div>
+          return (
+            <motion.div
+              layout
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+              className={`flex-shrink-0 sticky top-24 transition-all ${
+                isCompact ? 'w-full lg:w-[68px] xl:w-[72px]' : 'w-full lg:w-72 xl:w-80'
+              }`}
+            >
+              {isCompact ? (
+                /* ------------------------------------------------------------ */
+                /* TRILHO DE MÉTRICAS COMPACTO APPLE (NÚMEROS & CORES DELICADOS)*/
+                /* ------------------------------------------------------------ */
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                  className="space-y-2.5 rounded-3xl p-2 sm:p-2.5 border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/85 backdrop-blur-xl shadow-xs"
+                >
+                  {/* Botão de Expansão Rápida */}
+                  <div className="flex justify-center pb-1 border-b border-black/[0.04] dark:border-white/[0.05]">
+                    <button
+                      type="button"
+                      onClick={() => setMetricasRecolhidasKanban(false)}
+                      className="w-7 h-7 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] text-slate-500 hover:text-black dark:hover:text-white flex items-center justify-center text-xs transition-colors cursor-pointer"
+                      title="Expandir painel de métricas"
+                    >
+                      ⤢
+                    </button>
+                  </div>
 
-          {/* KPI 2: Aguardando Visualização / Espera */}
-          <div className="rounded-3xl p-5 border border-amber-500/30 bg-amber-500/[0.04] dark:bg-amber-500/[0.08] shadow-xs space-y-2">
-            <div className="flex items-center justify-between text-amber-800 dark:text-amber-300">
-              <span className="text-xs font-semibold uppercase tracking-wider">Aguardando na Fila</span>
-              <span className="p-1.5 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-300 font-mono text-[10px] font-bold">
-                Triagem
-              </span>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold tracking-tight text-amber-900 dark:text-amber-200 font-mono tabular-nums">
-                {emEspera.length}
-              </span>
-              <span className="text-xs text-amber-700/80 dark:text-amber-400 font-medium">cronômetro ativo</span>
-            </div>
-          </div>
+                  {/* 1. Em Atendimento Ativo */}
+                  <div
+                    className="rounded-2xl p-2 border border-emerald-500/30 bg-emerald-500/[0.08] dark:bg-emerald-500/[0.12] flex flex-col items-center justify-center text-center shadow-xs cursor-default group relative"
+                    title={`Em Atendimento Ativo: ${emAndamento.length} ao vivo`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping mb-1"></span>
+                    <span className="text-base font-bold font-mono tracking-tight text-emerald-900 dark:text-emerald-200 tabular-nums leading-none">
+                      {emAndamento.length}
+                    </span>
+                    <span className="text-[9px] uppercase font-bold tracking-wider text-emerald-700/90 dark:text-emerald-400 font-mono mt-1">
+                      Ativo
+                    </span>
+                  </div>
 
-          {/* KPI 3: Tempo Médio de Espera (TME Hoje) */}
-          <div className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2">
-            <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
-              <span className="text-xs font-semibold uppercase tracking-wider">TME de Hoje (Espera)</span>
-              <ClockIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
-                {tmeHojeMinutos}
-              </span>
-              <span className="text-xs text-slate-400 font-medium">minutos até atendimento</span>
-            </div>
-          </div>
+                  {/* 2. Aguardando na Fila */}
+                  <div
+                    className="rounded-2xl p-2 border border-amber-500/30 bg-amber-500/[0.08] dark:bg-amber-500/[0.12] flex flex-col items-center justify-center text-center shadow-xs cursor-default group relative"
+                    title={`Aguardando na Fila: ${emEspera.length} em triagem`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse mb-1"></span>
+                    <span className="text-base font-bold font-mono tracking-tight text-amber-900 dark:text-amber-200 tabular-nums leading-none">
+                      {emEspera.length}
+                    </span>
+                    <span className="text-[9px] uppercase font-bold tracking-wider text-amber-700/90 dark:text-amber-400 font-mono mt-1">
+                      Fila
+                    </span>
+                  </div>
 
-          {/* KPI 4: Resolvidos Hoje */}
-          <div className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2">
-            <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
-              <span className="text-xs font-semibold uppercase tracking-wider">Concluídos Hoje</span>
-              <CheckIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
-                {resolvidosHoje.length}
-              </span>
-              <span className="text-xs text-slate-400 font-medium">atendimentos finalizados</span>
-            </div>
-          </div>
-        </div>
-        )}
+                  {/* 3. TME de Hoje */}
+                  <div
+                    className="rounded-2xl p-2 border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.03] flex flex-col items-center justify-center text-center shadow-xs cursor-default group relative"
+                    title={`Tempo Médio de Espera: ${tmeHojeMinutos} minutos`}
+                  >
+                    <ClockIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 mb-1" />
+                    <span className="text-base font-bold font-mono tracking-tight text-[#1d1d1f] dark:text-white tabular-nums leading-none">
+                      {tmeHojeMinutos}
+                    </span>
+                    <span className="text-[9px] uppercase font-bold tracking-wider text-slate-400 font-mono mt-1">
+                      min
+                    </span>
+                  </div>
+
+                  {/* 4. Concluídos Hoje */}
+                  <div
+                    className="rounded-2xl p-2 border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.03] flex flex-col items-center justify-center text-center shadow-xs cursor-default group relative"
+                    title={`Concluídos Hoje: ${resolvidosHoje.length} finalizados`}
+                  >
+                    <CheckIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 mb-1" />
+                    <span className="text-base font-bold font-mono tracking-tight text-[#1d1d1f] dark:text-white tabular-nums leading-none">
+                      {resolvidosHoje.length}
+                    </span>
+                    <span className="text-[9px] uppercase font-bold tracking-wider text-slate-400 font-mono mt-1">
+                      Hoje
+                    </span>
+                  </div>
+                </motion.div>
+              ) : (
+                /* ------------------------------------------------------------ */
+                /* PAINEL DE MÉTRICAS AMPLO COMPLETO                           */
+                /* ------------------------------------------------------------ */
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                  className="space-y-3.5"
+                >
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500 font-mono">
+                      Métricas Operacionais
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      {filaViewMode === 'kanban' && (
+                        <button
+                          type="button"
+                          onClick={() => setMetricasRecolhidasKanban(true)}
+                          className="text-[10px] text-slate-400 hover:text-black dark:hover:text-white px-1.5 py-0.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                          title="Recolher para modo compacto"
+                        >
+                          ⤡
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* KPI 1: Em Atendimento Ativo */}
+                  <div className="rounded-3xl p-5 border border-emerald-500/30 bg-emerald-500/[0.04] dark:bg-emerald-500/[0.08] shadow-xs space-y-2">
+                    <div className="flex items-center justify-between text-emerald-800 dark:text-emerald-300">
+                      <span className="text-xs font-semibold uppercase tracking-wider">Em Atendimento Ativo</span>
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-bold tracking-tight text-emerald-900 dark:text-emerald-200 font-mono tabular-nums">
+                        {emAndamento.length}
+                      </span>
+                      <span className="text-xs text-emerald-700/80 dark:text-emerald-400 font-medium">ao vivo</span>
+                    </div>
+                  </div>
+
+                  {/* KPI 2: Aguardando Visualização / Espera */}
+                  <div className="rounded-3xl p-5 border border-amber-500/30 bg-amber-500/[0.04] dark:bg-amber-500/[0.08] shadow-xs space-y-2">
+                    <div className="flex items-center justify-between text-amber-800 dark:text-amber-300">
+                      <span className="text-xs font-semibold uppercase tracking-wider">Aguardando na Fila</span>
+                      <span className="p-1.5 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-300 font-mono text-[10px] font-bold">
+                        Triagem
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-bold tracking-tight text-amber-900 dark:text-amber-200 font-mono tabular-nums">
+                        {emEspera.length}
+                      </span>
+                      <span className="text-xs text-amber-700/80 dark:text-amber-400 font-medium">cronômetro ativo</span>
+                    </div>
+                  </div>
+
+                  {/* KPI 3: Tempo Médio de Espera (TME Hoje) */}
+                  <div className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2">
+                    <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
+                      <span className="text-xs font-semibold uppercase tracking-wider">TME de Hoje (Espera)</span>
+                      <ClockIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
+                        {tmeHojeMinutos}
+                      </span>
+                      <span className="text-xs text-slate-400 font-medium">minutos até atendimento</span>
+                    </div>
+                  </div>
+
+                  {/* KPI 4: Resolvidos Hoje */}
+                  <div className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2">
+                    <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
+                      <span className="text-xs font-semibold uppercase tracking-wider">Concluídos Hoje</span>
+                      <CheckIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
+                        {resolvidosHoje.length}
+                      </span>
+                      <span className="text-xs text-slate-400 font-medium">atendimentos finalizados</span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </motion.div>
+          );
+        })()}
 
         {/* -------------------------------------------------------------------------- */}
         {/* COLUNA DIREITA: FILTROS + GESTÃO DA FILA (CARDS OU TABELA)                 */}
@@ -1297,8 +1439,8 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
               {/* Barra Superior de Ferramentas e Presets do Kanban */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-2xl bg-white/80 dark:bg-[#16161a]/85 border border-black/[0.06] dark:border-white/[0.08] backdrop-blur-xl shadow-xs">
                 
-                {/* Presets de Foco e Visualização */}
-                <div className="flex items-center gap-1.5 flex-wrap">
+                {/* Presets de Foco e Visualização (Com Destaque Visual Nítido Apple) */}
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500 font-mono pl-1 pr-1">
                     Visualização:
                   </span>
@@ -1308,38 +1450,60 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                     type="button"
                     onClick={() => {
                       const outros = listaTecnicosKanban
-                        .filter((t) => (t.email || '').toLowerCase() !== (userEmail || '').toLowerCase())
-                        .map((t) => t.id || t.email);
+                        .filter((t) => !isTecnicoMim(t))
+                        .map(getTecKey);
                       setColaboradoresRecolhidos(outros);
+                      setKanbanPreset('foco_mim');
                     }}
-                    className="px-3 py-1 rounded-full text-xs font-semibold bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] border border-[#4d7c0f]/25 dark:border-[#84cc16]/30 hover:bg-[#4d7c0f]/20 transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      kanbanPreset === 'foco_mim'
+                        ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold shadow-md shadow-[#4d7c0f]/20 ring-2 ring-[#4d7c0f]/30'
+                        : 'bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-black/[0.06]'
+                    }`}
                     title="Recolhe os demais operadores e foca na fila de espera e nas suas demandas"
                   >
-                    <span>★ Focar em Mim & Espera</span>
+                    <span>★</span>
+                    <span>Focar em Mim & Espera</span>
+                    {kanbanPreset === 'foco_mim' && <CheckIcon className="w-3 h-3 stroke-[2.5]" />}
                   </button>
 
                   {/* Preset: Expandir Todos */}
                   <button
                     type="button"
-                    onClick={() => setColaboradoresRecolhidos([])}
-                    className="px-3 py-1 rounded-full text-xs font-medium text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] transition-all cursor-pointer"
+                    onClick={() => {
+                      setColaboradoresRecolhidos([]);
+                      setKanbanPreset('expandir_todos');
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      kanbanPreset === 'expandir_todos'
+                        ? 'bg-[#09090b] dark:bg-white text-white dark:text-black font-bold shadow-md shadow-black/10 ring-2 ring-black/20 dark:ring-white/20'
+                        : 'bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-black/[0.06]'
+                    }`}
                   >
-                    <span>⤢ Expandir Todos</span>
+                    <span>⤢</span>
+                    <span>Expandir Todos</span>
+                    {kanbanPreset === 'expandir_todos' && <CheckIcon className="w-3 h-3 stroke-[2.5]" />}
                   </button>
 
-                  {/* Preset: Recolher Outros */}
+                  {/* Preset: Recolher Todos */}
                   <button
                     type="button"
                     onClick={() => {
-                      const todos = listaTecnicosKanban.map((t) => t.id || t.email);
+                      const todos = listaTecnicosKanban.map(getTecKey);
                       setColaboradoresRecolhidos(todos);
+                      setKanbanPreset('recolher_todos');
                     }}
-                    className="px-3 py-1 rounded-full text-xs font-medium text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] transition-all cursor-pointer"
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      kanbanPreset === 'recolher_todos'
+                        ? 'bg-[#09090b] dark:bg-white text-white dark:text-black font-bold shadow-md shadow-black/10 ring-2 ring-black/20 dark:ring-white/20'
+                        : 'bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-black/[0.06]'
+                    }`}
                   >
-                    <span>⤡ Recolher Todos</span>
+                    <span>⤡</span>
+                    <span>Recolher Todos</span>
+                    {kanbanPreset === 'recolher_todos' && <CheckIcon className="w-3 h-3 stroke-[2.5]" />}
                   </button>
                 </div>
-
                 {/* Controles de Navegação Horizontal & Alternância de Métricas */}
                 <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
                   {/* Botão para Exibir/Ocultar Métricas Operacionais */}
@@ -1515,7 +1679,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                 {/* COLUNAS DINÂMICAS: UMA COLUNA PARA CADA TÉCNICO / COLABORADOR     */}
                 {/* ------------------------------------------------------------------ */}
                 {listaTecnicosKanban.map((tec) => {
-                  const tecKey = tec.id || tec.email;
+                  const tecKey = getTecKey(tec);
                   const isRecolhido = colaboradoresRecolhidos.includes(tecKey);
 
                   const chamadosTecnico = chamadosFiltrados.filter((c) => {
@@ -1536,7 +1700,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                     return (
                       <div
                         key={tecKey}
-                        onClick={() => setColaboradoresRecolhidos((prev) => prev.filter((k) => k !== tecKey))}
+                        onClick={() => { setColaboradoresRecolhidos((prev) => prev.filter((k) => k !== tecKey)); setKanbanPreset('custom'); }}
                         className="w-[60px] flex-shrink-0 min-h-[520px] max-h-[600px] p-3 rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.02] dark:bg-white/[0.03] flex flex-col items-center justify-between cursor-pointer hover:border-emerald-500/50 hover:bg-emerald-500/[0.04] transition-all select-none group shadow-xs"
                         title={`Clique para expandir a coluna de ${tec.nome}`}
                       >
@@ -1619,7 +1783,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           </span>
                           <button
                             type="button"
-                            onClick={() => setColaboradoresRecolhidos((prev) => [...prev, tecKey])}
+                            onClick={() => { setColaboradoresRecolhidos((prev) => [...prev, tecKey]); setKanbanPreset('custom'); }}
                             className="w-6 h-6 rounded-lg text-slate-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-center"
                             title={`Recolher coluna de ${tec.nome}`}
                           >
