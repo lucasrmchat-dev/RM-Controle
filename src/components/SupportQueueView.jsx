@@ -1105,7 +1105,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
         <div className="flex-1 min-w-0 w-full space-y-4">
 
           {/* BARRA DE FILTROS, BUSCA E STATUS */}
-          <div className="rounded-2xl p-3 border border-black/[0.06] dark:border-white/[0.08] backdrop-blur-xl bg-white/80 dark:bg-[#16161a]/85 shadow-sm space-y-3">
+          <div className="relative z-30 rounded-2xl p-3 border border-black/[0.06] dark:border-white/[0.08] backdrop-blur-xl bg-white/80 dark:bg-[#16161a]/85 shadow-sm space-y-3">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
               
               {/* Abas Rápidas de Visualização da Fila */}
@@ -1257,7 +1257,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
               </div>
 
               {/* Filtro por Colaborador Responsável (Apple-Grade Custom Popover) */}
-              <div ref={filtroTecnicoRef} className="relative flex-shrink-0 sm:border-l border-black/[0.06] dark:border-white/[0.08] sm:pl-3">
+              <div ref={filtroTecnicoRef} className="relative z-40 flex-shrink-0 sm:border-l border-black/[0.06] dark:border-white/[0.08] sm:pl-3">
                 <button
                   type="button"
                   onClick={() => setFiltroTecnicoDropdownAberto(!filtroTecnicoDropdownAberto)}
@@ -1281,7 +1281,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                 </button>
 
                 {filtroTecnicoDropdownAberto && (
-                  <div className="absolute right-0 top-full mt-1.5 z-40 w-72 rounded-2xl bg-white dark:bg-[#1c1c20] border border-black/[0.1] dark:border-white/[0.15] shadow-2xl p-2 space-y-1">
+                  <div className="absolute right-0 top-full mt-1.5 z-50 w-72 rounded-2xl bg-white dark:bg-[#1c1c20] border border-black/[0.1] dark:border-white/[0.15] shadow-2xl p-2 space-y-1">
                     <input
                       type="text"
                       autoFocus
@@ -1383,7 +1383,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
           {/* LISTAGEM DE CHAMADOS (CARDS OU TABELA HTML ROBUSTA) */}
           {chamadosFiltrados.length === 0 ? (
-            <div className="rounded-3xl p-12 border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/85 backdrop-blur-xl text-center space-y-4 shadow-sm">
+            <div className="relative z-10 rounded-3xl p-12 border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/85 backdrop-blur-xl text-center space-y-4 shadow-sm">
               <div className="w-12 h-12 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] text-slate-400 dark:text-zinc-500 flex items-center justify-center mx-auto">
                 <SupportQueueIcon className="w-6 h-6" />
               </div>
@@ -1402,7 +1402,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
             </div>
           ) : filaViewMode === 'cards' ? (
             /* VISUALIZAÇÃO EM CARDS VERTICAIS (MENOS LARGURA, MAIS ALTURA) */
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
               {chamadosFiltrados.map((ch) => {
                 const isEmAndamento = ch.status === 'em_andamento';
                 const isAguardando = ch.status === 'aguardando_visualizacao' || ch.status === 'pendente';
@@ -1608,7 +1608,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
             /* ==================================================================== */
             /* VISUALIZAÇÃO KANBAN POR COLABORADOR / TÉCNICO COM CONTROLES ROBUSTOS  */
             /* ==================================================================== */
-            <div className="space-y-4">
+            <div className="relative z-10 space-y-4">
               
               {/* Barra Superior de Ferramentas e Presets do Kanban */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-2xl bg-white/80 dark:bg-[#16161a]/85 border border-black/[0.06] dark:border-white/[0.08] backdrop-blur-xl shadow-xs">
@@ -2113,7 +2113,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
             </div>
           ) : (
                         /* VISUALIZAÇÃO EM TABELA APPLE PREMIUM COM GAVETA EXPANSÍVEL DE AÇÕES */
-            <div ref={tableContainerRef} className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-sm">
+            <div ref={tableContainerRef} className="relative z-10 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs min-w-[920px]">
                   <thead>
