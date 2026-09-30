@@ -510,9 +510,18 @@ export async function adicionarChamadoFila({
           status: 'em_andamento',
           observacoes: observacao_inicial ? observacao_inicial.trim() : '',
           motivo: categoriasValidas.join(', '),
+          etiquetas: Array.isArray(etiquetas) ? etiquetas : [],
           iniciado_em: agora,
         };
-        const { data: dbSaved } = await supabase.from('suporte_chamados').insert([payload]).select().maybeSingle();
+        let dbSaved = null;
+        try {
+          const res = await supabase.from('suporte_chamados').insert([payload]).select().maybeSingle();
+          dbSaved = res?.data;
+        } catch (eTag) {
+          delete payload.etiquetas;
+          const res = await supabase.from('suporte_chamados').insert([payload]).select().maybeSingle();
+          dbSaved = res?.data;
+        }
         if (dbSaved?.id) {
           novoChamado.id = dbSaved.id;
           const chAtual = getLocalData('chamados_suporte', []);
@@ -544,6 +553,9 @@ export async function adicionarChamadoFila({
     empresa_id,
     empresa_nome,
     categorias: categoriasValidas,
+    etiquetas: Array.isArray(etiquetas) ? etiquetas : [],
+    feedback_id: feedback_id || null,
+    is_demanda_interna: is_demanda_interna || Boolean(empresa_nome && empresa_nome.includes('RM Controle')),
     tecnico_email: tecnicoDesignado,
     tecnico_nome: getNomeTecnico(tecnicoDesignado),
     solicitante_nome: (solicitante_nome || 'Colaborador').trim(),
@@ -577,9 +589,18 @@ export async function adicionarChamadoFila({
         status: statusInicial,
         observacoes: observacao_inicial ? observacao_inicial.trim() : '',
         motivo: categoriasValidas.join(', '),
+        etiquetas: Array.isArray(etiquetas) ? etiquetas : [],
         iniciado_em: agora,
       };
-      const { data: dbSaved } = await supabase.from('suporte_chamados').insert([payload]).select().maybeSingle();
+      let dbSaved = null;
+      try {
+        const res = await supabase.from('suporte_chamados').insert([payload]).select().maybeSingle();
+        dbSaved = res?.data;
+      } catch (eTag) {
+        delete payload.etiquetas;
+        const res = await supabase.from('suporte_chamados').insert([payload]).select().maybeSingle();
+        dbSaved = res?.data;
+      }
       if (dbSaved?.id) {
         novoChamado.id = dbSaved.id;
         const chAtual = getLocalData('chamados_suporte', []);
@@ -679,8 +700,16 @@ export async function fetchChamadosFila() {
 
       if (!error && Array.isArray(data)) {
         const cloudIds = new Set(data.map((d) => d.id));
+        const localAnterior = getLocalData('chamados_suporte', []);
+        const localTagMap = new Map((localAnterior || []).map((c) => [c.id, c.etiquetas]));
+
         const cloudChamados = data.map((d) => {
           const cats = d.motivo ? d.motivo.split(',').map((s) => s.trim()).filter(Boolean) : ['Suporte'];
+          const rawTags = Array.isArray(d.etiquetas) 
+            ? d.etiquetas 
+            : (typeof d.etiquetas === 'string' ? d.etiquetas.replaceAll('{', '').replaceAll('}', '').replaceAll('"', '').split(',').map((s) => s.trim()).filter(Boolean) : []);
+          const finalTags = rawTags.length > 0 ? rawTags : (localTagMap.get(d.id) || []);
+
           return {
             id: d.id,
             empresa_id: d.empresa_id,
@@ -691,6 +720,7 @@ export async function fetchChamadosFila() {
             observacao_inicial: d.observacoes || '',
             status: d.status,
             categorias: cats,
+            etiquetas: finalTags,
             created_at: d.created_at || d.iniciado_em || new Date().toISOString(),
             tempo_espera_inicio: d.iniciado_em || d.created_at,
             tempo_espera_fim: d.status === 'em_andamento' ? d.iniciado_em : null,

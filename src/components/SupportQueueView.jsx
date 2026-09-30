@@ -83,6 +83,21 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   const [dropdownSolicitanteAberto, setDropdownSolicitanteAberto] = useState(false);
   const [highlightedEmpresaIdx, setHighlightedEmpresaIdx] = useState(0);
   const [highlightedSolicitanteIdx, setHighlightedSolicitanteIdx] = useState(0);
+  const empresaDropdownRef = useRef(null);
+  const solicitanteDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (empresaDropdownRef.current && !empresaDropdownRef.current.contains(e.target)) {
+        setDropdownEmpresaAberto(false);
+      }
+      if (solicitanteDropdownRef.current && !solicitanteDropdownRef.current.contains(e.target)) {
+        setDropdownSolicitanteAberto(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
   const [solicitanteSelecionado, setSolicitanteSelecionado] = useState(null);
   const [solicitanteManual, setSolicitanteManual] = useState('');
   const [modoCadastroColab, setModoCadastroColab] = useState(false);
@@ -495,508 +510,229 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       )}
 
       {/* ============================================================================== */}
-      {/* 4 CARDS DE KPI: ATENDIMENTO, ESPERA, TEMPO MÉDIO DE ESPERA & CONCLUÍDOS */}
+      {/* LAYOUT PRINCIPAL RESPONSIVO: KPI NA LATERAL ESQUERDA + FILA NA DIREITA       */}
       {/* ============================================================================== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* KPI 1: Em Atendimento Ativo */}
-        <div className="rounded-3xl p-5 border border-emerald-500/30 bg-emerald-500/[0.04] dark:bg-emerald-500/[0.08] shadow-xs space-y-2">
-          <div className="flex items-center justify-between text-emerald-800 dark:text-emerald-300">
-            <span className="text-xs font-semibold uppercase tracking-wider">Em Atendimento Ativo</span>
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold tracking-tight text-emerald-900 dark:text-emerald-200 font-mono tabular-nums">
-              {emAndamento.length}
+      <div className="flex flex-col lg:flex-row items-start gap-6">
+
+        {/* -------------------------------------------------------------------------- */}
+        {/* COLUNA ESQUERDA: CARDS DE MÉTRICAS EM TEMPO REAL (VERTICAL)               */}
+        {/* -------------------------------------------------------------------------- */}
+        <div className="w-full lg:w-72 xl:w-80 flex-shrink-0 space-y-3.5 sticky top-4">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500 font-mono">
+              Métricas Operacionais
             </span>
-            <span className="text-xs text-emerald-700/80 dark:text-emerald-400 font-medium">ao vivo</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          </div>
+
+          {/* KPI 1: Em Atendimento Ativo */}
+          <div className="rounded-3xl p-5 border border-emerald-500/30 bg-emerald-500/[0.04] dark:bg-emerald-500/[0.08] shadow-xs space-y-2">
+            <div className="flex items-center justify-between text-emerald-800 dark:text-emerald-300">
+              <span className="text-xs font-semibold uppercase tracking-wider">Em Atendimento Ativo</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold tracking-tight text-emerald-900 dark:text-emerald-200 font-mono tabular-nums">
+                {emAndamento.length}
+              </span>
+              <span className="text-xs text-emerald-700/80 dark:text-emerald-400 font-medium">ao vivo</span>
+            </div>
+          </div>
+
+          {/* KPI 2: Aguardando Visualização / Espera */}
+          <div className="rounded-3xl p-5 border border-amber-500/30 bg-amber-500/[0.04] dark:bg-amber-500/[0.08] shadow-xs space-y-2">
+            <div className="flex items-center justify-between text-amber-800 dark:text-amber-300">
+              <span className="text-xs font-semibold uppercase tracking-wider">Aguardando na Fila</span>
+              <span className="p-1.5 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-300 font-mono text-[10px] font-bold">
+                Triagem
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold tracking-tight text-amber-900 dark:text-amber-200 font-mono tabular-nums">
+                {emEspera.length}
+              </span>
+              <span className="text-xs text-amber-700/80 dark:text-amber-400 font-medium">cronômetro ativo</span>
+            </div>
+          </div>
+
+          {/* KPI 3: Tempo Médio de Espera (TME Hoje) */}
+          <div className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2">
+            <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
+              <span className="text-xs font-semibold uppercase tracking-wider">TME de Hoje (Espera)</span>
+              <ClockIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
+                {tmeHojeMinutos}
+              </span>
+              <span className="text-xs text-slate-400 font-medium">minutos até atendimento</span>
+            </div>
+          </div>
+
+          {/* KPI 4: Resolvidos Hoje */}
+          <div className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2">
+            <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
+              <span className="text-xs font-semibold uppercase tracking-wider">Concluídos Hoje</span>
+              <CheckIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
+                {resolvidosHoje.length}
+              </span>
+              <span className="text-xs text-slate-400 font-medium">atendimentos finalizados</span>
+            </div>
           </div>
         </div>
 
-        {/* KPI 2: Aguardando Visualização / Espera */}
-        <div className="rounded-3xl p-5 border border-amber-500/30 bg-amber-500/[0.04] dark:bg-amber-500/[0.08] shadow-xs space-y-2">
-          <div className="flex items-center justify-between text-amber-800 dark:text-amber-300">
-            <span className="text-xs font-semibold uppercase tracking-wider">Aguardando na Fila</span>
-            <span className="p-1.5 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-300 font-mono text-[10px] font-bold">
-              Triagem
-            </span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold tracking-tight text-amber-900 dark:text-amber-200 font-mono tabular-nums">
-              {emEspera.length}
-            </span>
-            <span className="text-xs text-amber-700/80 dark:text-amber-400 font-medium">cronômetro de espera ativo</span>
-          </div>
-        </div>
+        {/* -------------------------------------------------------------------------- */}
+        {/* COLUNA DIREITA: FILTROS + GESTÃO DA FILA (CARDS OU TABELA)                 */}
+        {/* -------------------------------------------------------------------------- */}
+        <div className="flex-1 min-w-0 w-full space-y-4">
 
-        {/* KPI 3: Tempo Médio de Espera (TME Hoje) */}
-        <div className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2">
-          <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">TME de Hoje (Espera)</span>
-            <ClockIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
-              {tmeHojeMinutos}
-            </span>
-            <span className="text-xs text-slate-400 font-medium">minutos até ser atendido</span>
-          </div>
-        </div>
+          {/* BARRA DE FILTROS, BUSCA E STATUS */}
+          <div className="rounded-2xl p-3 border border-black/[0.06] dark:border-white/[0.08] backdrop-blur-xl bg-white/80 dark:bg-[#16161a]/85 shadow-sm space-y-3">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              
+              {/* Abas Rápidas de Visualização da Fila */}
+              <div className="flex items-center gap-1.5 overflow-x-auto p-0.5">
+                {[
+                  { id: 'ativos', label: 'Todos os Ativos', count: emAndamento.length + emEspera.length },
+                  { id: 'espera', label: 'Aguardando Atendimento', count: emEspera.length, badgeColor: 'amber' },
+                  { id: 'em_andamento', label: 'Em Andamento', count: emAndamento.length, ping: emAndamento.length > 0 },
+                  { id: 'resolvidos_hoje', label: 'Resolvidos Hoje', count: resolvidosHoje.length },
+                ].map((st) => {
+                  const isSelected = filtroStatus === st.id;
+                  return (
+                    <button
+                      key={st.id}
+                      onClick={() => setFiltroStatus(st.id)}
+                      className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                        isSelected
+                          ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs font-bold'
+                          : 'text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'
+                      }`}
+                    >
+                      {st.ping && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>}
+                      <span>{st.label}</span>
+                      <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                        isSelected
+                          ? 'bg-white/20 text-white dark:bg-black/20 dark:text-black'
+                          : 'bg-black/[0.05] dark:bg-white/[0.08] text-slate-500 dark:text-zinc-400'
+                      }`}>
+                        {st.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
 
-        {/* KPI 4: Resolvidos Hoje */}
-        <div className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2">
-          <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Concluídos Hoje</span>
-            <CheckIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
-              {resolvidosHoje.length}
-            </span>
-            <span className="text-xs text-slate-400 font-medium">atendimentos concluídos</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ============================================================================== */}
-      {/* BARRA DE FILTROS, BUSCA E STATUS */}
-      {/* ============================================================================== */}
-      <div className="rounded-2xl p-3 border border-black/[0.06] dark:border-white/[0.08] backdrop-blur-xl bg-white/80 dark:bg-[#16161a]/85 shadow-sm space-y-3">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          
-          {/* Abas Rápidas de Visualização da Fila */}
-          <div className="flex items-center gap-1.5 overflow-x-auto p-0.5">
-            {[
-              { id: 'ativos', label: 'Todos os Ativos', count: emAndamento.length + emEspera.length },
-              { id: 'espera', label: 'Aguardando Atendimento', count: emEspera.length, badgeColor: 'amber' },
-              { id: 'em_andamento', label: 'Em Andamento', count: emAndamento.length, ping: emAndamento.length > 0 },
-              { id: 'resolvidos_hoje', label: 'Resolvidos Hoje', count: resolvidosHoje.length },
-            ].map((st) => {
-              const isSelected = filtroStatus === st.id;
-              return (
+              {/* Alternador de Visualização Cards / Lista */}
+              <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.06]">
                 <button
-                  key={st.id}
-                  onClick={() => setFiltroStatus(st.id)}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-                    isSelected
-                      ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs font-bold'
-                      : 'text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'
+                  type="button"
+                  onClick={() => setFilaViewMode('cards')}
+                  className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
+                    filaViewMode === 'cards'
+                      ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                      : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
                   }`}
+                  title="Exibir Fila em Cards"
                 >
-                  {st.ping && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>}
-                  <span>{st.label}</span>
-                  <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
-                    isSelected
-                      ? 'bg-white/20 text-white dark:bg-black/20 dark:text-black'
-                      : 'bg-black/[0.05] dark:bg-white/[0.08] text-slate-500 dark:text-zinc-400'
-                  }`}>
-                    {st.count}
-                  </span>
+                  <ViewGridIcon className="w-3.5 h-3.5" />
+                  <span className="text-[11px]">Cards</span>
                 </button>
-              );
-            })}
-          </div>
+                <button
+                  type="button"
+                  onClick={() => setFilaViewMode('list')}
+                  className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
+                    filaViewMode === 'list'
+                      ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                      : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
+                  }`}
+                  title="Exibir Fila em Lista"
+                >
+                  <ViewListIcon className="w-3.5 h-3.5" />
+                  <span className="text-[11px]">Lista</span>
+                </button>
+              </div>
 
-          {/* Alternador de Visualização Cards / Lista */}
-          <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.06]">
-            <button
-              type="button"
-              onClick={() => setFilaViewMode('cards')}
-              className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
-                filaViewMode === 'cards'
-                  ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
-                  : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
-              }`}
-              title="Exibir Fila em Cards"
-            >
-              <ViewGridIcon className="w-3.5 h-3.5" />
-              <span className="text-[11px]">Cards</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilaViewMode('list')}
-              className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
-                filaViewMode === 'list'
-                  ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
-                  : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
-              }`}
-              title="Exibir Fila em Lista"
-            >
-              <ViewListIcon className="w-3.5 h-3.5" />
-              <span className="text-[11px]">Lista</span>
-            </button>
-          </div>
+              {/* Campo de Busca */}
+              <div className="relative min-w-[240px]">
+                <input
+                  type="text"
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Buscar chamado, empresa ou técnico..."
+                  className="w-full px-3.5 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] text-xs focus:outline-none focus:ring-1 focus:ring-black/20 dark:focus:ring-white/20 text-[#1d1d1f] dark:text-white placeholder:text-slate-400"
+                />
+                {busca && (
+                  <button
+                    onClick={() => setBusca('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black dark:hover:text-white text-xs cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
 
-          {/* Campo de Busca */}
-          <div className="relative min-w-[240px]">
-            <input
-              type="text"
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar chamado, empresa ou técnico..."
-              className="w-full px-3.5 py-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-xs font-medium text-[#1d1d1f] dark:text-white placeholder-slate-400 focus:outline-none"
-            />
-            {busca && (
+            </div>
+
+            {/* Filtro Rápido por Departamento */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pt-2 border-t border-black/[0.04] dark:border-white/[0.05] text-xs">
+              <span className="text-slate-400 font-semibold px-1 text-[11px] uppercase tracking-wider font-mono">
+                Departamento:
+              </span>
               <button
-                onClick={() => setBusca('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black dark:hover:text-white text-xs font-bold"
+                type="button"
+                onClick={() => setFiltroCategoria('todas')}
+                className={`px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer transition-all ${
+                  filtroCategoria === 'todas'
+                    ? 'bg-black text-white dark:bg-white dark:text-black font-bold shadow-xs'
+                    : 'bg-black/[0.02] dark:bg-white/[0.04] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.06]'
+                }`}
               >
-                ✕
+                Todos
               </button>
-            )}
-          </div>
-
-        </div>
-
-        {/* Barra Secundária de Filtro por Categorias de Demandas */}
-        {categoriasDisponiveis.length > 0 && (
-          <div className="flex items-center gap-1.5 overflow-x-auto pt-2.5 border-t border-black/[0.05] dark:border-white/[0.06] text-xs">
-            <span className="text-slate-400 text-[10px] uppercase font-mono mr-1">Categoria:</span>
-            <button
-              type="button"
-              onClick={() => setFiltroCategoria('todas')}
-              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
-                filtroCategoria === 'todas'
-                  ? 'bg-black text-white dark:bg-white dark:text-black font-bold shadow-xs'
-                  : 'bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.08]'
-              }`}
-            >
-              Todas as Categorias
-            </button>
-            {categoriasDisponiveis.map((cat) => {
-              const isSel = filtroCategoria === cat;
-              return (
+              {categoriasDisponiveis.map((cat) => (
                 <button
                   key={cat}
                   type="button"
-                  onClick={() => setFiltroCategoria(isSel ? 'todas' : cat)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
-                    isSel
-                      ? 'bg-[#4d7c0f] text-white dark:bg-[#84cc16] dark:text-zinc-950 font-bold shadow-xs'
-                      : 'bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.08]'
+                  onClick={() => setFiltroCategoria(cat)}
+                  className={`px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer transition-all ${
+                    filtroCategoria === cat
+                      ? 'bg-black text-white dark:bg-white dark:text-black font-bold shadow-xs'
+                      : 'bg-black/[0.02] dark:bg-white/[0.04] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.06]'
                   }`}
                 >
                   {cat}
                 </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* ============================================================================== */}
-      {/* LISTAGEM DE CHAMADOS COM DOIS CRONÔMETROS AO VIVO */}
-      {/* ============================================================================== */}
-      {chamadosFiltrados.length === 0 ? (
-        <div className="rounded-3xl p-12 border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/85 backdrop-blur-xl text-center space-y-4 shadow-sm">
-          <div className="w-12 h-12 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] text-slate-400 dark:text-zinc-500 flex items-center justify-center mx-auto">
-            <SupportQueueIcon className="w-6 h-6" />
-          </div>
-          <h3 className="text-base font-semibold text-[#1d1d1f] dark:text-white">Fila de Suporte Vazia</h3>
-          <p className="text-xs text-slate-500 dark:text-zinc-400 max-w-sm mx-auto">
-            Nenhum chamado pendente ou em atendimento para os filtros selecionados.
-          </p>
-          <div className="pt-2">
-            <button
-              onClick={handleAbrirModalNovoChamado}
-              className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold shadow-sm cursor-pointer"
-            >
-              + Adicionar Chamado à Fila
-            </button>
-          </div>
-        </div>
-      ) : filaViewMode === 'cards' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-          {chamadosFiltrados.map((ch) => {
-            const isEmAndamento = ch.status === 'em_andamento';
-            const isAguardando = ch.status === 'aguardando_visualizacao' || ch.status === 'pendente';
-            const isFinalizado = ch.status === 'concluido' || ch.status === 'finalizado';
-            const empresaObj = empresasLista.find(
-              (e) => (ch.empresa_id && e.id === ch.empresa_id) || 
-                     (ch.empresa_nome && e.nome && e.nome.trim().toLowerCase() === ch.empresa_nome.trim().toLowerCase())
-            ) || (ch.empresa_nome ? { id: ch.empresa_id || ch.empresa_nome, nome: ch.empresa_nome } : null);
-
-            return (
-              <motion.div
-                key={ch.id}
-                layout
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className={`rounded-3xl p-5 border transition-all shadow-xs flex flex-col justify-between min-h-[310px] h-full ${
-                  isEmAndamento
-                    ? 'border-emerald-500/40 bg-gradient-to-b from-emerald-500/[0.06] via-transparent to-transparent dark:from-emerald-500/[0.08] dark:bg-[#16161a]'
-                    : isAguardando
-                    ? 'border-amber-500/40 bg-gradient-to-b from-amber-500/[0.06] via-transparent to-transparent dark:from-amber-500/[0.06] dark:bg-[#16161a]'
-                    : 'border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a]'
-                }`}
-              >
-                {/* Informações Principais do Card (Topo e Corpo) */}
-                <div className="space-y-3 flex-1 flex flex-col justify-start">
-                  {/* Linha 1: Status e Cronômetros em destaque */}
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    {/* Badge de Status */}
-                    {isEmAndamento && (
-                      <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-                        <span>Em Atendimento Ao Vivo</span>
-                      </span>
-                    )}
-
-                    {isAguardando && (
-                      <span className="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-[10px] font-bold flex items-center gap-1.5">
-                        <ClockIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                        <span>Aguardando Visualização</span>
-                      </span>
-                    )}
-
-                    {isFinalizado && (
-                      <span className="px-2.5 py-1 rounded-full bg-slate-500/15 border border-slate-500/30 text-slate-700 dark:text-zinc-300 text-[10px] font-bold flex items-center gap-1.5">
-                        <CheckIcon className="w-3 h-3 text-emerald-600" />
-                        <span>Concluído</span>
-                      </span>
-                    )}
-
-                    {/* Cronômetros de Espera e Ativo */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-[11px] font-mono font-bold">
-                        <HourglassIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                        <span className="text-[10px]">Espera:</span>
-                        <span className="tabular-nums">{calcularTempoEspera(ch)}</span>
-                      </div>
-
-                      {isEmAndamento && (
-                        <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-[11px] font-mono font-bold">
-                          <HourglassIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                          <span className="text-[10px]">Ativo:</span>
-                          <span className="tabular-nums">{calcularTempoAtivo(ch)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Nome da Empresa & Servidor */}
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <h3 className="text-base font-bold text-[#1d1d1f] dark:text-white leading-snug">
-                        {ch.empresa_nome}
-                      </h3>
-                      {empresaObj?.servidor_alocado && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-400 font-mono font-semibold">
-                          {empresaObj.servidor_alocado === 'servidor_2' ? 'Servidor 2' : 'Servidor 1'}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Departamentos & Etiquetas */}
-                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                      {(Array.isArray(ch.categorias) && ch.categorias.length > 0 ? ch.categorias : ['Suporte']).map((cat, idx) => (
-                        <span
-                          key={idx}
-                          className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-mono text-[9px] font-bold border border-blue-500/20"
-                          title="Departamento da Demanda"
-                        >
-                          {cat}
-                        </span>
-                      ))}
-
-                      {(Array.isArray(ch.etiquetas) ? ch.etiquetas : []).map((etq, idx) => (
-                        <span
-                          key={'card_etq_' + idx}
-                          className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-mono text-[9px] font-bold border border-amber-500/25"
-                          title="Etiqueta da Demanda"
-                        >
-                          #{etq}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Solicitante & Observação Inicial */}
-                  <div className="space-y-1.5 pt-1 text-xs">
-                    <div className="text-slate-600 dark:text-zinc-300 font-medium">
-                      Solicitante: <strong className="text-slate-900 dark:text-zinc-100">{ch.solicitante_nome || ch.solicitante || 'Não informado'}</strong>
-                    </div>
-
-                    {ch.observacao_inicial && (
-                      <p className="text-xs text-slate-600 dark:text-zinc-400 bg-black/[0.02] dark:bg-white/[0.03] p-2.5 rounded-2xl border border-black/[0.04] dark:border-white/[0.05] leading-relaxed line-clamp-3">
-                        {ch.observacao_inicial}
-                      </p>
-                    )}
-
-                    {/* Técnico Atribuído */}
-                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono pt-0.5">
-                      <UserIcon className="w-3.5 h-3.5 text-slate-400" />
-                      <span>
-                        Técnico: <strong className="text-slate-700 dark:text-zinc-300">{getNomeTecnico(ch.tecnico_email, ch.tecnico_nome)}</strong>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Rodapé do Card com Ações */}
-                <div className="pt-3.5 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between gap-2 mt-4 flex-wrap">
-                  {/* Ações para Chamado em Espera */}
-                  {isAguardando && (
-                    <>
-                      <button
-                        onClick={() => handleAceitarSuporte(ch)}
-                        className="px-4 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-90 flex items-center gap-1.5 cursor-pointer flex-1 justify-center"
-                      >
-                        <PlayIcon className="w-3 h-3 fill-current" />
-                        <span>Aceitar e Iniciar</span>
-                      </button>
-
-                      {Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle'))) ? (
-                        <button
-                          type="button"
-                          onClick={() => setKanbanAberto(true)}
-                          className="px-3.5 py-2 rounded-full bg-blue-500/10 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 text-xs font-semibold hover:bg-blue-500/20 transition-all cursor-pointer shadow-xs flex items-center gap-1"
-                        >
-                          <span>🚀 Kanban</span>
-                        </button>
-                      ) : onSelectEmpresa && (
-                        <button
-                          onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
-                          className="px-3.5 py-2 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:bg-black/[0.03] transition-all cursor-pointer"
-                        >
-                          Ver Empresa
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => handleCancelarChamado(ch)}
-                        className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer"
-                        title="Cancelar chamado"
-                      >
-                        <XMarkIcon className="w-4 h-4" />
-                      </button>
-                    </>
-                  )}
-
-                  {/* Ações para Chamado Em Andamento */}
-                  {isEmAndamento && (
-                    <>
-                      <button
-                        onClick={() => setChamadoParaFinalizar(ch)}
-                        className="px-4 py-2.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs shadow-md hover:opacity-90 flex items-center gap-1.5 cursor-pointer flex-1 justify-center"
-                      >
-                        <CheckIcon className="w-3.5 h-3.5 stroke-[2.5]" />
-                        <span>Concluir</span>
-                      </button>
-
-                      {Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle'))) ? (
-                        <button
-                          type="button"
-                          onClick={() => setKanbanAberto(true)}
-                          className="px-3.5 py-2 rounded-full bg-blue-500/10 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 text-xs font-semibold hover:bg-blue-500/20 transition-all cursor-pointer shadow-xs flex items-center gap-1"
-                        >
-                          <span>🚀 Kanban</span>
-                        </button>
-                      ) : onSelectEmpresa && (
-                        <button
-                          onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
-                          className="px-3.5 py-2 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:bg-black/[0.03] transition-all cursor-pointer"
-                        >
-                          Acessar
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => handleCancelarChamado(ch)}
-                        className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer"
-                        title="Cancelar chamado"
-                      >
-                        <XMarkIcon className="w-4 h-4" />
-                      </button>
-                    </>
-                  )}
-
-                  {/* Ações para Chamado Finalizado */}
-                  {isFinalizado && (
-                    <div className="w-full flex items-center justify-between text-xs text-slate-400">
-                      <span>Atendimento Concluído</span>
-                      <button
-                        onClick={() => handleCancelarChamado(ch)}
-                        className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer"
-                        title="Excluir do histórico"
-                      >
-                        <XMarkIcon className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <div className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-black/[0.05] dark:border-white/[0.06] text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 bg-black/[0.01] dark:bg-white/[0.02] min-w-[900px]">
-              <div className="col-span-1 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
-                if (sortFilaCol === 'status') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
-                else { setSortFilaCol('status'); setSortFilaDir('asc'); }
-              }}>
-                <span>Status</span>
-                {sortFilaCol === 'status' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
-              </div>
-              <div className="col-span-2 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
-                if (sortFilaCol === 'empresa') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
-                else { setSortFilaCol('empresa'); setSortFilaDir('asc'); }
-              }}>
-                <span>Empresa / Servidor</span>
-                {sortFilaCol === 'empresa' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
-              </div>
-              <div className="col-span-2 select-none flex items-center gap-1 text-slate-400 dark:text-zinc-500">
-                <span>Departamentos</span>
-              </div>
-              <div className="col-span-2 select-none flex items-center gap-1 text-slate-400 dark:text-zinc-500">
-                <span>Etiquetas</span>
-              </div>
-              <div className="col-span-2 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
-                if (sortFilaCol === 'solicitante') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
-                else { setSortFilaCol('solicitante'); setSortFilaDir('asc'); }
-              }}>
-                <span>Solicitante</span>
-                {sortFilaCol === 'solicitante' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
-              </div>
-              <div className="col-span-2 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
-                if (sortFilaCol === 'cronometro') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
-                else { setSortFilaCol('cronometro'); setSortFilaDir('asc'); }
-              }}>
-                <HourglassIcon className="w-3 h-3 text-amber-500" />
-                <span>Cronômetros</span>
-                {sortFilaCol === 'cronometro' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
-              </div>
-              <div className="col-span-1 text-right">Ações</div>
+              ))}
             </div>
+          </div>
 
-            <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05] min-w-[850px]">
-              {[...chamadosFiltrados].sort((a, b) => {
-                if (sortFilaCol === 'empresa') {
-                  return sortFilaDir === 'asc'
-                    ? (a.empresa_nome || '').localeCompare(b.empresa_nome || '')
-                    : (b.empresa_nome || '').localeCompare(a.empresa_nome || '');
-                }
-                if (sortFilaCol === 'solicitante') {
-                  const sA = a.solicitante_nome || a.solicitante || '';
-                  const sB = b.solicitante_nome || b.solicitante || '';
-                  return sortFilaDir === 'asc' ? sA.localeCompare(sB) : sB.localeCompare(sA);
-                }
-                if (sortFilaCol === 'tecnico') {
-                  const tA = a.tecnico_nome || '';
-                  const tB = b.tecnico_nome || '';
-                  return sortFilaDir === 'asc' ? tA.localeCompare(tB) : tB.localeCompare(tA);
-                }
-                if (sortFilaCol === 'cronometro') {
-                  const tA = a.status === 'em_andamento' ? (a.tempo_ativo_segundos || 0) : (a.tempo_espera_segundos || 0);
-                  const tB = b.status === 'em_andamento' ? (b.tempo_ativo_segundos || 0) : (b.tempo_espera_segundos || 0);
-                  return sortFilaDir === 'asc' ? tA - tB : tB - tA;
-                }
-                return sortFilaDir === 'asc'
-                  ? (a.status || '').localeCompare(b.status || '')
-                  : (b.status || '').localeCompare(a.status || '');
-              }).map((ch) => {
+          {/* LISTAGEM DE CHAMADOS (CARDS OU TABELA HTML ROBUSTA) */}
+          {chamadosFiltrados.length === 0 ? (
+            <div className="rounded-3xl p-12 border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/85 backdrop-blur-xl text-center space-y-4 shadow-sm">
+              <div className="w-12 h-12 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] text-slate-400 dark:text-zinc-500 flex items-center justify-center mx-auto">
+                <SupportQueueIcon className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-semibold text-[#1d1d1f] dark:text-white">Fila de Suporte Vazia</h3>
+              <p className="text-xs text-slate-500 dark:text-zinc-400 max-w-sm mx-auto">
+                Nenhum chamado pendente ou em atendimento para os filtros selecionados.
+              </p>
+              <div className="pt-2">
+                <button
+                  onClick={handleAbrirModalNovoChamado}
+                  className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold shadow-sm cursor-pointer"
+                >
+                  + Adicionar Chamado à Fila
+                </button>
+              </div>
+            </div>
+          ) : filaViewMode === 'cards' ? (
+            /* VISUALIZAÇÃO EM CARDS VERTICAIS (MENOS LARGURA, MAIS ALTURA) */
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+              {chamadosFiltrados.map((ch) => {
                 const isEmAndamento = ch.status === 'em_andamento';
                 const isAguardando = ch.status === 'aguardando_visualizacao' || ch.status === 'pendente';
                 const isFinalizado = ch.status === 'concluido' || ch.status === 'finalizado';
@@ -1006,150 +742,505 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                 ) || (ch.empresa_nome ? { id: ch.empresa_id || ch.empresa_nome, nome: ch.empresa_nome } : null);
 
                 return (
-                  <div key={ch.id} className="grid grid-cols-12 gap-3 px-5 py-3.5 items-center hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors text-xs">
-                    {/* Status */}
-                    <div className="col-span-1">
-                      {isEmAndamento && (
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold inline-flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
-                          <span>Ativo</span>
-                        </span>
-                      )}
-                      {isAguardando && (
-                        <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-[10px] font-bold inline-flex items-center gap-1">
-                          <ClockIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                          <span>Espera</span>
-                        </span>
-                      )}
-                      {isFinalizado && (
-                        <span className="px-2 py-0.5 rounded-full bg-slate-500/15 border border-slate-500/30 text-slate-700 dark:text-zinc-300 text-[10px] font-bold inline-flex items-center gap-1">
-                          <CheckIcon className="w-3 h-3 text-emerald-600" />
-                          <span>Concluído</span>
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Empresa / Servidor */}
-                    <div className="col-span-2 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-[#1d1d1f] dark:text-white truncate block">
-                          {ch.empresa_nome}
-                        </span>
-                        {empresaObj?.servidor_alocado && (
-                          <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-500 font-mono">
-                            {empresaObj.servidor_alocado === 'servidor_2' ? 'S2' : 'S1'}
+                  <motion.div
+                    key={ch.id}
+                    layout
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className={`rounded-3xl p-5 border transition-all shadow-xs flex flex-col justify-between min-h-[310px] h-full ${
+                      isEmAndamento
+                        ? 'border-emerald-500/40 bg-gradient-to-b from-emerald-500/[0.06] via-transparent to-transparent dark:from-emerald-500/[0.08] dark:bg-[#16161a]'
+                        : isAguardando
+                        ? 'border-amber-500/40 bg-gradient-to-b from-amber-500/[0.06] via-transparent to-transparent dark:from-amber-500/[0.06] dark:bg-[#16161a]'
+                        : 'border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a]'
+                    }`}
+                  >
+                    {/* Topo e Corpo do Card */}
+                    <div className="space-y-3 flex-1 flex flex-col justify-start">
+                      {/* Status & Cronômetros */}
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        {isEmAndamento && (
+                          <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                            <span>Ao Vivo</span>
                           </span>
                         )}
-                      </div>
-                      {ch.observacao_inicial && (
-                        <p className="text-[10px] text-slate-400 truncate italic">
-                          {ch.observacao_inicial}
-                        </p>
-                      )}
-                    </div>
 
-                    {/* Departamentos */}
-                    <div className="col-span-2 flex items-center gap-1 flex-wrap">
-                      {(Array.isArray(ch.categorias) && ch.categorias.length > 0 ? ch.categorias : ['Suporte']).map((cat, idx) => (
-                        <span
-                          key={idx}
-                          className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-mono text-[9px] font-bold border border-blue-500/20"
-                        >
-                          {cat}
-                        </span>
-                      ))}
-                    </div>
-
-                    {/* Etiquetas */}
-                    <div className="col-span-2 flex items-center gap-1 flex-wrap">
-                      {Array.isArray(ch.etiquetas) && ch.etiquetas.length > 0 ? (
-                        ch.etiquetas.map((etq, idx) => (
-                          <span
-                            key={'table_etq_' + idx}
-                            className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-mono text-[9px] font-bold border border-amber-500/25"
-                          >
-                            #{etq}
+                        {isAguardando && (
+                          <span className="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-[10px] font-bold flex items-center gap-1.5">
+                            <ClockIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                            <span>Espera</span>
                           </span>
-                        ))
-                      ) : (
-                        <span className="text-[11px] text-slate-400 font-mono">—</span>
-                      )}
-                    </div>
+                        )}
 
-                    {/* Solicitante */}
-                    <div className="col-span-2 truncate text-slate-700 dark:text-zinc-300">
-                      {ch.solicitante_nome || ch.solicitante || '-'}
-                    </div>
+                        {isFinalizado && (
+                          <span className="px-2.5 py-1 rounded-full bg-slate-500/15 border border-slate-500/30 text-slate-700 dark:text-zinc-300 text-[10px] font-bold flex items-center gap-1.5">
+                            <CheckIcon className="w-3 h-3 text-emerald-600" />
+                            <span>Concluído</span>
+                          </span>
+                        )}
 
-                    {/* Cronometros */}
-                    <div className="col-span-2 font-mono text-[11px] space-y-0.5">
-                      <div className="flex items-center gap-1 text-amber-800 dark:text-amber-300 font-bold">
-                        <HourglassIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                        <span className="text-[10px] text-slate-400 font-normal">Espera:</span>
-                        <span className="tabular-nums">{calcularTempoEspera(ch)}</span>
-                      </div>
-                      {isEmAndamento && (
-                        <div className="flex items-center gap-1 text-emerald-800 dark:text-emerald-300 font-bold">
-                          <HourglassIcon className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                          <span className="text-[10px] text-slate-400 font-normal">Ativo:</span>
-                          <span className="tabular-nums">{calcularTempoAtivo(ch)}</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-[11px] font-mono font-bold">
+                            <HourglassIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                            <span className="text-[10px]">Espera:</span>
+                            <span className="tabular-nums">{calcularTempoEspera(ch)}</span>
+                          </div>
+
+                          {isEmAndamento && (
+                            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-[11px] font-mono font-bold">
+                              <HourglassIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                              <span className="text-[10px]">Ativo:</span>
+                              <span className="tabular-nums">{calcularTempoAtivo(ch)}</span>
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
+
+                      {/* Empresa & Servidor */}
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <h3 className="text-base font-bold text-[#1d1d1f] dark:text-white leading-snug">
+                            {ch.empresa_nome}
+                          </h3>
+                          {empresaObj?.servidor_alocado && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-400 font-mono font-semibold">
+                              {empresaObj.servidor_alocado === 'servidor_2' ? 'Servidor 2' : 'Servidor 1'}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Departamentos & Etiquetas */}
+                        <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                          {(Array.isArray(ch.categorias) && ch.categorias.length > 0 ? ch.categorias : ['Suporte']).map((cat, idx) => (
+                            <span
+                              key={idx}
+                              className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-mono text-[9px] font-bold border border-blue-500/20"
+                              title="Departamento"
+                            >
+                              {cat}
+                            </span>
+                          ))}
+
+                          {(Array.isArray(ch.etiquetas) ? ch.etiquetas : []).map((etq, idx) => (
+                            <span
+                              key={'card_etq_' + idx}
+                              className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-mono text-[9px] font-bold border border-amber-500/25"
+                              title="Etiqueta"
+                            >
+                              #{etq}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Solicitante & Observação Inicial */}
+                      <div className="space-y-1.5 pt-1 text-xs">
+                        <div className="text-slate-600 dark:text-zinc-300 font-medium">
+                          Solicitante: <strong className="text-slate-900 dark:text-zinc-100">{ch.solicitante_nome || ch.solicitante || 'Não informado'}</strong>
+                        </div>
+
+                        {ch.observacao_inicial && (
+                          <p className="text-xs text-slate-600 dark:text-zinc-400 bg-black/[0.02] dark:bg-white/[0.03] p-2.5 rounded-2xl border border-black/[0.04] dark:border-white/[0.05] leading-relaxed line-clamp-3">
+                            {ch.observacao_inicial}
+                          </p>
+                        )}
+
+                        {/* Técnico Responsável */}
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono pt-0.5">
+                          <UserIcon className="w-3.5 h-3.5 text-slate-400" />
+                          <span>
+                            Técnico: <strong className="text-slate-700 dark:text-zinc-300">{getNomeTecnico(ch.tecnico_email, ch.tecnico_nome)}</strong>
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Tecnico */}
-                    <div className="col-span-1 truncate text-slate-600 dark:text-zinc-400 font-mono text-[11px]">
-                      {(ch.tecnico_nome || ch.tecnico_email || '').split(' ')[0]}
-                    </div>
-
-                    {/* Acoes */}
-                    <div className="col-span-1 flex items-center justify-end gap-1">
+                    {/* Rodapé com Botões de Ação */}
+                    <div className="pt-3.5 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between gap-2 mt-4 flex-wrap">
                       {isAguardando && (
-                        <button
-                          type="button"
-                          onClick={() => handleAceitarSuporte(ch)}
-                          className="px-2.5 py-1 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-[10px] hover:opacity-95 shadow-xs cursor-pointer flex items-center gap-1"
-                        >
-                          <PlayIcon className="w-3 h-3 fill-current" />
-                          <span>Assumir</span>
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleAceitarSuporte(ch)}
+                            className="px-4 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-90 flex items-center gap-1.5 cursor-pointer flex-1 justify-center"
+                          >
+                            <PlayIcon className="w-3 h-3 fill-current" />
+                            <span>Assumir</span>
+                          </button>
+
+                          {Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle'))) ? (
+                            <button
+                              type="button"
+                              onClick={() => setKanbanAberto(true)}
+                              className="px-3.5 py-2 rounded-full bg-blue-500/10 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 text-xs font-semibold hover:bg-blue-500/20 transition-all cursor-pointer shadow-xs flex items-center gap-1"
+                            >
+                              <span>🚀 Kanban</span>
+                            </button>
+                          ) : onSelectEmpresa && (
+                            <button
+                              onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
+                              className="px-3.5 py-2 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:bg-black/[0.03] transition-all cursor-pointer"
+                            >
+                              Ver Empresa
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => handleCancelarChamado(ch)}
+                            className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer"
+                            title="Cancelar chamado"
+                          >
+                            <XMarkIcon className="w-4 h-4" />
+                          </button>
+                        </>
                       )}
 
                       {isEmAndamento && (
                         <>
                           <button
-                            type="button"
-                            onClick={() => onSelectEmpresa(empresaObj || ch.empresa_id)}
-                            className="px-2.5 py-1 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 text-[10px] font-semibold text-slate-700 dark:text-zinc-200 cursor-pointer"
-                          >
-                            Empresa
-                          </button>
-                          <button
-                            type="button"
                             onClick={() => setChamadoParaFinalizar(ch)}
-                            className="px-2.5 py-1 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-[10px] shadow-xs cursor-pointer"
+                            className="px-4 py-2.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs shadow-md hover:opacity-90 flex items-center gap-1.5 cursor-pointer flex-1 justify-center"
                           >
-                            Concluir
+                            <CheckIcon className="w-3.5 h-3.5 stroke-[2.5]" />
+                            <span>Concluir</span>
+                          </button>
+
+                          {Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle'))) ? (
+                            <button
+                              type="button"
+                              onClick={() => setKanbanAberto(true)}
+                              className="px-3.5 py-2 rounded-full bg-blue-500/10 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 text-xs font-semibold hover:bg-blue-500/20 transition-all cursor-pointer shadow-xs flex items-center gap-1"
+                            >
+                              <span>🚀 Kanban</span>
+                            </button>
+                          ) : onSelectEmpresa && (
+                            <button
+                              onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
+                              className="px-3.5 py-2 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:bg-black/[0.03] transition-all cursor-pointer"
+                            >
+                              Acessar
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => handleCancelarChamado(ch)}
+                            className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer"
+                            title="Cancelar chamado"
+                          >
+                            <XMarkIcon className="w-4 h-4" />
                           </button>
                         </>
                       )}
 
-                      <button
-                        type="button"
-                        onClick={() => handleCancelarChamado(ch)}
-                        className="p-1 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-500/10 cursor-pointer"
-                        title={isFinalizado ? "Excluir do histórico" : "Cancelar chamado"}
-                      >
-                        <XMarkIcon className="w-3.5 h-3.5" />
-                      </button>
+                      {isFinalizado && (
+                        <div className="w-full flex items-center justify-between text-xs text-slate-400">
+                          <span>Atendimento Concluído</span>
+                          <button
+                            onClick={() => handleCancelarChamado(ch)}
+                            className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer"
+                            title="Excluir do histórico"
+                          >
+                            <XMarkIcon className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
-          </div>
+          ) : (
+            /* VISUALIZAÇÃO EM TABELA HTML (SEM WRAPPING, IMUNE A QUEBRA DE COLUNAS) */
+            <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs min-w-[960px]">
+                  <thead>
+                    <tr className="border-b border-black/[0.05] dark:border-white/[0.06] text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 bg-black/[0.01] dark:bg-white/[0.02]">
+                      <th className="px-4 py-3 cursor-pointer select-none whitespace-nowrap w-[110px]" onClick={() => {
+                        if (sortFilaCol === 'status') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
+                        else { setSortFilaCol('status'); setSortFilaDir('asc'); }
+                      }}>
+                        <div className="flex items-center gap-1">
+                          <span>Status</span>
+                          {sortFilaCol === 'status' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
+                        </div>
+                      </th>
+                      <th className="px-4 py-3 cursor-pointer select-none min-w-[180px]" onClick={() => {
+                        if (sortFilaCol === 'empresa') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
+                        else { setSortFilaCol('empresa'); setSortFilaDir('asc'); }
+                      }}>
+                        <div className="flex items-center gap-1">
+                          <span>Empresa / Servidor</span>
+                          {sortFilaCol === 'empresa' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
+                        </div>
+                      </th>
+                      <th className="px-4 py-3 select-none min-w-[120px]">
+                        <span>Departamentos</span>
+                      </th>
+                      <th className="px-4 py-3 select-none min-w-[120px]">
+                        <span>Etiquetas</span>
+                      </th>
+                      <th className="px-4 py-3 cursor-pointer select-none min-w-[150px]" onClick={() => {
+                        if (sortFilaCol === 'solicitante') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
+                        else { setSortFilaCol('solicitante'); setSortFilaDir('asc'); }
+                      }}>
+                        <div className="flex items-center gap-1">
+                          <span>Solicitante</span>
+                          {sortFilaCol === 'solicitante' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
+                        </div>
+                      </th>
+                      <th className="px-4 py-3 cursor-pointer select-none whitespace-nowrap min-w-[140px]" onClick={() => {
+                        if (sortFilaCol === 'cronometro') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
+                        else { setSortFilaCol('cronometro'); setSortFilaDir('asc'); }
+                      }}>
+                        <div className="flex items-center gap-1">
+                          <HourglassIcon className="w-3 h-3 text-amber-500" />
+                          <span>Cronômetros</span>
+                          {sortFilaCol === 'cronometro' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
+                        </div>
+                      </th>
+                      <th className="px-4 py-3 text-right whitespace-nowrap w-[200px]">Ações</th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
+                    {[...chamadosFiltrados].sort((a, b) => {
+                      if (sortFilaCol === 'empresa') {
+                        return sortFilaDir === 'asc'
+                          ? (a.empresa_nome || '').localeCompare(b.empresa_nome || '')
+                          : (b.empresa_nome || '').localeCompare(a.empresa_nome || '');
+                      }
+                      if (sortFilaCol === 'solicitante') {
+                        const sA = a.solicitante_nome || a.solicitante || '';
+                        const sB = b.solicitante_nome || b.solicitante || '';
+                        return sortFilaDir === 'asc' ? sA.localeCompare(sB) : sB.localeCompare(sA);
+                      }
+                      if (sortFilaCol === 'cronometro') {
+                        const tA = a.status === 'em_andamento' ? (a.tempo_ativo_segundos || 0) : (a.tempo_espera_segundos || 0);
+                        const tB = b.status === 'em_andamento' ? (b.tempo_ativo_segundos || 0) : (b.tempo_espera_segundos || 0);
+                        return sortFilaDir === 'asc' ? tA - tB : tB - tA;
+                      }
+                      return sortFilaDir === 'asc'
+                        ? (a.status || '').localeCompare(b.status || '')
+                        : (b.status || '').localeCompare(a.status || '');
+                    }).map((ch) => {
+                      const isEmAndamento = ch.status === 'em_andamento';
+                      const isAguardando = ch.status === 'aguardando_visualizacao' || ch.status === 'pendente';
+                      const isFinalizado = ch.status === 'concluido' || ch.status === 'finalizado';
+                      const empresaObj = empresasLista.find(
+                        (e) => (ch.empresa_id && e.id === ch.empresa_id) || 
+                               (ch.empresa_nome && e.nome && e.nome.trim().toLowerCase() === ch.empresa_nome.trim().toLowerCase())
+                      ) || (ch.empresa_nome ? { id: ch.empresa_id || ch.empresa_nome, nome: ch.empresa_nome } : null);
+
+                      return (
+                        <tr key={ch.id} className="hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors text-xs">
+                          {/* Status */}
+                          <td className="px-4 py-3.5 whitespace-nowrap">
+                            {isEmAndamento && (
+                              <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold inline-flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                                <span>Ativo</span>
+                              </span>
+                            )}
+                            {isAguardando && (
+                              <span className="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-[10px] font-bold inline-flex items-center gap-1.5">
+                                <ClockIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                                <span>Espera</span>
+                              </span>
+                            )}
+                            {isFinalizado && (
+                              <span className="px-2.5 py-1 rounded-full bg-slate-500/15 border border-slate-500/30 text-slate-700 dark:text-zinc-300 text-[10px] font-bold inline-flex items-center gap-1">
+                                <CheckIcon className="w-3 h-3 text-emerald-600" />
+                                <span>Concluído</span>
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Empresa / Servidor */}
+                          <td className="px-4 py-3.5 min-w-[180px]">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-[#1d1d1f] dark:text-white truncate block">
+                                {ch.empresa_nome}
+                              </span>
+                              {empresaObj?.servidor_alocado && (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-500 font-mono">
+                                  {empresaObj.servidor_alocado === 'servidor_2' ? 'S2' : 'S1'}
+                                </span>
+                              )}
+                            </div>
+                            {ch.observacao_inicial && (
+                              <p className="text-[10px] text-slate-400 truncate italic max-w-xs mt-0.5">
+                                {ch.observacao_inicial}
+                              </p>
+                            )}
+                          </td>
+
+                          {/* Departamentos */}
+                          <td className="px-4 py-3.5 min-w-[120px]">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {(Array.isArray(ch.categorias) && ch.categorias.length > 0 ? ch.categorias : ['Suporte']).map((cat, idx) => (
+                                <span
+                                  key={idx}
+                                  className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-mono text-[9px] font-bold border border-blue-500/20"
+                                >
+                                  {cat}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+
+                          {/* Etiquetas */}
+                          <td className="px-4 py-3.5 min-w-[120px]">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {Array.isArray(ch.etiquetas) && ch.etiquetas.length > 0 ? (
+                                ch.etiquetas.map((etq, idx) => (
+                                  <span
+                                    key={'table_etq_' + idx}
+                                    className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-mono text-[9px] font-bold border border-amber-500/25"
+                                  >
+                                    #{etq}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-[11px] text-slate-400 font-mono">—</span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Solicitante & Técnico */}
+                          <td className="px-4 py-3.5 min-w-[150px]">
+                            <div className="font-semibold text-slate-800 dark:text-zinc-100 truncate">
+                              {ch.solicitante_nome || ch.solicitante || 'Não informado'}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono truncate">
+                              Técnico: {getNomeTecnico(ch.tecnico_email, ch.tecnico_nome)}
+                            </div>
+                          </td>
+
+                          {/* Cronômetros */}
+                          <td className="px-4 py-3.5 whitespace-nowrap font-mono text-[11px] space-y-0.5 min-w-[140px]">
+                            <div className="flex items-center gap-1 text-amber-800 dark:text-amber-300 font-bold">
+                              <HourglassIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                              <span className="text-[10px] text-slate-400 font-normal">Espera:</span>
+                              <span className="tabular-nums">{calcularTempoEspera(ch)}</span>
+                            </div>
+                            {isEmAndamento && (
+                              <div className="flex items-center gap-1 text-emerald-800 dark:text-emerald-300 font-bold">
+                                <HourglassIcon className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                <span className="text-[10px] text-slate-400 font-normal">Ativo:</span>
+                                <span className="tabular-nums">{calcularTempoAtivo(ch)}</span>
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Ações */}
+                          <td className="px-4 py-3.5 text-right whitespace-nowrap w-[200px]">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {isAguardando && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAceitarSuporte(ch)}
+                                    className="px-3 py-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-xs hover:opacity-95 flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <PlayIcon className="w-3 h-3 fill-current" />
+                                    <span>Assumir</span>
+                                  </button>
+
+                                  {Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle'))) ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setKanbanAberto(true)}
+                                      className="px-2.5 py-1.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-semibold text-xs border border-blue-500/25 cursor-pointer shadow-2xs"
+                                    >
+                                      🚀 Kanban
+                                    </button>
+                                  ) : onSelectEmpresa && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
+                                      className="px-2.5 py-1.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-200 hover:bg-black/5 cursor-pointer shadow-2xs"
+                                    >
+                                      Empresa
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCancelarChamado(ch)}
+                                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-500/10 cursor-pointer"
+                                    title="Cancelar chamado"
+                                  >
+                                    <XMarkIcon className="w-4 h-4" />
+                                  </button>
+                                </>
+                              )}
+
+                              {isEmAndamento && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => setChamadoParaFinalizar(ch)}
+                                    className="px-3 py-1.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs shadow-xs hover:opacity-90 flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <CheckIcon className="w-3 h-3 stroke-[2.5]" />
+                                    <span>Concluir</span>
+                                  </button>
+
+                                  {Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle'))) ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setKanbanAberto(true)}
+                                      className="px-2.5 py-1.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-semibold text-xs border border-blue-500/25 cursor-pointer shadow-2xs"
+                                    >
+                                      🚀 Kanban
+                                    </button>
+                                  ) : onSelectEmpresa && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
+                                      className="px-2.5 py-1.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-200 hover:bg-black/5 cursor-pointer shadow-2xs"
+                                    >
+                                      Empresa
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCancelarChamado(ch)}
+                                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-500/10 cursor-pointer"
+                                    title="Cancelar chamado"
+                                  >
+                                    <XMarkIcon className="w-4 h-4" />
+                                  </button>
+                                </>
+                              )}
+
+                              {isFinalizado && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCancelarChamado(ch)}
+                                  className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-500/10 cursor-pointer"
+                                  title="Excluir do histórico"
+                                >
+                                  <XMarkIcon className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
         </div>
-      )}
+      </div>
+
 
       {/* ============================================================================== */}
       {/* ============================================================================== */}
@@ -1212,7 +1303,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           Empresa do Cliente <span className="text-red-500">*</span>
                         </label>
                         
-                        <div className="relative">
+                        <div ref={empresaDropdownRef} className="relative">
                           <button
                             type="button"
                             onClick={() => {
@@ -1329,7 +1420,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                         </div>
 
                         {!modoCadastroColab ? (
-                          <div className="relative">
+                          <div ref={solicitanteDropdownRef} className="relative">
                             <button
                               type="button"
                               onClick={() => {

@@ -19,6 +19,7 @@ export default function InternalDemandsKanbanModal({ isOpen, onClose, userEmail 
   const [filtroTipo, setFiltroTipo] = useState('todos'); // 'todos' | 'ideia' | 'bug'
   const [busca, setBusca] = useState('');
   const [lightboxImagem, setLightboxImagem] = useState(null);
+  const [colunaArrastando, setColunaArrastando] = useState(null);
 
   const carregar = async () => {
     try {
@@ -181,7 +182,28 @@ export default function InternalDemandsKanbanModal({ isOpen, onClose, userEmail 
               return (
                 <div
                   key={col.id}
-                  className="rounded-3xl p-3.5 bg-black/[0.015] dark:bg-white/[0.02] border border-black/[0.05] dark:border-white/[0.06] flex flex-col h-full shadow-2xs"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (colunaArrastando !== col.id) setColunaArrastando(col.id);
+                  }}
+                  onDragLeave={(e) => {
+                    if (e.currentTarget.contains(e.relatedTarget)) return;
+                    setColunaArrastando(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setColunaArrastando(null);
+                    const fbId = e.dataTransfer.getData('text/plain');
+                    if (fbId) {
+                      handleMudarStatus(fbId, col.id);
+                    }
+                  }}
+                  className={`rounded-3xl p-3.5 border flex flex-col h-full shadow-2xs transition-all ${
+                    colunaArrastando === col.id
+                      ? 'border-[#4d7c0f] dark:border-[#84cc16] ring-2 ring-[#4d7c0f]/30 bg-[#4d7c0f]/[0.04]'
+                      : 'bg-black/[0.015] dark:bg-white/[0.02] border-black/[0.05] dark:border-white/[0.06]'
+                  }`}
                 >
                   {/* Cabeçalho da Coluna */}
                   <div className="flex items-center justify-between pb-3 px-1 border-b border-black/[0.04] dark:border-white/[0.05] mb-3 flex-shrink-0">
@@ -209,7 +231,12 @@ export default function InternalDemandsKanbanModal({ isOpen, onClose, userEmail 
                           <motion.div
                             key={fb.id}
                             layout
-                            className="p-3.5 rounded-2xl bg-white dark:bg-[#1c1c22] border border-black/[0.06] dark:border-white/[0.08] space-y-2.5 shadow-2xs hover:shadow-sm transition-all"
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('text/plain', fb.id);
+                              e.dataTransfer.effectAllowed = 'move';
+                            }}
+                            className="p-3.5 rounded-2xl bg-white dark:bg-[#1c1c22] border border-black/[0.06] dark:border-white/[0.08] space-y-2.5 shadow-2xs hover:shadow-sm transition-all cursor-grab active:cursor-grabbing hover:border-black/20 dark:hover:border-white/20 select-none"
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex items-center gap-1.5 flex-wrap">
