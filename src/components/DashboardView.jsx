@@ -81,7 +81,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
 
   // Paginação do Histórico de Atendimentos
   const [paginaAtual, setPaginaAtual] = useState(1);
-  const [itensPorPagina, setItensPorPagina] = useState(10);
+  const [itensPorPagina, setItensPorPagina] = useState(5);
 
   const totalPaginas = Math.max(1, Math.ceil((chamadosRecentes?.length || 0) / itensPorPagina));
 
@@ -254,75 +254,26 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
         </div>
       </div>
 
-      {/* Barra de Filtros de Período Estilo Apple */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2.5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/80 backdrop-blur-xl shadow-xs">
-        <div className="flex items-center gap-1.5 overflow-x-auto p-0.5">
-          <span className="text-xs font-semibold text-slate-500 dark:text-zinc-400 pl-2 pr-1">Período:</span>
-          {[
-            { id: 'hoje', label: 'Hoje' },
-            { id: '7d', label: 'Últimos 7 dias' },
-            { id: '30d', label: 'Últimos 30 dias' },
-            { id: 'mes_atual', label: 'Mês Atual' },
-            { id: 'personalizado', label: 'Personalizado' },
-          ].map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setPeriodo(p.id)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                periodo === p.id
-                  ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs font-bold'
-                  : 'text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-
-        {periodo === 'personalizado' && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center gap-2 px-2"
-          >
-            <input
-              type="date"
-              value={dataInicio}
-              onChange={(e) => setDataInicio(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.02] dark:bg-white/[0.04] text-xs text-[#1d1d1f] dark:text-white font-mono"
-            />
-            <span className="text-xs text-slate-400">até</span>
-            <input
-              type="date"
-              value={dataFim}
-              onChange={(e) => setDataFim(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.02] dark:bg-white/[0.04] text-xs text-[#1d1d1f] dark:text-white font-mono"
-            />
-          </motion.div>
-        )}
-
-        {/* Filtro por Categoria de Demanda */}
-        <div className="flex items-center gap-2 px-2 border-t sm:border-t-0 sm:border-l border-black/[0.06] dark:border-white/[0.08] pt-2 sm:pt-0">
-          <span className="text-xs font-semibold text-slate-500 dark:text-zinc-400">Categoria:</span>
-          <select
-            value={filtroCategoria}
-            onChange={(e) => setFiltroCategoria(e.target.value)}
-            className="px-3 py-1.5 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-xs font-semibold text-slate-700 dark:text-zinc-200 [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white focus:outline-none cursor-pointer shadow-xs"
-          >
-            <option value="todas">Todas as Categorias</option>
-            {categoriasLista.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
       {/* ============================================================================== */}
+      {/* LAYOUT PRINCIPAL RESPONSIVO: KPI NA LATERAL ESQUERDA + CONTEÚDO NA DIREITA   */}
+      {/* ============================================================================== */}
+      <div className="flex flex-col lg:flex-row items-start gap-6">
+
+        {/* -------------------------------------------------------------------------- */}
+        {/* COLUNA ESQUERDA: CARDS DE MÉTRICAS / KPIS (VERTICAL)                       */}
+        {/* -------------------------------------------------------------------------- */}
+        <div className="w-full lg:w-72 xl:w-80 flex-shrink-0 space-y-3.5 sticky top-4">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500 font-mono">
+              Indicadores Principais
+            </span>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          </div>
+
+          {/* ============================================================================== */}
       {/* 4 CARDS DE KPI DE ALTA FIDELIDADE (APPLE HIG) */}
       {/* ============================================================================== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="space-y-3.5">
         {/* KPI 1: Total de Chamados */}
         <motion.div 
           whileHover={{ y: -2 }}
@@ -412,8 +363,78 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
           </div>
         </motion.div>
       </div>
+        </div>
 
-      {/* ============================================================================== */}
+        {/* -------------------------------------------------------------------------- */}
+        {/* COLUNA DIREITA: FILTROS + CONTEÚDO (GRÁFICOS, PRODUTIVIDADE E HISTÓRICO)   */}
+        {/* -------------------------------------------------------------------------- */}
+        <div className="flex-1 min-w-0 w-full space-y-6">
+          {/* Barra de Filtros de Período Estilo Apple */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2.5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/80 backdrop-blur-xl shadow-xs">
+        <div className="flex items-center gap-1.5 overflow-x-auto p-0.5">
+          <span className="text-xs font-semibold text-slate-500 dark:text-zinc-400 pl-2 pr-1">Período:</span>
+          {[
+            { id: 'hoje', label: 'Hoje' },
+            { id: '7d', label: 'Últimos 7 dias' },
+            { id: '30d', label: 'Últimos 30 dias' },
+            { id: 'mes_atual', label: 'Mês Atual' },
+            { id: 'personalizado', label: 'Personalizado' },
+          ].map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setPeriodo(p.id)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                periodo === p.id
+                  ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs font-bold'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {periodo === 'personalizado' && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex items-center gap-2 px-2"
+          >
+            <input
+              type="date"
+              value={dataInicio}
+              onChange={(e) => setDataInicio(e.target.value)}
+              className="px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.02] dark:bg-white/[0.04] text-xs text-[#1d1d1f] dark:text-white font-mono"
+            />
+            <span className="text-xs text-slate-400">até</span>
+            <input
+              type="date"
+              value={dataFim}
+              onChange={(e) => setDataFim(e.target.value)}
+              className="px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.02] dark:bg-white/[0.04] text-xs text-[#1d1d1f] dark:text-white font-mono"
+            />
+          </motion.div>
+        )}
+
+        {/* Filtro por Categoria de Demanda */}
+        <div className="flex items-center gap-2 px-2 border-t sm:border-t-0 sm:border-l border-black/[0.06] dark:border-white/[0.08] pt-2 sm:pt-0">
+          <span className="text-xs font-semibold text-slate-500 dark:text-zinc-400">Categoria:</span>
+          <select
+            value={filtroCategoria}
+            onChange={(e) => setFiltroCategoria(e.target.value)}
+            className="px-3 py-1.5 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-xs font-semibold text-slate-700 dark:text-zinc-200 [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white focus:outline-none cursor-pointer shadow-xs"
+          >
+            <option value="todas">Todas as Categorias</option>
+            {categoriasLista.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+          {/* ============================================================================== */}
       {/* SEÇÃO LÚDICA COM MOTION: DESEMPENHO E PRODUTIVIDADE DA EQUIPE */}
       {/* ============================================================================== */}
       <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-5 shadow-sm">
@@ -661,57 +682,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
           </div>
         )}
 
-        {/* Barra de Paginação Apple do Histórico Recente de Atendimentos */}
-        {chamadosRecentes.length > 0 && (
-          <div className="px-5 py-3.5 border-t border-black/[0.05] dark:border-white/[0.06] bg-black/[0.015] dark:bg-white/[0.02] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2 text-slate-500 dark:text-zinc-400">
-              <span>
-                Mostrando <strong>{Math.min(chamadosRecentes.length, (paginaAtual - 1) * itensPorPagina + 1)}</strong> a <strong>{Math.min(chamadosRecentes.length, paginaAtual * itensPorPagina)}</strong> de <strong>{chamadosRecentes.length}</strong> atendimentos
-              </span>
-            </div>
 
-            <div className="flex items-center gap-3 self-end sm:self-auto flex-wrap">
-              <div className="flex items-center gap-1.5">
-                <span className="text-slate-400 text-[11px]">Itens por página:</span>
-                <select
-                  value={itensPorPagina}
-                  onChange={(e) => {
-                    setItensPorPagina(Number(e.target.value));
-                    setPaginaAtual(1);
-                  }}
-                  className="px-2.5 py-1 rounded-xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs font-semibold text-[#1d1d1f] dark:text-white cursor-pointer focus:outline-none"
-                >
-                  <option value={5}>5</option>
-                  <option value={10}>10</option>
-                  <option value={15}>15</option>
-                  <option value={20}>20</option>
-                </select>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={paginaAtual <= 1}
-                  onClick={() => setPaginaAtual((p) => Math.max(1, p - 1))}
-                  className="px-3 py-1 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 disabled:opacity-40 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed transition-all shadow-2xs"
-                >
-                  ← Anterior
-                </button>
-                <span className="px-2.5 py-1 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] text-xs font-mono font-bold text-[#1d1d1f] dark:text-white">
-                  {paginaAtual} / {totalPaginas}
-                </span>
-                <button
-                  type="button"
-                  disabled={paginaAtual >= totalPaginas}
-                  onClick={() => setPaginaAtual((p) => Math.min(totalPaginas, p + 1))}
-                  className="px-3 py-1 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 disabled:opacity-40 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed transition-all shadow-2xs"
-                >
-                  Próxima →
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ============================================================================== */}
@@ -1232,7 +1203,63 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
             </div>
           </div>
         )}
+
+        {/* Barra de Paginação Apple do Histórico Recente de Atendimentos */}
+        {chamadosRecentes.length > 0 && (
+          <div className="px-5 py-3.5 border-t border-black/[0.05] dark:border-white/[0.06] bg-black/[0.015] dark:bg-white/[0.02] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-slate-500 dark:text-zinc-400">
+              <span>
+                Mostrando <strong>{Math.min(chamadosRecentes.length, (paginaAtual - 1) * itensPorPagina + 1)}</strong> a <strong>{Math.min(chamadosRecentes.length, paginaAtual * itensPorPagina)}</strong> de <strong>{chamadosRecentes.length}</strong> atendimentos
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3 self-end sm:self-auto flex-wrap">
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-400 text-[11px]">Itens por página:</span>
+                <select
+                  value={itensPorPagina}
+                  onChange={(e) => {
+                    setItensPorPagina(Number(e.target.value));
+                    setPaginaAtual(1);
+                  }}
+                  className="px-2.5 py-1 rounded-xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs font-semibold text-[#1d1d1f] dark:text-white cursor-pointer focus:outline-none"
+                >
+                  <option value={5}>5 por página</option>
+                  <option value={10}>10 por página</option>
+                  <option value={15}>15 por página</option>
+                  <option value={20}>20 por página</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={paginaAtual <= 1}
+                  onClick={() => setPaginaAtual((p) => Math.max(1, p - 1))}
+                  className="px-3 py-1 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 disabled:opacity-40 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed transition-all shadow-2xs"
+                >
+                  ← Anterior
+                </button>
+                <span className="px-2.5 py-1 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] text-xs font-mono font-bold text-[#1d1d1f] dark:text-white">
+                  {paginaAtual} / {totalPaginas}
+                </span>
+                <button
+                  type="button"
+                  disabled={paginaAtual >= totalPaginas}
+                  onClick={() => setPaginaAtual((p) => Math.min(totalPaginas, p + 1))}
+                  className="px-3 py-1 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 disabled:opacity-40 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed transition-all shadow-2xs"
+                >
+                  Próxima →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+        </div>
+      </div>
+
+
 
       {/* Modal de Detalhes da Demanda por Empresa (quando clicado no Dashboard) */}
       {empresaDetalhesDemandas && (
