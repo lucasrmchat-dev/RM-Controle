@@ -407,9 +407,126 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   }, [equipeLista, chamados, userEmail]);
 
 
-  // Efeito orquestrado: quando o preset for 'foco_mim', garante que os outros colaboradores fiquem recolhidos
+  // Target do técnico selecionado pelo filtro (ou null se for 'todos' ou 'nao_atribuido')
+  const targetTec = useMemo(() => {
+    if (!filtroTecnico || filtroTecnico === 'todos' || filtroTecnico === 'nao_atribuido') return null;
+    return (
+      listaTecnicosKanban.find((t) => 
+        (t.id && t.id === filtroTecnico) || 
+        (t.email && t.email.toLowerCase().trim() === filtroTecnico.toLowerCase().trim()) || 
+        (t.nome && removerAcentos(t.nome.toLowerCase().trim()) === removerAcentos(filtroTecnico.toLowerCase().trim()))
+      ) || null
+    );
+  }, [filtroTecnico, listaTecnicosKanban]);
+
+  // Função robusta e definitiva para verificar se um chamado pertence a um determinado técnico/colaborador
+  const isChamadoDoTecnico = (chamado, tec) => {
+    if (!chamado || !tec) return false;
+    const isAguardando = chamado.status === 'aguardando_visualizacao' || chamado.status === 'pendente';
+    const chEmail = (chamado.tecnico_email || '').toLowerCase().trim();
+    const chNome = removerAcentos((chamado.tecnico_nome || '').toLowerCase().trim());
+    const chAtendente = removerAcentos((chamado.atendente || '').toLowerCase().trim());
+    const chAtribuido = (chamado.atribuido_a || '').toLowerCase().trim();
+
+    // Se estiver em espera e nenhum campo de técnico foi atribuído, não pertence a nenhum técnico
+    if (isAguardando && !chEmail && !chNome && !chAtendente && !chAtribuido) {
+      return false;
+    }
+
+    const tecEmail = (tec.email || '').toLowerCase().trim();
+    const tecNome = removerAcentos((tec.nome || '').toLowerCase().trim());
+    const tecId = (tec.id || '').toLowerCase().trim();
+
+    // 1. Comparação direta por e-mail (se ambos tiverem e-mail preenchido)
+    if (tecEmail && chEmail) {
+      if (tecEmail === chEmail || tecEmail.includes(chEmail) || chEmail.includes(tecEmail)) return true;
+    }
+
+    // 2. Comparação por campo atribuido_a
+    if (chAtribuido) {
+      if (tecEmail && (chAtribuido === tecEmail || chAtribuido.includes(tecEmail))) return true;
+      if (tecId && chAtribuido === tecId) return true;
+      if (tecNome && removerAcentos(chAtribuido).includes(tecNome)) return true;
+    }
+
+    // 3. Comparação com o nome canônico do chamado via getNomeTecnico
+    const nomeCanonico = removerAcentos(getNomeTecnico(chamado.tecnico_email, chamado.atendente || chamado.tecnico_nome).toLowerCase().trim());
+    if (tecNome && nomeCanonico && nomeCanonico !== 'nao atribuido' && nomeCanonico !== 'nao informado') {
+      if (nomeCanonico === tecNome || nomeCanonico.includes(tecNome) || tecNome.includes(nomeCanonico)) return true;
+    }
+
+    // 4. Comparação por nome do técnico ou atendente
+    if (tecNome) {
+      if (chNome && chNome !== 'nao atribuido' && chNome !== 'nao informado' && chNome !== 'colaborador') {
+        if (chNome === tecNome || chNome.includes(tecNome) || tecNome.includes(chNome)) return true;
+        const pTec = tecNome.split(' ')[0];
+        const pCh = chNome.split(' ')[0];
+        if (pTec && pTec.length >= 3 && pTec === pCh) return true;
+      }
+
+      if (chAtendente && chAtendente !== 'nao atribuido' && chAtendente !== 'nao informado' && chAtendente !== 'colaborador') {
+        if (chAtendente === tecNome || chAtendente.includes(tecNome) || tecNome.includes(chAtendente)) return true;
+        const pTec = tecNome.split(' ')[0];
+        const pAt = chAtendente.split(' ')[0];
+        if (pTec && pTec.length >= 3 && pTec === pAt) return true;
+      }
+    }
+
+    // 5. Comparação se tec for o usuário logado
+    if (isTecnicoMim(tec) && userEmail) {
+      const uClean = userEmail.toLowerCase().trim();
+      if (chEmail && (chEmail === uClean || chEmail.includes(uClean))) return true;
+      if (chAtribuido && chAtribuido === uClean) return true;
+    }
+
+    return false;
+  };
+
+  // Manipulador unificado do filtro por colaborador: atualiza filtro, recolhe os demais no Kanban e rola até a coluna
+  const handleSelecionarFiltroTecnico = (valor) => {
+    setFiltroTecnico(valor);
+    setFiltroTecnicoDropdownAberto(false);
+    setBuscaFiltroTecnico('');
+
+    if (valor === 'todos') {
+      setColaboradoresRecolhidos([]);
+      setKanbanPreset('expandir_todos');
+    } else if (valor === 'nao_atribuido') {
+      const todosKeys = listaTecnicosKanban.map(getTecKey);
+      setColaboradoresRecolhidos(todosKeys);
+      setKanbanPreset('custom');
+      kanbanScrollRef.current?.scrollTo({ left: 0, behavior: 'smooth' });
+    } else {
+      const tecObj = listaTecnicosKanban.find((t) => 
+        (t.id && t.id === valor) || 
+        (t.email && t.email.toLowerCase().trim() === valor.toLowerCase().trim()) || 
+        (t.nome && removerAcentos(t.nome.toLowerCase().trim()) === removerAcentos(valor.toLowerCase().trim()))
+      );
+      if (tecObj) {
+        const targetKey = getTecKey(tecObj);
+        // Expande apenas o colaborador selecionado e recolhe os outros
+        const outros = listaTecnicosKanban
+          .filter((t) => getTecKey(t) !== targetKey)
+          .map(getTecKey);
+        setColaboradoresRecolhidos(outros);
+        setKanbanPreset('custom');
+
+        // Scroll suave até a coluna do colaborador
+        setTimeout(() => {
+          try {
+            const colEl = document.getElementById('kanban-col-' + targetKey);
+            if (colEl) {
+              colEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            }
+          } catch (e) {}
+        }, 120);
+      }
+    }
+  };
+
+  // Efeito orquestrado: quando o preset for 'foco_mim' e filtroTecnico estiver em 'todos'
   useEffect(() => {
-    if (kanbanPreset === 'foco_mim' && listaTecnicosKanban.length > 0) {
+    if (kanbanPreset === 'foco_mim' && filtroTecnico === 'todos' && listaTecnicosKanban.length > 0) {
       const outros = listaTecnicosKanban
         .filter((t) => !isTecnicoMim(t))
         .map(getTecKey);
@@ -421,11 +538,54 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
         });
       }
     }
-  }, [listaTecnicosKanban, userEmail, kanbanPreset]);
+  }, [listaTecnicosKanban, userEmail, kanbanPreset, filtroTecnico]);
+
+  // Efeito ao alternar para visualização Kanban com um colaborador selecionado
+  useEffect(() => {
+    if (filaViewMode === 'kanban' && targetTec) {
+      const targetKey = getTecKey(targetTec);
+      const outros = listaTecnicosKanban
+        .filter((t) => getTecKey(t) !== targetKey)
+        .map(getTecKey);
+      setColaboradoresRecolhidos((prev) => {
+        const prevSet = new Set(prev);
+        const isSame = outros.length === prev.length && outros.every((k) => prevSet.has(k));
+        return isSame ? prev : outros;
+      });
+      setTimeout(() => {
+        try {
+          const colEl = document.getElementById('kanban-col-' + targetKey);
+          if (colEl) {
+            colEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+          }
+        } catch (e) {}
+      }, 150);
+    }
+  }, [filaViewMode, targetTec, listaTecnicosKanban]);
 
   // Aliases seguros para garantir retrocompatibilidade de referências no modal
   const solicitantesEmpresa = colaboradoresEmpresaAtual;
   const empresasFiltradasDropdown = empresasFiltradasBusca;
+
+  // Permissões e Usuário
+  const usuarioLogado = useMemo(() => {
+    return Array.isArray(equipeLista)
+      ? equipeLista.find((u) => (u.email || '').toLowerCase().trim() === (userEmail || '').toLowerCase().trim())
+      : null;
+  }, [equipeLista, userEmail]);
+
+  const depsBloqueados = useMemo(() => {
+    return Array.isArray(usuarioLogado?.departamentos_bloqueados)
+      ? usuarioLogado.departamentos_bloqueados.map((d) => d.toLowerCase().trim())
+      : [];
+  }, [usuarioLogado]);
+
+  const ehAdmin = useMemo(() => {
+    return (
+      usuarioLogado?.papel === 'administrador' ||
+      Boolean(userEmail && (userEmail.includes('admin') || userEmail.includes('lucas')))
+    );
+  }, [usuarioLogado, userEmail]);
 
   // KPIs
   const emAndamento = useMemo(() => chamados.filter((c) => c.status === 'em_andamento'), [chamados]);
@@ -457,11 +617,40 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     return Math.round((soma / concluidos.length) / 60);
   }, [resolvidosHoje]);
 
-  const chamadosFiltrados = useMemo(() => {
-    const usuarioLogado = Array.isArray(equipeLista) ? equipeLista.find((u) => (u.email || '').toLowerCase().trim() === (userEmail || '').toLowerCase().trim()) : null;
-    const depsBloqueados = Array.isArray(usuarioLogado?.departamentos_bloqueados) ? usuarioLogado.departamentos_bloqueados.map(d => d.toLowerCase().trim()) : [];
-    const ehAdmin = usuarioLogado?.papel === 'administrador' || (userEmail && (userEmail.includes('admin') || userEmail.includes('lucas')));
+  // Chamados da fila de espera filtrados para a Coluna Fixa do Kanban
+  const chamadosEsperaKanban = useMemo(() => {
+    return chamados
+      .filter((c) => {
+        if (c.status !== 'aguardando_visualizacao' && c.status !== 'pendente') return false;
+        if (!ehAdmin && depsBloqueados.length > 0) {
+          const cats = Array.isArray(c.categorias) && c.categorias.length > 0 ? c.categorias : ['Suporte'];
+          const isBloqueado = cats.some((cat) => depsBloqueados.includes((cat || '').toLowerCase().trim()));
+          if (isBloqueado) return false;
+        }
+        if (filtroCategoria && filtroCategoria !== 'todas') {
+          const catQ = filtroCategoria.toLowerCase().trim();
+          const cats = Array.isArray(c.categorias) && c.categorias.length > 0 ? c.categorias : ['Suporte'];
+          if (!cats.some((cat) => (cat || '').toLowerCase().trim() === catQ)) return false;
+        }
+        if (filtroEtiqueta && filtroEtiqueta !== 'todas') {
+          const etqQ = filtroEtiqueta.toLowerCase().trim();
+          const etqs = Array.isArray(c.etiquetas) ? c.etiquetas : [];
+          if (!etqs.some((e) => (e || '').toLowerCase().trim() === etqQ)) return false;
+        }
+        if (busca.trim()) {
+          const q = busca.toLowerCase().trim();
+          const nomeMatch = (c.empresa_nome || '').toLowerCase().includes(q);
+          const solMatch = (c.solicitante_nome || c.solicitante || '').toLowerCase().includes(q);
+          const descMatch = (c.observacao_inicial || c.descricao || '').toLowerCase().includes(q);
+          if (!nomeMatch && !solMatch && !descMatch) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+  }, [chamados, ehAdmin, depsBloqueados, filtroCategoria, filtroEtiqueta, busca]);
 
+  // Lista Filtrada para as Visualizações em Cards e Lista (tabela)
+  const chamadosFiltrados = useMemo(() => {
     return chamados.filter((c) => {
       // Bloqueio de visibilidade por departamento se o colaborador estiver restrito
       if (!ehAdmin && depsBloqueados.length > 0) {
@@ -494,23 +683,19 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
         }
       }
 
+      // Filtro estrito por Técnico/Colaborador
       if (filtroTecnico && filtroTecnico !== 'todos') {
         if (filtroTecnico === 'nao_atribuido') {
           const isAguardando = c.status === 'aguardando_visualizacao' || c.status === 'pendente';
-          if (!isAguardando && (c.tecnico_email || c.tecnico_nome || c.atendente)) {
+          const chEmail = (c.tecnico_email || '').trim();
+          const chNome = (c.tecnico_nome || '').trim();
+          const chAtendente = (c.atendente || '').trim();
+          if (!isAguardando && (chEmail || chNome || chAtendente)) {
             return false;
           }
         } else {
-          const fClean = removerAcentos(filtroTecnico.toLowerCase().trim());
-          const tecEmail = (c.tecnico_email || '').toLowerCase().trim();
-          const tecNome = removerAcentos((c.tecnico_nome || getNomeTecnico(c.tecnico_email, c.atendente) || '').toLowerCase().trim());
-          const atendente = removerAcentos((c.atendente || '').toLowerCase().trim());
-
-          const matchEmail = tecEmail.includes(fClean) || fClean.includes(tecEmail);
-          const matchNome = tecNome.includes(fClean) || fClean.includes(tecNome);
-          const matchAtendente = atendente.includes(fClean) || fClean.includes(atendente);
-
-          if (!matchEmail && !matchNome && !matchAtendente) {
+          if (!targetTec) return false;
+          if (!isChamadoDoTecnico(c, targetTec)) {
             return false;
           }
         }
@@ -532,7 +717,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       if (b.status === 'aguardando_visualizacao' && a.status !== 'aguardando_visualizacao') return 1;
       return new Date(b.created_at || 0) - new Date(a.created_at || 0);
     });
-  }, [chamados, filtroStatus, filtroCategoria, filtroTecnico, filtroEtiqueta, busca, equipeLista, userEmail]);
+  }, [chamados, filtroStatus, filtroCategoria, filtroTecnico, targetTec, filtroEtiqueta, busca, ehAdmin, depsBloqueados]);
 
   // Ações de Chamado
   const handleAceitarSuporte = async (chamado) => {
@@ -1090,7 +1275,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                       ? 'Todos os Técnicos'
                       : filtroTecnico === 'nao_atribuido'
                       ? 'Sem Técnico / Em Espera'
-                      : listaTecnicosKanban.find((t) => t.email === filtroTecnico || t.nome === filtroTecnico)?.nome || filtroTecnico}
+                      : targetTec?.nome || filtroTecnico}
                   </span>
                   <span className="text-[10px] opacity-60">▼</span>
                 </button>
@@ -1108,11 +1293,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                     <div className="max-h-56 overflow-y-auto space-y-0.5 scrollbar-thin">
                       <button
                         type="button"
-                        onClick={() => {
-                          setFiltroTecnico('todos');
-                          setFiltroTecnicoDropdownAberto(false);
-                          setBuscaFiltroTecnico('');
-                        }}
+                        onClick={() => handleSelecionarFiltroTecnico('todos')}
                         className={`w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between text-xs transition-colors cursor-pointer ${
                           filtroTecnico === 'todos'
                             ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
@@ -1128,11 +1309,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
                       <button
                         type="button"
-                        onClick={() => {
-                          setFiltroTecnico('nao_atribuido');
-                          setFiltroTecnicoDropdownAberto(false);
-                          setBuscaFiltroTecnico('');
-                        }}
+                        onClick={() => handleSelecionarFiltroTecnico('nao_atribuido')}
                         className={`w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between text-xs transition-colors cursor-pointer ${
                           filtroTecnico === 'nao_atribuido'
                             ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
@@ -1158,23 +1335,19 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           );
                         })
                         .map((tec) => {
-                          const isSel = filtroTecnico === (tec.email || tec.nome);
+                          const isSel = Boolean(
+                            (targetTec && (targetTec.id === tec.id || targetTec.email === tec.email || targetTec.nome === tec.nome)) ||
+                            filtroTecnico === (tec.id || tec.email || tec.nome)
+                          );
                           const chamadosCount = chamados.filter(
-                            (c) => c.status === 'em_andamento' && (
-                              (c.tecnico_email && tec.email && c.tecnico_email.toLowerCase() === tec.email.toLowerCase()) ||
-                              (c.tecnico_nome && tec.nome && removerAcentos(c.tecnico_nome).includes(removerAcentos(tec.nome)))
-                            )
+                            (c) => c.status === 'em_andamento' && isChamadoDoTecnico(c, tec)
                           ).length;
 
                           return (
                             <button
                               key={tec.id || tec.email}
                               type="button"
-                              onClick={() => {
-                                setFiltroTecnico(tec.email || tec.nome);
-                                setFiltroTecnicoDropdownAberto(false);
-                                setBuscaFiltroTecnico('');
-                              }}
+                              onClick={() => handleSelecionarFiltroTecnico(tec.id || tec.email || tec.nome)}
                               className={`w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between text-xs transition-colors cursor-pointer ${
                                 isSel
                                   ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
@@ -1576,21 +1749,19 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                       </div>
                     </div>
                     <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-500/30">
-                      {chamadosFiltrados.filter((c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente').length}
+                      {chamadosEsperaKanban.length}
                     </span>
                   </div>
 
                   {/* Cards de Chamados em Espera (Scroll interno limitado sem esticar a página) */}
                   <div className="space-y-3 flex-1 overflow-y-auto pr-1 scrollbar-thin max-h-[490px]">
-                    {chamadosFiltrados.filter((c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente').length === 0 ? (
+                    {chamadosEsperaKanban.length === 0 ? (
                       <div className="py-20 text-center text-xs text-slate-400 dark:text-zinc-500 space-y-1">
                         <span className="text-xl block">🎉</span>
                         <span>Nenhum chamado aguardando suporte na fila.</span>
                       </div>
                     ) : (
-                      chamadosFiltrados
-                        .filter((c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente')
-                        .map((ch) => (
+                      chamadosEsperaKanban.map((ch) => (
                           <motion.div
                             key={ch.id}
                             layout
@@ -1683,17 +1854,32 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                   const tecKey = getTecKey(tec);
                   const isRecolhido = colaboradoresRecolhidos.includes(tecKey);
 
-                  const chamadosTecnico = chamadosFiltrados.filter((c) => {
+                  const chamadosTecnico = chamados.filter((c) => {
                     if (c.status !== 'em_andamento') return false;
-                    const tEmail = (c.tecnico_email || '').toLowerCase();
-                    const tNome = removerAcentos((c.tecnico_nome || getNomeTecnico(c.tecnico_email, c.atendente) || '').toLowerCase());
-                    const cAtendente = removerAcentos((c.atendente || '').toLowerCase());
-
-                    const tecEmail = (tec.email || '').toLowerCase();
-                    const tecNome = removerAcentos((tec.nome || '').toLowerCase());
-
-                    return (tecEmail && tEmail === tecEmail) ||
-                           (tecNome && (tNome.includes(tecNome) || cAtendente.includes(tecNome)));
+                    if (!ehAdmin && depsBloqueados.length > 0) {
+                      const cats = Array.isArray(c.categorias) && c.categorias.length > 0 ? c.categorias : ['Suporte'];
+                      const isBloqueado = cats.some((cat) => depsBloqueados.includes((cat || '').toLowerCase().trim()));
+                      if (isBloqueado) return false;
+                    }
+                    if (filtroCategoria && filtroCategoria !== 'todas') {
+                      const catQ = filtroCategoria.toLowerCase().trim();
+                      const cats = Array.isArray(c.categorias) && c.categorias.length > 0 ? c.categorias : ['Suporte'];
+                      if (!cats.some((cat) => (cat || '').toLowerCase().trim() === catQ)) return false;
+                    }
+                    if (filtroEtiqueta && filtroEtiqueta !== 'todas') {
+                      const etqQ = filtroEtiqueta.toLowerCase().trim();
+                      const etqs = Array.isArray(c.etiquetas) ? c.etiquetas : [];
+                      if (!etqs.some((e) => (e || '').toLowerCase().trim() === etqQ)) return false;
+                    }
+                    if (busca.trim()) {
+                      const q = busca.toLowerCase().trim();
+                      const nomeMatch = (c.empresa_nome || '').toLowerCase().includes(q);
+                      const tecMatch = (c.tecnico_nome || c.tecnico_email || '').toLowerCase().includes(q);
+                      const solMatch = (c.solicitante_nome || c.solicitante || '').toLowerCase().includes(q);
+                      const descMatch = (c.observacao_inicial || c.descricao || '').toLowerCase().includes(q);
+                      if (!nomeMatch && !tecMatch && !solMatch && !descMatch) return false;
+                    }
+                    return isChamadoDoTecnico(c, tec);
                   });
 
                   // Renderização de Coluna Recolhida (Strip Vertical Compacta)
@@ -1740,6 +1926,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                   // Renderização de Coluna Expandida com Altura Limitada
                   return (
                     <div
+                      id={'kanban-col-' + tecKey}
                       key={tecKey}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={async (e) => {
