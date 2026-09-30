@@ -121,6 +121,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   // Categorias de Demandas
   const [categoriasDisponiveis, setCategoriasDisponiveis] = useState([]);
   const [filtroCategoria, setFiltroCategoria] = useState('todas');
+  const [filtroTecnico, setFiltroTecnico] = useState('todos');
   const [novasCategoriasModal, setNovasCategoriasModal] = useState(['Suporte']);
   const [novasEtiquetasModal, setNovasEtiquetasModal] = useState([]);
   const [inputEtiqueta, setInputEtiqueta] = useState('');
@@ -185,24 +186,51 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     setTimeout(() => setFeedback(''), 3500);
   };
 
-  // Cronômetro 1: Tempo em Espera
+  // Cronômetro 1: Tempo em Espera (Real e Preciso)
   const calcularTempoEspera = (chamado) => {
     const agora = Date.now();
-    const inicioEspera = new Date(chamado.tempo_espera_inicio || chamado.created_at || agora).getTime();
+    const dataCriacao = chamado.created_at || chamado.tempo_espera_inicio;
+    const inicioEspera = new Date(chamado.tempo_espera_inicio || dataCriacao || agora).getTime();
     
-    // Se já foi aceito e congelou o tempo de espera:
-    if (chamado.tempo_espera_fim || (chamado.tempo_espera_segundos && chamado.status === 'em_andamento')) {
-      const segs = chamado.tempo_espera_segundos || 0;
+    // 1. Se tem tempo_espera_segundos gravado maior que 0:
+    if (chamado.tempo_espera_segundos && chamado.tempo_espera_segundos > 0) {
+      const segs = chamado.tempo_espera_segundos;
       const mins = Math.floor(segs / 60);
       const secs = segs % 60;
       return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
 
-    // Se continua aguardando em espera (ao vivo):
-    const diffSeg = Math.max(0, Math.floor((agora - inicioEspera) / 1000));
-    const mins = Math.floor(diffSeg / 60);
-    const secs = diffSeg % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    // 2. Se já foi aceito e possui tempo_espera_fim registrado:
+    if (chamado.tempo_espera_fim && inicioEspera) {
+      const fimEspera = new Date(chamado.tempo_espera_fim).getTime();
+      const diff = Math.max(0, Math.floor((fimEspera - inicioEspera) / 1000));
+      if (diff > 0) {
+        const mins = Math.floor(diff / 60);
+        const secs = diff % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      }
+    }
+
+    // 3. Se está em andamento (assumido) e possui horário de início ativo:
+    if (chamado.status === 'em_andamento') {
+      const fim = new Date(chamado.tempo_ativo_inicio || chamado.iniciado_em || agora).getTime();
+      const diff = Math.max(0, Math.floor((fim - inicioEspera) / 1000));
+      if (diff > 0) {
+        const mins = Math.floor(diff / 60);
+        const secs = diff % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      }
+    }
+
+    // 4. Se continua aguardando em espera (ao vivo):
+    if (chamado.status === 'aguardando_visualizacao' || chamado.status === 'pendente') {
+      const diffSeg = Math.max(0, Math.floor((agora - inicioEspera) / 1000));
+      const mins = Math.floor(diffSeg / 60);
+      const secs = diffSeg % 60;
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    return '00:00';
   };
 
   // Cronômetro 2: Tempo Ativo (Em Atendimento)
@@ -638,7 +666,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                   onClick={() => setFilaViewMode('cards')}
                   className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
                     filaViewMode === 'cards'
-                      ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                      ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs font-bold'
                       : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
                   }`}
                   title="Exibir Fila em Cards"
@@ -651,13 +679,26 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                   onClick={() => setFilaViewMode('list')}
                   className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
                     filaViewMode === 'list'
-                      ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                      ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs font-bold'
                       : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
                   }`}
                   title="Exibir Fila em Lista"
                 >
                   <ViewListIcon className="w-3.5 h-3.5" />
                   <span className="text-[11px]">Lista</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilaViewMode('kanban')}
+                  className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
+                    filaViewMode === 'kanban'
+                      ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs font-bold'
+                      : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
+                  }`}
+                  title="Exibir Fila em Quadro Kanban"
+                >
+                  <ViewGridIcon className="w-3.5 h-3.5" />
+                  <span className="text-[11px]">Kanban</span>
                 </button>
               </div>
 
@@ -682,36 +723,58 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
             </div>
 
-            {/* Filtro Rápido por Departamento */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pt-2 border-t border-black/[0.04] dark:border-white/[0.05] text-xs">
-              <span className="text-slate-400 font-semibold px-1 text-[11px] uppercase tracking-wider font-mono">
-                Departamento:
-              </span>
-              <button
-                type="button"
-                onClick={() => setFiltroCategoria('todas')}
-                className={`px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer transition-all ${
-                  filtroCategoria === 'todas'
-                    ? 'bg-black text-white dark:bg-white dark:text-black font-bold shadow-xs'
-                    : 'bg-black/[0.02] dark:bg-white/[0.04] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.06]'
-                }`}
-              >
-                Todos
-              </button>
-              {categoriasDisponiveis.map((cat) => (
+            {/* Filtros de Linha: Departamento e Técnico Responsável */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-black/[0.04] dark:border-white/[0.05] text-xs">
+              <div className="flex items-center gap-1.5 overflow-x-auto p-0.5">
+                <span className="text-slate-400 font-semibold px-1 text-[11px] uppercase tracking-wider font-mono">
+                  Departamento:
+                </span>
                 <button
-                  key={cat}
                   type="button"
-                  onClick={() => setFiltroCategoria(cat)}
+                  onClick={() => setFiltroCategoria('todas')}
                   className={`px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer transition-all ${
-                    filtroCategoria === cat
+                    filtroCategoria === 'todas'
                       ? 'bg-black text-white dark:bg-white dark:text-black font-bold shadow-xs'
                       : 'bg-black/[0.02] dark:bg-white/[0.04] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.06]'
                   }`}
                 >
-                  {cat}
+                  Todos
                 </button>
-              ))}
+                {categoriasDisponiveis.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setFiltroCategoria(cat)}
+                    className={`px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer transition-all ${
+                      filtroCategoria === cat
+                        ? 'bg-black text-white dark:bg-white dark:text-black font-bold shadow-xs'
+                        : 'bg-black/[0.02] dark:bg-white/[0.04] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.06]'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Filtro por Colaborador Responsável (Técnico) */}
+              <div className="flex items-center gap-2 flex-shrink-0 sm:border-l border-black/[0.06] dark:border-white/[0.08] sm:pl-3">
+                <span className="text-slate-400 font-semibold text-[11px] uppercase tracking-wider font-mono">
+                  Técnico:
+                </span>
+                <select
+                  value={filtroTecnico}
+                  onChange={(e) => setFiltroTecnico(e.target.value)}
+                  className="px-3 py-1 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-xs font-semibold text-slate-700 dark:text-zinc-200 focus:outline-none cursor-pointer shadow-xs [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white"
+                >
+                  <option value="todos">Todos os Técnicos</option>
+                  <option value="nao_atribuido">Sem Técnico / Em Espera</option>
+                  {equipeLista.map((tec) => (
+                    <option key={tec.email || tec.id} value={tec.email || tec.nome}>
+                      {tec.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
@@ -937,6 +1000,256 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                   </motion.div>
                 );
               })}
+            </div>
+          ) : filaViewMode === 'kanban' ? (
+            /* ==================================================================== */
+            /* VISUALIZAÇÃO EM QUADRO KANBAN DA FILA DE DEMANDAS                    */
+            /* ==================================================================== */
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
+              {[
+                {
+                  id: 'aguardando',
+                  titulo: 'Aguardando Atendimento',
+                  corBadge: 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30',
+                  dotCor: 'bg-amber-500',
+                  items: chamadosFiltrados.filter((c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente'),
+                  vazioMsg: 'Nenhum chamado aguardando na fila.',
+                  onDropAction: null,
+                },
+                {
+                  id: 'em_andamento',
+                  titulo: 'Em Atendimento Ao Vivo',
+                  corBadge: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30',
+                  dotCor: 'bg-emerald-500 animate-ping',
+                  items: chamadosFiltrados.filter((c) => c.status === 'em_andamento'),
+                  vazioMsg: 'Nenhum chamado em atendimento.',
+                  onDropAction: (ch) => {
+                    if (ch.status === 'aguardando_visualizacao' || ch.status === 'pendente') {
+                      handleAceitarSuporte(ch);
+                    }
+                  },
+                },
+                {
+                  id: 'concluidos',
+                  titulo: 'Resolvidos Hoje',
+                  corBadge: 'bg-blue-500/15 text-blue-800 dark:text-blue-300 border-blue-500/30',
+                  dotCor: 'bg-blue-500',
+                  items: chamadosFiltrados.filter((c) => c.status === 'concluido' || c.status === 'finalizado'),
+                  vazioMsg: 'Nenhum atendimento finalizado hoje.',
+                  onDropAction: (ch) => {
+                    if (ch.status === 'em_andamento') {
+                      setChamadoParaFinalizar(ch);
+                    }
+                  },
+                },
+              ].map((coluna) => (
+                <div
+                  key={coluna.id}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const chId = e.dataTransfer.getData('text/plain');
+                    const ch = chamados.find((c) => c.id === chId);
+                    if (ch && coluna.onDropAction) {
+                      coluna.onDropAction(ch);
+                    }
+                  }}
+                  className="rounded-3xl p-4 sm:p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs flex flex-col min-h-[480px]"
+                >
+                  {/* Cabeçalho da Coluna Kanban */}
+                  <div className="flex items-center justify-between gap-2 pb-3.5 border-b border-black/[0.05] dark:border-white/[0.06] mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2.5 h-2.5 rounded-full ${coluna.dotCor}`}></span>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-[#1d1d1f] dark:text-white font-mono">
+                        {coluna.titulo}
+                      </h3>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${coluna.corBadge}`}>
+                      {coluna.items.length}
+                    </span>
+                  </div>
+
+                  {/* Lista de Cards da Coluna */}
+                  <div className="space-y-3.5 flex-1">
+                    {coluna.items.length === 0 ? (
+                      <div className="py-12 text-center text-xs text-slate-400 dark:text-zinc-500">
+                        {coluna.vazioMsg}
+                      </div>
+                    ) : (
+                      coluna.items.map((ch) => {
+                        const isEmAndamento = ch.status === 'em_andamento';
+                        const isAguardando = ch.status === 'aguardando_visualizacao' || ch.status === 'pendente';
+                        const isFinalizado = ch.status === 'concluido' || ch.status === 'finalizado';
+                        const isRMControle = Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle')));
+                        const empresaObj = empresasLista.find(
+                          (e) => (ch.empresa_id && e.id === ch.empresa_id) || 
+                                 (ch.empresa_nome && e.nome && e.nome.trim().toLowerCase() === ch.empresa_nome.trim().toLowerCase())
+                        ) || (ch.empresa_nome ? { id: ch.empresa_id || ch.empresa_nome, nome: ch.empresa_nome } : null);
+
+                        return (
+                          <motion.div
+                            key={ch.id}
+                            layout
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('text/plain', ch.id);
+                              e.dataTransfer.effectAllowed = 'move';
+                            }}
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className={`p-4 rounded-2xl border transition-all shadow-xs space-y-3 cursor-grab active:cursor-grabbing ${
+                              isEmAndamento
+                                ? 'border-emerald-500/40 bg-gradient-to-b from-emerald-500/[0.06] to-transparent dark:from-emerald-500/[0.08] dark:bg-[#1c1c22]'
+                                : isAguardando
+                                ? 'border-amber-500/40 bg-gradient-to-b from-amber-500/[0.06] to-transparent dark:from-amber-500/[0.06] dark:bg-[#1c1c22]'
+                                : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-[#1c1c22]'
+                            }`}
+                          >
+                            {/* Cronômetros & Status */}
+                            <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-[10px] font-mono font-bold">
+                                  <HourglassIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                                  <span>{calcularTempoEspera(ch)}</span>
+                                </div>
+                                {isEmAndamento && (
+                                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-[10px] font-mono font-bold">
+                                    <ClockIcon className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                    <span>{calcularTempoAtivo(ch)}</span>
+                                  </div>
+                                )}
+                              </div>
+                              {isEmAndamento && (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 text-[9px] font-bold">
+                                  Ao Vivo
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Empresa & Solicitante */}
+                            <div>
+                              <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white leading-snug">
+                                {ch.empresa_nome}
+                              </h4>
+                              <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                                {ch.solicitante_nome || 'Colaborador da Empresa'}
+                              </p>
+                            </div>
+
+                            {/* Departamentos */}
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {(Array.isArray(ch.categorias) && ch.categorias.length > 0 ? ch.categorias : ['Suporte']).map((cat, idx) => (
+                                <span
+                                  key={idx}
+                                  className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-mono text-[9px] font-bold border border-blue-500/20"
+                                >
+                                  {cat}
+                                </span>
+                              ))}
+                              {(Array.isArray(ch.etiquetas) ? ch.etiquetas : []).map((etq, idx) => (
+                                <span
+                                  key={'kanban_etq_' + idx}
+                                  className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-mono text-[9px] font-bold border border-amber-500/25"
+                                >
+                                  #{etq}
+                                </span>
+                              ))}
+                            </div>
+
+                            {/* Observação Inicial */}
+                            {ch.observacao_inicial && (
+                              <p className="text-[11px] text-slate-600 dark:text-zinc-400 bg-black/[0.02] dark:bg-white/[0.03] p-2 rounded-xl border border-black/[0.04] dark:border-white/[0.05] line-clamp-2 leading-relaxed">
+                                {ch.observacao_inicial}
+                              </p>
+                            )}
+
+                            {/* Técnico Responsável */}
+                            <div className="flex items-center gap-1 text-[10px] text-slate-400 font-mono">
+                              <UserIcon className="w-3 h-3 text-slate-400" />
+                              <span>{getNomeTecnico(ch.tecnico_email, ch.tecnico_nome)}</span>
+                            </div>
+
+                            {/* Ações Rápidas do Card Kanban */}
+                            <div className="pt-2 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between gap-1.5 flex-wrap">
+                              {isAguardando && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAceitarSuporte(ch)}
+                                    className="px-3 py-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-[11px] hover:opacity-90 transition-all cursor-pointer flex-1 flex items-center justify-center gap-1 shadow-xs"
+                                  >
+                                    <PlayIcon className="w-2.5 h-2.5 fill-current" />
+                                    <span>Assumir</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCancelarChamado(ch)}
+                                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 cursor-pointer"
+                                    title="Cancelar chamado"
+                                  >
+                                    <XMarkIcon className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+
+                              {isEmAndamento && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => setChamadoParaFinalizar(ch)}
+                                    className="px-3 py-1.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-[11px] hover:opacity-90 transition-all cursor-pointer flex-1 flex items-center justify-center gap-1 shadow-xs"
+                                  >
+                                    <CheckIcon className="w-3 h-3 stroke-[2.5]" />
+                                    <span>Concluir</span>
+                                  </button>
+
+                                  {isRMControle ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setKanbanAberto(true)}
+                                      className="px-2.5 py-1.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 text-[10px] font-bold hover:bg-blue-500/20 cursor-pointer shadow-xs"
+                                      title="Abrir Pipeline Kanban"
+                                    >
+                                      🚀 Kanban
+                                    </button>
+                                  ) : onSelectEmpresa && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
+                                      className="px-2.5 py-1.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-[10px] font-semibold text-slate-700 dark:text-zinc-200 hover:bg-black/5 cursor-pointer shadow-xs"
+                                    >
+                                      🏢 Empresa
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCancelarChamado(ch)}
+                                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 cursor-pointer"
+                                    title="Cancelar chamado"
+                                  >
+                                    <XMarkIcon className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+
+                              {isFinalizado && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCancelarChamado(ch)}
+                                  className="w-full text-center py-1 text-slate-400 hover:text-red-500 text-[10px] cursor-pointer"
+                                >
+                                  Excluir do histórico
+                                </button>
+                              )}
+                            </div>
+                          </motion.div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             /* VISUALIZAÇÃO EM TABELA APPLE PREMIUM COM GAVETA EXPANSÍVEL DE AÇÕES */
@@ -2003,6 +2316,13 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
         </AnimatePresence>,
         document.body
       )}
+
+      {/* Modal do Pipeline Kanban de Demandas Internas da RM Controle */}
+      <InternalDemandsKanbanModal
+        isOpen={kanbanAberto}
+        onClose={() => setKanbanAberto(false)}
+        userEmail={userEmail}
+      />
 
       {/* Modal de Conclusão do Chamado */}
       {chamadoParaFinalizar && (

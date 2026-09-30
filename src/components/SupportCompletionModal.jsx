@@ -40,12 +40,14 @@ export default function SupportCompletionModal({
   const [motivo, setMotivo] = useState('');
   const [buscaMotivo, setBuscaMotivo] = useState('');
   const [dropdownMotivoAberto, setDropdownMotivoAberto] = useState(false);
+  const [highlightedMotivoIdx, setHighlightedMotivoIdx] = useState(0);
   const motivoRef = useRef(null);
 
   // Colaborador solicitante
   const [colaboradorSelecionado, setColaboradorSelecionado] = useState(null);
   const [buscaColab, setBuscaColab] = useState('');
   const [dropdownColabAberto, setDropdownColabAberto] = useState(false);
+  const [highlightedColabIdx, setHighlightedColabIdx] = useState(0);
   const colabRef = useRef(null);
 
   const [atendente, setAtendente] = useState('');
@@ -121,8 +123,6 @@ export default function SupportCompletionModal({
 
     setColaboradores(listaColabs);
 
-    // Se o chamado já tinha solicitante definido, associa mas deixa o input de busca limpo
-    // para que apareça como placeholder e o usuário possa digitar direto sem ter que apagar
     if (chamado.solicitante_nome) {
       const achado = listaColabs.find(
         (c) => removerAcentos(c.nome) === removerAcentos(chamado.solicitante_nome)
@@ -136,6 +136,7 @@ export default function SupportCompletionModal({
       setColaboradorSelecionado(null);
     }
     setBuscaColab('');
+    setHighlightedColabIdx(0);
   };
 
   useEffect(() => {
@@ -143,10 +144,10 @@ export default function SupportCompletionModal({
       const mot = getMotivosSuporte();
       setMotivos(mot);
 
-      // Define motivo sem preencher o input text (para ser placeholder transparente)
       const motInicial = chamado.motivo || (mot.length > 0 ? mot[0].nome : '');
       setMotivo(motInicial);
       setBuscaMotivo('');
+      setHighlightedMotivoIdx(0);
 
       const cfg = getConfiguracoesSuporte();
       setConfig(cfg);
@@ -160,12 +161,15 @@ export default function SupportCompletionModal({
       setTituloProblema('');
       setCodigoErroSolucao('');
 
-      // Calcula tempo em espera
+      // Calcula tempo em espera real e preciso
       const agora = Date.now();
       let espera = chamado.tempo_espera_segundos || 0;
-      if (!espera && chamado.tempo_espera_inicio) {
-        const inicioEspera = new Date(chamado.tempo_espera_inicio).getTime();
-        const fimEspera = chamado.tempo_espera_fim ? new Date(chamado.tempo_espera_fim).getTime() : agora;
+      const dataCriacao = chamado.created_at || chamado.tempo_espera_inicio;
+      const inicioEspera = new Date(chamado.tempo_espera_inicio || dataCriacao || agora).getTime();
+      if (!espera) {
+        const fimEspera = chamado.tempo_espera_fim 
+          ? new Date(chamado.tempo_espera_fim).getTime() 
+          : (chamado.tempo_ativo_inicio || chamado.iniciado_em ? new Date(chamado.tempo_ativo_inicio || chamado.iniciado_em).getTime() : agora);
         espera = Math.max(0, Math.floor((fimEspera - inicioEspera) / 1000));
       }
       setTempoEsperaSegundos(espera);
@@ -214,7 +218,7 @@ export default function SupportCompletionModal({
     setTempoAtivoSegundos(minutos * 60);
   };
 
-  // Colaboradores
+  // Colaboradores filtrados
   const colaboradoresFiltrados = colaboradores.filter((c) => {
     if (!buscaColab.trim()) return true;
     const q = removerAcentos(buscaColab);
@@ -264,7 +268,7 @@ export default function SupportCompletionModal({
     }
   };
 
-  // Motivos
+  // Motivos filtrados
   const motivosFiltrados = motivos.filter((m) => {
     if (!buscaMotivo.trim()) return true;
     return removerAcentos(m.nome).includes(removerAcentos(buscaMotivo));
@@ -319,7 +323,6 @@ export default function SupportCompletionModal({
         finalizado_em: horarioFim ? new Date(horarioFim).toISOString() : null,
       });
 
-      // Gravação automática no banco de soluções quando houver procedimento informado
       if (observacoes.trim()) {
         try {
           const tituloFinal = tituloProblema.trim() || `${motivoFinal} (${chamado.empresa_nome || 'Empresa'})`;
@@ -509,7 +512,7 @@ export default function SupportCompletionModal({
                   )}
                 </div>
 
-                {/* Seção 1: Colaborador Solicitante com Placeholder Transparente e Autocomplete */}
+                {/* Seção 1: Colaborador Solicitante com Autocomplete Inteligente (Opção existente primeiro) */}
                 <div ref={colabRef} className="space-y-1.5 relative">
                   <div className="flex items-center justify-between pl-1">
                     <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
@@ -529,19 +532,29 @@ export default function SupportCompletionModal({
                       onChange={(e) => {
                         setBuscaColab(e.target.value);
                         setDropdownColabAberto(true);
+                        setHighlightedColabIdx(0);
                       }}
-                      onFocus={() => setDropdownColabAberto(true)}
+                      onFocus={() => {
+                        setDropdownColabAberto(true);
+                        setHighlightedColabIdx(0);
+                      }}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
+                        if (e.key === 'ArrowDown') {
                           e.preventDefault();
-                          const exato = colaboradores.find(
-                            (c) => removerAcentos(c.nome) === removerAcentos(buscaColab)
-                          );
-                          if (exato) {
-                            setColaboradorSelecionado(exato);
+                          setHighlightedColabIdx((prev) => Math.min(prev + 1, Math.max(0, colaboradoresFiltrados.length - 1)));
+                        } else if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          setHighlightedColabIdx((prev) => Math.max(prev - 1, 0));
+                        } else if (e.key === 'Enter') {
+                          e.preventDefault();
+                          // Prioridade absoluta: seleciona a primeira opção já cadastrada correspondente
+                          if (colaboradoresFiltrados.length > 0) {
+                            const sel = colaboradoresFiltrados[highlightedColabIdx] || colaboradoresFiltrados[0];
+                            setColaboradorSelecionado(sel);
                             setBuscaColab('');
                             setDropdownColabAberto(false);
                           } else if (buscaColab.trim()) {
+                            // Apenas cadastra novo se realmente não existir nenhuma opção correspondente
                             handleCadastrarRapidoColaborador(buscaColab.trim());
                           }
                         }
@@ -561,68 +574,92 @@ export default function SupportCompletionModal({
                       </button>
                     </div>
 
-                    {/* Dropdown de Autocomplete do Colaborador */}
+                    {/* Dropdown de Autocomplete do Colaborador: OPÇÕES CADASTRADAS EM PRIMEIRO LUGAR */}
                     {dropdownColabAberto && (
-                      <div className="absolute top-full mt-1 left-0 w-full z-30 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/10 dark:border-white/15 shadow-xl p-2 space-y-1 max-h-52 overflow-y-auto">
-                        {buscaColab.trim() && !colaboradores.some((c) => removerAcentos(c.nome) === removerAcentos(buscaColab)) && (
+                      <div className="absolute top-full mt-1 left-0 w-full z-30 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/10 dark:border-white/15 shadow-xl p-2 space-y-1 max-h-56 overflow-y-auto">
+                        {colaboradoresFiltrados.length > 0 ? (
+                          <>
+                            {colaboradoresFiltrados.map((c, idx) => {
+                              const isHighlighted = idx === highlightedColabIdx;
+                              const isSelected = colaboradorSelecionado?.id === c.id;
+                              return (
+                                <div
+                                  key={c.id}
+                                  onClick={() => {
+                                    setColaboradorSelecionado(c);
+                                    setBuscaColab('');
+                                    setDropdownColabAberto(false);
+                                  }}
+                                  onMouseEnter={() => setHighlightedColabIdx(idx)}
+                                  className={`w-full px-3 py-2 rounded-xl text-xs flex items-center justify-between transition-all cursor-pointer group ${
+                                    isHighlighted
+                                      ? 'bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-900 dark:text-emerald-200 font-bold border border-emerald-500/30'
+                                      : isSelected
+                                      ? 'bg-black/5 dark:bg-white/10 font-bold'
+                                      : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05]'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+                                      {c.nome.charAt(0).toUpperCase()}
+                                    </span>
+                                    <div className="truncate">
+                                      <span className="text-[#1d1d1f] dark:text-white block truncate">{c.nome}</span>
+                                      {c.email && (
+                                        <span className="text-[10px] text-slate-400 block truncate font-mono">{c.email}</span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    {isHighlighted && (
+                                      <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-mono font-normal">
+                                        Enter ↵
+                                      </span>
+                                    )}
+                                    {c.is_colaborador && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleExcluirColaborador(e, c)}
+                                        className="p-1 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-500/10 opacity-70 group-hover:opacity-100 transition-all cursor-pointer"
+                                        title="Excluir Colaborador"
+                                      >
+                                        <TrashIcon className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                    {isSelected && (
+                                      <CheckIcon className="w-3.5 h-3.5 text-emerald-600" />
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            {/* Opção secundária de cadastrar novo ao final se não houver match exato */}
+                            {buscaColab.trim() && !colaboradores.some((c) => removerAcentos(c.nome) === removerAcentos(buscaColab)) && (
+                              <button
+                                type="button"
+                                onClick={() => handleCadastrarRapidoColaborador(buscaColab.trim())}
+                                className="w-full text-left px-3 py-1.5 mt-1 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] hover:bg-black/[0.06] text-slate-600 dark:text-zinc-400 text-[11px] font-semibold flex items-center justify-between transition-colors cursor-pointer border-t border-black/[0.05] dark:border-white/[0.05]"
+                              >
+                                <span>+ Cadastrar outro &ldquo;{buscaColab.trim()}&rdquo;</span>
+                              </button>
+                            )}
+                          </>
+                        ) : buscaColab.trim() ? (
+                          /* Se REALMENTE NÃO ENCONTRAR nenhuma opção cadastrada, aí sim oferece cadastrar */
                           <button
                             type="button"
                             onClick={() => handleCadastrarRapidoColaborador(buscaColab.trim())}
-                            className="w-full text-left px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-[#4d7c0f] dark:text-[#84cc16] text-xs font-semibold flex items-center justify-between transition-colors cursor-pointer"
+                            className="w-full text-left px-3 py-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-[#4d7c0f] dark:text-[#84cc16] text-xs font-semibold flex items-center justify-between transition-colors cursor-pointer"
                           >
-                            <span>+ Cadastrar &ldquo;{buscaColab.trim()}&rdquo;</span>
+                            <span>+ Cadastrar colaborador &ldquo;{buscaColab.trim()}&rdquo;</span>
                             <span className="text-[10px] opacity-75 font-mono">Pressione Enter ↵</span>
                           </button>
-                        )}
-
-                        {colaboradoresFiltrados.length === 0 && !buscaColab.trim() ? (
+                        ) : (
                           <div className="p-3 text-center text-xs text-slate-400">
                             Nenhum colaborador cadastrado para esta empresa.
                           </div>
-                        ) : (
-                          colaboradoresFiltrados.map((c) => (
-                            <div
-                              key={c.id}
-                              onClick={() => {
-                                setColaboradorSelecionado(c);
-                                setBuscaColab('');
-                                setDropdownColabAberto(false);
-                              }}
-                              className={`w-full px-3 py-2 rounded-xl text-xs flex items-center justify-between transition-all cursor-pointer group ${
-                                colaboradorSelecionado?.id === c.id
-                                  ? 'bg-black/5 dark:bg-white/10 font-bold'
-                                  : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05]'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="w-5 h-5 rounded-full bg-black/5 dark:bg-white/10 text-slate-600 dark:text-zinc-300 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
-                                  {c.nome.charAt(0).toUpperCase()}
-                                </span>
-                                <div className="truncate">
-                                  <span className="text-[#1d1d1f] dark:text-white block truncate">{c.nome}</span>
-                                  {c.email && (
-                                    <span className="text-[10px] text-slate-400 block truncate font-mono">{c.email}</span>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                {c.is_colaborador && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => handleExcluirColaborador(e, c)}
-                                    className="p-1 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-500/10 opacity-70 group-hover:opacity-100 transition-all cursor-pointer"
-                                    title="Excluir Colaborador"
-                                  >
-                                    <TrashIcon className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                                {colaboradorSelecionado?.id === c.id && (
-                                  <CheckIcon className="w-3.5 h-3.5 text-emerald-600" />
-                                )}
-                              </div>
-                            </div>
-                          ))
                         )}
                       </div>
                     )}
@@ -650,7 +687,7 @@ export default function SupportCompletionModal({
                   )}
                 </div>
 
-                {/* Seção 2: Motivo Diagnosticado com Placeholder Transparente e Autocomplete */}
+                {/* Seção 2: Motivo Diagnosticado com Autocomplete Inteligente (Opção existente primeiro) */}
                 <div ref={motivoRef} className="space-y-1.5 relative">
                   <div className="flex items-center justify-between pl-1">
                     <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
@@ -666,19 +703,29 @@ export default function SupportCompletionModal({
                       onChange={(e) => {
                         setBuscaMotivo(e.target.value);
                         setDropdownMotivoAberto(true);
+                        setHighlightedMotivoIdx(0);
                       }}
-                      onFocus={() => setDropdownMotivoAberto(true)}
+                      onFocus={() => {
+                        setDropdownMotivoAberto(true);
+                        setHighlightedMotivoIdx(0);
+                      }}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
+                        if (e.key === 'ArrowDown') {
                           e.preventDefault();
-                          const exato = motivos.find(
-                            (m) => removerAcentos(m.nome) === removerAcentos(buscaMotivo)
-                          );
-                          if (exato) {
-                            setMotivo(exato.nome);
+                          setHighlightedMotivoIdx((prev) => Math.min(prev + 1, Math.max(0, motivosFiltrados.length - 1)));
+                        } else if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          setHighlightedMotivoIdx((prev) => Math.max(prev - 1, 0));
+                        } else if (e.key === 'Enter') {
+                          e.preventDefault();
+                          // Prioridade absoluta: seleciona a primeira opção já cadastrada correspondente
+                          if (motivosFiltrados.length > 0) {
+                            const sel = motivosFiltrados[highlightedMotivoIdx] || motivosFiltrados[0];
+                            setMotivo(sel.nome);
                             setBuscaMotivo('');
                             setDropdownMotivoAberto(false);
                           } else if (buscaMotivo.trim()) {
+                            // Apenas cadastra novo se realmente não existir nenhuma opção correspondente
                             handleCadastrarRapidoMotivo(buscaMotivo.trim());
                           }
                         }
@@ -698,45 +745,71 @@ export default function SupportCompletionModal({
                       </button>
                     </div>
 
-                    {/* Dropdown de Autocomplete de Motivos */}
+                    {/* Dropdown de Autocomplete de Motivos: OPÇÕES CADASTRADAS EM PRIMEIRO LUGAR */}
                     {dropdownMotivoAberto && (
-                      <div className="absolute top-full mt-1 left-0 w-full z-30 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/10 dark:border-white/15 shadow-xl p-2 space-y-1 max-h-52 overflow-y-auto">
-                        {buscaMotivo.trim() && !motivos.some((m) => removerAcentos(m.nome) === removerAcentos(buscaMotivo)) && (
+                      <div className="absolute top-full mt-1 left-0 w-full z-30 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/10 dark:border-white/15 shadow-xl p-2 space-y-1 max-h-56 overflow-y-auto">
+                        {motivosFiltrados.length > 0 ? (
+                          <>
+                            {motivosFiltrados.map((m, idx) => {
+                              const isHighlighted = idx === highlightedMotivoIdx;
+                              const isSelected = motivo === m.nome;
+                              return (
+                                <div
+                                  key={m.id}
+                                  onClick={() => {
+                                    setMotivo(m.nome);
+                                    setBuscaMotivo('');
+                                    setDropdownMotivoAberto(false);
+                                  }}
+                                  onMouseEnter={() => setHighlightedMotivoIdx(idx)}
+                                  className={`w-full px-3 py-2 rounded-xl text-xs flex items-center justify-between transition-all cursor-pointer ${
+                                    isHighlighted
+                                      ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold border border-[#4d7c0f]/30'
+                                      : isSelected
+                                      ? 'bg-black/5 dark:bg-white/10 font-bold'
+                                      : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05]'
+                                  }`}
+                                >
+                                  <span className="text-[#1d1d1f] dark:text-white truncate">{m.nome}</span>
+                                  <div className="flex items-center gap-2">
+                                    {isHighlighted && (
+                                      <span className="text-[10px] text-[#4d7c0f] dark:text-[#84cc16] font-mono font-normal">
+                                        Enter ↵
+                                      </span>
+                                    )}
+                                    {isSelected && (
+                                      <CheckIcon className="w-3.5 h-3.5 text-emerald-600" />
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            {/* Opção secundária de cadastrar novo ao final se não houver match exato */}
+                            {buscaMotivo.trim() && !motivos.some((m) => removerAcentos(m.nome) === removerAcentos(buscaMotivo)) && (
+                              <button
+                                type="button"
+                                onClick={() => handleCadastrarRapidoMotivo(buscaMotivo.trim())}
+                                className="w-full text-left px-3 py-1.5 mt-1 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] hover:bg-black/[0.06] text-slate-600 dark:text-zinc-400 text-[11px] font-semibold flex items-center justify-between transition-colors cursor-pointer border-t border-black/[0.05] dark:border-white/[0.05]"
+                              >
+                                <span>+ Cadastrar novo motivo &ldquo;{buscaMotivo.trim()}&rdquo;</span>
+                              </button>
+                            )}
+                          </>
+                        ) : buscaMotivo.trim() ? (
+                          /* Se REALMENTE NÃO ENCONTRAR nenhuma opção cadastrada, aí sim oferece cadastrar */
                           <button
                             type="button"
                             onClick={() => handleCadastrarRapidoMotivo(buscaMotivo.trim())}
-                            className="w-full text-left px-3 py-2 rounded-xl bg-[#4d7c0f]/10 hover:bg-[#4d7c0f]/20 text-[#4d7c0f] dark:text-[#84cc16] text-xs font-semibold flex items-center justify-between transition-colors cursor-pointer"
+                            className="w-full text-left px-3 py-2.5 rounded-xl bg-[#4d7c0f]/10 hover:bg-[#4d7c0f]/20 text-[#4d7c0f] dark:text-[#84cc16] text-xs font-semibold flex items-center justify-between transition-colors cursor-pointer"
                           >
                             <span>+ Cadastrar motivo &ldquo;{buscaMotivo.trim()}&rdquo;</span>
                             <span className="text-[10px] opacity-75 font-mono">Pressione Enter ↵</span>
                           </button>
-                        )}
-
-                        {motivosFiltrados.length === 0 && !buscaMotivo.trim() ? (
+                        ) : (
                           <div className="p-3 text-center text-xs text-slate-400">
                             Nenhum motivo catalogado.
                           </div>
-                        ) : (
-                          motivosFiltrados.map((m) => (
-                            <div
-                              key={m.id}
-                              onClick={() => {
-                                setMotivo(m.nome);
-                                setBuscaMotivo('');
-                                setDropdownMotivoAberto(false);
-                              }}
-                              className={`w-full px-3 py-2 rounded-xl text-xs flex items-center justify-between transition-all cursor-pointer ${
-                                motivo === m.nome
-                                  ? 'bg-black/5 dark:bg-white/10 font-bold'
-                                  : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05]'
-                              }`}
-                            >
-                              <span className="text-[#1d1d1f] dark:text-white truncate">{m.nome}</span>
-                              {motivo === m.nome && (
-                                <CheckIcon className="w-3.5 h-3.5 text-emerald-600" />
-                              )}
-                            </div>
-                          ))
                         )}
                       </div>
                     )}

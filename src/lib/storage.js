@@ -710,6 +710,31 @@ export async function fetchChamadosFila() {
             : (typeof d.etiquetas === 'string' ? d.etiquetas.replaceAll('{', '').replaceAll('}', '').replaceAll('"', '').split(',').map((s) => s.trim()).filter(Boolean) : []);
           const finalTags = rawTags.length > 0 ? rawTags : (localTagMap.get(d.id) || []);
 
+          const localMatch = (localAnterior || []).find((c) => c.id === d.id);
+          const dataCriacao = d.created_at || localMatch?.created_at || localMatch?.tempo_espera_inicio || d.iniciado_em || new Date().toISOString();
+          const inicioEspera = localMatch?.tempo_espera_inicio || d.created_at || dataCriacao;
+          const fimEspera = d.status === 'em_andamento'
+            ? (localMatch?.tempo_espera_fim || d.iniciado_em || new Date().toISOString())
+            : null;
+
+          let esperaSegundos = localMatch?.tempo_espera_segundos || 0;
+          if (!esperaSegundos && d.status === 'em_andamento' && inicioEspera && fimEspera) {
+            const msDiff = new Date(fimEspera).getTime() - new Date(inicioEspera).getTime();
+            if (msDiff > 0) {
+              esperaSegundos = Math.max(1, Math.floor(msDiff / 1000));
+            }
+          }
+
+          const inicioAtivo = d.status === 'em_andamento'
+            ? (localMatch?.tempo_ativo_inicio || d.iniciado_em || dataCriacao)
+            : null;
+
+          let ativoSegundos = localMatch?.tempo_ativo_segundos || 0;
+          if (d.status === 'em_andamento' && inicioAtivo) {
+            const msDiffAtivo = Date.now() - new Date(inicioAtivo).getTime();
+            ativoSegundos = Math.max(1, Math.floor(msDiffAtivo / 1000));
+          }
+
           return {
             id: d.id,
             empresa_id: d.empresa_id,
@@ -721,13 +746,13 @@ export async function fetchChamadosFila() {
             status: d.status,
             categorias: cats,
             etiquetas: finalTags,
-            created_at: d.created_at || d.iniciado_em || new Date().toISOString(),
-            tempo_espera_inicio: d.iniciado_em || d.created_at,
-            tempo_espera_fim: d.status === 'em_andamento' ? d.iniciado_em : null,
-            tempo_espera_segundos: 0,
-            tempo_ativo_inicio: d.status === 'em_andamento' ? d.iniciado_em : null,
+            created_at: dataCriacao,
+            tempo_espera_inicio: inicioEspera,
+            tempo_espera_fim: fimEspera,
+            tempo_espera_segundos: esperaSegundos,
+            tempo_ativo_inicio: inicioAtivo,
             tempo_ativo_fim: null,
-            tempo_ativo_segundos: 0,
+            tempo_ativo_segundos: ativoSegundos,
             iniciado_em: d.iniciado_em,
             finalizado_em: d.finalizado_em,
           };

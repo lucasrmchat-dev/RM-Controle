@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getFeedbacks, fetchFeedbacks, updateFeedbackStatus } from '@/lib/storage';
 import { showToast } from './ToastNotification';
@@ -15,6 +16,11 @@ import {
 } from './Icons';
 
 export default function InternalDemandsKanbanModal({ isOpen, onClose, userEmail }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const [feedbacks, setFeedbacks] = useState([]);
   const [filtroTipo, setFiltroTipo] = useState('todos'); // 'todos' | 'ideia' | 'bug'
   const [busca, setBusca] = useState('');
@@ -40,7 +46,7 @@ export default function InternalDemandsKanbanModal({ isOpen, onClose, userEmail 
     return () => window.removeEventListener('feedbacks_updated', handleUpdate);
   }, []);
 
-  if (!isOpen) return null;
+  if (!mounted || !isOpen) return null;
 
   const handleMudarStatus = async (fbId, novoStatus) => {
     const agora = new Date().toISOString();
@@ -103,7 +109,7 @@ export default function InternalDemandsKanbanModal({ isOpen, onClose, userEmail 
     return true;
   });
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 w-screen h-screen z-[99999] bg-black/65 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-hidden">
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 12 }}
@@ -375,5 +381,7 @@ export default function InternalDemandsKanbanModal({ isOpen, onClose, userEmail 
         </div>
       )}
     </div>
+  ,
+    document.body
   );
 }
