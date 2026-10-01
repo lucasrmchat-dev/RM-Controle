@@ -1133,19 +1133,30 @@ export async function deleteHistoricoChamado(chamadoId, userEmail = 'admin@rmcon
 export function getHistoricoChamados() {
   const historico = getLocalData('historico_chamados', []);
   const chamadosAtivos = getLocalData('chamados_suporte', []);
+  const idsAtivosNaFila = new Set(
+    chamadosAtivos
+      .filter((c) => c && (c.status === 'em_andamento' || c.status === 'aguardando_visualizacao' || c.status === 'pendente'))
+      .map((c) => c.id)
+  );
+
   const concluidosFila = chamadosAtivos.filter(
     (c) => c.status === 'concluido' || c.status === 'finalizado'
   );
 
   const mapa = new Map();
-  // 1. Coloca chamados finalizados locais
+  // 1. Coloca chamados finalizados locais da fila
   concluidosFila.forEach((c) => mapa.set(c.id, c));
-  // 2. Coloca e sobrepõe com histórico oficial
-  historico.forEach((c) => mapa.set(c.id, c));
+  // 2. Coloca e sobrepõe com histórico oficial, garantindo que chamados ativos jamais entrem no histórico
+  historico.forEach((c) => {
+    if (!idsAtivosNaFila.has(c.id) && (c.status === 'concluido' || c.status === 'finalizado')) {
+      mapa.set(c.id, c);
+    }
+  });
 
   return Array.from(mapa.values())
     .map((c) => ({
       ...c,
+      status: 'finalizado',
       tecnico_nome: c.tecnico_nome || getNomeTecnico(c.tecnico_email, c.atendente_nome),
       atendente_nome: c.atendente_nome || c.tecnico_nome || getNomeTecnico(c.tecnico_email),
     }))
@@ -1164,9 +1175,10 @@ export async function fetchHistoricoChamados() {
       const { data, error } = await supabase
         .from('suporte_chamados')
         .select('*')
+        .in('status', ['finalizado', 'concluido'])
         .order('created_at', { ascending: false });
 
-      if (!error && data) {
+      if (!error && Array.isArray(data)) {
         dbChamados = data.map((d) => ({
           id: d.id,
           empresa_id: d.empresa_id,
@@ -1175,12 +1187,12 @@ export async function fetchHistoricoChamados() {
           tecnico_nome: d.atendente || getNomeTecnico(d.tecnico_email),
           atendente_nome: d.atendente || getNomeTecnico(d.tecnico_email),
           solicitante_nome: d.colaborador_solicitante || 'Colaborador',
-          status: 'concluido',
+          status: 'finalizado',
           motivo: (d.motivo || '').trim() || 'Atendimento Geral',
           observacoes: d.observacoes || '',
           resolucao: d.observacoes || '',
           iniciado_em: d.iniciado_em,
-          finalizado_em: d.finalizado_em,
+          finalizado_em: d.finalizado_em || d.iniciado_em || d.created_at,
           duracao_segundos: d.duracao_segundos || 0,
           tempo_ativo_segundos: d.duracao_segundos || 0,
           created_at: d.created_at || d.iniciado_em,
@@ -1191,14 +1203,28 @@ export async function fetchHistoricoChamados() {
     }
   }
 
-  // Mescla com historico local preservando unicidade
+  // Lista de IDs ativos na fila para blindar o histórico contra chamados ativos
+  const chamadosAtivos = getLocalData('chamados_suporte', []);
+  const idsAtivosNaFila = new Set(
+    chamadosAtivos
+      .filter((c) => c && (c.status === 'em_andamento' || c.status === 'aguardando_visualizacao' || c.status === 'pendente'))
+      .map((c) => c.id)
+  );
+
+  // Mescla com historico local preservando unicidade e GARANTINDO que chamados ativos NUNCA entrem no histórico
   const localHist = getLocalData('historico_chamados', []);
   const mapa = new Map();
   // Dados do banco Supabase têm prioridade
-  dbChamados.forEach((c) => mapa.set(c.id, c));
-  // Mantém locais
+  dbChamados.forEach((c) => {
+    if (!idsAtivosNaFila.has(c.id) && (c.status === 'finalizado' || c.status === 'concluido')) {
+      mapa.set(c.id, c);
+    }
+  });
+  // Mantém locais apenas se não forem ativos
   localHist.forEach((c) => {
-    if (!mapa.has(c.id)) mapa.set(c.id, c);
+    if (!mapa.has(c.id) && !idsAtivosNaFila.has(c.id) && (c.status === 'finalizado' || c.status === 'concluido')) {
+      mapa.set(c.id, c);
+    }
   });
 
   const merged = Array.from(mapa.values()).sort(
@@ -1371,13 +1397,31 @@ export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim 
   const chamadosAtivos = getLocalData('chamados_suporte', []);
   const historicoChamados = getLocalData('historico_chamados', []);
 
+  // Lista de IDs ativos na fila para garantir que nenhum ativo seja contabilizado como finalizado
+  const idsAtivosNaFila = new Set(
+    chamadosAtivos
+      .filter((c) => c && (c.status === 'em_andamento' || c.status === 'aguardando_visualizacao' || c.status === 'pendente'))
+      .map((c) => c.id)
+  );
+
   // Mescla sem duplicidade usando Map
   const mapa = new Map();
-  chamadosAtivos.forEach((c) => {
-    mapa.set(c.id, { ...c, status: c.status || 'em_andamento' });
-  });
+
+  // 1. Histórico de chamados finalizados (exclui qualquer chamado ativo na fila)
   historicoChamados.forEach((c) => {
+    if (!c || !c.id || idsAtivosNaFila.has(c.id)) return;
     mapa.set(c.id, { ...c, status: 'finalizado' });
+  });
+
+  // 2. Chamados da fila ativa têm precedência: preservam seu status ativo real
+  chamadosAtivos.forEach((c) => {
+    if (!c || !c.id) return;
+    const isAtivo = c.status === 'em_andamento' || c.status === 'aguardando_visualizacao' || c.status === 'pendente';
+    if (isAtivo) {
+      mapa.set(c.id, { ...c, status: c.status });
+    } else if (c.status === 'finalizado' || c.status === 'concluido') {
+      mapa.set(c.id, { ...c, status: 'finalizado' });
+    }
   });
 
   let chamados = Array.from(mapa.values());
@@ -1498,15 +1542,41 @@ export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim 
   });
 
   chamados.forEach((c) => {
-    const atendenteEmail = (c.atendente || c.tecnico_email || '').toLowerCase().trim();
-    if (!atendenteEmail) return;
+    const cEmail = (c.tecnico_email || c.atribuido_a || '').toLowerCase().trim();
+    let colKey = null;
 
-    if (!colaboradoresStats[atendenteEmail]) {
-      const nomeAmigavel = c.tecnico_nome || c.atendente_nome || atendenteEmail.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
-      colaboradoresStats[atendenteEmail] = {
+    if (cEmail && colaboradoresStats[cEmail]) {
+      colKey = cEmail;
+    } else {
+      for (const email of Object.keys(colaboradoresStats)) {
+        if (cEmail && (email === cEmail || email.includes(cEmail) || cEmail.includes(email))) {
+          colKey = email;
+          break;
+        }
+      }
+      if (!colKey) {
+        const cNome = removerAcentos((c.tecnico_nome || c.atendente || c.atendente_nome || '').toLowerCase().trim());
+        if (cNome) {
+          for (const [email, stat] of Object.entries(colaboradoresStats)) {
+            const statNome = removerAcentos((stat.nome || '').toLowerCase().trim());
+            if (statNome && (statNome === cNome || statNome.includes(cNome) || cNome.includes(statNome))) {
+              colKey = email;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    const atendenteFinalKey = colKey || cEmail || (c.tecnico_nome ? c.tecnico_nome.toLowerCase().trim() : null);
+    if (!atendenteFinalKey) return;
+
+    if (!colaboradoresStats[atendenteFinalKey]) {
+      const nomeAmigavel = c.tecnico_nome || c.atendente_nome || (cEmail ? cEmail.split('@')[0] : 'Colaborador');
+      colaboradoresStats[atendenteFinalKey] = {
         id: 'usr_' + Math.random().toString(36).substr(2, 6),
         nome: nomeAmigavel,
-        email: atendenteEmail,
+        email: cEmail || atendenteFinalKey,
         papel: 'suporte',
         total_chamados: 0,
         resolvidos: 0,
@@ -1515,12 +1585,13 @@ export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim 
       };
     }
 
-    colaboradoresStats[atendenteEmail].total_chamados += 1;
-    if (c.status === 'finalizado' || c.status === 'concluido') {
-      colaboradoresStats[atendenteEmail].resolvidos += 1;
-      colaboradoresStats[atendenteEmail].duracao_total_segundos += (c.duracao_segundos || c.tempo_ativo_segundos || 0);
+    colaboradoresStats[atendenteFinalKey].total_chamados += 1;
+    const isResolvido = c.status === 'finalizado' || c.status === 'concluido';
+    if (isResolvido) {
+      colaboradoresStats[atendenteFinalKey].resolvidos += 1;
+      colaboradoresStats[atendenteFinalKey].duracao_total_segundos += (c.duracao_segundos || c.tempo_ativo_segundos || 0);
     } else {
-      colaboradoresStats[atendenteEmail].em_andamento += 1;
+      colaboradoresStats[atendenteFinalKey].em_andamento += 1;
     }
   });
 

@@ -9,6 +9,7 @@ import {
   getChamadosSuporte, 
   getHistoricoChamados,
   fetchHistoricoChamados,
+  fetchChamadosFila,
   deleteHistoricoChamado,
   getNomeTecnico,
   finalizarSuporte,
@@ -132,7 +133,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
 
   const carregarDados = async () => {
     try {
-      await fetchHistoricoChamados();
+      await Promise.all([fetchChamadosFila(), fetchHistoricoChamados()]);
     } catch (e) {
       console.warn('Erro ao sincronizar historico:', e);
     }
