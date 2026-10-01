@@ -3897,7 +3897,12 @@ export const DEFAULT_AGENDA_EVENTOS = [
 ];
 
 export function getAgendaEventos() {
-  return getLocalData('agenda_eventos', DEFAULT_AGENDA_EVENTOS);
+  if (isMockDataEnabled()) {
+    return getLocalData('agenda_eventos', DEFAULT_AGENDA_EVENTOS);
+  }
+  const lista = getLocalData('agenda_eventos', []);
+  // Se o modo mock estiver desligado, não injeta reuniões fictícias
+  return lista.filter((e) => !e.is_mock && !['evt_1', 'evt_2', 'evt_3', 'evt_4'].includes(e.id));
 }
 
 export function saveAgendaEventos(eventos) {
@@ -3971,18 +3976,39 @@ export function parseIcalEvents(icsContent) {
         let hora_fim = '10:00';
 
         if (current.DTSTART) {
-          const raw = current.DTSTART.replace(/.*:/, '');
-          if (raw.length >= 8) {
-            data = raw.slice(0, 4) + '-' + raw.slice(4, 6) + '-' + raw.slice(6, 8);
-          }
-          if (raw.includes('T') && raw.length >= 13) {
-            const timePart = raw.split('T')[1];
-            hora_inicio = timePart.slice(0, 2) + ':' + timePart.slice(2, 4);
+          const raw = current.DTSTART.replace(/.*:/, '').trim();
+          if (raw.endsWith('Z') && raw.length >= 15 && raw.includes('T')) {
+            const yr = parseInt(raw.slice(0, 4), 10);
+            const mo = parseInt(raw.slice(4, 6), 10) - 1;
+            const da = parseInt(raw.slice(6, 8), 10);
+            const hr = parseInt(raw.slice(9, 11), 10);
+            const mi = parseInt(raw.slice(11, 13), 10);
+            const se = parseInt(raw.slice(13, 15), 10);
+            const utcDate = new Date(Date.UTC(yr, mo, da, hr, mi, se));
+            data = `${utcDate.getFullYear()}-${String(utcDate.getMonth() + 1).padStart(2, '0')}-${String(utcDate.getDate()).padStart(2, '0')}`;
+            hora_inicio = `${String(utcDate.getHours()).padStart(2, '0')}:${String(utcDate.getMinutes()).padStart(2, '0')}`;
+          } else {
+            if (raw.length >= 8) {
+              data = raw.slice(0, 4) + '-' + raw.slice(4, 6) + '-' + raw.slice(6, 8);
+            }
+            if (raw.includes('T') && raw.length >= 13) {
+              const timePart = raw.split('T')[1];
+              hora_inicio = timePart.slice(0, 2) + ':' + timePart.slice(2, 4);
+            }
           }
         }
         if (current.DTEND) {
-          const raw = current.DTEND.replace(/.*:/, '');
-          if (raw.includes('T') && raw.length >= 13) {
+          const raw = current.DTEND.replace(/.*:/, '').trim();
+          if (raw.endsWith('Z') && raw.length >= 15 && raw.includes('T')) {
+            const yr = parseInt(raw.slice(0, 4), 10);
+            const mo = parseInt(raw.slice(4, 6), 10) - 1;
+            const da = parseInt(raw.slice(6, 8), 10);
+            const hr = parseInt(raw.slice(9, 11), 10);
+            const mi = parseInt(raw.slice(11, 13), 10);
+            const se = parseInt(raw.slice(13, 15), 10);
+            const utcDate = new Date(Date.UTC(yr, mo, da, hr, mi, se));
+            hora_fim = `${String(utcDate.getHours()).padStart(2, '0')}:${String(utcDate.getMinutes()).padStart(2, '0')}`;
+          } else if (raw.includes('T') && raw.length >= 13) {
             const timePart = raw.split('T')[1];
             hora_fim = timePart.slice(0, 2) + ':' + timePart.slice(2, 4);
           }

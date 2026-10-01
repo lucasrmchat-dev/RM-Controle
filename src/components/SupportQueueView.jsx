@@ -21,6 +21,7 @@ import {
   getCategoriasDemandas,
   fetchChamadosFila,
   fetchHistoricoChamados,
+  fetchEquipeUsuarios,
   getHistoricoChamados,
   createEmpresa,
   setLocalData
@@ -221,7 +222,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
   const carregarDados = async () => {
     try {
-      await Promise.all([fetchChamadosFila(), fetchHistoricoChamados()]);
+      await Promise.all([fetchChamadosFila(), fetchHistoricoChamados(), fetchEquipeUsuarios()]);
     } catch (e) {}
     const ativos = getChamadosSuporte();
     const historico = getHistoricoChamados();
@@ -442,30 +443,20 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
     // 1. Membros cadastrados na equipe (deduplicados por pessoa física)
     (equipeLista || []).forEach((m) => {
+      if (!m) return;
       const email = (m.email || '').toLowerCase().trim();
       const nome = m.nome || getNomeTecnico(email);
-      const nomeLower = removerAcentos(nome.toLowerCase().trim());
-
-      // Oculta contas genéricas de sistema ou de teste do quadro Kanban
-      if (
-        nomeLower.startsWith('equipe de') ||
-        nomeLower.startsWith('equipe comercial') ||
-        nomeLower === 'teste' ||
-        email === 'suporte@rmcontrole.com' ||
-        email === 'vendas@rmcontrole.com'
-      ) {
-        return;
-      }
+      if (!email && !nome) return;
 
       const canonicalKey = getCanonicalPersonKey(email, nome);
       if (!mapa.has(canonicalKey)) {
         mapa.set(canonicalKey, {
-          id: canonicalKey,
+          id: m.id || canonicalKey,
           key: canonicalKey,
           nome: canonicalKey === 'lucas_amorim' ? 'Lucas Amorim' : nome.replace(/\(.*?\)/g, '').trim(),
           email: email || `${canonicalKey}@rmcontrole.com`,
           emails: email ? [email] : [],
-          cargo: m.cargo || (canonicalKey === 'lucas_amorim' ? 'Administrador' : 'Técnico'),
+          cargo: m.cargo || (canonicalKey === 'lucas_amorim' ? 'Administrador' : (m.papel === 'administrador' ? 'Administrador' : 'Técnico')),
         });
       } else {
         const existing = mapa.get(canonicalKey);

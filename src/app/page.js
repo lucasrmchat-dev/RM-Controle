@@ -114,6 +114,7 @@ export default function Home() {
 
   // Navegação Principal por Abas
   const [activeTab, setActiveTab] = useState('empresas');
+  const [settingsSubTab, setSettingsSubTab] = useState('audio');
   const [isRegistrarModalGlobalOpen, setIsRegistrarModalGlobalOpen] = useState(false);
   const [empresaParaRegistrar, setEmpresaParaRegistrar] = useState(null);
   const [confirmModalData, setConfirmModalData] = useState(null); // 'empresas' | 'dashboard' | 'canais' | 'servidores' | 'auditoria'
@@ -1440,7 +1441,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
               {(activeTab === 'configuracoes' || activeTab === 'canais' || activeTab === 'servidores' || activeTab === 'auditoria') && (
                 <GeneralSettingsView
                   userEmail={userEmail}
-                  initialSubTab={activeTab === 'configuracoes' ? 'audio' : activeTab}
+                  initialSubTab={activeTab === 'configuracoes' ? settingsSubTab : activeTab}
                 />
               )}
 
@@ -1465,7 +1466,8 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                 <AgendaView
                   userEmail={userEmail}
                   onSelectEmpresa={handleSelectEmpresaGlobal}
-                  onNavigateConfig={() => {
+                  onNavigateConfig={(sub) => {
+                    setSettingsSubTab(sub || 'agenda');
                     setActiveTab('configuracoes');
                   }}
                 />

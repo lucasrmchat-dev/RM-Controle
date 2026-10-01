@@ -34,7 +34,10 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
   const [equipe, setEquipe] = useState([]);
   const [empresas, setEmpresas] = useState([]);
   const [config, setConfig] = useState(getAgendaConfig());
-  const [viewMode, setViewMode] = useState('semana'); // 'semana' | 'lista' | 'embed'
+  const [viewMode, setViewMode] = useState(() => {
+    const cfg = getAgendaConfig();
+    return cfg.visualizacaoPadrao === 'embed' ? 'embed' : 'semana';
+  });
   const [filtroResponsavel, setFiltroResponsavel] = useState('todos'); // 'todos' | 'meus' | email
   const [busca, setBusca] = useState('');
   const [dataSelecionada, setDataSelecionada] = useState(new Date().toISOString().split('T')[0]);
@@ -82,7 +85,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
     };
   }, []);
 
-  // Sincronização manual com Google Calendar via iCal
+  // Sincronização manual com Google Calendar via rota segura de API ou fallback iCal
   const handleSincronizarGoogle = async () => {
     if (!config.urlIcal) {
       showToast('Configure a URL pública iCal (.ics) do Google Agenda em Configurações.', 'warning');
@@ -90,19 +93,32 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
     }
     setSyncing(true);
     try {
-      // Tenta buscar feed iCal via fetch (ou proxy de contingência caso bloqueado por CORS no browser)
       let icsText = '';
+
+      // 1. Tenta buscar via rota server-side do Next.js (sem problemas de CORS)
       try {
-        const res = await fetch(config.urlIcal);
-        if (res.ok) {
-          icsText = await res.text();
+        const apiRes = await fetch(`/api/calendar?url=${encodeURIComponent(config.urlIcal)}`);
+        if (apiRes.ok) {
+          icsText = await apiRes.text();
         }
-      } catch (corsErr) {
-        // Fallback usando proxy CORS seguro público para feeds iCal públicos
-        const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(config.urlIcal);
-        const resProxy = await fetch(proxyUrl);
-        if (resProxy.ok) {
-          icsText = await resProxy.text();
+      } catch (apiErr) {
+        console.warn('Tentativa via rota interna /api/calendar falhou:', apiErr);
+      }
+
+      // 2. Se a rota interna não obteve o conteúdo, tenta busca direta ou proxy
+      if (!icsText || !icsText.includes('BEGIN:VCALENDAR')) {
+        try {
+          const res = await fetch(config.urlIcal);
+          if (res.ok) {
+            icsText = await res.text();
+          }
+        } catch (corsErr) {
+          // Fallback usando proxy CORS de contingência para feeds iCal públicos
+          const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(config.urlIcal);
+          const resProxy = await fetch(proxyUrl);
+          if (resProxy.ok) {
+            icsText = await resProxy.text();
+          }
         }
       }
 
