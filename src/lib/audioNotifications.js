@@ -171,7 +171,15 @@ export function triggerSupportNotification({ chamado, userEmail, criadoPorMim = 
   const config = getAudioConfig();
   if (!config.habilitado) return;
 
-  // Se foi o próprio usuário que criou a demanda e a opção notificarCriador estiver desligada, silencia o som
+  // 1. Se o chamado foi adiado / pausado pelo usuário (Snooze), silencia até expirar o tempo
+  if (chamado?.adiado_ate) {
+    const adiadoAteMs = new Date(chamado.adiado_ate).getTime();
+    if (Date.now() < adiadoAteMs) {
+      return; // Alerta adiado, não toca
+    }
+  }
+
+  // 2. Se foi o próprio usuário que criou a demanda e a opção notificarCriador estiver desligada, silencia o som
   if (criadoPorMim && !config.notificarCriador) {
     return;
   }
@@ -179,39 +187,49 @@ export function triggerSupportNotification({ chamado, userEmail, criadoPorMim = 
   const myEmail = (userEmail || '').toLowerCase().trim();
   const chamadoTecnicoEmail = (chamado?.tecnico_email || '').toLowerCase().trim();
 
-  // 1. Filtro de escopo: apenas meus
-  if (config.escopo === 'apenas_meus' || config.escopo === 'atribuidos') {
-    if (chamadoTecnicoEmail && chamadoTecnicoEmail !== myEmail) {
-      return; // Chamado atribuído a outro técnico, não toca
+  // 3. REGRA ESTRITA DE ATRIBUIÇÃO DIRETA (Solicitada pelo usuário):
+  // "Quando eu atribuir atendimento a um determinado funcionário, não é para ficar tocando para todo mundo, certo? É só para ficar tocando para a pessoa que foi atribuída."
+  const isAtribuidoDiretamente = Boolean(chamadoTecnicoEmail && chamadoTecnicoEmail !== 'geral' && !chamado?.is_fila_geral);
+  if (isAtribuidoDiretamente) {
+    if (chamadoTecnicoEmail !== myEmail) {
+      return; // Demanda atribuída exclusivamente a outro funcionário: NÃO toca para os demais
     }
   }
 
-  // 2. Filtro de escopo: departamentos do colaborador
-  if (config.escopo === 'departamentos') {
-    try {
-      if (typeof window !== 'undefined') {
-        const rawUsers = localStorage.getItem('rm_equipe_usuarios');
-        const role = localStorage.getItem('rm_user_role') || '';
-        const isAdmin = role === 'administrador' || myEmail === 'admin@rmcontrole.com' || myEmail === 'lucas.rmchat@gmail.com' || myEmail.includes('admin') || myEmail.includes('lucas');
+  // 4. Se for da Fila Geral (não atribuída especificamente a alguém):
+  if (!isAtribuidoDiretamente) {
+    // Se o usuário só quer receber alertas do que foi atribuído a ele
+    if (config.escopo === 'apenas_meus' || config.escopo === 'atribuidos') {
+      return;
+    }
 
-        if (!isAdmin && rawUsers) {
-          const equipe = JSON.parse(rawUsers);
-          const me = equipe.find((u) => (u.email || '').toLowerCase().trim() === myEmail);
-          const meusDeps = Array.isArray(me?.departamentos) && me.departamentos.length > 0
-            ? me.departamentos.map((d) => d.toLowerCase().trim())
-            : ['suporte'];
+    // Filtro por departamento do operador
+    if (config.escopo === 'departamentos') {
+      try {
+        if (typeof window !== 'undefined') {
+          const rawUsers = localStorage.getItem('rm_equipe_usuarios');
+          const role = localStorage.getItem('rm_user_role') || '';
+          const isAdmin = role === 'administrador' || myEmail === 'admin@rmcontrole.com' || myEmail === 'lucas.rmchat@gmail.com' || myEmail.includes('admin') || myEmail.includes('lucas');
 
-          const chamadoCats = Array.isArray(chamado?.categorias)
-            ? chamado.categorias.map((c) => c.toLowerCase().trim())
-            : (chamado?.motivo ? chamado.motivo.split(',').map((s) => s.trim().toLowerCase()) : ['suporte']);
+          if (!isAdmin && rawUsers) {
+            const equipe = JSON.parse(rawUsers);
+            const me = equipe.find((u) => (u.email || '').toLowerCase().trim() === myEmail);
+            const meusDeps = Array.isArray(me?.departamentos) && me.departamentos.length > 0
+              ? me.departamentos.map((d) => d.toLowerCase().trim())
+              : ['suporte'];
 
-          const pertenceAoMeuDep = chamadoCats.some((c) => meusDeps.includes(c));
-          if (!pertenceAoMeuDep && chamadoTecnicoEmail !== myEmail) {
-            return; // Demanda não pertence a nenhum departamento do operador
+            const chamadoCats = Array.isArray(chamado?.categorias)
+              ? chamado.categorias.map((c) => c.toLowerCase().trim())
+              : (chamado?.motivo ? chamado.motivo.split(',').map((s) => s.trim().toLowerCase()) : ['suporte']);
+
+            const pertenceAoMeuDep = chamadoCats.some((c) => meusDeps.includes(c));
+            if (!pertenceAoMeuDep) {
+              return; // Demanda não pertence a nenhum departamento do operador
+            }
           }
         }
-      }
-    } catch (e) {}
+      } catch (e) {}
+    }
   }
 
   // Toca o som imediatamente
@@ -234,9 +252,32 @@ export function triggerSupportNotification({ chamado, userEmail, criadoPorMim = 
         const raw = localStorage.getItem('chamados_suporte');
         if (raw) {
           const list = JSON.parse(raw);
-          const hasPending = list.some(
-            (c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente'
-          );
+          const myEmail = (userEmail || '').toLowerCase().trim();
+
+          const hasPending = list.some((c) => {
+            const isPending = c.status === 'aguardando_visualizacao' || c.status === 'pendente';
+            if (!isPending) return false;
+
+            // Se o chamado foi adiado pelo usuário e ainda está dentro do período de silêncio, não toca
+            if (c.adiado_ate && Date.now() < new Date(c.adiado_ate).getTime()) {
+              return false;
+            }
+
+            const tec = (c.tecnico_email || '').toLowerCase().trim();
+            const isAtribuidoOutro = Boolean(tec && tec !== 'geral' && !c.is_fila_geral && tec !== myEmail);
+            if (isAtribuidoOutro) {
+              return false; // Atribuído a outro funcionário, não continua tocando para mim
+            }
+
+            if (!tec || c.is_fila_geral) {
+              if (config.escopo === 'apenas_meus' || config.escopo === 'atribuidos') {
+                return false;
+              }
+            }
+
+            return true;
+          });
+
           if (!hasPending) {
             stopSupportNotificationLoop();
             return;

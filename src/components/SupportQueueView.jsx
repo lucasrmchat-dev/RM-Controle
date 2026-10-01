@@ -28,7 +28,7 @@ import {
   setLocalData
 } from '@/lib/storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { stopSupportNotificationLoop } from '@/lib/audioNotifications';
+import { stopSupportNotificationLoop, playNotificationTone } from '@/lib/audioNotifications';
 import SupportCompletionModal from './SupportCompletionModal';
 import ConfirmModal from './ConfirmModal';
 import InternalDemandsKanbanModal from './InternalDemandsKanbanModal';
@@ -211,8 +211,35 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   const [silenciarMeuDispositivo, setSilenciarMeuDispositivo] = useState(true);
   const [isClient, setIsClient] = useState(false);
 
+  // Estados para Adiar Alerta (Snooze), Edição de Etiquetas e Escalonamento SLA
+  const [snoozePopoverChamadoId, setSnoozePopoverChamadoId] = useState(null);
+  const [tagInputChamadoId, setTagInputChamadoId] = useState(null);
+  const [tagInputVal, setTagInputVal] = useState('');
+  const [tempoEscalonamentoModal, setTempoEscalonamentoModal] = useState(15);
+
   useEffect(() => {
     setIsClient(true);
+  }, []);
+
+  // Fecha o popover de Adiar Alerta ao clicar fora
+  useEffect(() => {
+    const handleCloseSnooze = () => setSnoozePopoverChamadoId(null);
+    if (snoozePopoverChamadoId) {
+      document.addEventListener('click', handleCloseSnooze);
+      return () => document.removeEventListener('click', handleCloseSnooze);
+    }
+  }, [snoozePopoverChamadoId]);
+
+  // Auto-recolhimento reativo em telas menores que 1440px (MacBooks e laptops comuns)
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window !== 'undefined' && window.innerWidth < 1440) {
+        setMetricasRecolhidas(true);
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   // Trava scroll da tela enquanto o modal estiver aberto (padrão Apple)
@@ -289,8 +316,44 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     window.addEventListener('equipe_updated', handleUpdate);
     window.addEventListener('categorias_demandas_updated', handleCatsUpdated);
 
-    // Ticker a cada 1 segundo para atualizar os dois cronômetros em tempo real
-    const timer = setInterval(() => setTick((t) => t + 1), 1000);
+    // Ticker a cada 1 segundo para atualizar cronômetros e verificar escalonamento de SLA
+    const timer = setInterval(() => {
+      setTick((t) => t + 1);
+
+      // Verificação de Escalonamento: se chamado atribuído a funcionário extrapolou o tempo limite sem resolução
+      try {
+        const chamadosAtuais = getChamadosSuporte();
+        const agoraMs = Date.now();
+        const myEmail = (userEmail || '').toLowerCase().trim();
+        const isAdmin = myEmail === 'admin@rmcontrole.com' || myEmail.includes('admin');
+
+        chamadosAtuais.forEach((ch) => {
+          const isPendente = ch.status === 'aguardando_visualizacao' || ch.status === 'pendente' || ch.status === 'em_andamento';
+          if (!isPendente) return;
+          if (!ch.tecnico_email || ch.is_fila_geral) return;
+
+          const atribuidoPor = (ch.atribuido_por_email || '').toLowerCase().trim();
+          const souEuQuemAtribuiu = atribuidoPor === myEmail;
+
+          if ((souEuQuemAtribuiu || isAdmin) && !ch.escalonado_notificado) {
+            const atribuidoEmMs = new Date(ch.atribuido_em || ch.created_at || ch.tempo_espera_inicio || agoraMs).getTime();
+            const limiteMin = ch.tempo_escalonamento_minutos || 15;
+            const diffMin = Math.floor((agoraMs - atribuidoEmMs) / 60000);
+
+            if (diffMin >= limiteMin) {
+              marcarChamadoEscalonado(ch.id);
+              try {
+                playNotificationTone('dinamico');
+              } catch (e) {}
+              showToast(
+                `⚠️ Demanda de "${ch.empresa_nome}" atribuída a ${ch.tecnico_nome || 'técnico'} não foi concluída em ${limiteMin} min!`,
+                'warning'
+              );
+            }
+          }
+        });
+      } catch (e) {}
+    }, 1000);
 
     return () => {
       window.removeEventListener('suporte_updated', handleUpdate);
@@ -978,6 +1041,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
         atribuido_a: tecnicoAtribuido || null,
         observacao_inicial: novaObservacao,
         iniciarAgora: iniciarDireto,
+        tempo_escalonamento_minutos: tempoEscalonamentoModal,
         userEmail: userEmail || 'admin@rmcontrole.com',
       });
 
@@ -1322,6 +1386,26 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                   <span className="text-[11px]">Kanban</span>
                 </button>
               </div>
+
+              {/* Botão de Controle das Métricas Operacionais (Recolher / Expandir) */}
+              <button
+                type="button"
+                onClick={() => {
+                  setMetricasRecolhidas(!metricasRecolhidas);
+                  setMetricasRecolhidasKanban(!metricasRecolhidasKanban);
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                  metricasRecolhidas
+                    ? 'bg-black/[0.03] dark:bg-white/[0.05] border-black/[0.08] dark:border-white/[0.1] text-slate-600 dark:text-zinc-300 hover:bg-black/[0.06]'
+                    : 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 border-[#4d7c0f]/25 text-[#4d7c0f] dark:text-[#84cc16] font-bold shadow-2xs'
+                }`}
+                title={metricasRecolhidas ? 'Expandir painel lateral de métricas' : 'Recolher painel lateral de métricas para modo compacto'}
+              >
+                <span>📊</span>
+                <span className="hidden sm:inline">Métricas:</span>
+                <span>{metricasRecolhidas ? 'Compactas' : 'Expandidas'}</span>
+                <span className="text-[10px] opacity-75 font-mono">{metricasRecolhidas ? '⤢' : '⤡'}</span>
+              </button>
 
               {/* Campo de Busca */}
               <div className="relative min-w-[240px]">
@@ -1706,8 +1790,78 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                       </div>
                     </div>
 
+                    {/* Indicador de Alerta Adiado (Snooze Ativo) no Card */}
+                    {ch.adiado_ate && Date.now() < new Date(ch.adiado_ate).getTime() && (
+                      <div className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/25 text-purple-800 dark:text-purple-300 text-xs font-semibold shadow-2xs">
+                        <span>💤</span>
+                        <span>Alerta pausado até {new Date(ch.adiado_ate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({Math.max(1, Math.round((new Date(ch.adiado_ate).getTime() - Date.now()) / 60000))}m)</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            cancelarAdiarAlertaChamado(ch.id, userEmail);
+                            carregarDados();
+                            showToast('Alerta sonoro reativado.', 'info');
+                          }}
+                          className="underline hover:text-purple-950 dark:hover:text-white cursor-pointer ml-1"
+                        >
+                          Reativar
+                        </button>
+                      </div>
+                    )}
+
                     {/* Rodapé com Botões de Ação */}
                     <div className="pt-3.5 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between gap-2 mt-4 flex-wrap">
+                      {/* Botão de Adiar Alerta no Card */}
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSnoozePopoverChamadoId(snoozePopoverChamadoId === ch.id ? null : ch.id);
+                          }}
+                          className="p-2 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 text-xs hover:bg-purple-500/20 transition-all cursor-pointer shadow-xs flex items-center gap-1"
+                          title="Adiar Alerta (Visualizei, atender mais tarde)"
+                        >
+                          <span>💤</span>
+                          <span className="hidden sm:inline font-bold">Adiar</span>
+                        </button>
+
+                        {snoozePopoverChamadoId === ch.id && (
+                          <div
+                            className="absolute bottom-full mb-2 left-0 z-50 w-48 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.1] dark:border-white/[0.12] shadow-2xl p-2 text-xs space-y-1 text-[#1d1d1f] dark:text-[#f5f5f7]"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="px-2 py-1 text-[10px] font-bold uppercase text-slate-400 font-mono border-b border-black/[0.05] dark:border-white/[0.06] mb-1">
+                              Lembrar em:
+                            </div>
+                            {[
+                              { mins: 10, label: '10 min' },
+                              { mins: 15, label: '15 min' },
+                              { mins: 30, label: '30 min' },
+                              { mins: 45, label: '45 min' },
+                              { mins: 60, label: '1 hora' },
+                              { mins: 120, label: '2 horas' },
+                            ].map((item) => (
+                              <button
+                                key={item.mins}
+                                type="button"
+                                onClick={() => {
+                                  adiarAlertaChamado(ch.id, item.mins, userEmail);
+                                  setSnoozePopoverChamadoId(null);
+                                  carregarDados();
+                                  const horaAviso = new Date(Date.now() + item.mins * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                                  showToast(`💤 Alerta adiado por ${item.mins} min. Alerta às ${horaAviso}.`, 'info');
+                                }}
+                                className="w-full text-left px-2 py-1 rounded-lg hover:bg-purple-500/10 hover:text-purple-700 dark:hover:text-purple-300 font-medium transition-colors cursor-pointer flex items-center justify-between text-xs"
+                              >
+                                <span>{item.label}</span>
+                                <span className="text-[10px] text-slate-400 font-mono">+{item.mins}m</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
                       {isAguardando && (
                         <>
                           <button
@@ -2554,6 +2708,143 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                         {ch.observacao_inicial}
                                       </div>
                                     )}
+
+                                    {/* Indicador de Alerta Adiado (Snooze Ativo) */}
+                                    {ch.adiado_ate && Date.now() < new Date(ch.adiado_ate).getTime() && (
+                                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/25 text-purple-800 dark:text-purple-300 text-xs font-semibold shadow-2xs">
+                                        <span className="text-sm">💤</span>
+                                        <span>Alerta pausado até <strong>{new Date(ch.adiado_ate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong> ({Math.max(1, Math.round((new Date(ch.adiado_ate).getTime() - Date.now()) / 60000))} min restantes)</span>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            cancelarAdiarAlertaChamado(ch.id, userEmail);
+                                            carregarDados();
+                                            showToast('Alerta sonoro reativado.', 'info');
+                                          }}
+                                          className="ml-1 text-[11px] underline hover:text-purple-950 dark:hover:text-white cursor-pointer font-bold"
+                                        >
+                                          Reativar Som Agora
+                                        </button>
+                                      </div>
+                                    )}
+
+                                    {/* Indicador de Escalonamento SLA Configurado */}
+                                    {ch.tecnico_email && !ch.is_fila_geral && (
+                                      <div className="text-[11px] text-amber-700 dark:text-amber-400 font-mono flex items-center gap-1.5 pt-0.5">
+                                        <span>⏱️</span>
+                                        <span>Escalonamento SLA: notifica gestor em {ch.tempo_escalonamento_minutos || 15} min se não concluído por {getNomeTecnico(ch.tecnico_email)}</span>
+                                      </div>
+                                    )}
+
+                                    {/* Gestão Interativa de Etiquetas (Editar Etiquetas da Demanda) */}
+                                    <div className="pt-2.5 border-t border-black/[0.04] dark:border-white/[0.05] space-y-1.5">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500 font-mono flex items-center gap-1">
+                                          <span>🏷️</span>
+                                          <span>Etiquetas da Demanda</span>
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 font-mono">
+                                          {(ch.etiquetas || []).length} {(ch.etiquetas || []).length === 1 ? 'etiqueta' : 'etiquetas'}
+                                        </span>
+                                      </div>
+
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        {(ch.etiquetas || []).map((etq, idx) => (
+                                          <span
+                                            key={idx}
+                                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/25 text-amber-800 dark:text-amber-300 font-mono text-[11px] font-bold shadow-2xs"
+                                          >
+                                            <span>#{etq}</span>
+                                            <button
+                                              type="button"
+                                              onClick={async (e) => {
+                                                e.stopPropagation();
+                                                const novas = (ch.etiquetas || []).filter((_, i) => i !== idx);
+                                                await atualizarEtiquetasChamado(ch.id, novas, userEmail);
+                                                await carregarDados();
+                                                showToast(`Etiqueta #${etq} removida.`, 'info');
+                                              }}
+                                              className="w-3.5 h-3.5 rounded-full hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center text-[10px] cursor-pointer"
+                                              title={`Remover #${etq}`}
+                                            >
+                                              ✕
+                                            </button>
+                                          </span>
+                                        ))}
+
+                                        <div className="inline-flex items-center gap-1">
+                                          <input
+                                            type="text"
+                                            placeholder="+ Nova etiqueta"
+                                            value={tagInputChamadoId === ch.id ? tagInputVal : ''}
+                                            onFocus={() => {
+                                              setTagInputChamadoId(ch.id);
+                                              setTagInputVal('');
+                                            }}
+                                            onChange={(e) => setTagInputVal(e.target.value)}
+                                            onKeyDown={async (e) => {
+                                              if (e.key === 'Enter' && tagInputVal.trim()) {
+                                                e.preventDefault();
+                                                const nova = tagInputVal.trim().replace(/^#/, '');
+                                                const atuais = ch.etiquetas || [];
+                                                if (!atuais.includes(nova)) {
+                                                  const novas = [...atuais, nova];
+                                                  await atualizarEtiquetasChamado(ch.id, novas, userEmail);
+                                                  await carregarDados();
+                                                  showToast(`Etiqueta #${nova} adicionada.`, 'success');
+                                                }
+                                                setTagInputVal('');
+                                              }
+                                            }}
+                                            className="px-2 py-0.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono text-slate-800 dark:text-zinc-200 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500/50 w-32"
+                                          />
+                                          {tagInputChamadoId === ch.id && tagInputVal.trim() && (
+                                            <button
+                                              type="button"
+                                              onClick={async () => {
+                                                const nova = tagInputVal.trim().replace(/^#/, '');
+                                                const atuais = ch.etiquetas || [];
+                                                if (!atuais.includes(nova)) {
+                                                  const novas = [...atuais, nova];
+                                                  await atualizarEtiquetasChamado(ch.id, novas, userEmail);
+                                                  await carregarDados();
+                                                  showToast(`Etiqueta #${nova} adicionada.`, 'success');
+                                                }
+                                                setTagInputVal('');
+                                              }}
+                                              className="px-2 py-0.5 rounded-lg bg-amber-500 text-white font-bold text-xs cursor-pointer shadow-xs"
+                                            >
+                                              +
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-[10px] text-slate-400 font-mono">Sugeridas:</span>
+                                        {['urgente', 'financeiro', 'duvida', 'configuracao', 'bloqueado', 'reaberto'].map((sug) => {
+                                          const jaTem = (ch.etiquetas || []).includes(sug);
+                                          if (jaTem) return null;
+                                          return (
+                                            <button
+                                              key={sug}
+                                              type="button"
+                                              onClick={async (e) => {
+                                                e.stopPropagation();
+                                                const novas = [...(ch.etiquetas || []), sug];
+                                                await atualizarEtiquetasChamado(ch.id, novas, userEmail);
+                                                await carregarDados();
+                                                showToast(`Etiqueta #${sug} adicionada.`, 'success');
+                                              }}
+                                              className="px-2 py-0.2 rounded-full bg-black/[0.02] dark:bg-white/[0.04] hover:bg-amber-500/10 hover:text-amber-700 dark:hover:text-amber-300 border border-black/[0.04] dark:border-white/[0.06] text-[10px] font-mono text-slate-500 dark:text-zinc-400 cursor-pointer transition-colors"
+                                            >
+                                              +{sug}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
                                   </div>
 
                                   {/* Grupo de Ações Espaçoso e Elegante */}
@@ -2571,6 +2862,58 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                         <span>Assumir Atendimento</span>
                                       </button>
                                     )}
+
+                                    {/* Botão Adiar Alerta (Visualizei, Lembrar em X min) */}
+                                    <div className="relative">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSnoozePopoverChamadoId(snoozePopoverChamadoId === ch.id ? null : ch.id);
+                                        }}
+                                        className="px-3 py-2.5 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 font-bold text-xs hover:bg-purple-500/20 transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
+                                        title="Visualizei, mas não posso atender agora — silenciar e me alertar mais tarde"
+                                      >
+                                        <span>💤</span>
+                                        <span>Adiar Alerta</span>
+                                        <span className="text-[8px]">▼</span>
+                                      </button>
+
+                                      {snoozePopoverChamadoId === ch.id && (
+                                        <div
+                                          className="absolute bottom-full mb-2 right-0 sm:right-auto sm:left-0 z-50 w-52 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.1] dark:border-white/[0.12] shadow-2xl p-2 text-xs space-y-1 text-[#1d1d1f] dark:text-[#f5f5f7]"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <div className="px-2 py-1 text-[10px] font-bold uppercase text-slate-400 font-mono border-b border-black/[0.05] dark:border-white/[0.06] mb-1">
+                                            Lembrar-me novamente em:
+                                          </div>
+                                          {[
+                                            { mins: 10, label: '10 minutos' },
+                                            { mins: 15, label: '15 minutos' },
+                                            { mins: 30, label: '30 minutos' },
+                                            { mins: 45, label: '45 minutos' },
+                                            { mins: 60, label: '1 hora' },
+                                            { mins: 120, label: '2 horas' },
+                                          ].map((item) => (
+                                            <button
+                                              key={item.mins}
+                                              type="button"
+                                              onClick={() => {
+                                                adiarAlertaChamado(ch.id, item.mins, userEmail);
+                                                setSnoozePopoverChamadoId(null);
+                                                carregarDados();
+                                                const horaAviso = new Date(Date.now() + item.mins * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                                                showToast(`💤 Alerta adiado por ${item.mins} min. Você será avisado novamente às ${horaAviso}.`, 'info');
+                                              }}
+                                              className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-purple-500/10 hover:text-purple-700 dark:hover:text-purple-300 font-medium transition-colors cursor-pointer flex items-center justify-between text-xs"
+                                            >
+                                              <span>{item.label}</span>
+                                              <span className="text-[10px] text-slate-400 font-mono">+{item.mins}m</span>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
 
                                     {isEmAndamento && (
                                       <>

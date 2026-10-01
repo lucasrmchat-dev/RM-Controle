@@ -481,6 +481,7 @@ export async function adicionarChamadoFila({
   atribuido_a = null,
   observacao_inicial = '',
   iniciarAgora = false,
+  tempo_escalonamento_minutos = 15,
   userEmail = 'admin@rmcontrole.com',
 }) {
   const agora = new Date().toISOString();
@@ -585,7 +586,8 @@ export async function adicionarChamadoFila({
     return novoChamado;
   }
 
-  const tecnicoDesignado = atribuido_a ? atribuido_a : userEmail;
+  const isFilaGeral = !atribuido_a || atribuido_a === 'geral' || atribuido_a === '';
+  const tecnicoDesignado = isFilaGeral ? null : atribuido_a;
   const statusInicial = 'aguardando_visualizacao';
 
   const novoChamado = {
@@ -596,8 +598,14 @@ export async function adicionarChamadoFila({
     etiquetas: Array.isArray(etiquetas) ? etiquetas : [],
     feedback_id: feedback_id || null,
     is_demanda_interna: is_demanda_interna || Boolean(empresa_nome && empresa_nome.includes('RM Controle')),
+    is_fila_geral: isFilaGeral,
     tecnico_email: tecnicoDesignado,
-    tecnico_nome: getNomeTecnico(tecnicoDesignado),
+    tecnico_nome: tecnicoDesignado ? getNomeTecnico(tecnicoDesignado) : 'Fila Geral (Aguardando Atendente)',
+    atribuido_a: tecnicoDesignado,
+    atribuido_por_email: userEmail,
+    atribuido_em: agora,
+    tempo_escalonamento_minutos: Number(tempo_escalonamento_minutos) || 15,
+    escalonado_notificado: false,
     solicitante_nome: (solicitante_nome || 'Colaborador').trim(),
     solicitante_email: solicitante_email.trim(),
     solicitante_telefone: solicitante_telefone.trim(),
@@ -667,6 +675,182 @@ export async function adicionarChamadoFila({
 
   window.dispatchEvent(new Event('suporte_updated'));
   return novoChamado;
+}
+
+
+export async function atualizarEtiquetasChamado(chamadoId, novasEtiquetas, userEmail = 'admin@rmcontrole.com') {
+  if (!chamadoId) return null;
+  const chamados = getLocalData('chamados_suporte', []);
+  const idx = chamados.findIndex((c) => c.id === chamadoId);
+  if (idx === -1) return null;
+
+  const etiquetasLimpas = Array.from(new Set(
+    (Array.isArray(novasEtiquetas) ? novasEtiquetas : [])
+      .map((t) => (t || '').trim().replace(/^#/, ''))
+      .filter(Boolean)
+  ));
+
+  chamados[idx].etiquetas = etiquetasLimpas;
+  setLocalData('chamados_suporte', chamados);
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase
+        .from('suporte_chamados')
+        .update({ etiquetas: etiquetasLimpas })
+        .eq('id', chamadoId);
+    } catch (e) {
+      console.warn('Aviso ao sincronizar etiquetas no Supabase:', e);
+    }
+  }
+
+  await logAuditoria({
+    empresaId: chamados[idx].empresa_id,
+    usuarioEmail: userEmail,
+    acao: 'atualizou_etiquetas_chamado',
+    detalhes: { chamadoId, etiquetas: etiquetasLimpas },
+  });
+
+  window.dispatchEvent(new Event('suporte_updated'));
+  return chamados[idx];
+}
+
+export function adiarAlertaChamado(chamadoId, minutos = 15, userEmail = 'admin@rmcontrole.com') {
+  if (!chamadoId) return null;
+  const chamados = getLocalData('chamados_suporte', []);
+  const idx = chamados.findIndex((c) => c.id === chamadoId);
+  if (idx === -1) return null;
+
+  const agora = Date.now();
+  const adiadoAte = new Date(agora + minutos * 60 * 1000).toISOString();
+
+  chamados[idx].adiado_ate = adiadoAte;
+  chamados[idx].adiado_por = userEmail;
+  chamados[idx].adiado_minutos = minutos;
+
+  setLocalData('chamados_suporte', chamados);
+
+  try {
+    stopSupportNotificationLoop();
+  } catch (e) {}
+
+  window.dispatchEvent(new Event('suporte_updated'));
+  return chamados[idx];
+}
+
+export function cancelarAdiarAlertaChamado(chamadoId, userEmail = 'admin@rmcontrole.com') {
+  if (!chamadoId) return null;
+  const chamados = getLocalData('chamados_suporte', []);
+  const idx = chamados.findIndex((c) => c.id === chamadoId);
+  if (idx === -1) return null;
+
+  delete chamados[idx].adiado_ate;
+  delete chamados[idx].adiado_por;
+  delete chamados[idx].adiado_minutos;
+
+  setLocalData('chamados_suporte', chamados);
+  window.dispatchEvent(new Event('suporte_updated'));
+  return chamados[idx];
+}
+
+export function marcarChamadoEscalonado(chamadoId) {
+  if (!chamadoId) return null;
+  const chamados = getLocalData('chamados_suporte', []);
+  const idx = chamados.findIndex((c) => c.id === chamadoId);
+  if (idx === -1) return null;
+
+  chamados[idx].escalonado_notificado = true;
+  setLocalData('chamados_suporte', chamados);
+  window.dispatchEvent(new Event('suporte_updated'));
+  return chamados[idx];
+}
+
+
+export async function atualizarEtiquetasChamado(chamadoId, novasEtiquetas, userEmail = 'admin@rmcontrole.com') {
+  if (!chamadoId) return null;
+  const chamados = getLocalData('chamados_suporte', []);
+  const idx = chamados.findIndex((c) => c.id === chamadoId);
+  if (idx === -1) return null;
+
+  const etiquetasLimpas = Array.from(new Set(
+    (Array.isArray(novasEtiquetas) ? novasEtiquetas : [])
+      .map((t) => (t || '').trim().replace(/^#/, ''))
+      .filter(Boolean)
+  ));
+
+  chamados[idx].etiquetas = etiquetasLimpas;
+  setLocalData('chamados_suporte', chamados);
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase
+        .from('suporte_chamados')
+        .update({ etiquetas: etiquetasLimpas })
+        .eq('id', chamadoId);
+    } catch (e) {
+      console.warn('Aviso ao sincronizar etiquetas no Supabase:', e);
+    }
+  }
+
+  await logAuditoria({
+    empresaId: chamados[idx].empresa_id,
+    usuarioEmail: userEmail,
+    acao: 'atualizou_etiquetas_chamado',
+    detalhes: { chamadoId, etiquetas: etiquetasLimpas },
+  });
+
+  window.dispatchEvent(new Event('suporte_updated'));
+  return chamados[idx];
+}
+
+export function adiarAlertaChamado(chamadoId, minutos = 15, userEmail = 'admin@rmcontrole.com') {
+  if (!chamadoId) return null;
+  const chamados = getLocalData('chamados_suporte', []);
+  const idx = chamados.findIndex((c) => c.id === chamadoId);
+  if (idx === -1) return null;
+
+  const agora = Date.now();
+  const adiadoAte = new Date(agora + minutos * 60 * 1000).toISOString();
+
+  chamados[idx].adiado_ate = adiadoAte;
+  chamados[idx].adiado_por = userEmail;
+  chamados[idx].adiado_minutos = minutos;
+
+  setLocalData('chamados_suporte', chamados);
+
+  try {
+    stopSupportNotificationLoop();
+  } catch (e) {}
+
+  window.dispatchEvent(new Event('suporte_updated'));
+  return chamados[idx];
+}
+
+export function cancelarAdiarAlertaChamado(chamadoId, userEmail = 'admin@rmcontrole.com') {
+  if (!chamadoId) return null;
+  const chamados = getLocalData('chamados_suporte', []);
+  const idx = chamados.findIndex((c) => c.id === chamadoId);
+  if (idx === -1) return null;
+
+  delete chamados[idx].adiado_ate;
+  delete chamados[idx].adiado_por;
+  delete chamados[idx].adiado_minutos;
+
+  setLocalData('chamados_suporte', chamados);
+  window.dispatchEvent(new Event('suporte_updated'));
+  return chamados[idx];
+}
+
+export function marcarChamadoEscalonado(chamadoId) {
+  if (!chamadoId) return null;
+  const chamados = getLocalData('chamados_suporte', []);
+  const idx = chamados.findIndex((c) => c.id === chamadoId);
+  if (idx === -1) return null;
+
+  chamados[idx].escalonado_notificado = true;
+  setLocalData('chamados_suporte', chamados);
+  window.dispatchEvent(new Event('suporte_updated'));
+  return chamados[idx];
 }
 
 export async function assumirSuporte({ chamado_id, userEmail = 'admin@rmcontrole.com' }) {
