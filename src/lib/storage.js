@@ -3929,16 +3929,12 @@ export async function deleteAgendaEvento(id) {
 export function parseIcalEvents(icsContent) {
   if (!icsContent || typeof icsContent !== 'string') return [];
   const events = [];
-  const lines = icsContent.replace(/
-
- /g, '').split(/
-
-|
-|
-/);
+  const lines = icsContent.split(/\r?\n/);
   let current = null;
 
-  for (let line of lines) {
+  for (let rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
     if (line.startsWith('BEGIN:VEVENT')) {
       current = {};
     } else if (line.startsWith('END:VEVENT')) {
@@ -3968,7 +3964,8 @@ export function parseIcalEvents(icsContent) {
 
         const desc = current.DESCRIPTION || '';
         const loc = current.LOCATION || '';
-        const matchMeet = (desc + ' ' + loc).match(/https:\/\/(meet\.google\.com\/[a-z0-9-]+|zoom\.us\/[a-z0-9/?=]+|teams\.microsoft\.com\/[^\s]+)/i);
+        const combined = desc + ' ' + loc;
+        const matchMeet = combined.match(/https?:\/\/(meet\.google\.com\/[a-z0-9-]+|zoom\.us\/[a-z0-9/?=]+|teams\.microsoft\.com\/[^\s]+)/i);
 
         events.push({
           id: current.UID ? 'gcal_' + current.UID.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40) : 'gcal_' + Date.now() + Math.random().toString(36).slice(2, 6),
@@ -3992,9 +3989,9 @@ export function parseIcalEvents(icsContent) {
       if (colIdx > 0) {
         const key = line.slice(0, colIdx).split(';')[0];
         const val = line.slice(colIdx + 1);
-        if (key === 'SUMMARY') current.SUMMARY = val.replace(/\,/g, ',').replace(/\n/g, ' ').trim();
-        else if (key === 'DESCRIPTION') current.DESCRIPTION = val.replace(/\,/g, ',').replace(/\n/g, ' ').trim();
-        else if (key === 'LOCATION') current.LOCATION = val.replace(/\,/g, ',').trim();
+        if (key === 'SUMMARY') current.SUMMARY = val.split('\,').join(',').split('\n').join(' ').trim();
+        else if (key === 'DESCRIPTION') current.DESCRIPTION = val.split('\,').join(',').split('\n').join(' ').trim();
+        else if (key === 'LOCATION') current.LOCATION = val.split('\,').join(',').trim();
         else if (key === 'DTSTART') current.DTSTART = line;
         else if (key === 'DTEND') current.DTEND = line;
         else if (key === 'UID') current.UID = val.trim();
