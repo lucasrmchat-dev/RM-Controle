@@ -22,6 +22,7 @@ import {
   fetchChamadosFila,
   fetchHistoricoChamados,
   fetchEquipeUsuarios,
+  isChamadoFeedback,
   getHistoricoChamados,
   createEmpresa,
   setLocalData
@@ -237,7 +238,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       if (c.status === 'concluido' || c.status === 'finalizado' || c.status === 'cancelado') return;
       if (c.finalizado_em) return;
       if (historicoIds.has(c.id)) return;
-      if (c.feedback_id) return; // Feedbacks são tratados exclusivamente na aba de Feedbacks
+      if (isChamadoFeedback(c)) return;
 
       const empKey = (c.empresa_nome || c.empresa_id || '').toLowerCase().trim();
       const solKey = (c.solicitante_nome || '').toLowerCase().trim();
@@ -467,9 +468,10 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       }
     });
 
-    // 2. Colaboradores que possuem chamados ativos em andamento
+    // 2. Colaboradores que possuem chamados ativos ou em espera
     (chamados || []).forEach((c) => {
-      if (c.status !== 'em_andamento' || c.finalizado_em || c.status === 'concluido' || c.status === 'finalizado') return;
+      if (isChamadoFeedback(c)) return;
+      if (c.finalizado_em || c.status === 'concluido' || c.status === 'finalizado') return;
       const email = (c.tecnico_email || '').toLowerCase().trim();
       const nome = c.tecnico_nome || c.atendente;
       if (!email && (!nome || nome === 'Não informado' || nome === 'Colaborador')) return;
@@ -739,6 +741,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   // Lista Filtrada para as Visualizações em Cards e Lista (tabela)
   const chamadosFiltrados = useMemo(() => {
     return chamados.filter((c) => {
+      if (isChamadoFeedback(c)) return false;
       // Bloqueio de visibilidade por departamento se o colaborador estiver restrito
       if (!ehAdmin && depsBloqueados.length > 0) {
         const cats = Array.isArray(c.categorias) && c.categorias.length > 0 ? c.categorias : ['Suporte'];
@@ -2486,23 +2489,70 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                               )}
                             </td>
 
-                            {/* Botão Único Elegante "Ver Ações" */}
-                            <td className="px-4 py-3.5 text-right whitespace-nowrap w-[130px]">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setExpandedChamadoId(isExpanded ? null : ch.id);
-                                }}
-                                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-2xs ${
-                                  isExpanded
-                                    ? 'bg-[#09090b] dark:bg-white text-white dark:text-black font-bold'
-                                    : 'bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] text-slate-700 dark:text-zinc-200 border border-black/[0.06] dark:border-white/[0.08]'
-                                }`}
-                              >
-                                <span>Ações</span>
-                                <span className={`text-[8px] transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
-                              </button>
+                            {/* Botões Rápidos e Menu de Ações na Linha da Tabela */}
+                            <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {isEmAndamento && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setChamadoParaFinalizar(ch);
+                                      }}
+                                      className="px-2.5 py-1.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-[11px] hover:opacity-90 transition-all cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                                      title="Concluir Atendimento"
+                                    >
+                                      <CheckIcon className="w-3 h-3 stroke-[2.5]" />
+                                      <span>Concluir</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEncerrarSemResposta(ch);
+                                      }}
+                                      className="px-2.5 py-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold text-[11px] hover:bg-amber-500/20 transition-all cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                                      title="Encerrar chamado por falta de resposta do cliente"
+                                    >
+                                      <span>⏳ Sem Resposta</span>
+                                    </button>
+                                  </>
+                                )}
+
+                                {isAguardando && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAceitarSuporte(ch);
+                                    }}
+                                    className="px-2.5 py-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-[11px] hover:opacity-95 transition-all cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                                    title="Assumir Atendimento"
+                                  >
+                                    <PlayIcon className="w-3 h-3 fill-current" />
+                                    <span>Assumir</span>
+                                  </button>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedChamadoId(isExpanded ? null : ch.id);
+                                  }}
+                                  className={`px-2.5 py-1.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer inline-flex items-center gap-1 shadow-2xs ${
+                                    isExpanded
+                                      ? 'bg-[#09090b] dark:bg-white text-white dark:text-black font-bold'
+                                      : 'bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] text-slate-700 dark:text-zinc-200 border border-black/[0.06] dark:border-white/[0.08]'
+                                  }`}
+                                  title="Ver detalhes e observações"
+                                >
+                                  <span>Mais</span>
+                                  <span className={`text-[8px] transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
+                                </button>
+                              </div>
                             </td>
                           </tr>
 
@@ -2555,17 +2605,31 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                     )}
 
                                     {isEmAndamento && (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setChamadoParaFinalizar(ch);
-                                        }}
-                                        className="px-4 py-2.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs shadow-md hover:opacity-90 flex items-center gap-1.5 cursor-pointer"
-                                      >
-                                        <CheckIcon className="w-3.5 h-3.5 stroke-[2.5]" />
-                                        <span>Concluir Atendimento</span>
-                                      </button>
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setChamadoParaFinalizar(ch);
+                                          }}
+                                          className="px-4 py-2.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs shadow-md hover:opacity-90 flex items-center gap-1.5 cursor-pointer"
+                                        >
+                                          <CheckIcon className="w-3.5 h-3.5 stroke-[2.5]" />
+                                          <span>Concluir Atendimento</span>
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleEncerrarSemResposta(ch);
+                                          }}
+                                          className="px-3.5 py-2.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-bold text-xs hover:bg-amber-500/20 cursor-pointer shadow-xs flex items-center gap-1.5"
+                                          title="Encerrar chamado por falta de resposta do cliente"
+                                        >
+                                          <span>⏳ Sem Resposta do Cliente</span>
+                                        </button>
+                                      </>
                                     )}
 
                                     {!isAguardando && (

@@ -25,7 +25,8 @@ import {
   addMotivoSuporte,
   removeMotivoSuporte,
   updateEquipeUsuario,
-  getCategoriasDemandas
+  getCategoriasDemandas,
+  getEmpresas
 } from '@/lib/storage';
 import { 
   EyeIcon, 
@@ -64,6 +65,8 @@ export default function ServerConfigView() {
   const [novoUsuarioEmail, setNovoUsuarioEmail] = useState('');
   const [novoUsuarioSenha, setNovoUsuarioSenha] = useState('');
   const [novoUsuarioPapel, setNovoUsuarioPapel] = useState('suporte');
+  const [novoUsuarioEmpresa, setNovoUsuarioEmpresa] = useState('Todas as Empresas');
+  const [empresasLista, setEmpresasLista] = useState([]);
   const [userRole, setUserRole] = useState('administrador');
 
   // Modal de Edição de Membro
@@ -74,6 +77,7 @@ export default function ServerConfigView() {
   const [editSenha, setEditSenha] = useState('');
   const [editDepartamentos, setEditDepartamentos] = useState([]);
   const [editDepartamentosBloqueados, setEditDepartamentosBloqueados] = useState([]);
+  const [editEmpresaNome, setEditEmpresaNome] = useState('Todas as Empresas');
 
   // Motivos de Atendimento / Suporte
   const [motivosList, setMotivosList] = useState([]);
@@ -100,6 +104,10 @@ export default function ServerConfigView() {
     setSenhaPadrao(getSenhaPadraoRedefinicao());
     setConfigSuporte(getConfiguracoesSuporte());
     setMotivosList(getMotivosSuporte());
+    try {
+      const resEmp = await getEmpresas({ pageSize: 1000 });
+      setEmpresasLista(Array.isArray(resEmp) ? resEmp : (resEmp?.items || []));
+    } catch (e) {}
   };
 
   useEffect(() => {
@@ -210,6 +218,7 @@ export default function ServerConfigView() {
         email: editEmail.trim(),
         papel: editPapel,
         senha: editSenha.trim() || undefined,
+        empresa_nome: editEmpresaNome,
         departamentos: editDepartamentos,
         departamentos_bloqueados: editDepartamentosBloqueados,
       });
@@ -649,6 +658,9 @@ export default function ServerConfigView() {
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-[#1d1d1f] dark:text-white">{u.nome}</span>
+                          <span className="text-[10px] font-medium text-slate-500 dark:text-zinc-400 bg-black/[0.03] dark:bg-white/[0.05] px-2 py-0.5 rounded-md border border-black/[0.04] dark:border-white/[0.06] flex items-center gap-1">
+                            🏢 {u.empresa_nome || 'Todas as Empresas'}
+                          </span>
                           <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
                             u.papel === 'administrador'
                               ? 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20'

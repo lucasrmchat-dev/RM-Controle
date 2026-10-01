@@ -1,3 +1,24 @@
+
+// Auxiliar para identificar chamados gerados por feedbacks/relatos internos
+export function isChamadoFeedback(c) {
+  if (!c) return false;
+  if (c.feedback_id) return true;
+  if (c.is_demanda_interna) return true;
+  const emp = (c.empresa_nome || '').toLowerCase().trim();
+  if (emp.startsWith('rm controle (')) return true;
+  if (emp === 'rm controle (fila de demandas)') return true;
+  if (emp === 'rm controle (feedbacks)') return true;
+  const obs = (c.observacao_inicial || c.observacoes || c.descricao || '').trim();
+  if (obs.startsWith('[SUGESTAO') || obs.startsWith('[BUG') || obs.startsWith('[IDEIA') || obs.includes('[Módulo:') || obs.includes('[MODULO:')) return true;
+  const motivo = (c.motivo || '').toLowerCase().trim();
+  const cats = Array.isArray(c.categorias) ? c.categorias : motivo.split(',').map((s) => s.trim());
+  if (cats.some((cat) => {
+    const k = (cat || '').toLowerCase().trim();
+    return k === 'feedback' || k === 'feedback / bug rm' || k === 'ideias';
+  }) && emp.includes('rm controle')) return true;
+  return false;
+}
+
 import { triggerSupportNotification, stopSupportNotificationLoop } from './audioNotifications';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { logAuditoria } from './security';
@@ -728,6 +749,7 @@ export async function fetchChamadosFila() {
           if (d.status === 'finalizado' || d.status === 'concluido' || d.status === 'cancelado') return false;
           if (d.finalizado_em) return false;
           if (historicoIds.has(d.id)) return false;
+          if (isChamadoFeedback(d)) return false;
           return true;
         });
 
@@ -1953,15 +1975,18 @@ export async function fetchEquipeUsuarios() {
   return getEquipeUsuarios();
 }
 
+export const DEFAULT_EQUIPE_REAL = [
+  { id: 'usr_1', nome: 'Lucas Amorim', email: 'admin@rmcontrole.com', senha: 'RmControle@Admin2026!', papel: 'administrador', empresa_nome: 'RM Controle (Geral)', criado_em: '2026-01-01T00:00:00.000Z' },
+  { id: 'usr_maria', nome: 'Maria', email: 'maria@rmchat.com', senha: 'RmSuporte@Padrao2026!', papel: 'suporte', empresa_nome: 'Todas as Empresas', criado_em: '2026-01-01T00:00:00.000Z' },
+  { id: 'usr_rayane', nome: 'Rayane Nunes', email: 'rayane@rmchat.com', senha: 'RmSuporte@Padrao2026!', papel: 'suporte', empresa_nome: 'Todas as Empresas', criado_em: '2026-01-01T00:00:00.000Z' },
+  { id: 'usr_pedro', nome: 'Pedro Alvarez', email: 'pedro@rmchat.com', senha: 'RmSuporte@Padrao2026!', papel: 'suporte', empresa_nome: 'Todas as Empresas', criado_em: '2026-01-01T00:00:00.000Z' },
+  { id: 'usr_teste', nome: 'teste', email: 'teste@rmchat.com', senha: 'RmSuporte@Padrao2026!', papel: 'suporte', empresa_nome: 'Todas as Empresas', criado_em: '2026-01-01T00:00:00.000Z' },
+];
+
 export function getEquipeUsuarios() {
-  const defaultEquipe = [
-    { id: 'usr_1', nome: 'Lucas Amorim (Administrador)', email: 'admin@rmcontrole.com', senha: 'RmControle@Admin2026!', papel: 'administrador', criado_em: new Date().toISOString() },
-    { id: 'usr_rayane', nome: 'Rayane Nunes', email: 'rayane@rmchat.com', senha: 'RmSuporte@Padrao2026!', papel: 'suporte', criado_em: new Date().toISOString() },
-  ];
+  let rawList = getLocalData('equipe_usuarios', DEFAULT_EQUIPE_REAL);
 
-  let rawList = getLocalData('equipe_usuarios', defaultEquipe);
-
-  // Se o modo mock de desenvolvimento estiver desligado, remove contas genéricas de demonstração
+  // Remove contas genéricas de mock se mock estiver desligado
   if (!isMockDataEnabled()) {
     rawList = rawList.filter((u) => {
       const nomeLower = (u.nome || '').toLowerCase().trim();
@@ -1972,19 +1997,18 @@ export function getEquipeUsuarios() {
       return true;
     });
 
-    // Assegura presença de Rayane Nunes na equipe real
-    const temRayane = rawList.some((u) => (u.email || '').toLowerCase().trim() === 'rayane@rmchat.com' || (u.nome || '').toLowerCase().includes('rayane'));
-    if (!temRayane) {
-      rawList.push({
-        id: 'usr_rayane',
-        nome: 'Rayane Nunes',
-        email: 'rayane@rmchat.com',
-        senha: 'RmSuporte@Padrao2026!',
-        papel: 'suporte',
-        criado_em: new Date().toISOString(),
-      });
-      setLocalData('equipe_usuarios', rawList);
-    }
+    // Assegura que toda a equipe principal (Lucas, Maria, Rayane, Pedro) esteja preservada
+    const map = new Map();
+    DEFAULT_EQUIPE_REAL.forEach((def) => map.set((def.email || '').toLowerCase().trim(), def));
+    rawList.forEach((u) => {
+      if (u.email) {
+        const key = u.email.toLowerCase().trim();
+        const base = map.get(key) || {};
+        map.set(key, { ...base, ...u, empresa_nome: u.empresa_nome || base.empresa_nome || 'Todas as Empresas' });
+      }
+    });
+    rawList = Array.from(map.values());
+    setLocalData('equipe_usuarios', rawList);
   }
 
   const lista = rawList;
