@@ -573,7 +573,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
         emailFormal = `${emailFormal}@rmcontrole.com`;
       }
 
-      const isAdminEmail = emailFormal === 'admin@rmcontrole.com' || emailFormal.includes('admin');
+      const isAdminEmail = emailFormal === 'admin@rmcontrole.com' || emailFormal.includes('admin') || membroEquipe?.papel === 'administrador';
       const senhaEsperada = (membroEquipe?.senha || '').trim();
 
       // 2. Autenticação oficial no Supabase Auth (gera sessão JWT e concede papel 'authenticated' para o RLS)
@@ -583,12 +583,10 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
           password: senhaLimpa,
         });
 
-        // Se falhar e o usuário for da equipe ou for o administrador, tenta auto-provisionamento no Supabase Auth
+        // Se falhar a autenticação no Supabase Auth:
+        // LGPD & Segurança Máxima: Só tenta auto-provisionar se a senha digitada corresponder EXATAMENTE à cadastrada na equipe
         if (authResult.error) {
-          const podeAutenticar = (membroEquipe && (!senhaEsperada || senhaEsperada === senhaLimpa)) ||
-            (isAdminEmail && (senhaLimpa === 'RmControle@Admin2026!' || senhaLimpa.length >= 6));
-
-          if (podeAutenticar) {
+          if (membroEquipe && senhaEsperada && senhaEsperada === senhaLimpa) {
             try {
               await supabase.auth.signUp({
                 email: emailFormal,
@@ -610,6 +608,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
           }
         }
 
+        // Se autenticou no Supabase Auth com sucesso (tem sessão JWT oficial):
         if (authResult?.data?.user) {
           const user = authResult.data.user;
           setIsAuthenticated(true);
@@ -619,64 +618,44 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
           localStorage.setItem('rm_auth_user', user.email);
           localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
 
+          // Se a senha esperada local estava desatualizada, sincroniza com a nova autenticada
+          if (membroEquipe && membroEquipe.senha !== senhaLimpa) {
+            updateEquipeUsuario(membroEquipe.id, { senha: senhaLimpa }).catch(() => {});
+          }
+
           const pendente = await isPrimeiroAcessoPendente(user.email);
           setPrimeiroAcessoPendente(pendente);
           return;
         }
 
-        // Fallback de contingência caso o Supabase Auth ainda exija confirmação de e-mail por link
-        if (membroEquipe) {
-          if (!senhaEsperada || senhaEsperada === senhaLimpa) {
-            setIsAuthenticated(true);
-            setUserEmail(membroEquipe.email);
-            const role = membroEquipe.papel || 'suporte';
-            setCurrentUserRole(role);
-            localStorage.setItem('rm_auth_user', membroEquipe.email);
-            localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
-
-            const pendente = await isPrimeiroAcessoPendente(membroEquipe.email);
-            setPrimeiroAcessoPendente(pendente);
-            return;
-          } else {
-            throw new Error(`Senha incorreta para o colaborador ${membroEquipe.nome || emailFormal}.`);
-          }
-        }
-
-        if (isAdminEmail && (senhaLimpa === 'RmControle@Admin2026!' || senhaLimpa.length >= 6)) {
+        // Fallback restrito de contingência (apenas se Supabase Auth indisponível ou e-mail pendente de confirmação)
+        // EXIGE RIGOROSAMENTE que a senha informada seja idêntica à senha cadastrada do colaborador
+        if (membroEquipe && senhaEsperada && senhaEsperada === senhaLimpa) {
           setIsAuthenticated(true);
-          setUserEmail(emailFormal);
-          setCurrentUserRole('administrador');
-          localStorage.setItem('rm_auth_user', emailFormal);
+          setUserEmail(membroEquipe.email);
+          const role = membroEquipe.papel || (isAdminEmail ? 'administrador' : 'suporte');
+          setCurrentUserRole(role);
+          localStorage.setItem('rm_auth_user', membroEquipe.email);
           localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
+
+          const pendente = await isPrimeiroAcessoPendente(membroEquipe.email);
+          setPrimeiroAcessoPendente(pendente);
           return;
         }
 
-        if (authResult?.error) {
-          if (authResult.error.message.includes('Invalid login credentials')) {
-            throw new Error('E-mail ou senha incorretos. Verifique suas credenciais.');
-          }
-          throw new Error('Falha ao autenticar: ' + authResult.error.message);
-        }
+        // Credenciais incorretas - NUNCA permite login com bypass de tamanho de senha ou senha padrão antiga
+        throw new Error('E-mail ou senha incorretos. Verifique suas credenciais.');
       } else {
-        if (membroEquipe) {
-          if (!senhaEsperada || senhaEsperada === senhaLimpa) {
-            setIsAuthenticated(true);
-            setUserEmail(membroEquipe.email);
-            setCurrentUserRole(membroEquipe.papel || 'suporte');
-            localStorage.setItem('rm_auth_user', membroEquipe.email);
-            localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
-            return;
-          }
-        }
-        if (isAdminEmail) {
+        // Fallback quando Supabase não está configurado
+        if (membroEquipe && senhaEsperada && senhaEsperada === senhaLimpa) {
           setIsAuthenticated(true);
-          setUserEmail(emailFormal);
-          setCurrentUserRole('administrador');
-          localStorage.setItem('rm_auth_user', emailFormal);
+          setUserEmail(membroEquipe.email);
+          setCurrentUserRole(membroEquipe.papel || (isAdminEmail ? 'administrador' : 'suporte'));
+          localStorage.setItem('rm_auth_user', membroEquipe.email);
           localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
           return;
         }
-        throw new Error('Serviço de autenticação não configurado.');
+        throw new Error('E-mail ou senha incorretos. Verifique suas credenciais.');
       }
     } catch (err) {
       setLoginError(err.message || 'Falha ao autenticar.');
@@ -686,13 +665,8 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
   };
 
   const handleBypassDevLogin = async () => {
-    setIsAuthenticated(true);
-    setUserEmail('admin@rmcontrole.com');
-    localStorage.setItem('rm_auth_user', 'admin@rmcontrole.com');
-    localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
-
-    const pendente = await isPrimeiroAcessoPendente('admin@rmcontrole.com');
-    setPrimeiroAcessoPendente(pendente);
+    // Desativado por conformidade com LGPD e RLS estrito
+    setLoginError('Acesso direto desativado por segurança. Autentique-se com suas credenciais cadastradas.');
   };
 
   const handleLogout = async () => {

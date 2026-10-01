@@ -79,6 +79,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   const [modalNovoChamadoOpen, setModalNovoChamadoOpen] = useState(false);
   const [buscaEmpresa, setBuscaEmpresa] = useState('');
   const [empresaSelecionada, setEmpresaSelecionada] = useState(null);
+  const [salvandoChamado, setSalvandoChamado] = useState(false);
 
   // Solicitante & Atendente
   const [buscaSolicitante, setBuscaSolicitante] = useState('');
@@ -194,11 +195,27 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     const ativos = getChamadosSuporte();
     const historico = getHistoricoChamados();
 
-    // Mescla ativos com histórico sem duplicar chamados
+    // Mescla ativos com histórico com deduplicação estrita (por ID e por assinatura de duplicidade de submissão)
     const mapa = new Map();
+    const seenSigs = new Set();
+
     (ativos || []).forEach((c) => {
+      if (!c || !c.id) return;
+      const empKey = (c.empresa_nome || c.empresa_id || '').toLowerCase().trim();
+      const solKey = (c.solicitante_nome || '').toLowerCase().trim();
+      const obsKey = (c.observacao_inicial || c.observacoes || c.descricao || '').trim().slice(0, 50);
+      const timeMs = new Date(c.created_at || c.tempo_espera_inicio || 0).getTime();
+      const timeBucket = Math.floor(timeMs / 20000); // Agrupamento em janela de 20 segundos
+      const sig = `${empKey}|${solKey}|${obsKey}|${timeBucket}`;
+
+      if (seenSigs.has(sig)) {
+        // Se já existe e este é temporário ou cópia concorrente, ignora
+        return;
+      }
+      seenSigs.add(sig);
       mapa.set(c.id, c);
     });
+
     (historico || []).forEach((c) => {
       if (!mapa.has(c.id)) {
         mapa.set(c.id, {
@@ -208,7 +225,10 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       }
     });
 
-    setChamados(Array.from(mapa.values()));
+    const listaUnica = Array.from(mapa.values());
+    setChamados(listaUnica);
+    // Limpa duplicatas também do armazenamento local para que a fila fique 100% íntegra
+    setLocalData('chamados_suporte', listaUnica.filter((c) => c.status !== 'concluido' && c.status !== 'finalizado'));
     setEquipeLista(getEquipeUsuarios());
     setCategoriasDisponiveis(getCategoriasDemandas());
     const resEmp = await getEmpresas({ pageSize: 1000 });
@@ -836,10 +856,13 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
   const handleCriarChamado = async (e) => {
     e.preventDefault();
+    if (salvandoChamado) return;
     if (!empresaSelecionada) {
       showToast('Selecione ou informe a empresa da demanda.', 'error');
       return;
     }
+
+    setSalvandoChamado(true);
 
     let empresaIdFinal = empresaSelecionada.id;
     let empresaNomeFinal = empresaSelecionada.nome;
@@ -888,6 +911,8 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       showFeedbackMsg(iniciarDireto ? `Demanda de ${empresaNomeFinal} iniciada agora!` : `Demanda de ${empresaNomeFinal} aberta na fila.`);
     } catch (err) {
       showToast(err.message, 'error');
+    } finally {
+      setSalvandoChamado(false);
     }
   };
 
@@ -3229,23 +3254,36 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                   <div className="flex items-center gap-2.5">
                     <button
                       type="button"
+                      disabled={salvandoChamado}
                       onClick={() => {
+                        if (salvandoChamado) return;
                         setActiveModalDropdown(null);
                         setModalNovoChamadoOpen(false);
                       }}
-                      className="px-4 py-2 rounded-full text-xs font-medium text-slate-600 dark:text-zinc-400 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-all cursor-pointer"
+                      className="px-4 py-2 rounded-full text-xs font-medium text-slate-600 dark:text-zinc-400 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-all cursor-pointer disabled:opacity-50"
                     >
                       Cancelar
                     </button>
                     <motion.button
-                      whileHover={{ scale: 1.01 }}
-                      whileTap={{ scale: 0.98 }}
+                      whileHover={salvandoChamado ? {} : { scale: 1.01 }}
+                      whileTap={salvandoChamado ? {} : { scale: 0.98 }}
                       type="submit"
-                      className="px-6 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold shadow-md hover:opacity-95 transition-all cursor-pointer"
+                      disabled={salvandoChamado || !empresaSelecionada}
+                      className="px-6 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold shadow-md hover:opacity-95 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
                     >
-                      {tecnicoAtribuido && tecnicoAtribuido === userEmail && iniciarDireto
-                        ? 'Iniciar Atendimento Agora'
-                        : 'Abrir Demanda na Fila'}
+                      {salvandoChamado && (
+                        <svg className="animate-spin h-3.5 w-3.5 text-current" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                        </svg>
+                      )}
+                      <span>
+                        {salvandoChamado
+                          ? (iniciarDireto ? 'Iniciando Atendimento...' : 'Abrindo Demanda...')
+                          : (tecnicoAtribuido && tecnicoAtribuido === userEmail && iniciarDireto
+                              ? 'Iniciar Atendimento Agora'
+                              : 'Abrir Demanda na Fila')}
+                      </span>
                     </motion.button>
                   </div>
                 </div>

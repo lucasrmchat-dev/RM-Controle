@@ -469,6 +469,25 @@ export async function adicionarChamadoFila({
     ? categorias 
     : (categorias ? [categorias] : ['Suporte']);
 
+  // Prevenção estrita de duplicidade: se chamado com mesma empresa, solicitante e observação foi criado nos últimos 10s, retorna o existente
+  const solicitanteFinalCheck = (solicitante_nome || 'Colaborador').trim().toLowerCase();
+  const obsFinalCheck = (observacao_inicial || '').trim();
+  const duplicadoRecente = chamados.find((c) => {
+    if (!c) return false;
+    const mesmaEmpresa = (c.empresa_id && c.empresa_id === empresa_id) ||
+      (c.empresa_nome && empresa_nome && c.empresa_nome.toLowerCase().trim() === empresa_nome.toLowerCase().trim());
+    if (!mesmaEmpresa) return false;
+    const mesmoSol = (c.solicitante_nome || '').toLowerCase().trim() === solicitanteFinalCheck;
+    const mesmaObs = (c.observacao_inicial || c.observacoes || '').trim() === obsFinalCheck;
+    const diff = Math.abs(Date.now() - new Date(c.created_at || c.tempo_espera_inicio || 0).getTime());
+    return mesmaEmpresa && mesmoSol && mesmaObs && diff < 10000;
+  });
+
+  if (duplicadoRecente) {
+    console.warn('Prevenção de duplicidade: chamado idêntico recente detectado. Reutilizando:', duplicadoRecente.id);
+    return duplicadoRecente;
+  }
+
   if (iniciarAgora) {
     const novoChamado = {
       id: 'chamado_' + agoraMs + '_' + Math.random().toString(36).substr(2, 5),
@@ -760,7 +779,21 @@ export async function fetchChamadosFila() {
 
         // Mantém chamados locais estritamente se forem mock ou offline (IDs sem hífen UUID)
         const local = getLocalData('chamados_suporte', []);
-        const localMocks = local.filter((c) => c.id && !c.id.includes('-') && !cloudIds.has(c.id));
+        const localMocks = local.filter((c) => {
+          if (!c || !c.id) return false;
+          if (cloudIds.has(c.id)) return false;
+          if (c.id.includes('-')) return false;
+
+          // Se for temporário (chamado_...) e já existir um chamado no banco com a mesma empresa criado na mesma janela de 30s, descarta para evitar duplicata
+          const jaExisteNaNuvem = cloudChamados.some((d) => {
+            const mesmaEmpresa = (d.empresa_id && d.empresa_id === c.empresa_id) ||
+              (d.empresa_nome && c.empresa_nome && d.empresa_nome.toLowerCase().trim() === c.empresa_nome.toLowerCase().trim());
+            const diff = Math.abs(new Date(d.created_at || d.iniciado_em || 0).getTime() - new Date(c.created_at || c.tempo_espera_inicio || 0).getTime());
+            return mesmaEmpresa && diff < 30000;
+          });
+          if (jaExisteNaNuvem) return false;
+          return true;
+        });
 
         const merged = [...cloudChamados, ...localMocks];
         setLocalData('chamados_suporte', merged);
@@ -1790,13 +1823,20 @@ export async function fetchEquipeUsuarios() {
           if (!u.email) return;
           const email = u.email.toLowerCase().trim();
           const prev = map.get(email) || {};
+          const localPass = typeof window !== 'undefined' ? localStorage.getItem(`rm_user_password_${email}`) : null;
+          let senhaDefinida = localPass || u.senha || prev.senha || '';
+          if (localPass) {
+            senhaDefinida = localPass;
+          } else if (prev.senha && prev.senha !== 'RmControle@Admin2026!' && u.senha === 'RmControle@Admin2026!') {
+            senhaDefinida = prev.senha;
+          }
           map.set(email, {
             ...prev,
             id: u.id,
             nome: u.nome || prev.nome || email.split('@')[0],
             email: u.email,
             papel: u.papel || prev.papel || 'suporte',
-            senha: u.senha || prev.senha || '',
+            senha: senhaDefinida,
             ativo: u.ativo !== false,
             primeiro_acesso_concluido: u.primeiro_acesso_concluido === true,
             primeiro_acesso_data: u.primeiro_acesso_data || null,
@@ -1822,10 +1862,12 @@ export function getEquipeUsuarios() {
   ]);
   return lista.map((u) => {
     const emailNorm = (u.email || '').toLowerCase().trim();
+    const localPass = typeof window !== 'undefined' ? localStorage.getItem(`rm_user_password_${emailNorm}`) : null;
+    const senhaFinal = localPass || u.senha;
     if (emailNorm === 'admin@rmcontrole.com' || emailNorm === 'lucas.rmchat@gmail.com' || emailNorm.includes('admin') || emailNorm.includes('lucas')) {
-      return { ...u, papel: 'administrador' };
+      return { ...u, senha: senhaFinal, papel: 'administrador' };
     }
-    return u;
+    return { ...u, senha: senhaFinal };
   });
 }
 
@@ -2063,7 +2105,13 @@ export async function concluirPrimeiroAcesso(userEmail, {
     setDefaultViewMode(viewMode);
   }
 
-  // 4. Atualiza equipe_usuarios local
+  // 4. Se novaSenha fornecida, armazena permanentemente em chave individual blindada
+  if (novaSenha && novaSenha.trim()) {
+    const passLimpa = novaSenha.trim();
+    localStorage.setItem(`rm_user_password_${emailNorm}`, passLimpa);
+  }
+
+  // 5. Atualiza equipe_usuarios local
   let equipe = getEquipeUsuarios();
   const idx = equipe.findIndex((u) => (u.email || '').toLowerCase().trim() === emailNorm);
   if (idx !== -1) {
@@ -2071,12 +2119,23 @@ export async function concluirPrimeiroAcesso(userEmail, {
       ...equipe[idx],
       primeiro_acesso_concluido: true,
       primeiro_acesso_data: agora,
-      ...(novaSenha ? { senha: novaSenha } : {}),
+      ...(novaSenha ? { senha: novaSenha.trim() } : {}),
     };
-    setLocalData('equipe_usuarios', equipe);
+  } else {
+    equipe.push({
+      id: 'usr_' + Date.now(),
+      nome: getNomeTecnico(userEmail),
+      email: emailNorm,
+      papel: emailNorm.includes('admin') ? 'administrador' : 'suporte',
+      senha: novaSenha ? novaSenha.trim() : '',
+      primeiro_acesso_concluido: true,
+      primeiro_acesso_data: agora,
+      criado_em: agora,
+    });
   }
+  setLocalData('equipe_usuarios', equipe);
 
-  // 5. Se Supabase configurado, persiste na tabela equipe_usuarios e no Auth
+  // 6. Se Supabase configurado, persiste na tabela equipe_usuarios e no Auth
   if (isSupabaseConfigured && supabase) {
     try {
       const authUpdates = {
@@ -2085,17 +2144,21 @@ export async function concluirPrimeiroAcesso(userEmail, {
           primeiro_acesso_data: agora,
         },
       };
-      if (novaSenha) {
-        authUpdates.password = novaSenha;
+      if (novaSenha && novaSenha.trim()) {
+        authUpdates.password = novaSenha.trim();
       }
-      await supabase.auth.updateUser(authUpdates);
+      try {
+        await supabase.auth.updateUser(authUpdates);
+      } catch (authErr) {
+        console.warn('Aviso ao atualizar senha no Supabase Auth:', authErr);
+      }
 
       const updateDb = {
         primeiro_acesso_concluido: true,
         primeiro_acesso_data: agora,
       };
-      if (novaSenha) {
-        updateDb.senha = novaSenha;
+      if (novaSenha && novaSenha.trim()) {
+        updateDb.senha = novaSenha.trim();
       }
       await supabase
         .from('equipe_usuarios')
