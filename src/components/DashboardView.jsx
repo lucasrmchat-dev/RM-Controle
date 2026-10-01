@@ -86,7 +86,12 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
   const [itensPorPagina, setItensPorPagina] = useState(5);
 
   // Auto-collapse no scroll e alternância manual dos Indicadores Principais com Motion Apple
-  const [indicadoresRecolhidos, setIndicadoresRecolhidos] = useState(false);
+  const [indicadoresRecolhidos, setIndicadoresRecolhidos] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 1536;
+    }
+    return true;
+  });
   const lastScrollYRef = useRef(0);
 
   useEffect(() => {
@@ -277,6 +282,51 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
       {/* ============================================================================== */}
       {/* LAYOUT PRINCIPAL RESPONSIVO: KPI NA LATERAL ESQUERDA + CONTEÚDO NA DIREITA   */}
       {/* ============================================================================== */}
+
+      {/* Trilho de KPIs Mobile (Liquid Glass Apple) - Otimizado para iPhone e iPad */}
+      <div className="lg:hidden grid grid-cols-2 sm:grid-cols-4 gap-2.5 w-full mb-2">
+        <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs">
+          <div className="flex items-center justify-between text-slate-400 mb-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wider font-mono">Total</span>
+            <ChartBarIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16]" />
+          </div>
+          <span className="text-xl font-bold font-mono text-[#1d1d1f] dark:text-white tabular-nums leading-none block">{metricas.totalChamados}</span>
+        </div>
+
+        <div className="p-3.5 rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.06] dark:bg-emerald-500/[0.1] shadow-xs">
+          <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400 mb-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wider font-mono">Resolvidos</span>
+            <CheckIcon className="w-3.5 h-3.5" />
+          </div>
+          <div className="flex items-baseline justify-between">
+            <span className="text-xl font-bold font-mono text-emerald-900 dark:text-emerald-200 tabular-nums leading-none block">{metricas.finalizadosCount}</span>
+            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 font-mono">{taxaResolucaoGeral}%</span>
+          </div>
+        </div>
+
+        <div 
+          onClick={() => onNavigate && onNavigate('fila')}
+          className="p-3.5 rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] dark:bg-amber-500/[0.1] shadow-xs cursor-pointer hover:opacity-90 transition-opacity"
+        >
+          <div className="flex items-center justify-between text-amber-600 dark:text-amber-400 mb-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wider font-mono">Ativos</span>
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+          </div>
+          <div className="flex items-baseline justify-between">
+            <span className="text-xl font-bold font-mono text-amber-900 dark:text-amber-200 tabular-nums leading-none block">{metricas.emAndamentoCount}</span>
+            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">fila →</span>
+          </div>
+        </div>
+
+        <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs">
+          <div className="flex items-center justify-between text-slate-400 mb-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wider font-mono">TMA</span>
+            <ClockIcon className="w-3.5 h-3.5 text-slate-400" />
+          </div>
+          <span className="text-xl font-bold font-mono text-[#1d1d1f] dark:text-white tabular-nums leading-none block">{metricas.tempoMedioMinutos}m</span>
+        </div>
+      </div>
+
       <div className="flex flex-col lg:flex-row items-start gap-6">
 
         {/* -------------------------------------------------------------------------- */}
@@ -285,8 +335,8 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
         <motion.div
           layout
           transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-          className={`flex-shrink-0 sticky top-24 transition-all ${
-            indicadoresRecolhidos ? 'w-full lg:w-[68px] xl:w-[72px]' : 'w-full lg:w-72 xl:w-80'
+          className={`hidden lg:block flex-shrink-0 sticky top-24 transition-all ${
+            indicadoresRecolhidos ? 'lg:w-[68px] xl:w-[72px]' : 'lg:w-72 xl:w-80'
           }`}
         >
           {indicadoresRecolhidos ? (

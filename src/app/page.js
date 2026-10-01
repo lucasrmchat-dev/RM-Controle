@@ -852,7 +852,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
         }}
       />
 
-      <main className="flex-1 w-full max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 py-2 sm:py-4 pb-20">
+      <main className="flex-1 w-full max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 xl:px-10 py-2 sm:py-4 pb-28 md:pb-16">
         {selectedEmpresa ? (
           /* TELA CHEIA: GERENCIAR EMPRESA (WIDESCREEN DE ALTA PRODUTIVIDADE) */
           <div key="empresa-detail" className="animate-fade-in">

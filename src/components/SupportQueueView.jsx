@@ -102,7 +102,12 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   const filtroTecnicoRef = useRef(null);
 
   // Métricas Operacionais Recolhíveis em todos os modos (Cards, Lista e Kanban)
-  const [metricasRecolhidas, setMetricasRecolhidas] = useState(false);
+  const [metricasRecolhidas, setMetricasRecolhidas] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 1536;
+    }
+    return true;
+  });
   const [metricasRecolhidasKanban, setMetricasRecolhidasKanban] = useState(true);
   const [colaboradoresRecolhidos, setColaboradoresRecolhidos] = useState([]);
   const [kanbanPreset, setKanbanPreset] = useState('foco_mim'); // 'foco_mim' | 'expandir_todos' | 'recolher_todos' | 'custom'
@@ -1055,8 +1060,8 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
             <motion.div
               layout
               transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              className={`flex-shrink-0 sticky top-24 transition-all ${
-                isCompact ? 'w-full lg:w-[68px] xl:w-[72px]' : 'w-full lg:w-72 xl:w-80'
+              className={`hidden lg:block flex-shrink-0 sticky top-24 transition-all ${
+                isCompact ? 'lg:w-[68px] xl:w-[72px]' : 'lg:w-72 xl:w-80'
               }`}
             >
               {isCompact ? (
@@ -2251,10 +2256,19 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                   <button
                                     type="button"
                                     onClick={() => setChamadoParaFinalizar(ch)}
-                                    className="px-3 py-1.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-[11px] hover:opacity-90 transition-all cursor-pointer flex-1 flex items-center justify-center gap-1 shadow-xs"
+                                    className="px-2.5 py-1.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-[11px] hover:opacity-90 transition-all cursor-pointer flex-1 flex items-center justify-center gap-1 shadow-xs"
                                   >
                                     <CheckIcon className="w-3 h-3 stroke-[2.5]" />
                                     <span>Concluir</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEncerrarSemResposta(ch)}
+                                    className="px-2 py-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[10px] font-semibold hover:bg-amber-500/20 transition-all cursor-pointer shadow-xs flex items-center gap-1"
+                                    title="Encerrar chamado por falta de resposta do cliente"
+                                  >
+                                    <span>⏳ Sem Resposta</span>
                                   </button>
 
                                   {isRMControle ? (
@@ -2299,53 +2313,53 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                         /* VISUALIZAÇÃO EM TABELA APPLE PREMIUM COM GAVETA EXPANSÍVEL DE AÇÕES */
             <div ref={tableContainerRef} className="relative z-10 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs min-w-[920px]">
+                <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-black/[0.05] dark:border-white/[0.06] text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 bg-black/[0.015] dark:bg-white/[0.02]">
-                      <th className="px-4 py-3.5 cursor-pointer select-none whitespace-nowrap w-[110px]" onClick={() => {
+                      <th className="px-3.5 py-3 cursor-pointer select-none whitespace-nowrap w-[90px]" onClick={() => {
                         if (sortFilaCol === 'status') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
                         else { setSortFilaCol('status'); setSortFilaDir('asc'); }
                       }}>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1">
                           <span>Status</span>
                           {sortFilaCol === 'status' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
                         </div>
                       </th>
-                      <th className="px-4 py-3.5 cursor-pointer select-none min-w-[200px]" onClick={() => {
+                      <th className="px-3.5 py-3 cursor-pointer select-none min-w-[160px]" onClick={() => {
                         if (sortFilaCol === 'empresa') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
                         else { setSortFilaCol('empresa'); setSortFilaDir('asc'); }
                       }}>
-                        <div className="flex items-center gap-1.5">
-                          <span>Empresa / Servidor</span>
+                        <div className="flex items-center gap-1">
+                          <span>Empresa</span>
                           {sortFilaCol === 'empresa' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
                         </div>
                       </th>
-                      <th className="px-4 py-3.5 select-none min-w-[130px]">
-                        <span>Departamentos</span>
+                      <th className="px-3 py-3 select-none w-[110px]">
+                        <span>Setor</span>
                       </th>
-                      <th className="px-4 py-3.5 select-none min-w-[120px]">
+                      <th className="hidden xl:table-cell px-3 py-3 select-none w-[100px]">
                         <span>Etiquetas</span>
                       </th>
-                      <th className="px-4 py-3.5 cursor-pointer select-none min-w-[150px]" onClick={() => {
+                      <th className="hidden sm:table-cell px-3 py-3 cursor-pointer select-none min-w-[130px]" onClick={() => {
                         if (sortFilaCol === 'solicitante') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
                         else { setSortFilaCol('solicitante'); setSortFilaDir('asc'); }
                       }}>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1">
                           <span>Solicitante</span>
                           {sortFilaCol === 'solicitante' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
                         </div>
                       </th>
-                      <th className="px-4 py-3.5 cursor-pointer select-none whitespace-nowrap min-w-[140px]" onClick={() => {
+                      <th className="px-3.5 py-3 cursor-pointer select-none whitespace-nowrap w-[120px]" onClick={() => {
                         if (sortFilaCol === 'cronometro') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
                         else { setSortFilaCol('cronometro'); setSortFilaDir('asc'); }
                       }}>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1">
                           <HourglassIcon className="w-3 h-3 text-amber-500" />
-                          <span>Cronômetros</span>
+                          <span>Tempos</span>
                           {sortFilaCol === 'cronometro' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
                         </div>
                       </th>
-                      <th className="px-4 py-3.5 text-right whitespace-nowrap w-[130px]">Ações</th>
+                      <th className="px-3 py-3 text-right whitespace-nowrap w-[90px]">Ações</th>
                     </tr>
                   </thead>
 
@@ -2489,70 +2503,24 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                               )}
                             </td>
 
-                            {/* Botões Rápidos e Menu de Ações na Linha da Tabela */}
-                            <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                              <div className="flex items-center justify-end gap-1.5">
-                                {isEmAndamento && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setChamadoParaFinalizar(ch);
-                                      }}
-                                      className="px-2.5 py-1.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-[11px] hover:opacity-90 transition-all cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                                      title="Concluir Atendimento"
-                                    >
-                                      <CheckIcon className="w-3 h-3 stroke-[2.5]" />
-                                      <span>Concluir</span>
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleEncerrarSemResposta(ch);
-                                      }}
-                                      className="px-2.5 py-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold text-[11px] hover:bg-amber-500/20 transition-all cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                                      title="Encerrar chamado por falta de resposta do cliente"
-                                    >
-                                      <span>⏳ Sem Resposta</span>
-                                    </button>
-                                  </>
-                                )}
-
-                                {isAguardando && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleAceitarSuporte(ch);
-                                    }}
-                                    className="px-2.5 py-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-[11px] hover:opacity-95 transition-all cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                                    title="Assumir Atendimento"
-                                  >
-                                    <PlayIcon className="w-3 h-3 fill-current" />
-                                    <span>Assumir</span>
-                                  </button>
-                                )}
-
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setExpandedChamadoId(isExpanded ? null : ch.id);
-                                  }}
-                                  className={`px-2.5 py-1.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer inline-flex items-center gap-1 shadow-2xs ${
-                                    isExpanded
-                                      ? 'bg-[#09090b] dark:bg-white text-white dark:text-black font-bold'
-                                      : 'bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] text-slate-700 dark:text-zinc-200 border border-black/[0.06] dark:border-white/[0.08]'
-                                  }`}
-                                  title="Ver detalhes e observações"
-                                >
-                                  <span>Mais</span>
-                                  <span className={`text-[8px] transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
-                                </button>
-                              </div>
+                            {/* Botão Único Elegante "Ações ▾" na Linha da Tabela (Focado e Compacto) */}
+                            <td className="px-3.5 py-3.5 text-right whitespace-nowrap w-[90px]">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedChamadoId(isExpanded ? null : ch.id);
+                                }}
+                                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-2xs ${
+                                  isExpanded
+                                    ? 'bg-[#09090b] dark:bg-white text-white dark:text-black font-bold'
+                                    : 'bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] text-slate-700 dark:text-zinc-200 border border-black/[0.06] dark:border-white/[0.08]'
+                                }`}
+                                title="Expandir opções de atendimento"
+                              >
+                                <span>Ações</span>
+                                <span className={`text-[8px] transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
+                              </button>
                             </td>
                           </tr>
 

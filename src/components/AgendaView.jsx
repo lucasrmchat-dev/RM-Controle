@@ -358,6 +358,20 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
         </div>
       </div>
 
+      {/* Banner de Homologação / Em Produção */}
+      <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200 shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          <span className="text-base flex-shrink-0">⚠️</span>
+          <div>
+            <span className="font-bold block leading-tight">Módulo em Desenvolvimento & Homologação</span>
+            <span className="text-[11px] opacity-85 leading-tight">A integração com Google Agenda e gestão de reuniões está em fase beta contínua.</span>
+          </div>
+        </div>
+        <span className="text-[10px] font-mono font-bold uppercase px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 flex-shrink-0">
+          Beta
+        </span>
+      </div>
+
       {/* ============================================================================== */}
       {/* BARRA DE CONTROLE: NAVEGAÇÃO DE DATAS, SELETORES E VISÃO                      */}
       {/* ============================================================================== */}
