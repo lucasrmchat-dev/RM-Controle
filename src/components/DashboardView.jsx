@@ -34,7 +34,8 @@ import {
   UsersIcon,
   ChartBarIcon,
   HourglassIcon,
-  TrashIcon
+  TrashIcon,
+  XMarkIcon
 } from './Icons';
 
 export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }) {

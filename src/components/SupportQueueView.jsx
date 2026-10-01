@@ -42,6 +42,7 @@ import {
   XMarkIcon, 
   BuildingIcon, 
   UserIcon, 
+  UsersIcon,
   WrenchIcon, 
   SparklesIcon, 
   RefreshIcon
