@@ -711,18 +711,31 @@ export async function assumirSuporte({ chamado_id, userEmail = 'admin@rmcontrole
 export async function fetchChamadosFila() {
   if (isSupabaseConfigured && supabase) {
     try {
+      const historicoLocal = getLocalData('historico_chamados', []);
+      const historicoIds = new Set((historicoLocal || []).map((h) => h.id));
+
       const { data, error } = await supabase
         .from('suporte_chamados')
         .select('*')
         .in('status', ['aguardando_visualizacao', 'em_andamento', 'pendente'])
+        .is('finalizado_em', null)
         .order('iniciado_em', { ascending: false });
 
       if (!error && Array.isArray(data)) {
-        const cloudIds = new Set(data.map((d) => d.id));
+        // Exclui estritamente chamados já finalizados, cancelados ou registrados no histórico
+        const activeData = data.filter((d) => {
+          if (!d || !d.id) return false;
+          if (d.status === 'finalizado' || d.status === 'concluido' || d.status === 'cancelado') return false;
+          if (d.finalizado_em) return false;
+          if (historicoIds.has(d.id)) return false;
+          return true;
+        });
+
+        const cloudIds = new Set(activeData.map((d) => d.id));
         const localAnterior = getLocalData('chamados_suporte', []);
         const localTagMap = new Map((localAnterior || []).map((c) => [c.id, c.etiquetas]));
 
-        const cloudChamados = data.map((d) => {
+        const cloudChamados = activeData.map((d) => {
           const cats = d.motivo ? d.motivo.split(',').map((s) => s.trim()).filter(Boolean) : ['Suporte'];
           const rawTags = Array.isArray(d.etiquetas) 
             ? d.etiquetas 
@@ -773,18 +786,20 @@ export async function fetchChamadosFila() {
             tempo_ativo_fim: null,
             tempo_ativo_segundos: ativoSegundos,
             iniciado_em: d.iniciado_em,
-            finalizado_em: d.finalizado_em,
+            finalizado_em: null,
           };
         });
 
-        // Mantém chamados locais estritamente se forem mock ou offline (IDs sem hífen UUID)
+        // Mantém chamados locais estritamente se forem mock ou offline (IDs sem hífen UUID) e NÃO estiverem concluídos
         const local = getLocalData('chamados_suporte', []);
         const localMocks = local.filter((c) => {
           if (!c || !c.id) return false;
           if (cloudIds.has(c.id)) return false;
           if (c.id.includes('-')) return false;
+          if (c.status === 'finalizado' || c.status === 'concluido' || c.status === 'cancelado') return false;
+          if (c.finalizado_em) return false;
+          if (historicoIds.has(c.id)) return false;
 
-          // Se for temporário (chamado_...) e já existir um chamado no banco com a mesma empresa criado na mesma janela de 30s, descarta para evitar duplicata
           const jaExisteNaNuvem = cloudChamados.some((d) => {
             const mesmaEmpresa = (d.empresa_id && d.empresa_id === c.empresa_id) ||
               (d.empresa_nome && c.empresa_nome && d.empresa_nome.toLowerCase().trim() === c.empresa_nome.toLowerCase().trim());
@@ -807,8 +822,7 @@ export async function fetchChamadosFila() {
 }
 
 export function getFilaChamados() {
-  const chamados = getLocalData('chamados_suporte', []);
-  return chamados.filter((c) => c.status === 'em_andamento' || c.status === 'pendente' || c.status === 'aguardando_visualizacao');
+  return getChamadosSuporte();
 }
 
 export function getChamadosResolvidosHoje() {
@@ -1384,6 +1398,18 @@ export function setConfiguracoesSuporte(config) {
 
 export function getChamadosSuporte({ empresa_id = null, status = 'todos' } = {}) {
   let chamados = getLocalData('chamados_suporte', []);
+  const historico = getLocalData('historico_chamados', []);
+  const historicoIds = new Set((historico || []).map((h) => h.id));
+
+  // Purga estritamente qualquer chamado que já foi concluído ou arquivado no histórico
+  chamados = chamados.filter((c) => {
+    if (!c || !c.id) return false;
+    if (c.status === 'concluido' || c.status === 'finalizado' || c.status === 'cancelado') return false;
+    if (c.finalizado_em) return false;
+    if (historicoIds.has(c.id)) return false;
+    return true;
+  });
+
   if (empresa_id) {
     chamados = chamados.filter((c) => c.empresa_id === empresa_id);
   }

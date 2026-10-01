@@ -105,16 +105,44 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   const [colaboradoresRecolhidos, setColaboradoresRecolhidos] = useState([]);
   const [kanbanPreset, setKanbanPreset] = useState('foco_mim'); // 'foco_mim' | 'expandir_todos' | 'recolher_todos' | 'custom'
 
-  // Auxiliares para identificação de técnico e chaves canônicas no Kanban
-  const getTecKey = (tec) => (tec?.id || tec?.email || tec?.nome || '');
+  // Identidade canônica de cada colaborador (deduplica Lucas Amorim / admin e agrupa aliases)
+  const getCanonicalPersonKey = (email = '', nome = '') => {
+    const emailNorm = (email || '').toLowerCase().trim();
+    const nomeClean = removerAcentos((nome || '').toLowerCase().trim())
+      .replace(/\(.*?\)/g, '')
+      .replace(/administrador|suporte|tecnico|operador/g, '')
+      .trim();
+
+    if (
+      emailNorm === 'admin@rmcontrole.com' ||
+      emailNorm.includes('lucas') ||
+      nomeClean.includes('lucas amorim') ||
+      nomeClean === 'lucas'
+    ) {
+      return 'lucas_amorim';
+    }
+
+    if (nomeClean && nomeClean.length >= 2) {
+      return nomeClean.replace(/\s+/g, '_');
+    }
+
+    if (emailNorm) {
+      return emailNorm.split('@')[0].replace(/[^a-z0-9]/g, '_');
+    }
+
+    return 'outros';
+  };
+
+  const getTecKey = (tec) => (tec?.key || tec?.id || tec?.email || tec?.nome || '');
+
   const isTecnicoMim = (tec) => {
     if (!tec || !userEmail) return false;
-    const uClean = userEmail.toLowerCase().trim();
-    const tEmail = (tec.email || '').toLowerCase().trim();
-    const tNome = removerAcentos((tec.nome || '').toLowerCase().trim());
-    const meuNome = removerAcentos(getNomeTecnico(userEmail).toLowerCase().trim());
-    return (tEmail && tEmail === uClean) ||
-           (tNome && meuNome && (tNome.includes(meuNome) || meuNome.includes(tNome)));
+    const myKey = getCanonicalPersonKey(userEmail, getNomeTecnico(userEmail));
+    return (
+      tec.key === myKey ||
+      (tec.id && tec.id === myKey) ||
+      (tec.emails && tec.emails.includes(userEmail.toLowerCase().trim()))
+    );
   };
   const kanbanScrollRef = useRef(null);
 
@@ -197,41 +225,44 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     } catch (e) {}
     const ativos = getChamadosSuporte();
     const historico = getHistoricoChamados();
+    const historicoIds = new Set((historico || []).map((h) => h.id));
 
-    // Mescla ativos com histórico com deduplicação estrita (por ID e por assinatura de duplicidade de submissão)
+    // Filtra estritamente apenas chamados ativos que NÃO tenham sido finalizados nem estejam no histórico
     const mapa = new Map();
     const seenSigs = new Set();
 
     (ativos || []).forEach((c) => {
       if (!c || !c.id) return;
+      if (c.status === 'concluido' || c.status === 'finalizado' || c.status === 'cancelado') return;
+      if (c.finalizado_em) return;
+      if (historicoIds.has(c.id)) return;
+
       const empKey = (c.empresa_nome || c.empresa_id || '').toLowerCase().trim();
       const solKey = (c.solicitante_nome || '').toLowerCase().trim();
       const obsKey = (c.observacao_inicial || c.observacoes || c.descricao || '').trim().slice(0, 50);
       const timeMs = new Date(c.created_at || c.tempo_espera_inicio || 0).getTime();
-      const timeBucket = Math.floor(timeMs / 20000); // Agrupamento em janela de 20 segundos
+      const timeBucket = Math.floor(timeMs / 20000);
       const sig = `${empKey}|${solKey}|${obsKey}|${timeBucket}`;
 
-      if (seenSigs.has(sig)) {
-        // Se já existe e este é temporário ou cópia concorrente, ignora
-        return;
-      }
+      if (seenSigs.has(sig)) return;
       seenSigs.add(sig);
       mapa.set(c.id, c);
     });
 
+    // Chamados do histórico entram com status estritamente 'concluido'
     (historico || []).forEach((c) => {
       if (!mapa.has(c.id)) {
         mapa.set(c.id, {
           ...c,
-          status: c.status || 'concluido',
+          status: 'concluido',
+          finalizado_em: c.finalizado_em || c.updated_at || new Date().toISOString(),
         });
       }
     });
 
     const listaUnica = Array.from(mapa.values());
     setChamados(listaUnica);
-    // Limpa duplicatas também do armazenamento local para que a fila fique 100% íntegra
-    setLocalData('chamados_suporte', listaUnica.filter((c) => c.status !== 'concluido' && c.status !== 'finalizado'));
+    setLocalData('chamados_suporte', listaUnica.filter((c) => c.status !== 'concluido' && c.status !== 'finalizado' && !c.finalizado_em));
     setEquipeLista(getEquipeUsuarios());
     setCategoriasDisponiveis(getCategoriasDemandas());
     const resEmp = await getEmpresas({ pageSize: 1000 });
@@ -405,133 +436,144 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   }, [todasEtiquetasDisponiveis, novasEtiquetasModal, inputEtiqueta]);
 
   // Lista Filtrada com bloqueio de departamentos e filtro de etiquetas
-  // Lista consolidada de colaboradores / técnicos (equipe + quem tem chamado atribuído)
+  // Lista consolidada de colaboradores / técnicos com DEDUPLICAÇÃO CANÔNICA DE PESSOA (elimina colunas duplicadas)
   const listaTecnicosKanban = useMemo(() => {
     const mapa = new Map();
+
+    // 1. Membros cadastrados na equipe (deduplicados por pessoa física)
     (equipeLista || []).forEach((m) => {
-      const email = m.email || m.id || m.nome;
-      if (email) {
-        mapa.set(email.toLowerCase(), {
-          id: m.id || email,
-          nome: m.nome || getNomeTecnico(email),
-          email: m.email || email,
-          cargo: m.cargo || 'Técnico',
+      const email = (m.email || '').toLowerCase().trim();
+      const nome = m.nome || getNomeTecnico(email);
+      const nomeLower = removerAcentos(nome.toLowerCase().trim());
+
+      // Oculta contas genéricas de sistema ou de teste do quadro Kanban
+      if (
+        nomeLower.startsWith('equipe de') ||
+        nomeLower.startsWith('equipe comercial') ||
+        nomeLower === 'teste' ||
+        email === 'suporte@rmcontrole.com' ||
+        email === 'vendas@rmcontrole.com'
+      ) {
+        return;
+      }
+
+      const canonicalKey = getCanonicalPersonKey(email, nome);
+      if (!mapa.has(canonicalKey)) {
+        mapa.set(canonicalKey, {
+          id: canonicalKey,
+          key: canonicalKey,
+          nome: canonicalKey === 'lucas_amorim' ? 'Lucas Amorim' : nome.replace(/\(.*?\)/g, '').trim(),
+          email: email || `${canonicalKey}@rmcontrole.com`,
+          emails: email ? [email] : [],
+          cargo: m.cargo || (canonicalKey === 'lucas_amorim' ? 'Administrador' : 'Técnico'),
+        });
+      } else {
+        const existing = mapa.get(canonicalKey);
+        if (email && !existing.emails.includes(email)) {
+          existing.emails.push(email);
+        }
+      }
+    });
+
+    // 2. Colaboradores que possuem chamados ativos em andamento
+    (chamados || []).forEach((c) => {
+      if (c.status !== 'em_andamento' || c.finalizado_em || c.status === 'concluido' || c.status === 'finalizado') return;
+      const email = (c.tecnico_email || '').toLowerCase().trim();
+      const nome = c.tecnico_nome || c.atendente;
+      if (!email && (!nome || nome === 'Não informado' || nome === 'Colaborador')) return;
+
+      const canonicalKey = getCanonicalPersonKey(email, nome);
+      if (!mapa.has(canonicalKey)) {
+        mapa.set(canonicalKey, {
+          id: canonicalKey,
+          key: canonicalKey,
+          nome: canonicalKey === 'lucas_amorim' ? 'Lucas Amorim' : (nome || getNomeTecnico(email)).replace(/\(.*?\)/g, '').trim(),
+          email: email || `${canonicalKey}@rmcontrole.com`,
+          emails: email ? [email] : [],
+          cargo: 'Técnico',
+        });
+      } else {
+        const existing = mapa.get(canonicalKey);
+        if (email && !existing.emails.includes(email)) {
+          existing.emails.push(email);
+        }
+      }
+    });
+
+    // Garante presença do usuário logado se ele for operador/admin
+    if (userEmail) {
+      const myKey = getCanonicalPersonKey(userEmail, getNomeTecnico(userEmail));
+      if (!mapa.has(myKey)) {
+        mapa.set(myKey, {
+          id: myKey,
+          key: myKey,
+          nome: myKey === 'lucas_amorim' ? 'Lucas Amorim' : getNomeTecnico(userEmail).replace(/\(.*?\)/g, '').trim(),
+          email: userEmail.toLowerCase().trim(),
+          emails: [userEmail.toLowerCase().trim()],
+          cargo: 'Operador',
         });
       }
-    });
-
-    (chamados || []).forEach((c) => {
-      const email = c.tecnico_email;
-      const nome = c.tecnico_nome || c.atendente;
-      if (email) {
-        const key = email.toLowerCase();
-        if (!mapa.has(key)) {
-          mapa.set(key, {
-            id: key,
-            nome: nome || getNomeTecnico(email),
-            email: email,
-            cargo: 'Técnico',
-          });
-        }
-      } else if (nome && nome !== 'Não informado') {
-        const key = nome.toLowerCase();
-        if (!mapa.has(key)) {
-          mapa.set(key, {
-            id: key,
-            nome: nome,
-            email: '',
-            cargo: 'Técnico',
-          });
-        }
-      }
-    });
-
-    if (mapa.size === 0 && userEmail) {
-      mapa.set(userEmail.toLowerCase(), {
-        id: userEmail,
-        nome: getNomeTecnico(userEmail),
-        email: userEmail,
-        cargo: 'Operador',
-      });
     }
 
     return Array.from(mapa.values());
   }, [equipeLista, chamados, userEmail]);
-
 
   // Target do técnico selecionado pelo filtro (ou null se for 'todos' ou 'nao_atribuido')
   const targetTec = useMemo(() => {
     if (!filtroTecnico || filtroTecnico === 'todos' || filtroTecnico === 'nao_atribuido') return null;
     return (
       listaTecnicosKanban.find((t) => 
-        (t.id && t.id === filtroTecnico) || 
+        t.key === filtroTecnico ||
+        t.id === filtroTecnico || 
         (t.email && t.email.toLowerCase().trim() === filtroTecnico.toLowerCase().trim()) || 
+        (t.emails && t.emails.includes(filtroTecnico.toLowerCase().trim())) ||
         (t.nome && removerAcentos(t.nome.toLowerCase().trim()) === removerAcentos(filtroTecnico.toLowerCase().trim()))
       ) || null
     );
   }, [filtroTecnico, listaTecnicosKanban]);
 
-  // Função robusta e definitiva para verificar se um chamado pertence a um determinado técnico/colaborador
+  // Mapeamento exclusivo: atribui cada chamado ativo para EXATAMENTE UMA coluna de técnico
+  const getChamadoTecnicoKey = (c) => {
+    if (!c) return null;
+    if (c.status !== 'em_andamento' || c.finalizado_em || c.status === 'concluido' || c.status === 'finalizado') {
+      return null;
+    }
+    const email = (c.tecnico_email || '').toLowerCase().trim();
+    const atribuido = (c.atribuido_a || '').toLowerCase().trim();
+    const nome = c.tecnico_nome || c.atendente;
+
+    // 1. Match estrito por e-mail ou lista de aliases de e-mail do técnico
+    for (const tec of listaTecnicosKanban) {
+      if (email && (tec.email === email || (tec.emails && tec.emails.includes(email)))) {
+        return tec.key;
+      }
+      if (atribuido && (tec.email === atribuido || (tec.emails && tec.emails.includes(atribuido)))) {
+        return tec.key;
+      }
+    }
+
+    // 2. Match por chave canônica de identidade
+    const key = getCanonicalPersonKey(email, nome);
+    const match = listaTecnicosKanban.find((t) => t.key === key);
+    if (match) return match.key;
+
+    // 3. Match por nome limpo
+    const nomeClean = removerAcentos((nome || '').toLowerCase().trim());
+    if (nomeClean) {
+      for (const tec of listaTecnicosKanban) {
+        const tecNomeClean = removerAcentos(tec.nome.toLowerCase().trim());
+        if (tecNomeClean && (nomeClean.includes(tecNomeClean) || tecNomeClean.includes(nomeClean))) {
+          return tec.key;
+        }
+      }
+    }
+
+    return null;
+  };
+
   const isChamadoDoTecnico = (chamado, tec) => {
     if (!chamado || !tec) return false;
-    const isAguardando = chamado.status === 'aguardando_visualizacao' || chamado.status === 'pendente';
-    const chEmail = (chamado.tecnico_email || '').toLowerCase().trim();
-    const chNome = removerAcentos((chamado.tecnico_nome || '').toLowerCase().trim());
-    const chAtendente = removerAcentos((chamado.atendente || '').toLowerCase().trim());
-    const chAtribuido = (chamado.atribuido_a || '').toLowerCase().trim();
-
-    // Se estiver em espera e nenhum campo de técnico foi atribuído, não pertence a nenhum técnico
-    if (isAguardando && !chEmail && !chNome && !chAtendente && !chAtribuido) {
-      return false;
-    }
-
-    const tecEmail = (tec.email || '').toLowerCase().trim();
-    const tecNome = removerAcentos((tec.nome || '').toLowerCase().trim());
-    const tecId = (tec.id || '').toLowerCase().trim();
-
-    // 1. Comparação direta por e-mail (se ambos tiverem e-mail preenchido)
-    if (tecEmail && chEmail) {
-      if (tecEmail === chEmail || tecEmail.includes(chEmail) || chEmail.includes(tecEmail)) return true;
-    }
-
-    // 2. Comparação por campo atribuido_a
-    if (chAtribuido) {
-      if (tecEmail && (chAtribuido === tecEmail || chAtribuido.includes(tecEmail))) return true;
-      if (tecId && chAtribuido === tecId) return true;
-      if (tecNome && removerAcentos(chAtribuido).includes(tecNome)) return true;
-    }
-
-    // 3. Comparação com o nome canônico do chamado via getNomeTecnico
-    const nomeCanonico = removerAcentos(getNomeTecnico(chamado.tecnico_email, chamado.atendente || chamado.tecnico_nome).toLowerCase().trim());
-    if (tecNome && nomeCanonico && nomeCanonico !== 'nao atribuido' && nomeCanonico !== 'nao informado') {
-      if (nomeCanonico === tecNome || nomeCanonico.includes(tecNome) || tecNome.includes(nomeCanonico)) return true;
-    }
-
-    // 4. Comparação por nome do técnico ou atendente
-    if (tecNome) {
-      if (chNome && chNome !== 'nao atribuido' && chNome !== 'nao informado' && chNome !== 'colaborador') {
-        if (chNome === tecNome || chNome.includes(tecNome) || tecNome.includes(chNome)) return true;
-        const pTec = tecNome.split(' ')[0];
-        const pCh = chNome.split(' ')[0];
-        if (pTec && pTec.length >= 3 && pTec === pCh) return true;
-      }
-
-      if (chAtendente && chAtendente !== 'nao atribuido' && chAtendente !== 'nao informado' && chAtendente !== 'colaborador') {
-        if (chAtendente === tecNome || chAtendente.includes(tecNome) || tecNome.includes(chAtendente)) return true;
-        const pTec = tecNome.split(' ')[0];
-        const pAt = chAtendente.split(' ')[0];
-        if (pTec && pTec.length >= 3 && pTec === pAt) return true;
-      }
-    }
-
-    // 5. Comparação se tec for o usuário logado
-    if (isTecnicoMim(tec) && userEmail) {
-      const uClean = userEmail.toLowerCase().trim();
-      if (chEmail && (chEmail === uClean || chEmail.includes(uClean))) return true;
-      if (chAtribuido && chAtribuido === uClean) return true;
-    }
-
-    return false;
+    return getChamadoTecnicoKey(chamado) === tec.key;
   };
 
   // Manipulador unificado do filtro por colaborador: atualiza filtro, recolhe os demais no Kanban e rola até a coluna
@@ -639,9 +681,9 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     );
   }, [usuarioLogado, userEmail]);
 
-  // KPIs
-  const emAndamento = useMemo(() => chamados.filter((c) => c.status === 'em_andamento'), [chamados]);
-  const emEspera = useMemo(() => chamados.filter((c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente'), [chamados]);
+  // KPIs (filtra estritamente chamados ativos e remove chamados finalizados ou com data de término)
+  const emAndamento = useMemo(() => chamados.filter((c) => c.status === 'em_andamento' && !c.finalizado_em && c.status !== 'concluido' && c.status !== 'finalizado'), [chamados]);
+  const emEspera = useMemo(() => chamados.filter((c) => (c.status === 'aguardando_visualizacao' || c.status === 'pendente') && !c.finalizado_em && c.status !== 'concluido' && c.status !== 'finalizado'), [chamados]);
   const isDataHoje = (dataStr) => {
     if (!dataStr) return false;
     const d = new Date(dataStr);
@@ -674,6 +716,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     return chamados
       .filter((c) => {
         if (c.status !== 'aguardando_visualizacao' && c.status !== 'pendente') return false;
+        if (c.finalizado_em || c.status === 'concluido' || c.status === 'finalizado' || c.status === 'cancelado') return false;
         if (!ehAdmin && depsBloqueados.length > 0) {
           const cats = Array.isArray(c.categorias) && c.categorias.length > 0 ? c.categorias : ['Suporte'];
           const isBloqueado = cats.some((cat) => depsBloqueados.includes((cat || '').toLowerCase().trim()));
@@ -716,6 +759,13 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
         const etqs = Array.isArray(c.etiquetas) ? c.etiquetas : [];
         if (!etqs.some((e) => (e || '').toLowerCase().trim() === etqQ)) return false;
       }
+      // Se não for a aba resolvidos_hoje, NUNCA exibe chamados concluídos ou que tenham data de término
+      if (filtroStatus !== 'resolvidos_hoje') {
+        if (c.status === 'concluido' || c.status === 'finalizado' || c.status === 'cancelado' || Boolean(c.finalizado_em)) {
+          return false;
+        }
+      }
+
       if (filtroStatus === 'ativos') {
         if (c.status !== 'em_andamento' && c.status !== 'pendente' && c.status !== 'aguardando_visualizacao') return false;
       } else if (filtroStatus === 'em_andamento') {
@@ -723,7 +773,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       } else if (filtroStatus === 'espera') {
         if (c.status !== 'pendente' && c.status !== 'aguardando_visualizacao') return false;
       } else if (filtroStatus === 'resolvidos_hoje') {
-        const isConcluido = c.status === 'concluido' || c.status === 'finalizado';
+        const isConcluido = c.status === 'concluido' || c.status === 'finalizado' || Boolean(c.finalizado_em);
         if (!isConcluido || !isDataHoje(c.finalizado_em || c.created_at || c.iniciado_em)) return false;
       }
 
@@ -1286,13 +1336,14 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                       ? 'bg-white/20 dark:bg-black/20 text-white dark:text-black'
                       : 'bg-black/[0.06] dark:bg-white/[0.08] text-slate-600 dark:text-zinc-300'
                   }`}>
-                    {chamados.filter(c => c.status !== 'concluido' && c.status !== 'finalizado').length}
+                    {chamados.filter(c => (c.status === 'em_andamento' || c.status === 'aguardando_visualizacao' || c.status === 'pendente') && !c.finalizado_em && c.status !== 'concluido' && c.status !== 'finalizado').length}
                   </span>
                 </button>
 
                 {categoriasDisponiveis.map((cat) => {
                   const countNoDept = chamados.filter((c) => {
-                    if (c.status === 'concluido' || c.status === 'finalizado') return false;
+                    if (c.status === 'concluido' || c.status === 'finalizado' || c.finalizado_em) return false;
+                    if (c.status !== 'em_andamento' && c.status !== 'aguardando_visualizacao' && c.status !== 'pendente') return false;
                     const cats = Array.isArray(c.categorias) && c.categorias.length > 0 ? c.categorias : ['Suporte'];
                     return cats.some((d) => (d || '').toLowerCase().trim() === cat.toLowerCase().trim());
                   }).length;
@@ -1955,7 +2006,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                   const isRecolhido = colaboradoresRecolhidos.includes(tecKey);
 
                   const chamadosTecnico = chamados.filter((c) => {
-                    if (c.status !== 'em_andamento') return false;
+                    if (c.status !== 'em_andamento' || c.finalizado_em || c.status === 'concluido' || c.status === 'finalizado' || c.status === 'cancelado') return false;
                     if (!ehAdmin && depsBloqueados.length > 0) {
                       const cats = Array.isArray(c.categorias) && c.categorias.length > 0 ? c.categorias : ['Suporte'];
                       const isBloqueado = cats.some((cat) => depsBloqueados.includes((cat || '').toLowerCase().trim()));
