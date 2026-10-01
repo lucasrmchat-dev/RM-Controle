@@ -841,6 +841,7 @@ export async function finalizarSuporte({
   tempo_ativo_segundos = null,
   tempo_ativo_inicio = null,
   finalizado_em = null,
+  status_resolucao = 'resolvido',
 }) {
   const chamados = getLocalData('chamados_suporte', []);
   const idx = chamados.findIndex((c) => c.id === chamado_id);
@@ -864,7 +865,8 @@ export async function finalizarSuporte({
   const chamadoFinalizado = {
     ...chamado,
     status: 'concluido',
-    motivo: motivo || chamado.motivo || 'Atendimento Geral',
+    status_resolucao: status_resolucao || 'resolvido',
+    motivo: motivo || chamado.motivo || (status_resolucao === 'sem_resposta' ? 'Sem resposta do cliente' : 'Atendimento Geral'),
     solicitante_nome: colaborador_solicitante || chamado.solicitante_nome || 'Colaborador',
     resolucao: observacoes || '',
     observacoes: observacoes || '',
@@ -1952,11 +1954,40 @@ export async function fetchEquipeUsuarios() {
 }
 
 export function getEquipeUsuarios() {
-  const lista = getLocalData('equipe_usuarios', [
+  const defaultEquipe = [
     { id: 'usr_1', nome: 'Lucas Amorim (Administrador)', email: 'admin@rmcontrole.com', senha: 'RmControle@Admin2026!', papel: 'administrador', criado_em: new Date().toISOString() },
-    { id: 'usr_2', nome: 'Equipe de Suporte Técnico', email: 'suporte@rmcontrole.com', senha: 'RmSuporte@Padrao2026!', papel: 'suporte', criado_em: new Date().toISOString() },
-    { id: 'usr_3', nome: 'Equipe Comercial & Vendas', email: 'vendas@rmcontrole.com', papel: 'vendas', senha: 'RmVendas@Padrao2026!', criado_em: new Date().toISOString() },
-  ]);
+    { id: 'usr_rayane', nome: 'Rayane Nunes', email: 'rayane@rmchat.com', senha: 'RmSuporte@Padrao2026!', papel: 'suporte', criado_em: new Date().toISOString() },
+  ];
+
+  let rawList = getLocalData('equipe_usuarios', defaultEquipe);
+
+  // Se o modo mock de desenvolvimento estiver desligado, remove contas genéricas de demonstração
+  if (!isMockDataEnabled()) {
+    rawList = rawList.filter((u) => {
+      const nomeLower = (u.nome || '').toLowerCase().trim();
+      const emailLower = (u.email || '').toLowerCase().trim();
+      if (u.id === 'usr_2' || u.id === 'usr_3') return false;
+      if (nomeLower.startsWith('equipe de suporte') || nomeLower.startsWith('equipe comercial')) return false;
+      if (emailLower === 'suporte@rmcontrole.com' || emailLower === 'vendas@rmcontrole.com') return false;
+      return true;
+    });
+
+    // Assegura presença de Rayane Nunes na equipe real
+    const temRayane = rawList.some((u) => (u.email || '').toLowerCase().trim() === 'rayane@rmchat.com' || (u.nome || '').toLowerCase().includes('rayane'));
+    if (!temRayane) {
+      rawList.push({
+        id: 'usr_rayane',
+        nome: 'Rayane Nunes',
+        email: 'rayane@rmchat.com',
+        senha: 'RmSuporte@Padrao2026!',
+        papel: 'suporte',
+        criado_em: new Date().toISOString(),
+      });
+      setLocalData('equipe_usuarios', rawList);
+    }
+  }
+
+  const lista = rawList;
   return lista.map((u) => {
     const emailNorm = (u.email || '').toLowerCase().trim();
     const localPass = typeof window !== 'undefined' ? localStorage.getItem(`rm_user_password_${emailNorm}`) : null;
@@ -3730,25 +3761,8 @@ export async function createFeedback({
     }
   }
 
-  // 2. Abre automaticamente uma demanda na Fila no departamento 'Feedback'
-  try {
-    const isIdeia = tipo === 'ideia';
-    await adicionarChamadoFila({
-      empresa_id: null,
-      empresa_nome: `RM Controle (${novoFeedback.modulo_afetado})`,
-      solicitante_nome: autor_nome,
-      solicitante_email: autor_email,
-      categorias: [isIdeia ? 'Ideias' : 'Feedback'],
-      etiquetas: [isIdeia ? 'ideia' : 'bug', prioridade],
-      feedback_id: novoFeedback.id,
-      is_demanda_interna: true,
-      observacao_inicial: `[${tipo.toUpperCase()} - ${prioridade.toUpperCase()}] [Módulo: ${novoFeedback.modulo_afetado}] ${novoFeedback.titulo}: ${novoFeedback.descricao}`,
-      iniciarAgora: false,
-      userEmail: autor_email,
-    });
-  } catch (errFila) {
-    console.warn('Aviso ao criar chamado para feedback:', errFila);
-  }
+  // 2. Feedbacks permanecem exclusivamente na aba Feedbacks (não poluem a Fila de Demandas)
+
 
   await logAuditoria({
     usuarioEmail: autor_email,

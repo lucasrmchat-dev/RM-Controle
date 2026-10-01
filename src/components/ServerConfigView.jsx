@@ -11,6 +11,7 @@ import {
   removeServerChecklistTemplateItem, 
   isMockDataEnabled,
   getEquipeUsuarios,
+  fetchEquipeUsuarios,
   addEquipeUsuario,
   deleteEquipeUsuario,
   getCurrentUserRole,
@@ -89,8 +90,11 @@ export default function ServerConfigView() {
     atendente_obrigatorio: false,
   });
 
-  const recarregar = () => {
+  const recarregar = async () => {
     setChecklistItems(getServerChecklistTemplate());
+    try {
+      await fetchEquipeUsuarios();
+    } catch (e) {}
     setEquipe(getEquipeUsuarios());
     setUserRole(getCurrentUserRole());
     setSenhaPadrao(getSenhaPadraoRedefinicao());

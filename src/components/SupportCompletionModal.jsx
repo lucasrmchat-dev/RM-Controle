@@ -56,6 +56,7 @@ export default function SupportCompletionModal({
   const [codigoErroSolucao, setCodigoErroSolucao] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [statusResolucao, setStatusResolucao] = useState('resolvido'); // 'resolvido' | 'sem_resposta' | 'nao_resolvido'
 
   // Cronômetros calculados no momento de abertura
   const [tempoEsperaSegundos, setTempoEsperaSegundos] = useState(0);
@@ -283,34 +284,40 @@ export default function SupportCompletionModal({
     e.preventDefault();
     setErrorMsg('');
 
-    const solicitanteFinal = (buscaColab.trim() || colaboradorSelecionado?.nome || '').trim();
-    const motivoFinal = (buscaMotivo.trim() || motivo || '').trim();
+    const solicitanteFinal = (buscaColab.trim() || colaboradorSelecionado?.nome || 'Colaborador da Empresa').trim();
+    let motivoFinal = (buscaMotivo.trim() || motivo || '').trim();
+    if (statusResolucao === 'sem_resposta' && !motivoFinal) {
+      motivoFinal = 'Sem resposta do cliente';
+    }
 
-    if (config.motivo_obrigatorio && !motivoFinal) {
-      setErrorMsg('Por favor, selecione ou digite o motivo do suporte.');
-      return;
-    }
-    if (config.solucao_obrigatoria && !observacoes.trim()) {
-      setErrorMsg('Por favor, descreva o procedimento adotado para solucionar o problema.');
-      return;
-    }
-    if (config.colaborador_obrigatorio && !solicitanteFinal) {
-      setErrorMsg('Por favor, identifique o colaborador solicitante na empresa.');
-      return;
+    if (statusResolucao !== 'sem_resposta') {
+      if (config.motivo_obrigatorio && !motivoFinal) {
+        setErrorMsg('Por favor, selecione ou digite o motivo do suporte.');
+        return;
+      }
+      if (config.solucao_obrigatoria && !observacoes.trim()) {
+        setErrorMsg('Por favor, descreva o procedimento adotado para solucionar o problema.');
+        return;
+      }
+      if (config.colaborador_obrigatorio && !solicitanteFinal) {
+        setErrorMsg('Por favor, identifique o colaborador solicitante na empresa.');
+        return;
+      }
     }
 
     try {
       setSubmitting(true);
       await finalizarSuporte({
         chamado_id: chamado.id,
-        motivo: motivoFinal,
-        observacoes,
+        motivo: motivoFinal || (statusResolucao === 'sem_resposta' ? 'Sem resposta do cliente' : 'Atendimento Concluído'),
+        observacoes: observacoes || (statusResolucao === 'sem_resposta' ? 'Atendimento finalizado por falta de retorno / inatividade do cliente.' : ''),
         colaborador_solicitante: solicitanteFinal,
         atendente,
         userEmail,
         tempo_ativo_segundos: tempoAtivoSegundos,
         tempo_ativo_inicio: horarioInicio ? new Date(horarioInicio).toISOString() : null,
         finalizado_em: horarioFim ? new Date(horarioFim).toISOString() : null,
+        status_resolucao: statusResolucao,
       });
 
       if (observacoes.trim()) {
@@ -390,7 +397,56 @@ export default function SupportCompletionModal({
           )}
 
           {/* Formulário com Layout Horizontal 2 Colunas */}
-          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto pr-1 space-y-6 pt-2">
+          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto pr-1 space-y-5 pt-2">
+            {/* Seletor Rápido de Desfecho / Resolução */}
+            <div className="p-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.08] space-y-2">
+              <label className="block text-xs font-bold text-slate-800 dark:text-zinc-200">
+                Desfecho do Atendimento
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setStatusResolucao('resolvido')}
+                  className={`p-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+                    statusResolucao === 'resolvido'
+                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-800 dark:text-emerald-300 font-bold shadow-xs'
+                      : 'border-transparent text-slate-600 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5'
+                  }`}
+                >
+                  <span>✅ Resolvido</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusResolucao('sem_resposta');
+                    if (!buscaMotivo && !motivo) setMotivo('Sem resposta do cliente');
+                    if (!observacoes) setObservacoes('Cliente parou de responder / sem retorno.');
+                  }}
+                  className={`p-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+                    statusResolucao === 'sem_resposta'
+                      ? 'bg-amber-500/15 border-amber-500/40 text-amber-800 dark:text-amber-300 font-bold shadow-xs'
+                      : 'border-transparent text-slate-600 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5'
+                  }`}
+                >
+                  <span>⏳ Sem Resposta</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusResolucao('nao_resolvido');
+                    if (!buscaMotivo && !motivo) setMotivo('Impedimento técnico / Não resolvido');
+                  }}
+                  className={`p-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+                    statusResolucao === 'nao_resolvido'
+                      ? 'bg-red-500/15 border-red-500/40 text-red-800 dark:text-red-300 font-bold shadow-xs'
+                      : 'border-transparent text-slate-600 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5'
+                  }`}
+                >
+                  <span>❌ Não Resolvido</span>
+                </button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
               
               {/* ================================================================= */}

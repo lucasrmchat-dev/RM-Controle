@@ -237,6 +237,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       if (c.status === 'concluido' || c.status === 'finalizado' || c.status === 'cancelado') return;
       if (c.finalizado_em) return;
       if (historicoIds.has(c.id)) return;
+      if (c.feedback_id) return; // Feedbacks são tratados exclusivamente na aba de Feedbacks
 
       const empKey = (c.empresa_nome || c.empresa_id || '').toLowerCase().trim();
       const solKey = (c.solicitante_nome || '').toLowerCase().trim();
@@ -817,6 +818,34 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     await assumirSuporte({ chamado_id: chamado.id, userEmail: userEmail || 'admin@rmcontrole.com' });
     stopSupportNotificationLoop();
     showFeedbackMsg(`Você aceitou o suporte de ${chamado.empresa_nome}. Cronômetro ativo iniciado!`);
+  };
+
+  const handleEncerrarSemResposta = (chamado) => {
+    setConfirmDialog({
+      title: 'Encerrar por Falta de Retorno?',
+      message: `Deseja encerrar o atendimento de "${chamado.empresa_nome}" como "Sem Resposta do Cliente"? O atendimento será finalizado no histórico com essa justificativa.`,
+      confirmText: 'Sim, Encerrar Sem Resposta',
+      cancelText: 'Voltar',
+      variant: 'warning',
+      onConfirm: async () => {
+        try {
+          await finalizarSuporte({
+            chamado_id: chamado.id,
+            motivo: 'Sem resposta do cliente',
+            observacoes: 'Atendimento finalizado por falta de retorno / inatividade do cliente.',
+            colaborador_solicitante: chamado.solicitante_nome || 'Colaborador',
+            atendente: chamado.tecnico_nome || getNomeTecnico(userEmail),
+            userEmail,
+            status_resolucao: 'sem_resposta',
+          });
+          showToast(`Atendimento de "${chamado.empresa_nome}" encerrado por falta de retorno.`, 'info');
+          setConfirmDialog(null);
+          await carregarDados();
+        } catch (err) {
+          showToast(err.message || 'Erro ao encerrar chamado.', 'error');
+        }
+      },
+    });
   };
 
   const handleCancelarChamado = (chamado) => {
@@ -1695,10 +1724,19 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                         <>
                           <button
                             onClick={() => setChamadoParaFinalizar(ch)}
-                            className="px-4 py-2.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs shadow-md hover:opacity-90 flex items-center gap-1.5 cursor-pointer flex-1 justify-center"
+                            className="px-3.5 py-2.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs shadow-md hover:opacity-90 flex items-center gap-1.5 cursor-pointer flex-1 justify-center"
                           >
                             <CheckIcon className="w-3.5 h-3.5 stroke-[2.5]" />
                             <span>Concluir</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleEncerrarSemResposta(ch)}
+                            className="px-3 py-2.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs font-semibold hover:bg-amber-500/20 transition-all cursor-pointer shadow-xs flex items-center gap-1"
+                            title="Encerrar chamado por falta de resposta do cliente"
+                          >
+                            <span>⏳ Sem Resposta</span>
                           </button>
 
                           {Boolean(ch.is_demanda_interna || (ch.empresa_nome && ch.empresa_nome.includes('RM Controle'))) ? (
