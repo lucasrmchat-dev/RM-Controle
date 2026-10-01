@@ -22,7 +22,8 @@ import {
   fetchChamadosFila,
   fetchHistoricoChamados,
   getHistoricoChamados,
-  createEmpresa
+  createEmpresa,
+  setLocalData
 } from '@/lib/storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { stopSupportNotificationLoop } from '@/lib/audioNotifications';

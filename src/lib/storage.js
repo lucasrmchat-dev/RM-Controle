@@ -165,7 +165,7 @@ const DEFAULT_EMPRESAS_MOCK = [
   }
 ];
 
-function getLocalData(key, defaultVal) {
+export function getLocalData(key, defaultVal) {
   if (typeof window === 'undefined') return defaultVal;
   try {
     const item = localStorage.getItem('rm_' + key);
@@ -179,7 +179,7 @@ function getLocalData(key, defaultVal) {
   }
 }
 
-function setLocalData(key, val) {
+export function setLocalData(key, val) {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem('rm_' + key, JSON.stringify(val));

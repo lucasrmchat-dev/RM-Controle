@@ -26,7 +26,8 @@ import {
   concluirPrimeiroAcesso,
   getNomeTecnico,
   fetchChamadosFila,
-  getChamadosSuporte
+  getChamadosSuporte,
+  updateEquipeUsuario
 } from '@/lib/storage';
 import { triggerSupportNotification, stopSupportNotificationLoop } from '@/lib/audioNotifications';
 import FirstAccessSetupView from '@/components/FirstAccessSetupView';
