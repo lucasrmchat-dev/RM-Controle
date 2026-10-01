@@ -12,9 +12,10 @@ import {
   getAbasPermitidas, 
   getCurrentUserRole, 
   setCurrentUserRole,
-  cancelarSuporte 
+  cancelarSuporte,
+  getAgendaEventos
 } from '@/lib/storage';
-import { XMarkIcon, SupportQueueIcon } from './Icons';
+import { XMarkIcon, SupportQueueIcon, CalendarIcon } from './Icons';
 
 export default function Navbar({ 
   activeTab, 
@@ -35,6 +36,7 @@ export default function Navbar({
   const islandRef = useRef(null);
   const [chamadosAtivos, setChamadosAtivos] = useState([]);
   const [totalFila, setTotalFila] = useState(0);
+  const [totalReunioesHoje, setTotalReunioesHoje] = useState(0);
   const [audioConfig, setAudioState] = useState({
     habilitado: true,
     tipoSom: 'harmonico',
@@ -52,13 +54,19 @@ export default function Navbar({
   const [userRole, setUserRole] = useState('administrador');
   const [, setTick] = useState(0);
 
-  // Atualiza chamados ativos e permissões
+  // Atualiza chamados ativos, agenda e permissões
   const checarEstado = () => {
     const ativos = getChamadosAtivos();
     setChamadosAtivos(ativos);
     const fila = getFilaChamados ? getFilaChamados() : [];
     setTotalFila(fila.length);
     setUserRole(getCurrentUserRole());
+    try {
+      const evts = getAgendaEventos ? getAgendaEventos() : [];
+      const hojeIso = new Date().toISOString().split('T')[0];
+      const countHoje = evts.filter((e) => e.data === hojeIso && e.status !== 'cancelada').length;
+      setTotalReunioesHoje(countHoje);
+    } catch (e) {}
   };
 
   useEffect(() => {
@@ -67,6 +75,7 @@ export default function Navbar({
     window.addEventListener('suporte_updated', handleUpdate);
     window.addEventListener('user_role_updated', handleUpdate);
     window.addEventListener('equipe_updated', handleUpdate);
+    window.addEventListener('agenda_eventos_updated', handleUpdate);
 
     // Ticker a cada segundo para atualizar cronômetros ao vivo
     const timer = setInterval(() => setTick((t) => t + 1), 1000);
@@ -75,6 +84,7 @@ export default function Navbar({
       window.removeEventListener('suporte_updated', handleUpdate);
       window.removeEventListener('user_role_updated', handleUpdate);
       window.removeEventListener('equipe_updated', handleUpdate);
+      window.removeEventListener('agenda_eventos_updated', handleUpdate);
       clearInterval(timer);
     };
   }, []);
@@ -157,6 +167,12 @@ export default function Navbar({
           <path d="M12 15h.01"/>
         </svg>
       ) 
+    },
+    { 
+      id: 'agenda', 
+      label: 'Agenda', 
+      badge: totalReunioesHoje > 0 ? totalReunioesHoje : null,
+      icon: <CalendarIcon className="w-4 h-4" />
     },
     { 
       id: 'configuracoes', 

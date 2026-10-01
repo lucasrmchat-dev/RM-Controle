@@ -27,14 +27,16 @@ import {
   getNomeTecnico,
   fetchChamadosFila,
   getChamadosSuporte,
-  updateEquipeUsuario
+  updateEquipeUsuario,
+  getAgendaConfig,
+  getAgendaEventos
 } from '@/lib/storage';
-import { triggerSupportNotification, stopSupportNotificationLoop } from '@/lib/audioNotifications';
+import { triggerSupportNotification, stopSupportNotificationLoop, playMeetingAlertTone } from '@/lib/audioNotifications';
 import FirstAccessSetupView from '@/components/FirstAccessSetupView';
 import Navbar from '@/components/Navbar';
 import CompanyModal from '@/components/CompanyModal';
 import CompanyManagementView from '@/components/CompanyManagementView';
-import ChannelsManagement from '@/components/ChannelsManagement';
+import ChannelsManagement from './ChannelsManagement';
 import AuditLogsView from '@/components/AuditLogsView';
 import ServerConfigView from '@/components/ServerConfigView';
 import DashboardView from '@/components/DashboardView';
@@ -46,6 +48,7 @@ import LoginView from '@/components/LoginView';
 import SupportCompletionModal from '@/components/SupportCompletionModal';
 import SupportQueueView from '@/components/SupportQueueView';
 import FeedbacksView from '@/components/FeedbacksView';
+import AgendaView from '@/components/AgendaView';
 import { 
   MessageChannelIcon, 
   ViewGridIcon, 
@@ -454,11 +457,70 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
       } catch (e) {}
     }, 5000);
 
+    // 4. Verificador de Reuniões da Agenda (Alerta prévio sonoro e visual com X min de antecedência)
+    const checarAlertasReuniao = () => {
+      try {
+        if (typeof window === 'undefined') return;
+        const agendaCfg = getAgendaConfig();
+        if (!agendaCfg || agendaCfg.somHabilitado === false) return;
+
+        const evts = getAgendaEventos();
+        const hojeStr = new Date().toISOString().split('T')[0];
+        const agora = new Date();
+        const minutosAntecedencia = agendaCfg.minutosAntecedencia || 15;
+        const myEmail = (userEmail || '').toLowerCase().trim();
+
+        evts.forEach((evt) => {
+          if (evt.data !== hojeStr || evt.status === 'concluida' || evt.status === 'cancelada') return;
+          if (!evt.hora_inicio) return;
+
+          // Verifica escopo de notificação (apenas minhas vs todas da equipe)
+          if (agendaCfg.notificarEscopo === 'proprias') {
+            const evEmail = (evt.responsavel_email || '').toLowerCase().trim();
+            const evNome = (evt.responsavel_nome || '').toLowerCase().trim();
+            const meuNome = getNomeTecnico(userEmail).toLowerCase().trim();
+            if (evEmail !== myEmail && !evNome.includes(meuNome)) return;
+          }
+
+          const [h, m] = evt.hora_inicio.split(':').map(Number);
+          const evtDate = new Date();
+          evtDate.setHours(h, m, 0, 0);
+
+          const diffMs = evtDate.getTime() - agora.getTime();
+          const diffMins = Math.round(diffMs / 60000);
+
+          if (diffMins >= 0 && diffMins <= minutosAntecedencia) {
+            const sessionKey = `rm_alerted_meeting_${evt.id}_${diffMins <= 5 ? '5m' : 'window'}`;
+            if (sessionStorage.getItem(sessionKey)) return;
+            sessionStorage.setItem(sessionKey, 'true');
+
+            playMeetingAlertTone();
+            const tempoTexto = diffMins === 0 ? 'acontecendo agora' : `em ${diffMins} min`;
+            showToast(`📅 Reunião ${tempoTexto}: "${evt.titulo}" (${evt.empresa || 'Cliente'})`, 'info');
+
+            if ('Notification' in window && Notification.permission === 'granted') {
+              try {
+                new Notification('RM Controle — Alerta de Reunião', {
+                  body: `${evt.titulo}\nHorário: ${evt.hora_inicio} • Responsável: ${evt.responsavel_nome || 'Equipe'}\nCliente: ${evt.empresa}`,
+                  icon: '/favicon.ico',
+                  tag: evt.id,
+                });
+              } catch (e) {}
+            }
+          }
+        });
+      } catch (e) {}
+    };
+
+    checarAlertasReuniao();
+    const agendaTimer = setInterval(checarAlertasReuniao, 20000);
+
     return () => {
       if (realtimeChannel && supabase) {
         supabase.removeChannel(realtimeChannel);
       }
       clearInterval(backgroundSyncTimer);
+      clearInterval(agendaTimer);
     };
   }, [isAuthenticated, userEmail, primeiroAcessoPendente]);
 
@@ -1396,6 +1458,17 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                 <FeedbacksView
                   userEmail={userEmail}
                   onSelectEmpresa={handleSelectEmpresaGlobal}
+                />
+              )}
+
+              {/* ABA 8: AGENDA DE REUNIÕES & INTEGRAÇÃO GOOGLE */}
+              {activeTab === 'agenda' && (
+                <AgendaView
+                  userEmail={userEmail}
+                  onSelectEmpresa={handleSelectEmpresaGlobal}
+                  onNavigateConfig={() => {
+                    setActiveTab('configuracoes');
+                  }}
                 />
               )}
           </div>

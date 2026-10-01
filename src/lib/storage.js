@@ -1840,9 +1840,9 @@ export async function deleteEmpresaCredencial(empresaId, credId, userEmail = 'ad
 // GESTÃO DE USUÁRIOS E PERMISSÕES POR ABA (SUPORTE, VENDAS, ADMIN)
 // ==============================================================================
 export const PERMISSOES_PADRAO = {
-  administrador: ['empresas', 'fila', 'dashboard', 'feedbacks', 'configuracoes', 'canais', 'servidores', 'auditoria'],
-  suporte: ['empresas', 'fila', 'dashboard', 'feedbacks', 'configuracoes'],
-  vendas: ['empresas', 'fila', 'dashboard', 'feedbacks', 'configuracoes'],
+  administrador: ['empresas', 'fila', 'dashboard', 'feedbacks', 'agenda', 'configuracoes', 'canais', 'servidores', 'auditoria'],
+  suporte: ['empresas', 'fila', 'dashboard', 'feedbacks', 'agenda', 'configuracoes'],
+  vendas: ['empresas', 'fila', 'dashboard', 'feedbacks', 'agenda', 'configuracoes'],
 };
 
 export function resolveUserRole(email) {
@@ -3776,4 +3776,231 @@ export async function updateFeedbackStatus(feedbackId, newStatus, userEmail = 'a
     window.dispatchEvent(new Event('feedbacks_updated'));
   }
   return true;
+}
+
+// ==============================================================================
+// GESTÃO DA AGENDA DE REUNIÕES & INTEGRAÇÃO GOOGLE CALENDAR
+// ==============================================================================
+
+export const AGENDA_CONFIG_DEFAULT = {
+  calendarId: 'suporte@rmchat.com.br',
+  urlIcal: 'https://calendar.google.com/calendar/ical/suporte%40rmchat.com.br/public/basic.ics',
+  urlEmbed: 'https://calendar.google.com/calendar/embed?src=suporte%40rmchat.com.br&ctz=America%2FFortaleza',
+  minutosAntecedencia: 15,
+  notificarEscopo: 'proprias',
+  somHabilitado: true,
+  visualizacaoPadrao: 'nativa',
+};
+
+export function getAgendaConfig() {
+  if (typeof window === 'undefined') return AGENDA_CONFIG_DEFAULT;
+  const raw = localStorage.getItem('rm_agenda_config');
+  if (!raw) return AGENDA_CONFIG_DEFAULT;
+  try {
+    return { ...AGENDA_CONFIG_DEFAULT, ...JSON.parse(raw) };
+  } catch (e) {
+    return AGENDA_CONFIG_DEFAULT;
+  }
+}
+
+export function setAgendaConfig(newConfig) {
+  if (typeof window === 'undefined') return;
+  const current = getAgendaConfig();
+  const updated = { ...current, ...newConfig };
+  localStorage.setItem('rm_agenda_config', JSON.stringify(updated));
+  window.dispatchEvent(new CustomEvent('rm_agenda_config_updated', { detail: updated }));
+}
+
+export const DEFAULT_AGENDA_EVENTOS = [
+  {
+    id: 'evt_1',
+    titulo: 'Reunião de Equipe Semanal',
+    empresa: 'RM Controle / Geral',
+    data: new Date().toISOString().split('T')[0],
+    hora_inicio: '11:00',
+    hora_fim: '12:00',
+    responsavel_email: 'admin@rmcontrole.com',
+    responsavel_nome: 'Lucas Amorim (Administrador)',
+    link_reuniao: 'https://meet.google.com/rm-equipe',
+    status: 'agendada',
+    tipo: 'equipe',
+    observacoes: 'Alinhamento geral de demandas e prioridades operacionais da semana.',
+  },
+  {
+    id: 'evt_2',
+    titulo: 'Treinamento com MOR Marcas',
+    empresa: 'MOR Marcas',
+    data: new Date().toISOString().split('T')[0],
+    hora_inicio: '15:00',
+    hora_fim: '16:00',
+    responsavel_email: 'suporte@rmchat.com.br',
+    responsavel_nome: 'Pedro Alvarez',
+    link_reuniao: 'https://meet.google.com/mor-treina',
+    status: 'agendada',
+    tipo: 'cliente',
+    observacoes: 'Treinamento prático sobre fluxos de atendimento e automação.',
+  },
+  {
+    id: 'evt_3',
+    titulo: 'Reunião com Rafael Rezende',
+    empresa: 'Rezende Soluções',
+    data: new Date().toISOString().split('T')[0],
+    hora_inicio: '17:00',
+    hora_fim: '18:00',
+    responsavel_email: 'admin@rmcontrole.com',
+    responsavel_nome: 'Lucas Amorim (Administrador)',
+    link_reuniao: 'https://meet.google.com/rezende-call',
+    status: 'agendada',
+    tipo: 'cliente',
+    observacoes: 'Alinhamento sobre migração de instâncias e validação de QR Code.',
+  },
+  {
+    id: 'evt_4',
+    titulo: 'Migração para API Oficial Meta',
+    empresa: 'Hospital Gastrovitta',
+    data: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    hora_inicio: '14:00',
+    hora_fim: '15:00',
+    responsavel_email: 'rayane@rmchat.com',
+    responsavel_nome: 'Rayane Nunes',
+    link_reuniao: 'https://meet.google.com/gastro-meta',
+    status: 'agendada',
+    tipo: 'implantacao',
+    observacoes: 'Migração do número principal para Cloud API oficial Meta.',
+  },
+];
+
+export function getAgendaEventos() {
+  return getLocalData('agenda_eventos', DEFAULT_AGENDA_EVENTOS);
+}
+
+export function saveAgendaEventos(eventos) {
+  setLocalData('agenda_eventos', eventos);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('agenda_eventos_updated'));
+  }
+}
+
+export async function addAgendaEvento(eventoData) {
+  const eventos = getAgendaEventos();
+  const novo = {
+    id: 'evt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    titulo: (eventoData.titulo || 'Nova Reunião').trim(),
+    empresa: (eventoData.empresa || 'Cliente Geral').trim(),
+    data: eventoData.data || new Date().toISOString().split('T')[0],
+    hora_inicio: eventoData.hora_inicio || '09:00',
+    hora_fim: eventoData.hora_fim || '10:00',
+    responsavel_email: (eventoData.responsavel_email || 'admin@rmcontrole.com').trim().toLowerCase(),
+    responsavel_nome: eventoData.responsavel_nome || getNomeTecnico(eventoData.responsavel_email),
+    link_reuniao: (eventoData.link_reuniao || '').trim(),
+    status: eventoData.status || 'agendada',
+    tipo: eventoData.tipo || 'cliente',
+    observacoes: (eventoData.observacoes || '').trim(),
+    created_at: new Date().toISOString(),
+  };
+
+  eventos.push(novo);
+  saveAgendaEventos(eventos);
+  return novo;
+}
+
+export async function updateAgendaEvento(id, dados) {
+  const eventos = getAgendaEventos();
+  const idx = eventos.findIndex((e) => e.id === id);
+  if (idx === -1) return null;
+
+  eventos[idx] = {
+    ...eventos[idx],
+    ...dados,
+    updated_at: new Date().toISOString(),
+  };
+
+  saveAgendaEventos(eventos);
+  return eventos[idx];
+}
+
+export async function deleteAgendaEvento(id) {
+  const eventos = getAgendaEventos();
+  const filtered = eventos.filter((e) => e.id !== id);
+  saveAgendaEventos(filtered);
+  return true;
+}
+
+export function parseIcalEvents(icsContent) {
+  if (!icsContent || typeof icsContent !== 'string') return [];
+  const events = [];
+  const lines = icsContent.replace(/
+
+ /g, '').split(/
+
+|
+|
+/);
+  let current = null;
+
+  for (let line of lines) {
+    if (line.startsWith('BEGIN:VEVENT')) {
+      current = {};
+    } else if (line.startsWith('END:VEVENT')) {
+      if (current && (current.titulo || current.SUMMARY)) {
+        const titulo = current.SUMMARY || current.titulo || 'Reunião';
+        let data = '';
+        let hora_inicio = '09:00';
+        let hora_fim = '10:00';
+
+        if (current.DTSTART) {
+          const raw = current.DTSTART.replace(/.*:/, '');
+          if (raw.length >= 8) {
+            data = raw.slice(0, 4) + '-' + raw.slice(4, 6) + '-' + raw.slice(6, 8);
+          }
+          if (raw.includes('T') && raw.length >= 13) {
+            const timePart = raw.split('T')[1];
+            hora_inicio = timePart.slice(0, 2) + ':' + timePart.slice(2, 4);
+          }
+        }
+        if (current.DTEND) {
+          const raw = current.DTEND.replace(/.*:/, '');
+          if (raw.includes('T') && raw.length >= 13) {
+            const timePart = raw.split('T')[1];
+            hora_fim = timePart.slice(0, 2) + ':' + timePart.slice(2, 4);
+          }
+        }
+
+        const desc = current.DESCRIPTION || '';
+        const loc = current.LOCATION || '';
+        const matchMeet = (desc + ' ' + loc).match(/https:\/\/(meet\.google\.com\/[a-z0-9-]+|zoom\.us\/[a-z0-9/?=]+|teams\.microsoft\.com\/[^\s]+)/i);
+
+        events.push({
+          id: current.UID ? 'gcal_' + current.UID.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40) : 'gcal_' + Date.now() + Math.random().toString(36).slice(2, 6),
+          titulo,
+          empresa: loc && !loc.includes('http') ? loc : (titulo.includes('-') ? titulo.split('-')[0].trim() : (titulo.includes('com') ? titulo.split('com')[1].trim() : 'Google Agenda')),
+          data: data || new Date().toISOString().split('T')[0],
+          hora_inicio,
+          hora_fim,
+          responsavel_email: 'suporte@rmchat.com.br',
+          responsavel_nome: 'Equipe de Suporte',
+          link_reuniao: matchMeet ? matchMeet[0] : (current.URL || ''),
+          status: 'agendada',
+          tipo: 'google_calendar',
+          observacoes: desc ? desc.slice(0, 200) : 'Sincronizado do Google Agenda',
+          origem: 'google_calendar',
+        });
+      }
+      current = null;
+    } else if (current) {
+      const colIdx = line.indexOf(':');
+      if (colIdx > 0) {
+        const key = line.slice(0, colIdx).split(';')[0];
+        const val = line.slice(colIdx + 1);
+        if (key === 'SUMMARY') current.SUMMARY = val.replace(/\,/g, ',').replace(/\n/g, ' ').trim();
+        else if (key === 'DESCRIPTION') current.DESCRIPTION = val.replace(/\,/g, ',').replace(/\n/g, ' ').trim();
+        else if (key === 'LOCATION') current.LOCATION = val.replace(/\,/g, ',').trim();
+        else if (key === 'DTSTART') current.DTSTART = line;
+        else if (key === 'DTEND') current.DTEND = line;
+        else if (key === 'UID') current.UID = val.trim();
+        else if (key === 'URL') current.URL = val.trim();
+      }
+    }
+  }
+  return events;
 }

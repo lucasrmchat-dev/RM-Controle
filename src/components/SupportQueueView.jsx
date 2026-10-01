@@ -99,7 +99,8 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   const [buscaFiltroTecnico, setBuscaFiltroTecnico] = useState('');
   const filtroTecnicoRef = useRef(null);
 
-  // Kanban: Métricas Recolhíveis, Scroll Horizontal e Colunas Recolhíveis
+  // Métricas Operacionais Recolhíveis em todos os modos (Cards, Lista e Kanban)
+  const [metricasRecolhidas, setMetricasRecolhidas] = useState(false);
   const [metricasRecolhidasKanban, setMetricasRecolhidasKanban] = useState(true);
   const [colaboradoresRecolhidos, setColaboradoresRecolhidos] = useState([]);
   const [kanbanPreset, setKanbanPreset] = useState('foco_mim'); // 'foco_mim' | 'expandir_todos' | 'recolher_todos' | 'custom'
@@ -975,7 +976,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
         {/* No modo Kanban: recolhe delicadamente para um trilho compacto (números+cores). */}
         {/* ============================================================================== */}
         {(() => {
-          const isCompact = filaViewMode === 'kanban' && metricasRecolhidasKanban;
+          const isCompact = metricasRecolhidas || (filaViewMode === 'kanban' && metricasRecolhidasKanban);
 
           return (
             <motion.div
@@ -999,11 +1000,14 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                   <div className="flex justify-center pb-1 border-b border-black/[0.04] dark:border-white/[0.05]">
                     <button
                       type="button"
-                      onClick={() => setMetricasRecolhidasKanban(false)}
+                      onClick={() => {
+                        setMetricasRecolhidas(false);
+                        setMetricasRecolhidasKanban(false);
+                      }}
                       className="w-7 h-7 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] text-slate-500 hover:text-black dark:hover:text-white flex items-center justify-center text-xs transition-colors cursor-pointer"
-                      title="Expandir painel de métricas"
+                      title="Expandir painel de métricas operacionais"
                     >
-                      ⤢
+                      <span>⤢</span>
                     </button>
                   </div>
 
@@ -1079,16 +1083,17 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                     </span>
                     <div className="flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                      {filaViewMode === 'kanban' && (
-                        <button
-                          type="button"
-                          onClick={() => setMetricasRecolhidasKanban(true)}
-                          className="text-[10px] text-slate-400 hover:text-black dark:hover:text-white px-1.5 py-0.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-                          title="Recolher para modo compacto"
-                        >
-                          ⤡
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMetricasRecolhidas(true);
+                          setMetricasRecolhidasKanban(true);
+                        }}
+                        className="w-6 h-6 rounded-lg border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.04] text-slate-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-xs cursor-pointer flex items-center justify-center"
+                        title="Recolher painel de métricas operacionais"
+                      >
+                        <span>⤡</span>
+                      </button>
                     </div>
                   </div>
 
@@ -1261,48 +1266,69 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
             </div>
 
-            {/* Filtros de Linha: Departamento e Técnico Responsável (Custom Apple-Grade) */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2.5 border-t border-black/[0.04] dark:border-white/[0.05] text-xs">
-              <div className="flex items-center gap-1.5 overflow-x-auto p-0.5 scrollbar-thin">
-                <span className="text-slate-400 font-semibold px-1 text-[11px] uppercase tracking-wider font-mono flex-shrink-0">
-                  Departamento:
-                </span>
+            {/* BARRA REFINADA DE DEPARTAMENTOS E FILTRO DE TÉCNICO (APPLE DESIGN SYSTEM) */}
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pt-3 border-t border-black/[0.05] dark:border-white/[0.06] text-xs">
+              
+              {/* Segmented Control de Departamentos com Cores e Contadores em Tempo Real */}
+              <div className="flex items-center gap-1.5 overflow-x-auto p-1 bg-black/[0.02] dark:bg-white/[0.03] rounded-2xl border border-black/[0.04] dark:border-white/[0.06] scrollbar-thin">
                 <button
                   type="button"
                   onClick={() => setFiltroCategoria('todas')}
-                  className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-all flex items-center gap-1 flex-shrink-0 ${
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 flex-shrink-0 ${
                     filtroCategoria === 'todas'
-                      ? 'bg-[#09090b] text-white dark:bg-white dark:text-black font-bold shadow-xs'
-                      : 'bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.05]'
+                      ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs font-bold'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
                   }`}
                 >
-                  <span>Todos</span>
-                  <span className="text-[10px] font-mono opacity-70">({chamados.filter(c => c.status !== 'concluido' && c.status !== 'finalizado').length})</span>
+                  <span>Todos os Setores</span>
+                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold ${
+                    filtroCategoria === 'todas'
+                      ? 'bg-white/20 dark:bg-black/20 text-white dark:text-black'
+                      : 'bg-black/[0.06] dark:bg-white/[0.08] text-slate-600 dark:text-zinc-300'
+                  }`}>
+                    {chamados.filter(c => c.status !== 'concluido' && c.status !== 'finalizado').length}
+                  </span>
                 </button>
+
                 {categoriasDisponiveis.map((cat) => {
                   const countNoDept = chamados.filter((c) => {
                     if (c.status === 'concluido' || c.status === 'finalizado') return false;
                     const cats = Array.isArray(c.categorias) && c.categorias.length > 0 ? c.categorias : ['Suporte'];
                     return cats.some((d) => (d || '').toLowerCase().trim() === cat.toLowerCase().trim());
                   }).length;
+                  const isSelected = filtroCategoria === cat;
+
+                  // Cores semânticas por setor
+                  const getDeptColor = (nome) => {
+                    const n = (nome || '').toLowerCase();
+                    if (n.includes('suporte')) return { dot: 'bg-blue-500', active: 'bg-blue-600 text-white' };
+                    if (n.includes('automação') || n.includes('automacao')) return { dot: 'bg-purple-500', active: 'bg-purple-600 text-white' };
+                    if (n.includes('financeiro')) return { dot: 'bg-emerald-500', active: 'bg-emerald-600 text-white' };
+                    if (n.includes('implantação') || n.includes('implantacao')) return { dot: 'bg-amber-500', active: 'bg-amber-600 text-white' };
+                    if (n.includes('dúvida') || n.includes('duvida')) return { dot: 'bg-sky-500', active: 'bg-sky-600 text-white' };
+                    if (n.includes('feedback')) return { dot: 'bg-rose-500', active: 'bg-rose-600 text-white' };
+                    return { dot: 'bg-slate-400', active: 'bg-zinc-800 text-white dark:bg-white dark:text-black' };
+                  };
+                  const colors = getDeptColor(cat);
 
                   return (
                     <button
                       key={cat}
                       type="button"
                       onClick={() => setFiltroCategoria(cat)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-all flex items-center gap-1 flex-shrink-0 ${
-                        filtroCategoria === cat
-                          ? 'bg-[#09090b] text-white dark:bg-white dark:text-black font-bold shadow-xs'
-                          : 'bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.05]'
+                      className={`px-3 py-1.5 rounded-xl text-xs font-medium cursor-pointer transition-all flex items-center gap-1.5 flex-shrink-0 ${
+                        isSelected
+                          ? `${colors.active} font-bold shadow-xs`
+                          : 'text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
                       }`}
                     >
+                      <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : colors.dot}`} />
                       <span>{cat}</span>
                       {countNoDept > 0 && (
-                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
-                          filtroCategoria === cat
-                            ? 'bg-white/20 dark:bg-black/20 text-white dark:text-black'
-                            : 'bg-black/[0.05] dark:bg-white/[0.08] text-slate-600 dark:text-zinc-300'
+                        <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold ${
+                          isSelected
+                            ? 'bg-white/20 text-white'
+                            : 'bg-black/[0.06] dark:bg-white/[0.08] text-slate-600 dark:text-zinc-300'
                         }`}>
                           {countNoDept}
                         </span>
@@ -1310,6 +1336,17 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                     </button>
                   );
                 })}
+
+                {filtroCategoria !== 'todas' && (
+                  <button
+                    type="button"
+                    onClick={() => setFiltroCategoria('todas')}
+                    className="text-[11px] text-slate-400 hover:text-red-500 flex items-center gap-1 px-2 py-1 rounded-lg transition-colors cursor-pointer flex-shrink-0 ml-1"
+                    title="Limpar filtro de departamento"
+                  >
+                    <span>✕ Limpar</span>
+                  </button>
+                )}
               </div>
 
               {/* Filtro por Colaborador Responsável (Apple-Grade Custom Popover) */}

@@ -265,3 +265,31 @@ export function stopSupportNotificationLoop() {
     activeLoopInterval = null;
   }
 }
+
+/**
+ * Sintetizador exclusivo de alerta para Reuniões e Agenda (Chime de Calendário Apple/Google)
+ * Utiliza 4 harmônicos elegantes com decay suave (E5 -> G#5 -> B5 -> E6)
+ */
+export function playMeetingAlertTone() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+  const notes = [659.25, 830.61, 987.77, 1318.51];
+  notes.forEach((f, idx) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(f, now + idx * 0.11);
+
+    gain.gain.setValueAtTime(0, now + idx * 0.11);
+    gain.gain.linearRampToValueAtTime(0.25, now + idx * 0.11 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.11 + 0.85);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now + idx * 0.11);
+    osc.stop(now + idx * 0.11 + 0.9);
+  });
+}
