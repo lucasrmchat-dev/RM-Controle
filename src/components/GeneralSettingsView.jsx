@@ -18,7 +18,7 @@ import {
   setAgendaConfig
 } from '@/lib/storage';
 import { generateSecurePassword } from '@/lib/security';
-import ChannelsManagement from './ChannelsManagement';
+import ChannelsManagement from '@/components/ChannelsManagement';
 import ServerConfigView from './ServerConfigView';
 import AuditLogsView from './AuditLogsView';
 import { 

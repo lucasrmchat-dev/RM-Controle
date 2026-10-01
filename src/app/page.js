@@ -36,7 +36,6 @@ import FirstAccessSetupView from '@/components/FirstAccessSetupView';
 import Navbar from '@/components/Navbar';
 import CompanyModal from '@/components/CompanyModal';
 import CompanyManagementView from '@/components/CompanyManagementView';
-import ChannelsManagement from '@/components/ChannelsManagement';
 import AuditLogsView from '@/components/AuditLogsView';
 import ServerConfigView from '@/components/ServerConfigView';
 import DashboardView from '@/components/DashboardView';
