@@ -25,7 +25,11 @@ import {
   isChamadoFeedback,
   getHistoricoChamados,
   createEmpresa,
-  setLocalData
+  setLocalData,
+  atualizarEtiquetasChamado,
+  adiarAlertaChamado,
+  cancelarAdiarAlertaChamado,
+  marcarChamadoEscalonado
 } from '@/lib/storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { stopSupportNotificationLoop, playNotificationTone } from '@/lib/audioNotifications';
@@ -1387,25 +1391,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                 </button>
               </div>
 
-              {/* Botão de Controle das Métricas Operacionais (Recolher / Expandir) */}
-              <button
-                type="button"
-                onClick={() => {
-                  setMetricasRecolhidas(!metricasRecolhidas);
-                  setMetricasRecolhidasKanban(!metricasRecolhidasKanban);
-                }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
-                  metricasRecolhidas
-                    ? 'bg-black/[0.03] dark:bg-white/[0.05] border-black/[0.08] dark:border-white/[0.1] text-slate-600 dark:text-zinc-300 hover:bg-black/[0.06]'
-                    : 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 border-[#4d7c0f]/25 text-[#4d7c0f] dark:text-[#84cc16] font-bold shadow-2xs'
-                }`}
-                title={metricasRecolhidas ? 'Expandir painel lateral de métricas' : 'Recolher painel lateral de métricas para modo compacto'}
-              >
-                <span>📊</span>
-                <span className="hidden sm:inline">Métricas:</span>
-                <span>{metricasRecolhidas ? 'Compactas' : 'Expandidas'}</span>
-                <span className="text-[10px] opacity-75 font-mono">{metricasRecolhidas ? '⤢' : '⤡'}</span>
-              </button>
+              
 
               {/* Campo de Busca */}
               <div className="relative min-w-[240px]">

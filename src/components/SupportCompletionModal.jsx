@@ -286,11 +286,11 @@ export default function SupportCompletionModal({
 
     const solicitanteFinal = (buscaColab.trim() || colaboradorSelecionado?.nome || 'Colaborador da Empresa').trim();
     let motivoFinal = (buscaMotivo.trim() || motivo || '').trim();
-    if (statusResolucao === 'sem_resposta' && !motivoFinal) {
-      motivoFinal = 'Sem resposta do cliente';
-    }
 
-    if (statusResolucao !== 'sem_resposta') {
+    if (statusResolucao === 'sem_resposta') {
+      motivoFinal = motivoFinal || 'Sem resposta do cliente';
+    } else {
+      // Resolvido ou Não Resolvido: exige motivo se configurado como obrigatório
       if (config.motivo_obrigatorio && !motivoFinal) {
         setErrorMsg('Por favor, selecione ou digite o motivo do suporte.');
         return;
@@ -309,8 +309,9 @@ export default function SupportCompletionModal({
       setSubmitting(true);
       await finalizarSuporte({
         chamado_id: chamado.id,
-        motivo: motivoFinal || (statusResolucao === 'sem_resposta' ? 'Sem resposta do cliente' : 'Atendimento Concluído'),
-        observacoes: observacoes || (statusResolucao === 'sem_resposta' ? 'Atendimento finalizado por falta de retorno / inatividade do cliente.' : ''),
+        motivo: motivoFinal,
+        // Nunca injeta texto automático em observações! Fica rigorosamente o que o usuário digitou (ou vazio)
+        observacoes: observacoes.trim(),
         colaborador_solicitante: solicitanteFinal,
         atendente,
         userEmail,
@@ -406,8 +407,14 @@ export default function SupportCompletionModal({
               <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
-                  onClick={() => setStatusResolucao('resolvido')}
-                  className={`p-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+                  onClick={() => {
+                    setStatusResolucao('resolvido');
+                    if (motivo === 'Sem resposta do cliente' || motivo === 'Impedimento técnico / Não resolvido') {
+                      setMotivo('');
+                      setBuscaMotivo('');
+                    }
+                  }}
+                  className={`p-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
                     statusResolucao === 'resolvido'
                       ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-800 dark:text-emerald-300 font-bold shadow-xs'
                       : 'border-transparent text-slate-600 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5'
@@ -419,10 +426,13 @@ export default function SupportCompletionModal({
                   type="button"
                   onClick={() => {
                     setStatusResolucao('sem_resposta');
-                    if (!buscaMotivo && !motivo) setMotivo('Sem resposta do cliente');
-                    if (!observacoes) setObservacoes('Cliente parou de responder / sem retorno.');
+                    // Não polui o motivo nem insere texto automático em observações
+                    if (motivo === 'Impedimento técnico / Não resolvido') {
+                      setMotivo('');
+                      setBuscaMotivo('');
+                    }
                   }}
-                  className={`p-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+                  className={`p-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
                     statusResolucao === 'sem_resposta'
                       ? 'bg-amber-500/15 border-amber-500/40 text-amber-800 dark:text-amber-300 font-bold shadow-xs'
                       : 'border-transparent text-slate-600 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5'
@@ -434,9 +444,12 @@ export default function SupportCompletionModal({
                   type="button"
                   onClick={() => {
                     setStatusResolucao('nao_resolvido');
-                    if (!buscaMotivo && !motivo) setMotivo('Impedimento técnico / Não resolvido');
+                    if (motivo === 'Sem resposta do cliente') {
+                      setMotivo('');
+                      setBuscaMotivo('');
+                    }
                   }}
-                  className={`p-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+                  className={`p-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
                     statusResolucao === 'nao_resolvido'
                       ? 'bg-red-500/15 border-red-500/40 text-red-800 dark:text-red-300 font-bold shadow-xs'
                       : 'border-transparent text-slate-600 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5'
@@ -733,7 +746,18 @@ export default function SupportCompletionModal({
                   )}
                 </div>
 
-                {/* Seção 2: Motivo Diagnosticado - SEM NENHUM PRÉ-DEFINIDO (CAMPO LIMPO) */}
+                {/* Seção 2: Motivo Diagnosticado - Exibido para Resolvido e Não Resolvido */}
+                {statusResolucao === 'sem_resposta' ? (
+                  <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-900 dark:text-amber-200 space-y-1 shadow-2xs">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <span className="text-sm">⏳</span>
+                      <span>Encerramento por falta de retorno</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-zinc-400 leading-relaxed">
+                      O chamado será concluído com o desfecho <strong>Sem resposta do cliente</strong>. O preenchimento de motivo técnico diagnosticado não se aplica a este desfecho.
+                    </p>
+                  </div>
+                ) : (
                 <div ref={motivoRef} className="space-y-1.5 relative">
                   <div className="flex items-center justify-between pl-1">
                     <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">

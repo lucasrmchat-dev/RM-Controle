@@ -1584,6 +1584,9 @@ export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim 
     });
   }
 
+  // Guardamos todos os chamados finalizados (sem corte do período mensal) para que a evolução dos 7 dias da semana nunca zere na virada do mês
+  const todosFinalizadosSemana = chamados.filter((c) => c.status === 'finalizado' || c.status === 'concluido');
+
   // Filtro de período dinâmico
   if (periodo === 'hoje') {
     const hojeStr = hoje.toISOString().split('T')[0];
@@ -1773,7 +1776,8 @@ export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim 
     const dStr = `${y}-${m}-${day}`;
     const diaNome = diasSemana[d.getDay()];
 
-    const count = finalizados.filter((c) => {
+    // Usa todosFinalizadosSemana para manter os dias da semana anteriores visíveis mesmo quando o filtro estiver no 'Mês Atual'
+    const count = todosFinalizadosSemana.filter((c) => {
       const dataChamado = (c.finalizado_em || c.iniciado_em || c.created_at || '').split('T')[0];
       return dataChamado === dStr;
     }).length;
