@@ -29,7 +29,8 @@ import {
   atualizarEtiquetasChamado,
   adiarAlertaChamado,
   cancelarAdiarAlertaChamado,
-  marcarChamadoEscalonado
+  marcarChamadoEscalonado,
+  getConfiguracoesSuporte
 } from '@/lib/storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { stopSupportNotificationLoop, playNotificationTone } from '@/lib/audioNotifications';
