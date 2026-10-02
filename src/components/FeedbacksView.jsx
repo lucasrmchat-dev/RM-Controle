@@ -21,7 +21,8 @@ import {
   ShieldCheckIcon,
   LightBulbIcon,
   ViewGridIcon,
-  ViewListIcon
+  ViewListIcon,
+  BugIcon
 } from './Icons';
 import { showToast } from './ToastNotification';
 
@@ -326,9 +327,9 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
         <div className="flex items-center gap-1.5 overflow-x-auto text-xs flex-wrap">
           <span className="text-slate-400 font-semibold px-2">Visão:</span>
           {[
-            { id: 'todas', label: 'Todos os Relatos', icon: '📋' },
-            { id: 'ideias', label: 'Ideias Futuras (Roadmap)', icon: '💡' },
-            { id: 'bugs', label: 'Bugs & Falhas', icon: '🐛' },
+            { id: 'todas', label: 'Todos os Relatos', icon: <SparklesIcon className="w-3.5 h-3.5" /> },
+            { id: 'ideias', label: 'Ideias Futuras (Roadmap)', icon: <LightBulbIcon className="w-3.5 h-3.5" /> },
+            { id: 'bugs', label: 'Bugs & Falhas', icon: <BugIcon className="w-3.5 h-3.5" /> },
           ].map((cat) => (
             <button
               key={cat.id}
@@ -471,10 +472,10 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
                                 }}
                                 className="px-2 py-1 rounded-lg bg-black/[0.03] dark:bg-white/[0.06] border border-black/[0.08] dark:border-white/[0.1] text-[10px] font-bold text-slate-700 dark:text-zinc-200 cursor-pointer focus:outline-none"
                               >
-                                <option value="em_analise">🟡 Triagem</option>
-                                <option value="em_correcao">🔵 Em Andamento</option>
-                                <option value="no_roadmap">🟣 No Roadmap</option>
-                                <option value="resolvido">🟢 Concluído</option>
+                                <option value="em_analise">Triagem</option>
+                                <option value="em_correcao">Em Andamento</option>
+                                <option value="no_roadmap">No Roadmap</option>
+                                <option value="resolvido">Concluído</option>
                               </select>
 
                               <div className="flex items-center gap-1 ml-auto">
@@ -523,7 +524,7 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
         </div>
       ) : feedbacksFiltrados.length === 0 ? (
         <div className="p-12 text-center rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-2">
-          <span className="text-3xl">✨</span>
+          <SparklesIcon className="w-8 h-8 text-[#4d7c0f] dark:text-[#84cc16] mx-auto opacity-70" />
           <h3 className="text-sm font-bold text-[#1d1d1f] dark:text-white">Nenhum feedback encontrado</h3>
           <p className="text-xs text-slate-400 max-w-sm mx-auto">
             Utilize o botão acima para reportar uma falha, anexar uma captura de tela ou sugerir uma melhoria para a plataforma.
@@ -783,10 +784,10 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
                             onChange={(e) => setTipo(e.target.value)}
                             className="w-full px-3 py-2 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white cursor-pointer"
                           >
-                            <option value="bug">🐛 Erro / Bug</option>
-                            <option value="melhoria">🎨 Melhoria Visual / UX</option>
-                            <option value="sugestao">💡 Sugestão / Ideia</option>
-                            <option value="outro">💬 Outro</option>
+                            <option value="bug">Erro / Bug</option>
+                            <option value="melhoria">Melhoria Visual / UX</option>
+                            <option value="sugestao">Sugestão / Nova Ideia</option>
+                            <option value="outro">Outro</option>
                           </select>
                         </div>
 

@@ -1078,6 +1078,48 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
               })}
             </div>
           </div>
+
+          {/* Card: Escalonamento por SLA de Atendimento */}
+          <div className="p-6 rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] shadow-xs space-y-4">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 font-mono">
+                Monitoramento Operacional & SLA
+              </span>
+              <h3 className="text-lg font-bold text-[#1d1d1f] dark:text-white mt-0.5">
+                Escalonamento por SLA de Atendimento
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
+                Define o tempo máximo que um chamado atribuído a um atendente pode permanecer aberto antes de disparar alerta para o gestor.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap pt-1">
+              {[10, 15, 30, 45, 60].map((mins) => {
+                const isSelected = (configSuporte.tempo_sla_minutos || 15) === mins;
+                return (
+                  <button
+                    key={mins}
+                    type="button"
+                    onClick={() => {
+                      const novo = setConfiguracoesSuporte({
+                        ...configSuporte,
+                        tempo_sla_minutos: mins,
+                      });
+                      setConfigSuporteState(novo);
+                      showToast(`SLA de atendimento configurado para ${mins} minutos.`, 'success');
+                    }}
+                    className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+                      isSelected
+                        ? 'border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-300 font-bold shadow-xs'
+                        : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.05]'
+                    }`}
+                  >
+                    <span>{mins} minutos {mins === 15 ? '(Padrão)' : ''}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </motion.div>
       )}
 

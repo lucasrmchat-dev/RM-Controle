@@ -3803,18 +3803,32 @@ export async function fetchFeedbacks() {
 
       if (!error && Array.isArray(data)) {
         const local = getLocalData('feedbacks_lista', []);
-        const localMap = new Map((local || []).map((f) => [f.id, f]));
+        const localById = new Map((local || []).map((f) => [f.id, f]));
+        const localByTitle = new Map((local || []).map((f) => [(f.titulo || '').trim().toLowerCase(), f]));
 
         const merged = data.map((cloudItem) => {
-          const localItem = localMap.get(cloudItem.id);
-          if (localItem && localItem.updated_at && (!cloudItem.updated_at || new Date(localItem.updated_at) > new Date(cloudItem.updated_at))) {
-            return { ...cloudItem, ...localItem };
+          const tKey = (cloudItem.titulo || '').trim().toLowerCase();
+          const localItem = localById.get(cloudItem.id) || localByTitle.get(tKey);
+
+          if (localItem) {
+            // Robustez total: preserva o status local definido pelo usuário para que nunca reverta para triagem
+            const statusFinal = localItem.status || cloudItem.status || 'em_analise';
+            return {
+              ...cloudItem,
+              ...localItem,
+              id: cloudItem.id, // Unifica com o ID oficial do Supabase
+              status: statusFinal,
+              updated_at: localItem.updated_at || cloudItem.created_at,
+            };
           }
           return cloudItem;
         });
 
+        const cloudTitles = new Set(data.map((d) => (d.titulo || '').trim().toLowerCase()));
         const cloudIds = new Set(data.map((d) => d.id));
-        const onlyLocal = (local || []).filter((f) => f.id && !cloudIds.has(f.id));
+        const onlyLocal = (local || []).filter(
+          (f) => f.id && !cloudIds.has(f.id) && !cloudTitles.has((f.titulo || '').trim().toLowerCase())
+        );
 
         const finalLista = [...merged, ...onlyLocal];
         setLocalData('feedbacks_lista', finalLista);
@@ -3879,6 +3893,7 @@ export async function createFeedback({
       const { data: dbSaved } = await supabase.from('feedbacks').insert([payload]).select().maybeSingle();
       if (dbSaved?.id) {
         novoFeedback.id = dbSaved.id;
+        setLocalData('feedbacks_lista', lista);
       }
     } catch (e) {
       console.warn('Aviso ao salvar feedback no Supabase:', e);
@@ -3905,6 +3920,8 @@ export async function updateFeedbackStatus(feedbackId, newStatus, userEmail = 'a
   const feedbacks = getLocalData('feedbacks_lista', []);
   const idx = feedbacks.findIndex((f) => f.id === feedbackId);
   const agora = new Date().toISOString();
+  let fbItem = null;
+
   if (idx !== -1) {
     feedbacks[idx] = {
       ...feedbacks[idx],
@@ -3912,19 +3929,27 @@ export async function updateFeedbackStatus(feedbackId, newStatus, userEmail = 'a
       updated_at: agora,
       ...(newStatus === 'resolvido' ? { finalizado_em: agora } : {}),
     };
+    fbItem = feedbacks[idx];
     setLocalData('feedbacks_lista', feedbacks);
   }
 
   if (isSupabaseConfigured && supabase) {
     try {
-      await supabase
+      // 1. Tenta atualizar pelo ID
+      const { error: err1 } = await supabase
         .from('feedbacks')
-        .update({ 
-          status: newStatus, 
-          updated_at: agora,
-          ...(newStatus === 'resolvido' ? { finalizado_em: agora } : {})
-        })
+        .update({ status: newStatus })
         .eq('id', feedbackId);
+
+      // 2. Se falhar ou for ID local ('fb_...'), sincroniza também pelo título para garantir persistência na nuvem
+      if (err1 || (feedbackId && feedbackId.startsWith('fb_'))) {
+        if (fbItem?.titulo) {
+          await supabase
+            .from('feedbacks')
+            .update({ status: newStatus })
+            .eq('titulo', fbItem.titulo);
+        }
+      }
     } catch (e) {
       console.warn('Aviso ao atualizar status do feedback no Supabase:', e);
     }

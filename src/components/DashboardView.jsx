@@ -85,27 +85,32 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [itensPorPagina, setItensPorPagina] = useState(5);
 
-  // Auto-collapse no scroll e alternância manual dos Indicadores Principais com Motion Apple
-  const [indicadoresRecolhidos, setIndicadoresRecolhidos] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return window.innerWidth < 1536;
-    }
-    return true;
-  });
-  const lastScrollYRef = useRef(0);
+  // Métricas ficam visíveis por 5 segundos ao abrir o Dashboard e depois recolhem suavemente
+  const [indicadoresRecolhidos, setIndicadoresRecolhidos] = useState(false);
+  const autoCollapseTimerRef = useRef(null);
 
   useEffect(() => {
+    // Permanece 5 segundos mostrando os indicadores e depois recolhe suavemente
+    autoCollapseTimerRef.current = setTimeout(() => {
+      setIndicadoresRecolhidos(true);
+    }, 5000);
+
     const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      if (currentScrollY > 140 && currentScrollY > lastScrollYRef.current + 8) {
+      // Se rolar a tela para baixo, recolhe imediatamente
+      if (window.scrollY > 20) {
+        if (autoCollapseTimerRef.current) {
+          clearTimeout(autoCollapseTimerRef.current);
+          autoCollapseTimerRef.current = null;
+        }
         setIndicadoresRecolhidos(true);
-      } else if (currentScrollY < 60) {
-        setIndicadoresRecolhidos(false);
       }
-      lastScrollYRef.current = currentScrollY;
     };
+
     window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    return () => {
+      if (autoCollapseTimerRef.current) clearTimeout(autoCollapseTimerRef.current);
+      window.removeEventListener('scroll', handleScroll);
+    };
   }, []);
 
   const totalPaginas = Math.max(1, Math.ceil((chamadosRecentes?.length || 0) / itensPorPagina));

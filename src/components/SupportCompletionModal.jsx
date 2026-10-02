@@ -16,7 +16,7 @@ import {
   removerAcentos,
   addSolucaoSuporte
 } from '@/lib/storage';
-import { XMarkIcon, CheckIcon, SparklesIcon, HourglassIcon, TrashIcon, ClockIcon } from './Icons';
+import { XMarkIcon, CheckIcon, SparklesIcon, HourglassIcon, TrashIcon, ClockIcon, CheckCircleIcon, ClockPauseIcon, AlertCircleIcon } from './Icons';
 import { showToast } from './ToastNotification';
 
 export default function SupportCompletionModal({
@@ -420,7 +420,8 @@ export default function SupportCompletionModal({
                       : 'border-transparent text-slate-600 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5'
                   }`}
                 >
-                  <span>✅ Resolvido</span>
+                  <CheckCircleIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                  <span>Resolvido</span>
                 </button>
                 <button
                   type="button"
@@ -438,7 +439,8 @@ export default function SupportCompletionModal({
                       : 'border-transparent text-slate-600 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5'
                   }`}
                 >
-                  <span>⏳ Sem Resposta</span>
+                  <ClockPauseIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                  <span>Sem Resposta</span>
                 </button>
                 <button
                   type="button"
@@ -455,7 +457,8 @@ export default function SupportCompletionModal({
                       : 'border-transparent text-slate-600 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5'
                   }`}
                 >
-                  <span>❌ Não Resolvido</span>
+                  <AlertCircleIcon className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />
+                  <span>Não Resolvido</span>
                 </button>
               </div>
             </div>
@@ -750,7 +753,7 @@ export default function SupportCompletionModal({
                 {statusResolucao === 'sem_resposta' ? (
                   <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-900 dark:text-amber-200 space-y-1 shadow-2xs">
                     <div className="flex items-center gap-1.5 font-bold">
-                      <span className="text-sm">⏳</span>
+                      <ClockPauseIcon className="w-4 h-4 text-amber-600 flex-shrink-0" />
                       <span>Encerramento por falta de retorno</span>
                     </div>
                     <p className="text-[11px] text-slate-600 dark:text-zinc-400 leading-relaxed">
@@ -971,7 +974,7 @@ export default function SupportCompletionModal({
                       <div className="p-3 rounded-2xl bg-[#4d7c0f]/10 dark:bg-[#84cc16]/10 border border-[#4d7c0f]/20 dark:border-[#84cc16]/20 flex items-start gap-2.5">
                         <SparklesIcon className="w-4 h-4 text-[#4d7c0f] dark:text-[#84cc16] mt-0.5 flex-shrink-0" />
                         <p className="text-[11px] text-[#4d7c0f] dark:text-[#84cc16] leading-snug">
-                          💡 Esta solução será automaticamente catalogada no <strong>Banco de Soluções Geral</strong> para acelerar futuros atendimentos.
+                          Esta solução será automaticamente catalogada no <strong>Banco de Soluções Geral</strong> para acelerar futuros atendimentos.
                         </p>
                       </div>
                     </motion.div>
