@@ -204,10 +204,64 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
   // Categorias de Demandas
   const [categoriasDisponiveis, setCategoriasDisponiveis] = useState([]);
-  const [filtroCategoria, setFiltroCategoria] = useState('todas');
+  // Multi-seleção de departamentos com persistência de padrão do usuário
+  const [filtrosDepartamentos, setFiltrosDepartamentos] = useState(() => {
+    if (typeof window !== 'undefined' && userEmail) {
+      try {
+        const salvos = localStorage.getItem(`rm_padrao_departamentos_${userEmail}`);
+        if (salvos) return JSON.parse(salvos);
+      } catch (e) {}
+    }
+    return [];
+  });
   const [filtroDeptDropdownAberto, setFiltroDeptDropdownAberto] = useState(false);
   const filtroDeptRef = useRef(null);
-  const [filtroTecnico, setFiltroTecnico] = useState('todos');
+
+  // Filtro de Técnico com persistência de padrão do usuário
+  const [filtroTecnico, setFiltroTecnico] = useState(() => {
+    if (typeof window !== 'undefined' && userEmail) {
+      try {
+        const salvo = localStorage.getItem(`rm_padrao_tecnico_${userEmail}`);
+        if (salvo) return salvo;
+      } catch (e) {}
+    }
+    return 'todos';
+  });
+
+  // Padrões salvos do usuário para detecção reativa de alterações
+  const [padraoSalvoDepartamentos, setPadraoSalvoDepartamentos] = useState(() => {
+    if (typeof window !== 'undefined' && userEmail) {
+      try {
+        return JSON.parse(localStorage.getItem(`rm_padrao_departamentos_${userEmail}`) || '[]');
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  const [padraoSalvoTecnico, setPadraoSalvoTecnico] = useState(() => {
+    if (typeof window !== 'undefined' && userEmail) {
+      return localStorage.getItem(`rm_padrao_tecnico_${userEmail}`) || 'todos';
+    }
+    return 'todos';
+  });
+
+  const isFiltroDiferenteDoPadrao = useMemo(() => {
+    const depsIguais =
+      filtrosDepartamentos.length === padraoSalvoDepartamentos.length &&
+      filtrosDepartamentos.every((d) => padraoSalvoDepartamentos.includes(d));
+    const tecIgual = filtroTecnico === padraoSalvoTecnico;
+    return !depsIguais || !tecIgual;
+  }, [filtrosDepartamentos, padraoSalvoDepartamentos, filtroTecnico, padraoSalvoTecnico]);
+
+  const handleSalvarComoPadrao = () => {
+    if (typeof window !== 'undefined' && userEmail) {
+      localStorage.setItem(`rm_padrao_departamentos_${userEmail}`, JSON.stringify(filtrosDepartamentos));
+      localStorage.setItem(`rm_padrao_tecnico_${userEmail}`, filtroTecnico);
+      setPadraoSalvoDepartamentos([...filtrosDepartamentos]);
+      setPadraoSalvoTecnico(filtroTecnico);
+      showToast('Filtros de departamentos e operador salvos como seu padrão!', 'success');
+    }
+  };
   const [novasCategoriasModal, setNovasCategoriasModal] = useState(['Suporte']);
   const [novasEtiquetasModal, setNovasEtiquetasModal] = useState([]);
   const [inputEtiqueta, setInputEtiqueta] = useState('');
@@ -843,7 +897,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
         return true;
       })
       .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-  }, [chamados, ehAdmin, depsBloqueados, filtroCategoria, filtroEtiqueta, busca]);
+  }, [chamados, ehAdmin, depsBloqueados, filtrosDepartamentos, filtroEtiqueta, busca]);
 
   // Lista Filtrada para as Visualizações em Cards e Lista (tabela)
   const chamadosFiltrados = useMemo(() => {
@@ -921,7 +975,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       if (b.status === 'aguardando_visualizacao' && a.status !== 'aguardando_visualizacao') return 1;
       return new Date(b.created_at || 0) - new Date(a.created_at || 0);
     });
-  }, [chamados, filtroStatus, filtroCategoria, filtroTecnico, targetTec, filtroEtiqueta, busca, ehAdmin, depsBloqueados]);
+  }, [chamados, filtroStatus, filtrosDepartamentos, filtroTecnico, targetTec, filtroEtiqueta, busca, ehAdmin, depsBloqueados]);
 
   // Ações de Chamado
   const handleAceitarSuporte = async (chamado) => {
@@ -1454,21 +1508,25 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
               
               {/* Filtros em Popovers Apple: Departamentos & Responsável (Zero Scroll Horizontal) */}
               <div className="flex items-center gap-2.5 flex-wrap">
-                {/* 1. Popover de Departamentos */}
+                {/* 1. Popover de Departamentos (Multi-seleção com Checkboxes) */}
                 <div ref={filtroDeptRef} className="relative z-40">
                   <button
                     type="button"
                     onClick={() => setFiltroDeptDropdownAberto(!filtroDeptDropdownAberto)}
                     className={`px-3.5 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-xs ${
-                      filtroCategoria !== 'todas'
+                      filtrosDepartamentos.length > 0
                         ? 'border-[#4d7c0f]/50 bg-[#4d7c0f]/10 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
                         : 'border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-slate-700 dark:text-zinc-200 hover:border-black/20'
                     }`}
                   >
                     <LayersIcon className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Departamento:</span>
+                    <span>Departamentos:</span>
                     <span className="font-bold text-[#1d1d1f] dark:text-white">
-                      {filtroCategoria === 'todas' ? 'Todos os Departamentos' : filtroCategoria}
+                      {filtrosDepartamentos.length === 0
+                        ? 'Todos'
+                        : filtrosDepartamentos.length === 1
+                        ? filtrosDepartamentos[0]
+                        : `${filtrosDepartamentos.length} selecionados`}
                     </span>
                     <span className="text-[10px] text-slate-400">▾</span>
                   </button>
@@ -1478,18 +1536,27 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                       className="absolute top-full left-0 mt-1.5 w-72 rounded-2xl bg-white dark:bg-[#1c1c20] border border-black/[0.1] dark:border-white/[0.15] shadow-2xl p-2 z-50 space-y-1 text-xs"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono border-b border-black/[0.05] dark:border-white/[0.06] mb-1">
-                        Filtrar por Departamento
+                      <div className="flex items-center justify-between px-2.5 py-1 border-b border-black/[0.05] dark:border-white/[0.06] mb-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+                          Departamentos
+                        </span>
+                        {filtrosDepartamentos.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setFiltrosDepartamentos([])}
+                            className="text-[10px] text-red-500 hover:underline cursor-pointer font-semibold"
+                          >
+                            Limpar
+                          </button>
+                        )}
                       </div>
 
+                      {/* Opção Todos */}
                       <button
                         type="button"
-                        onClick={() => {
-                          setFiltroCategoria('todas');
-                          setFiltroDeptDropdownAberto(false);
-                        }}
-                        className={`w-full px-2.5 py-2 rounded-xl text-left flex items-center justify-between transition-colors cursor-pointer ${
-                          filtroCategoria === 'todas'
+                        onClick={() => setFiltrosDepartamentos([])}
+                        className={`w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between transition-colors cursor-pointer ${
+                          filtrosDepartamentos.length === 0
                             ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
                             : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
                         }`}
@@ -1498,64 +1565,91 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           <span className="w-2 h-2 rounded-full bg-slate-400"></span>
                           <span>Todos os Departamentos</span>
                         </div>
-                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-black/[0.05] dark:bg-white/[0.08]">
-                          {chamados.filter(c => (c.status === 'em_andamento' || c.status === 'aguardando_visualizacao' || c.status === 'pendente') && !c.finalizado_em && c.status !== 'concluido' && c.status !== 'finalizado').length}
-                        </span>
+                        {filtrosDepartamentos.length === 0 && <CheckIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16]" />}
                       </button>
 
-                      {categoriasDisponiveis.map((cat) => {
-                        const countNoDept = chamados.filter((c) => {
-                          if (c.status === 'concluido' || c.status === 'finalizado' || c.finalizado_em) return false;
-                          if (c.status !== 'em_andamento' && c.status !== 'aguardando_visualizacao' && c.status !== 'pendente') return false;
-                          const cats = Array.isArray(c.categorias) && c.categorias.length > 0 ? c.categorias : ['Suporte'];
-                          return cats.some((d) => (d || '').toLowerCase().trim() === cat.toLowerCase().trim());
-                        }).length;
+                      {/* Lista com Checkboxes */}
+                      <div className="max-h-56 overflow-y-auto space-y-0.5 scrollbar-thin">
+                        {categoriasDisponiveis.map((cat) => {
+                          const countNoDept = chamados.filter((c) => {
+                            if (c.status === 'concluido' || c.status === 'finalizado' || c.finalizado_em) return false;
+                            if (c.status !== 'em_andamento' && c.status !== 'aguardando_visualizacao' && c.status !== 'pendente') return false;
+                            const cats = Array.isArray(c.categorias) && c.categorias.length > 0 ? c.categorias : ['Suporte'];
+                            return cats.some((d) => (d || '').toLowerCase().trim() === cat.toLowerCase().trim());
+                          }).length;
 
-                        const isSelected = filtroCategoria === cat;
-                        const n = (cat || '').toLowerCase();
-                        const dotColor = n.includes('suporte') ? 'bg-blue-500' : n.includes('automacao') || n.includes('automação') ? 'bg-purple-500' : n.includes('financeiro') ? 'bg-emerald-500' : n.includes('implantacao') || n.includes('implantação') ? 'bg-amber-500' : 'bg-slate-400';
+                          const isSelected = filtrosDepartamentos.includes(cat);
+                          const n = (cat || '').toLowerCase();
+                          const dotColor = n.includes('suporte') ? 'bg-blue-500' : n.includes('automacao') || n.includes('automação') ? 'bg-purple-500' : n.includes('financeiro') ? 'bg-emerald-500' : n.includes('implantacao') || n.includes('implantação') ? 'bg-amber-500' : 'bg-slate-400';
 
-                        return (
-                          <button
-                            key={cat}
-                            type="button"
-                            onClick={() => {
-                              setFiltroCategoria(cat);
-                              setFiltroDeptDropdownAberto(false);
-                            }}
-                            className={`w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between transition-colors cursor-pointer ${
-                              isSelected
-                                ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
-                                : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className={`w-2 h-2 rounded-full ${dotColor}`}></span>
-                              <span>{cat}</span>
-                            </div>
-                            {countNoDept > 0 && (
-                              <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-black/[0.05] dark:bg-white/[0.08] text-slate-600 dark:text-zinc-300">
-                                {countNoDept}
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
+                          return (
+                            <button
+                              key={cat}
+                              type="button"
+                              onClick={() => {
+                                setFiltrosDepartamentos((prev) =>
+                                  prev.includes(cat) ? prev.filter((d) => d !== cat) : [...prev, cat]
+                                );
+                              }}
+                              className={`w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between transition-colors cursor-pointer ${
+                                isSelected
+                                  ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
+                                  : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  readOnly
+                                  className="rounded text-[#4d7c0f] pointer-events-none"
+                                />
+                                <span className={`w-2 h-2 rounded-full ${dotColor}`}></span>
+                                <span>{cat}</span>
+                              </div>
+                              {countNoDept > 0 && (
+                                <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-black/[0.05] dark:bg-white/[0.08] text-slate-600 dark:text-zinc-300">
+                                  {countNoDept}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
 
-                {/* Chip Ativo de Departamento para Limpeza Rápida */}
-                {filtroCategoria !== 'todas' && (
+                {/* Chips Ativos de Departamentos Selecionados */}
+                {filtrosDepartamentos.map((dept) => (
                   <button
+                    key={dept}
                     type="button"
-                    onClick={() => setFiltroCategoria('todas')}
+                    onClick={() => setFiltrosDepartamentos((prev) => prev.filter((d) => d !== dept))}
                     className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] text-xs font-bold border border-[#4d7c0f]/20 hover:bg-[#4d7c0f]/20 transition-all cursor-pointer shadow-2xs"
                   >
-                    <span>{filtroCategoria}</span>
+                    <span>{dept}</span>
                     <XMarkIcon className="w-3 h-3" />
                   </button>
-                )}
+                ))}
+
+                {/* Botão com Motion Design: Definir filtros como padrão do usuário */}
+                <AnimatePresence>
+                  {isFiltroDiferenteDoPadrao && (
+                    <motion.button
+                      type="button"
+                      initial={{ opacity: 0, scale: 0.9, y: -2 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, y: -2 }}
+                      onClick={handleSalvarComoPadrao}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs font-bold hover:bg-amber-500/20 transition-all cursor-pointer shadow-xs"
+                      title="Salvar esta combinação de departamentos e operador como seu padrão inicial"
+                    >
+                      <SparklesIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                      <span>Definir como padrão</span>
+                    </motion.button>
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* Filtro por Colaborador Responsável (Apple-Grade Custom Popover) */}
@@ -2529,11 +2623,23 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           {sortFilaCol === 'empresa' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
                         </div>
                       </th>
-                      <th className="px-3 py-3 select-none w-[110px]">
-                        <span>Setor</span>
+                      <th className="px-3 py-3 cursor-pointer select-none w-[130px]" onClick={() => {
+                        if (sortFilaCol === 'departamento') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
+                        else { setSortFilaCol('departamento'); setSortFilaDir('asc'); }
+                      }}>
+                        <div className="flex items-center gap-1">
+                          <span>Departamento</span>
+                          {sortFilaCol === 'departamento' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
+                        </div>
                       </th>
-                      <th className="hidden xl:table-cell px-3 py-3 select-none w-[100px]">
-                        <span>Etiquetas</span>
+                      <th className="hidden xl:table-cell px-3 py-3 cursor-pointer select-none w-[120px]" onClick={() => {
+                        if (sortFilaCol === 'etiqueta') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
+                        else { setSortFilaCol('etiqueta'); setSortFilaDir('asc'); }
+                      }}>
+                        <div className="flex items-center gap-1">
+                          <span>Etiquetas</span>
+                          {sortFilaCol === 'etiqueta' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
+                        </div>
                       </th>
                       <th className="hidden sm:table-cell px-3 py-3 cursor-pointer select-none min-w-[130px]" onClick={() => {
                         if (sortFilaCol === 'solicitante') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -2569,6 +2675,16 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                         const sA = a.solicitante_nome || a.solicitante || '';
                         const sB = b.solicitante_nome || b.solicitante || '';
                         return sortFilaDir === 'asc' ? sA.localeCompare(sB) : sB.localeCompare(sA);
+                      }
+                      if (sortFilaCol === 'departamento') {
+                        const dA = (Array.isArray(a.categorias) && a.categorias.length > 0 ? a.categorias[0] : 'Suporte') || '';
+                        const dB = (Array.isArray(b.categorias) && b.categorias.length > 0 ? b.categorias[0] : 'Suporte') || '';
+                        return sortFilaDir === 'asc' ? dA.localeCompare(dB) : dB.localeCompare(dA);
+                      }
+                      if (sortFilaCol === 'etiqueta') {
+                        const eA = (Array.isArray(a.etiquetas) ? a.etiquetas.join(',') : '') || '';
+                        const eB = (Array.isArray(b.etiquetas) ? b.etiquetas.join(',') : '') || '';
+                        return sortFilaDir === 'asc' ? eA.localeCompare(eB) : eB.localeCompare(eA);
                       }
                       if (sortFilaCol === 'cronometro') {
                         const tA = a.status === 'em_andamento' ? (a.tempo_ativo_segundos || 0) : (a.tempo_espera_segundos || 0);
@@ -2770,13 +2886,43 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                       </div>
                                     )}
 
-                                    {/* Indicador de Escalonamento SLA Configurado */}
-                                    {ch.tecnico_email && !ch.is_fila_geral && (
-                                      <div className="text-[11px] text-amber-700 dark:text-amber-400 font-mono flex items-center gap-1.5 pt-0.5">
-                                        <ClockIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                                        <span>Escalonamento SLA: notifica gestor em {ch.tempo_escalonamento_minutos || 15} min se não concluído por {getNomeTecnico(ch.tecnico_email)}</span>
-                                      </div>
-                                    )}
+                                    {/* Indicador Dinâmico de Tempo Operacional e Nível de Saúde (Saudável, Intermediário, Crítico) */}
+                                    {(() => {
+                                      const cfg = getConfiguracoesSuporte();
+                                      const tSaudavel = cfg.tempo_saudavel_minutos || 10;
+                                      const tIntermediario = cfg.tempo_intermediario_minutos || 20;
+                                      const tCritico = cfg.tempo_critico_minutos || 30;
+
+                                      const minPassados = isEmAndamento
+                                        ? Math.floor((ch.tempo_ativo_segundos || 0) / 60)
+                                        : Math.floor((ch.tempo_espera_segundos || 0) / 60);
+
+                                      const isCritico = minPassados >= tCritico;
+                                      const isIntermediario = !isCritico && minPassados >= tSaudavel;
+
+                                      const badgeColor = isCritico
+                                        ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30'
+                                        : isIntermediario
+                                        ? 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/30'
+                                        : 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/25';
+
+                                      const dotColor = isCritico ? 'bg-rose-500 animate-pulse' : isIntermediario ? 'bg-amber-500' : 'bg-emerald-500';
+                                      const rotuloNivel = isCritico ? 'Crítico (Alerta)' : isIntermediario ? 'Atenção / Intermediário' : 'Saudável';
+                                      const tempoFormatado = isEmAndamento ? calcularTempoAtivo(ch) : calcularTempoEspera(ch);
+
+                                      return (
+                                        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-mono font-semibold ${badgeColor}`}>
+                                          <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+                                          <ClockIcon className="w-3.5 h-3.5" />
+                                          <span>
+                                            {isEmAndamento ? 'Em Atendimento:' : 'Tempo em Espera:'} <strong>{tempoFormatado}</strong>
+                                          </span>
+                                          <span className="text-[10px] font-bold uppercase tracking-wider opacity-80 border-l border-current/20 pl-2">
+                                            {rotuloNivel}
+                                          </span>
+                                        </div>
+                                      );
+                                    })()}
 
                                     {/* Gestão Interativa de Etiquetas (Editar Etiquetas da Demanda) */}
                                     <div className="pt-2.5 border-t border-black/[0.04] dark:border-white/[0.05] space-y-1.5">

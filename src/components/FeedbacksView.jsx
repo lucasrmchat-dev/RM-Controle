@@ -53,12 +53,23 @@ export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
       )
     );
 
+    // 2. Grava imediatamente no mapa blindado permanente de overrides para jamais reverter
+    try {
+      const overrides = JSON.parse(localStorage.getItem('rm_feedbacks_status_override') || '{}');
+      overrides[fbId] = novoStatus;
+      const targetFb = feedbacks.find((f) => f.id === fbId);
+      if (targetFb?.titulo) {
+        overrides[targetFb.titulo.trim().toLowerCase()] = novoStatus;
+      }
+      localStorage.setItem('rm_feedbacks_status_override', JSON.stringify(overrides));
+    } catch (e) {}
+
     try {
       await updateFeedbackStatus(fbId, novoStatus, userEmail);
-      showToast(`Status atualizado para "${novoStatus.replace('_', ' ')}"!`, 'success');
+      const rotulo = novoStatus === 'resolvido' ? 'Concluído' : novoStatus === 'no_roadmap' ? 'No Roadmap' : novoStatus === 'em_correcao' ? 'Em Correção' : 'Triagem';
+      showToast(`Feedback movido para "${rotulo}"!`, 'success');
     } catch (err) {
       showToast(err.message || 'Erro ao atualizar feedback.', 'error');
-      carregarDados();
     }
   };
 
@@ -454,7 +465,7 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
                                   ? 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/25'
                                   : 'bg-red-500/15 text-red-800 dark:text-red-300 border border-red-500/25'
                               }`}>
-                                {isIdeia ? '💡 Ideia' : '🐛 Bug'}
+                                {isIdeia ? 'Ideia' : 'Bug'}
                               </span>
                               <span className="text-[9px] font-mono text-slate-400">{fb.modulo_afetado || 'Geral'}</span>
                             </div>
@@ -599,7 +610,7 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold">
-                          Ampliar 🔍
+                          Ampliar Evidência
                         </div>
                       </div>
                     </div>
@@ -614,10 +625,10 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
                       onChange={(e) => handleMudarStatusFeedback(fb.id, e.target.value)}
                       className="px-2.5 py-1 rounded-lg bg-black/[0.03] dark:bg-white/[0.06] border border-black/[0.08] dark:border-white/[0.1] text-[11px] font-bold text-slate-700 dark:text-zinc-200 cursor-pointer focus:outline-none"
                     >
-                      <option value="em_analise">🟡 Em Análise / Triagem</option>
-                      <option value="em_correcao">🔵 Em Correção / Progresso</option>
-                      <option value="no_roadmap">🟣 No Roadmap Futuro</option>
-                      <option value="resolvido">🟢 Concluído / Implementado</option>
+                      <option value="em_analise">Em Análise / Triagem</option>
+                      <option value="em_correcao">Em Correção / Andamento</option>
+                      <option value="no_roadmap">No Roadmap Futuro</option>
+                      <option value="resolvido">Concluído / Implementado</option>
                     </select>
 
                     {fb.status !== 'resolvido' && (

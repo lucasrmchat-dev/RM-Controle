@@ -494,32 +494,72 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                     {[
                       { id: 'departamentos', titulo: 'Demandas dos meus Departamentos', desc: 'Toca quando a demanda pertencer a qualquer um dos departamentos atribuídos ao seu perfil' },
                       { id: 'atribuidos', titulo: 'Apenas Demandas Atribuídas Diretamente a Mim', desc: 'Toca exclusivamente quando a demanda estiver direcionada ao seu e-mail' },
+                      { id: 'selecionados', titulo: 'Departamentos Selecionados Específicos', desc: 'Permite selecionar exatamente quais departamentos monitorar (ideal para gestores)' },
                     ].map((item) => (
-                      <label
-                        key={item.id}
-                        onClick={() => setAudioState({ ...audioConfig, escopo: item.id })}
-                        className={`p-3.5 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
-                          audioConfig.escopo === item.id
-                            ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10'
-                            : 'border-black/[0.06] dark:border-white/[0.08] hover:border-black/20'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="audio_escopo"
-                          checked={audioConfig.escopo === item.id}
-                          onChange={() => setAudioState({ ...audioConfig, escopo: item.id })}
-                          className="mt-0.5 text-[#4d7c0f] focus:ring-[#4d7c0f]"
-                        />
-                        <div>
-                          <span className="text-xs font-bold text-[#1d1d1f] dark:text-white block">
-                            {item.titulo}
-                          </span>
-                          <span className="text-[11px] text-slate-500 dark:text-zinc-400 leading-tight block mt-0.5">
-                            {item.desc}
-                          </span>
-                        </div>
-                      </label>
+                      <div key={item.id} className="space-y-2">
+                        <label
+                          onClick={() => setAudioState({ ...audioConfig, escopo: item.id })}
+                          className={`p-3.5 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
+                            audioConfig.escopo === item.id
+                              ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10'
+                              : 'border-black/[0.06] dark:border-white/[0.08] hover:border-black/20'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="audio_escopo"
+                            checked={audioConfig.escopo === item.id}
+                            onChange={() => setAudioState({ ...audioConfig, escopo: item.id })}
+                            className="mt-0.5 text-[#4d7c0f] focus:ring-[#4d7c0f]"
+                          />
+                          <div>
+                            <span className="text-xs font-bold text-[#1d1d1f] dark:text-white block">
+                              {item.titulo}
+                            </span>
+                            <span className="text-[11px] text-slate-500 dark:text-zinc-400 leading-tight block mt-0.5">
+                              {item.desc}
+                            </span>
+                          </div>
+                        </label>
+
+                        {/* Se selecionados for o escopo ativo, exibe checkboxes com os departamentos disponíveis */}
+                        {item.id === 'selecionados' && audioConfig.escopo === 'selecionados' && (
+                          <div className="p-3 bg-black/[0.02] dark:bg-white/[0.03] rounded-2xl border border-black/[0.05] dark:border-white/[0.06] space-y-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">
+                              Selecione os departamentos a monitorar:
+                            </span>
+                            <div className="grid grid-cols-2 gap-2">
+                              {categoriasDemandas.map((dept) => {
+                                const checked = (audioConfig.departamentosSelecionados || []).includes(dept);
+                                return (
+                                  <label
+                                    key={dept}
+                                    className={`px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all ${
+                                      checked
+                                        ? 'border-[#4d7c0f]/50 bg-[#4d7c0f]/10 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
+                                        : 'border-black/[0.06] dark:border-white/[0.08] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.03]'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={(e) => {
+                                        const atuais = audioConfig.departamentosSelecionados || [];
+                                        const novos = e.target.checked
+                                          ? [...atuais, dept]
+                                          : atuais.filter((d) => d !== dept);
+                                        setAudioState({ ...audioConfig, departamentosSelecionados: novos });
+                                      }}
+                                      className="rounded text-[#4d7c0f] focus:ring-[#4d7c0f]"
+                                    />
+                                    <span>{dept}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
 
@@ -1079,45 +1119,92 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
             </div>
           </div>
 
-          {/* Card: Escalonamento por SLA de Atendimento */}
+          {/* Card: Monitoramento de Tempos Operacionais (Saudável, Intermediário e Crítico) */}
           <div className="p-6 rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] shadow-xs space-y-4">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 font-mono">
-                Monitoramento Operacional & SLA
+                Monitoramento Operacional & Níveis de Tempo
               </span>
               <h3 className="text-lg font-bold text-[#1d1d1f] dark:text-white mt-0.5">
-                Escalonamento por SLA de Atendimento
+                Faixas de Tempo de Espera & Atendimento
               </h3>
               <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
-                Define o tempo máximo que um chamado atribuído a um atendente pode permanecer aberto antes de disparar alerta para o gestor.
+                Configure os limites de minutos que definem os estados <strong>Saudável</strong>, <strong>Intermediário</strong> e <strong>Crítico</strong>. Ao atingir o nível crítico, alertas visuais e sonoros serão disparados para a equipe.
               </p>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap pt-1">
-              {[10, 15, 30, 45, 60].map((mins) => {
-                const isSelected = (configSuporte.tempo_sla_minutos || 15) === mins;
-                return (
-                  <button
-                    key={mins}
-                    type="button"
-                    onClick={() => {
-                      const novo = setConfiguracoesSuporte({
-                        ...configSuporte,
-                        tempo_sla_minutos: mins,
-                      });
-                      setConfigSuporteState(novo);
-                      showToast(`SLA de atendimento configurado para ${mins} minutos.`, 'success');
-                    }}
-                    className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
-                      isSelected
-                        ? 'border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-300 font-bold shadow-xs'
-                        : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.05]'
-                    }`}
-                  >
-                    <span>{mins} minutos {mins === 15 ? '(Padrão)' : ''}</span>
-                  </button>
-                );
-              })}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              {/* Nível Saudável */}
+              <div className="p-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">Tempo Saudável</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-zinc-400">Até quantos minutos o atendimento é considerado ideal:</p>
+                <select
+                  value={configSuporte.tempo_saudavel_minutos || 10}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    const novo = setConfiguracoesSuporte({ ...configSuporte, tempo_saudavel_minutos: v });
+                    setConfigSuporteState(novo);
+                    showToast(`Tempo saudável ajustado para ${v} min.`, 'success');
+                  }}
+                  className="w-full px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-xs font-semibold focus:outline-none cursor-pointer"
+                >
+                  <option value={5}>Até 5 minutos</option>
+                  <option value={10}>Até 10 minutos (Padrão)</option>
+                  <option value={15}>Até 15 minutos</option>
+                </select>
+              </div>
+
+              {/* Nível Intermediário */}
+              <div className="p-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-amber-800 dark:text-amber-300">Tempo Intermediário</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-zinc-400">Limite de atenção antes de se tornar crítico:</p>
+                <select
+                  value={configSuporte.tempo_intermediario_minutos || 20}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    const novo = setConfiguracoesSuporte({ ...configSuporte, tempo_intermediario_minutos: v });
+                    setConfigSuporteState(novo);
+                    showToast(`Tempo intermediário ajustado para ${v} min.`, 'success');
+                  }}
+                  className="w-full px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-xs font-semibold focus:outline-none cursor-pointer"
+                >
+                  <option value={15}>Até 15 minutos</option>
+                  <option value={20}>Até 20 minutos (Padrão)</option>
+                  <option value={25}>Até 25 minutos</option>
+                  <option value={30}>Até 30 minutos</option>
+                </select>
+              </div>
+
+              {/* Nível Crítico */}
+              <div className="p-4 rounded-2xl border border-rose-500/20 bg-rose-500/5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-rose-800 dark:text-rose-300">Tempo Crítico (Alerta)</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-zinc-400">Dispara alerta sonoro e visual para a gestão:</p>
+                <select
+                  value={configSuporte.tempo_critico_minutos || 30}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    const novo = setConfiguracoesSuporte({ ...configSuporte, tempo_critico_minutos: v });
+                    setConfigSuporteState(novo);
+                    showToast(`Tempo crítico ajustado para ${v} min.`, 'success');
+                  }}
+                  className="w-full px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-xs font-semibold focus:outline-none cursor-pointer"
+                >
+                  <option value={20}>Acima de 20 minutos</option>
+                  <option value={25}>Acima de 25 minutos</option>
+                  <option value={30}>Acima de 30 minutos (Padrão)</option>
+                  <option value={45}>Acima de 45 minutos</option>
+                  <option value={60}>Acima de 60 minutos</option>
+                </select>
+              </div>
             </div>
           </div>
         </motion.div>

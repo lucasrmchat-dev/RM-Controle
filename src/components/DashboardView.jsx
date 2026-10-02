@@ -602,13 +602,13 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
 
         {/* Filtro por Categoria de Demanda */}
         <div className="flex items-center gap-2 px-2 border-t sm:border-t-0 sm:border-l border-black/[0.06] dark:border-white/[0.08] pt-2 sm:pt-0">
-          <span className="text-xs font-semibold text-slate-500 dark:text-zinc-400">Categoria:</span>
+          <span className="text-xs font-semibold text-slate-500 dark:text-zinc-400">Departamento:</span>
           <select
             value={filtroCategoria}
             onChange={(e) => setFiltroCategoria(e.target.value)}
             className="px-3 py-1.5 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-xs font-semibold text-slate-700 dark:text-zinc-200 [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white focus:outline-none cursor-pointer shadow-xs"
           >
-            <option value="todas">Todas as Categorias</option>
+            <option value="todas">Todos os Departamentos</option>
             {categoriasLista.map((cat) => (
               <option key={cat} value={cat}>
                 {cat}

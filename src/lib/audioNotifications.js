@@ -32,12 +32,18 @@ export function getAudioConfig() {
     };
   }
 
+  let depsSel = [];
+  try {
+    depsSel = JSON.parse(localStorage.getItem('rm_audio_departamentos_selecionados') || '[]');
+  } catch (e) {}
+
   return {
     habilitado: localStorage.getItem('rm_audio_habilitado') !== 'false',
     tipoSom: localStorage.getItem('rm_audio_tipo_som') || 'harmonico',
     modoRepeticao: localStorage.getItem('rm_audio_modo') || 'uma_vez',
     intervaloSegundos: parseInt(localStorage.getItem('rm_audio_intervalo') || '30', 10),
-    escopo: (localStorage.getItem('rm_audio_escopo') === 'todos' ? 'departamentos' : (localStorage.getItem('rm_audio_escopo') || 'departamentos')),
+    escopo: localStorage.getItem('rm_audio_escopo') || 'departamentos',
+    departamentosSelecionados: Array.isArray(depsSel) ? depsSel : [],
     notificarCriador: localStorage.getItem('rm_audio_notificar_criador') === 'true',
   };
 }
@@ -58,6 +64,9 @@ export function setAudioConfig(newConfig) {
   }
   if (newConfig.escopo !== undefined) {
     localStorage.setItem('rm_audio_escopo', newConfig.escopo);
+  }
+  if (newConfig.departamentosSelecionados !== undefined) {
+    localStorage.setItem('rm_audio_departamentos_selecionados', JSON.stringify(newConfig.departamentosSelecionados));
   }
   if (newConfig.notificarCriador !== undefined) {
     localStorage.setItem('rm_audio_notificar_criador', newConfig.notificarCriador ? 'true' : 'false');
@@ -198,12 +207,28 @@ export function triggerSupportNotification({ chamado, userEmail, criadoPorMim = 
 
   // 4. Se for da Fila Geral (não atribuída especificamente a alguém):
   if (!isAtribuidoDiretamente) {
-    // Se o usuário só quer receber alertas do que foi atribuído a ele
+    // 1. Se o usuário só quer receber alertas do que foi atribuído diretamente a ele
     if (config.escopo === 'apenas_meus' || config.escopo === 'atribuidos') {
       return;
     }
 
-    // Filtro por departamento do operador
+    // 2. Filtro por departamentos personalizados selecionados (ex: gestor)
+    if (config.escopo === 'selecionados') {
+      const depsAlvo = Array.isArray(config.departamentosSelecionados)
+        ? config.departamentosSelecionados.map((d) => (d || '').toLowerCase().trim())
+        : [];
+      if (depsAlvo.length > 0) {
+        const chamadoCats = Array.isArray(chamado?.categorias)
+          ? chamado.categorias.map((c) => (c || '').toLowerCase().trim())
+          : (chamado?.motivo ? chamado.motivo.split(',').map((s) => s.trim().toLowerCase()) : ['suporte']);
+        const pertence = chamadoCats.some((c) => depsAlvo.includes(c));
+        if (!pertence) {
+          return; // Não pertence a nenhum dos departamentos selecionados
+        }
+      }
+    }
+
+    // 3. Filtro por departamento do operador
     if (config.escopo === 'departamentos') {
       try {
         if (typeof window !== 'undefined') {

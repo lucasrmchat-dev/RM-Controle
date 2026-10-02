@@ -1053,8 +1053,10 @@ export async function finalizarSuporte({
     let fbEncontrado = null;
     if (feedbackId) {
       fbEncontrado = feedbacks.find((f) => f.id === feedbackId);
-    } else if (chamado.empresa_nome && chamado.empresa_nome.includes('RM Controle')) {
-      fbEncontrado = feedbacks.find((f) => f.status === 'em_analise' || f.status === 'em_correcao');
+    } else if (chamado.empresa_nome && chamado.empresa_nome.includes('RM Controle') && chamado.motivo) {
+      // Casamento restrito e exato por título/motivo para evitar alterar feedbacks não relacionados
+      const motNorm = (chamado.motivo || '').trim().toLowerCase();
+      fbEncontrado = feedbacks.find((f) => (f.titulo || '').trim().toLowerCase() === motNorm);
     }
 
     if (fbEncontrado) {
@@ -1502,6 +1504,9 @@ const DEFAULT_CONFIG_SUPORTE = {
   solucao_obrigatoria: false,
   colaborador_obrigatorio: false,
   atendente_obrigatorio: false,
+  tempo_saudavel_minutos: 10,
+  tempo_intermediario_minutos: 20,
+  tempo_critico_minutos: 30,
 };
 
 export function getConfiguracoesSuporte() {
@@ -3831,8 +3836,20 @@ export async function fetchFeedbacks() {
         );
 
         const finalLista = [...merged, ...onlyLocal];
-        setLocalData('feedbacks_lista', finalLista);
-        return finalLista;
+
+        // Blindagem permanente: aplica status definidos pelo usuário via mapa de overrides
+        const overrides = getLocalData('rm_feedbacks_status_override', {});
+        const finalListaComOverrides = finalLista.map((fb) => {
+          const tKey = (fb.titulo || '').trim().toLowerCase();
+          const overStatus = overrides[fb.id] || overrides[tKey];
+          if (overStatus) {
+            return { ...fb, status: overStatus };
+          }
+          return fb;
+        });
+
+        setLocalData('feedbacks_lista', finalListaComOverrides);
+        return finalListaComOverrides;
       }
     } catch (e) {
       console.warn('Erro ao buscar feedbacks do Supabase:', e);
@@ -3932,6 +3949,12 @@ export async function updateFeedbackStatus(feedbackId, newStatus, userEmail = 'a
     fbItem = feedbacks[idx];
     setLocalData('feedbacks_lista', feedbacks);
   }
+
+  // Registra no mapa blindado permanente de overrides para jamais reverter para triagem
+  const overrides = getLocalData('rm_feedbacks_status_override', {});
+  if (feedbackId) overrides[feedbackId] = newStatus;
+  if (fbItem?.titulo) overrides[fbItem.titulo.trim().toLowerCase()] = newStatus;
+  setLocalData('rm_feedbacks_status_override', overrides);
 
   if (isSupabaseConfigured && supabase) {
     try {
