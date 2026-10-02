@@ -906,6 +906,7 @@ export default function SupportCompletionModal({
                     </div>
                   )}
                 </div>
+              )}
 
               </div>
 
