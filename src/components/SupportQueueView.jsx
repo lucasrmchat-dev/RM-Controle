@@ -216,6 +216,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   });
   const [filtroDeptDropdownAberto, setFiltroDeptDropdownAberto] = useState(false);
   const filtroDeptRef = useRef(null);
+  const filtroCategoria = (filtrosDepartamentos && filtrosDepartamentos.length === 1) ? filtrosDepartamentos[0] : (filtrosDepartamentos && filtrosDepartamentos.length > 1 ? filtrosDepartamentos.join(", ") : "todas");
 
   // Filtro de Técnico com persistência de padrão do usuário
   const [filtroTecnico, setFiltroTecnico] = useState(() => {
@@ -933,10 +934,10 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
         if (!isConcluido || !isDataHoje(c.finalizado_em || c.created_at || c.iniciado_em)) return false;
       }
 
-      if (filtroCategoria && filtroCategoria !== 'todas') {
-        const catQ = filtroCategoria.toLowerCase().trim();
+      if (filtrosDepartamentos && filtrosDepartamentos.length > 0) {
+        const depsAlvo = filtrosDepartamentos.map((d) => (d || '').toLowerCase().trim());
         const cats = Array.isArray(c.categorias) && c.categorias.length > 0 ? c.categorias : ['Suporte'];
-        if (!cats.some((cat) => (cat || '').toLowerCase().trim() === catQ)) {
+        if (!cats.some((cat) => depsAlvo.includes((cat || '').toLowerCase().trim()))) {
           return false;
         }
       }
