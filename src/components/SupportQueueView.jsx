@@ -1987,12 +1987,10 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           </p>
                         )}
 
-                        {/* Técnico Responsável */}
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono pt-0.5">
-                          <UserIcon className="w-3.5 h-3.5 text-slate-400" />
-                          <span>
-                            Técnico: <strong className="text-slate-700 dark:text-zinc-300">{getNomeTecnico(ch.tecnico_email, ch.tecnico_nome)}</strong>
-                          </span>
+                        {/* Aberto por & Atribuído a */}
+                        <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono pt-1 border-t border-black/[0.04] dark:border-white/[0.05]">
+                          <span>Aberto por: <strong className="text-slate-700 dark:text-zinc-300">{ch.criador_nome || getNomeTecnico(ch.criador_email || ch.tecnico_email)}</strong></span>
+                          <span>Atribuído a: <strong className="text-blue-600 dark:text-blue-400">{ch.atribuido_nome || (ch.atribuido_a && ch.atribuido_a !== 'geral' ? getNomeTecnico(ch.atribuido_a) : (ch.atendente || 'Fila Geral'))}</strong></span>
                         </div>
                       </div>
                     </div>
@@ -2393,7 +2391,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
                 {/* ------------------------------------------------------------------ */}
                 {/* COLUNAS DINÂMICAS: UMA COLUNA PARA CADA TÉCNICO / COLABORADOR     */}
-                {/* ------------------------------------------------------------------ */}
+
                 {listaTecnicosKanban.map((tec) => {
                   const tecKey = getTecKey(tec);
                   const isRecolhido = colaboradoresRecolhidos.includes(tecKey);
@@ -2739,6 +2737,16 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           {sortFilaCol === 'solicitante' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
                         </div>
                       </th>
+                      <th className="px-3 py-3 cursor-pointer select-none min-w-[140px]" onClick={() => {
+                        if (sortFilaCol === 'atribuido') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
+                        else { setSortFilaCol('atribuido'); setSortFilaDir('asc'); }
+                      }}>
+                        <div className="flex items-center gap-1">
+                          <UserIcon className="w-3 h-3 text-blue-500" />
+                          <span>Atribuído a</span>
+                          {sortFilaCol === 'atribuido' && <span>{sortFilaDir === 'asc' ? '▲' : '▼'}</span>}
+                        </div>
+                      </th>
                       <th className="px-3.5 py-3 cursor-pointer select-none whitespace-nowrap w-[120px]" onClick={() => {
                         if (sortFilaCol === 'cronometro') setSortFilaDir(d => d === 'asc' ? 'desc' : 'asc');
                         else { setSortFilaCol('cronometro'); setSortFilaDir('asc'); }
@@ -2764,6 +2772,16 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                         const sA = a.solicitante_nome || a.solicitante || '';
                         const sB = b.solicitante_nome || b.solicitante || '';
                         return sortFilaDir === 'asc' ? sA.localeCompare(sB) : sB.localeCompare(sA);
+                      }
+                      if (sortFilaCol === 'atribuido') {
+                        const getAttrNome = (c) => {
+                          if (c.status === 'em_andamento') return c.tecnico_nome || c.atendente || 'Em Atendimento';
+                          if (!c.atribuido_a || c.atribuido_a === 'geral') return 'Fila Geral (Todos)';
+                          return c.atribuido_nome || getNomeTecnico(c.atribuido_a);
+                        };
+                        const aAttr = getAttrNome(a);
+                        const bAttr = getAttrNome(b);
+                        return sortFilaDir === 'asc' ? aAttr.localeCompare(bAttr) : bAttr.localeCompare(aAttr);
                       }
                       if (sortFilaCol === 'departamento') {
                         const dA = (Array.isArray(a.categorias) && a.categorias.length > 0 ? a.categorias[0] : 'Suporte') || '';
@@ -2877,14 +2895,72 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                               </div>
                             </td>
 
-                            {/* Solicitante & Técnico */}
-                            <td className="px-4 py-3.5 min-w-[150px]">
-                              <div className="font-semibold text-slate-800 dark:text-zinc-100 truncate">
+                            {/* Solicitante (Cliente da Empresa) & Técnico Criador */}
+                            <td className="hidden sm:table-cell px-4 py-3.5 min-w-[140px]">
+                              <div className="font-semibold text-slate-800 dark:text-zinc-100 truncate text-[12px]">
                                 {ch.solicitante_nome || ch.solicitante || 'Não informado'}
                               </div>
-                              <div className="text-[10px] text-slate-400 font-mono truncate">
-                                Técnico: {getNomeTecnico(ch.tecnico_email, ch.tecnico_nome)}
+                              <div className="text-[10px] text-slate-400 font-mono truncate mt-0.5" title={`Aberto por: ${ch.criador_nome || getNomeTecnico(ch.criador_email || ch.tecnico_email)}`}>
+                                Aberto por: <span className="text-slate-600 dark:text-zinc-300 font-medium">{ch.criador_nome || getNomeTecnico(ch.criador_email || ch.tecnico_email)}</span>
                               </div>
+                            </td>
+
+                            {/* Nova Coluna: Atribuído a (Responsável) */}
+                            <td className="px-4 py-3.5 min-w-[140px]">
+                              {(() => {
+                                if (isEmAndamento) {
+                                  const atendenteNome = ch.tecnico_nome || ch.atendente || getNomeTecnico(ch.tecnico_email);
+                                  return (
+                                    <div className="flex items-center gap-1.5 flex-wrap" title={`Em atendimento por ${atendenteNome}`}>
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 text-[11px] font-bold shadow-2xs">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                                        <span className="truncate max-w-[120px]">{atendenteNome}</span>
+                                      </span>
+                                    </div>
+                                  );
+                                }
+
+                                const isDesignado = Boolean(ch.atribuido_a && ch.atribuido_a !== 'geral');
+                                const nomeDestino = isDesignado 
+                                  ? (ch.atribuido_nome || getNomeTecnico(ch.atribuido_a))
+                                  : 'Fila Geral (Todos)';
+
+                                return (
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {isDesignado ? (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setChamadoParaReatribuir(ch);
+                                          setNovoTecnicoReatribuir('');
+                                        }}
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 dark:bg-blue-500/15 hover:bg-blue-500/20 text-blue-800 dark:text-blue-300 border border-blue-500/25 text-[11px] font-semibold shadow-2xs transition-all cursor-pointer"
+                                        title={`Atribuído para ${nomeDestino}. Clique para alterar responsável.`}
+                                      >
+                                        <div className="w-4 h-4 rounded-full bg-blue-500/20 text-blue-700 dark:text-blue-300 flex items-center justify-center text-[9px] font-bold uppercase">
+                                          {nomeDestino.charAt(0)}
+                                        </div>
+                                        <span className="truncate max-w-[120px]">{nomeDestino}</span>
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setChamadoParaReatribuir(ch);
+                                          setNovoTecnicoReatribuir('');
+                                        }}
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-500/10 dark:bg-white/[0.06] hover:bg-slate-500/20 text-slate-600 dark:text-zinc-400 border border-black/[0.06] dark:border-white/[0.08] text-[11px] font-medium transition-all cursor-pointer"
+                                        title="Livre na Fila Geral (quem pegar primeiro). Clique para atribuir diretamente a um colaborador."
+                                      >
+                                        <UsersIcon className="w-3.5 h-3.5 text-slate-400" />
+                                        <span>Fila Geral (Todos)</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </td>
 
                             {/* Cronômetros Dinâmicos (Apenas Espera e Ativo com Mudança de Cor) */}
@@ -2967,7 +3043,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           {/* Gaveta Expansível com Ações e Detalhes Completos */}
                           {isExpanded && (
                             <tr className="bg-black/[0.015] dark:bg-white/[0.02] border-b border-black/[0.06] dark:border-white/[0.08]">
-                              <td colSpan={7} className="p-4 sm:p-5">
+                              <td colSpan={8} className="p-4 sm:p-5">
                                 <motion.div
                                   initial={{ opacity: 0, y: -4 }}
                                   animate={{ opacity: 1, y: 0 }}
@@ -2984,7 +3060,10 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                         • Solicitante: <strong className="text-slate-800 dark:text-zinc-200">{ch.solicitante_nome || ch.solicitante || 'Colaborador da Empresa'}</strong>
                                       </span>
                                       <span className="text-xs text-slate-400 font-mono">
-                                        • Atendente: <strong className="text-slate-800 dark:text-zinc-200">{getNomeTecnico(ch.tecnico_email, ch.tecnico_nome)}</strong>
+                                        • Aberto por: <strong className="text-slate-800 dark:text-zinc-200">{ch.criador_nome || getNomeTecnico(ch.criador_email || ch.tecnico_email)}</strong>
+                                      </span>
+                                      <span className="text-xs text-slate-400 font-mono">
+                                        • Atribuído a: <strong className="text-blue-600 dark:text-blue-400">{ch.atribuido_nome || (ch.atribuido_a && ch.atribuido_a !== 'geral' ? getNomeTecnico(ch.atribuido_a) : (ch.atendente || 'Fila Geral (Todos)'))}</strong>
                                       </span>
                                     </div>
 
@@ -4191,6 +4270,39 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                 Selecione o novo colaborador responsável:
               </label>
               <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                {/* Opção Fila Geral (Livre para qualquer operador) */}
+                <button
+                  type="button"
+                  disabled={!chamadoParaReatribuir?.atribuido_a || chamadoParaReatribuir?.atribuido_a === 'geral' || salvandoReatribuicao}
+                  onClick={() => handleConfirmarReatribuicao({ email: 'geral', nome: 'Fila Geral' })}
+                  className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                    (!chamadoParaReatribuir?.atribuido_a || chamadoParaReatribuir?.atribuido_a === 'geral')
+                      ? 'border-black/5 dark:border-white/5 opacity-50 cursor-not-allowed bg-black/[0.01]'
+                      : 'border-black/10 dark:border-white/10 hover:border-blue-500 hover:bg-blue-500/5 dark:hover:bg-blue-500/10'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-black/5 dark:bg-white/10 flex items-center justify-center text-xs font-bold text-slate-700 dark:text-zinc-300">
+                      <UsersIcon className="w-4 h-4 text-slate-500" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-[#1d1d1f] dark:text-white block">
+                        Fila Geral (Todos)
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        Livre para qualquer operador assumir na fila
+                      </span>
+                    </div>
+                  </div>
+                  {(!chamadoParaReatribuir?.atribuido_a || chamadoParaReatribuir?.atribuido_a === 'geral') ? (
+                    <span className="text-[10px] text-slate-400 font-semibold">Atual</span>
+                  ) : (
+                    <span className="text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline">
+                      Mover para Geral →
+                    </span>
+                  )}
+                </button>
+
                 {listaTecnicosKanban.map((tec) => {
                   const isAtual = tec.email === chamadoParaReatribuir.tecnico_email || tec.nome === (chamadoParaReatribuir.tecnico_nome || chamadoParaReatribuir.atendente);
                   return (

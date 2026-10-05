@@ -521,6 +521,12 @@ export async function adicionarChamadoFila({
       is_demanda_interna: is_demanda_interna || Boolean(empresa_nome && empresa_nome.includes('RM Controle')),
       tecnico_email: userEmail,
       tecnico_nome: getNomeTecnico(userEmail),
+      criador_email: userEmail,
+      criador_nome: getNomeTecnico(userEmail),
+      atribuido_a: userEmail,
+      atribuido_nome: getNomeTecnico(userEmail),
+      atribuido_por_email: userEmail,
+      atribuido_em: agora,
       solicitante_nome: (solicitante_nome || 'Colaborador').trim(),
       solicitante_email: solicitante_email.trim(),
       solicitante_telefone: solicitante_telefone.trim(),
@@ -601,7 +607,10 @@ export async function adicionarChamadoFila({
     is_fila_geral: isFilaGeral,
     tecnico_email: tecnicoDesignado,
     tecnico_nome: tecnicoDesignado ? getNomeTecnico(tecnicoDesignado) : 'Fila Geral (Aguardando Atendente)',
-    atribuido_a: tecnicoDesignado,
+    criador_email: userEmail,
+    criador_nome: getNomeTecnico(userEmail),
+    atribuido_a: isFilaGeral ? 'geral' : tecnicoDesignado,
+    atribuido_nome: isFilaGeral ? 'Fila Geral (Todos)' : getNomeTecnico(tecnicoDesignado),
     atribuido_por_email: userEmail,
     atribuido_em: agora,
     tempo_escalonamento_minutos: Number(tempo_escalonamento_minutos) || 15,
@@ -780,6 +789,9 @@ export async function assumirSuporte({ chamado_id, userEmail = 'admin@rmcontrole
     ...anterior,
     tecnico_email: userEmail,
     tecnico_nome: getNomeTecnico(userEmail),
+    atendente: getNomeTecnico(userEmail),
+    atribuido_a: userEmail,
+    atribuido_nome: getNomeTecnico(userEmail),
     status: 'em_andamento',
     tempo_espera_fim: agora,
     tempo_espera_segundos: esperaSegundos,
@@ -892,6 +904,10 @@ export async function fetchChamadosFila() {
             solicitante_nome: d.colaborador_solicitante || 'Colaborador da Empresa',
             tecnico_email: d.tecnico_email || '',
             tecnico_nome: d.atendente || getNomeTecnico(d.tecnico_email),
+            criador_email: d.criador_email || localMatch?.criador_email || '',
+            criador_nome: d.criador_nome || localMatch?.criador_nome || (d.criador_email ? getNomeTecnico(d.criador_email) : ''),
+            atribuido_a: d.atribuido_a || localMatch?.atribuido_a || (d.status === 'aguardando_visualizacao' ? (d.tecnico_email || 'geral') : d.tecnico_email),
+            atribuido_nome: d.atribuido_nome || localMatch?.atribuido_nome || (d.atribuido_a && d.atribuido_a !== 'geral' ? getNomeTecnico(d.atribuido_a) : (d.status === 'em_andamento' ? (d.atendente || getNomeTecnico(d.tecnico_email)) : 'Fila Geral (Todos)')),
             observacao_inicial: d.observacoes || '',
             status: d.status,
             categorias: cats,
@@ -4422,15 +4438,18 @@ export async function reatribuirChamadoSuporte(chamadoId, novoTecnicoEmail, novo
   const idx = chamados.findIndex((c) => c.id === chamadoId);
   if (idx === -1) throw new Error('Chamado não encontrado.');
 
-  const tecnicoNomeFinal = novoTecnicoNome || getNomeTecnico(novoTecnicoEmail);
-  const anteriorTecnico = chamados[idx].tecnico_nome || chamados[idx].atendente || chamados[idx].tecnico_email;
+  const isFilaGeral = novoTecnicoEmail === 'geral' || !novoTecnicoEmail;
+  const tecnicoNomeFinal = isFilaGeral ? 'Fila Geral (Todos)' : (novoTecnicoNome || getNomeTecnico(novoTecnicoEmail));
+  const anteriorTecnico = chamados[idx].tecnico_nome || chamados[idx].atendente || chamados[idx].tecnico_email || 'Fila Geral';
 
   chamados[idx] = {
     ...chamados[idx],
-    tecnico_email: novoTecnicoEmail,
+    tecnico_email: isFilaGeral ? null : novoTecnicoEmail,
     tecnico_nome: tecnicoNomeFinal,
     atendente: tecnicoNomeFinal,
-    atribuido_a: novoTecnicoEmail,
+    atribuido_a: isFilaGeral ? 'geral' : novoTecnicoEmail,
+    atribuido_nome: tecnicoNomeFinal,
+    is_fila_geral: isFilaGeral,
     historico_reatribuicoes: [
       ...(chamados[idx].historico_reatribuicoes || []),
       {
