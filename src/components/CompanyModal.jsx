@@ -3,10 +3,10 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { generateSecurePassword } from '@/lib/security';
-import { getSenhaPadraoRedefinicao } from '@/lib/storage';
+import { getSenhaPadraoRedefinicao, removerAcentos } from '@/lib/storage';
 import { CheckIcon, SparklesIcon, XMarkIcon } from './Icons';
 
-export default function CompanyModal({ isOpen, onClose, onCreated, initialNome = '', onNomeChange = null }) {
+export default function CompanyModal({ isOpen, onClose, onCreated, initialNome = '', empresasExistentes = [] }) {
   const [mode, setMode] = useState('manual'); // 'manual' | 'massa'
   const [nome, setNome] = useState(initialNome || '');
   const nomeInputRef = React.useRef(null);
@@ -14,6 +14,7 @@ export default function CompanyModal({ isOpen, onClose, onCreated, initialNome =
   React.useEffect(() => {
     if (isOpen) {
       setNome(initialNome || '');
+      setErrorMsg('');
       const timer = setTimeout(() => {
         if (nomeInputRef.current) {
           nomeInputRef.current.focus();
@@ -25,27 +26,17 @@ export default function CompanyModal({ isOpen, onClose, onCreated, initialNome =
     }
   }, [isOpen, initialNome]);
 
-  const debounceNomeChangeRef = React.useRef(null);
-
   const handleNomeInput = (val) => {
     setNome(val);
-    if (onNomeChange) {
-      if (debounceNomeChangeRef.current) {
-        clearTimeout(debounceNomeChangeRef.current);
-      }
-      debounceNomeChangeRef.current = setTimeout(() => {
-        onNomeChange(val);
-      }, 280);
-    }
+    setErrorMsg('');
   };
 
-  React.useEffect(() => {
-    return () => {
-      if (debounceNomeChangeRef.current) {
-        clearTimeout(debounceNomeChangeRef.current);
-      }
-    };
-  }, []);
+  const isNomeDuplicado = Boolean(
+    nome.trim() &&
+    (empresasExistentes || []).some(
+      (emp) => removerAcentos((emp.nome || '').toLowerCase().trim()) === removerAcentos(nome.trim().toLowerCase())
+    )
+  );
   const [servidor, setServidor] = useState('servidor_1'); // 'servidor_1' | 'servidor_2'
   const [adminEmail, setAdminEmail] = useState('');
   const [senhaSuporte, setSenhaSuporte] = useState('');
@@ -135,8 +126,19 @@ Aqui está a lista de empresas bruta:
   const handleSaveManual = async (e) => {
     e.preventDefault();
     setErrorMsg('');
-    if (!nome.trim()) {
+    const nomeLimpo = nome.trim();
+    if (!nomeLimpo) {
       setErrorMsg('Por favor, informe o nome da empresa.');
+      return;
+    }
+
+    // Tratamento de nomes duplicados
+    const jaExiste = (empresasExistentes || []).some(
+      (emp) => removerAcentos((emp.nome || '').toLowerCase().trim()) === removerAcentos(nomeLimpo.toLowerCase().trim())
+    );
+
+    if (jaExiste) {
+      setErrorMsg(`A empresa "${nomeLimpo}" já está cadastrada no sistema. Por favor, utilize um nome diferente.`);
       return;
     }
 
@@ -144,7 +146,7 @@ Aqui está a lista de empresas bruta:
       setLoading(true);
       await onCreated({
         tipo: 'manual',
-        nome: nome.trim(),
+        nome: nomeLimpo,
         servidor_alocado: servidor,
         email_administrador: adminEmail.trim(),
         senha_suporte: senhaSuporte.trim() || getSenhaPadraoRedefinicao(),
@@ -162,6 +164,20 @@ Aqui está a lista de empresas bruta:
     setErrorMsg('');
     if (empresasDetectadas.length === 0) {
       setErrorMsg('Cole ou digite ao menos o nome de uma empresa (uma por linha).');
+      return;
+    }
+
+    // Tratamento de nomes duplicados na importação em lote
+    const nomesJaCadastrados = empresasDetectadas.filter((item) =>
+      (empresasExistentes || []).some(
+        (emp) => removerAcentos((emp.nome || '').toLowerCase().trim()) === removerAcentos(item.nome.toLowerCase().trim())
+      )
+    );
+
+    if (nomesJaCadastrados.length > 0) {
+      setErrorMsg(
+        `As seguintes empresas já estão cadastradas e não podem ser duplicadas: ${nomesJaCadastrados.map((i) => i.nome).join(', ')}.`
+      );
       return;
     }
 
@@ -265,6 +281,12 @@ Aqui está a lista de empresas bruta:
                   required
                   className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 text-[#1d1d1f] dark:text-white"
                 />
+                {isNomeDuplicado && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1 font-medium pl-1">
+                    <span>⚠️</span>
+                    <span>Aviso: Já existe uma empresa cadastrada com este nome.</span>
+                  </p>
+                )}
               </div>
 
               {/* Classificação de Servidor (Servidor 1 vs Servidor 2) */}

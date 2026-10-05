@@ -755,33 +755,37 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
   };
 
 
-  const handleModalNomeChange = (novoNome) => {
-    setSearchTerm(novoNome);
-    // Se o usuário apagar o nome ou se o termo voltar a bater com alguma empresa existente:
-    if (!novoNome.trim() || existeEmpresaComTermo(novoNome)) {
-      setIsModalCreateOpen(false);
-      setModalFechadoManualmente(false);
-    }
-  };
+
 
   const handleCreatedEmpresas = async (payload) => {
-    if (payload.tipo === 'manual') {
-      await createEmpresa({
-        nome: payload.nome,
-        formato_atendimento: 'colaborativo',
-        servidor_alocado: payload.servidor_alocado,
-        email_administrador: payload.email_administrador,
-        senha_suporte: payload.senha_suporte,
-        userEmail,
-      });
-    } else if (payload.tipo === 'massa') {
-      await createEmpresasEmMassa(payload.empresas || payload.nomes, {
-        formato_atendimento: 'colaborativo',
-        servidor_alocado: payload.servidor_alocado,
-        userEmail,
-      });
+    try {
+      if (payload.tipo === 'manual') {
+        await createEmpresa({
+          nome: payload.nome,
+          formato_atendimento: 'colaborativo',
+          servidor_alocado: payload.servidor_alocado,
+          email_administrador: payload.email_administrador,
+          senha_suporte: payload.senha_suporte,
+          userEmail,
+        });
+        showToast(`Empresa "${payload.nome}" cadastrada com sucesso!`, 'success');
+      } else if (payload.tipo === 'massa') {
+        const total = (payload.empresas || payload.nomes || []).length;
+        await createEmpresasEmMassa(payload.empresas || payload.nomes, {
+          formato_atendimento: 'colaborativo',
+          servidor_alocado: payload.servidor_alocado,
+          userEmail,
+        });
+        showToast(`${total} empresas cadastradas com sucesso!`, 'success');
+      }
+      setIsModalCreateOpen(false);
+      setSearchTerm('');
+      setModalInitialNome('');
+      setModalFechadoManualmente(false);
+      await carregarEmpresas();
+    } catch (err) {
+      showToast(err.message || 'Erro ao cadastrar empresa.', 'error');
     }
-    await carregarEmpresas();
   };
 
   // ==============================================================================
@@ -923,8 +927,12 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                       <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={() => setIsModalCreateOpen(true)}
-                        className="px-4 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold shadow-md shadow-[#4d7c0f]/20 dark:shadow-[#84cc16]/20 hover:opacity-95 flex items-center gap-2 transition-all"
+                        onClick={() => {
+                          setModalInitialNome('');
+                          setModalFechadoManualmente(false);
+                          setIsModalCreateOpen(true);
+                        }}
+                        className="px-4 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold shadow-md shadow-[#4d7c0f]/20 dark:shadow-[#84cc16]/20 hover:opacity-95 flex items-center gap-2 transition-all cursor-pointer"
                       >
                         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -1116,7 +1124,11 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                       </p>
                       <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2.5">
                         <button
-                          onClick={() => setIsModalCreateOpen(true)}
+                          onClick={() => {
+                            setModalInitialNome(searchTerm.trim());
+                            setModalFechadoManualmente(false);
+                            setIsModalCreateOpen(true);
+                          }}
                           className="px-4 py-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold shadow-sm cursor-pointer"
                         >
                           + Cadastrar Empresa
@@ -1519,16 +1531,14 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
       <CompanyModal
         isOpen={isModalCreateOpen}
         initialNome={modalInitialNome}
-        onNomeChange={handleModalNomeChange}
         onClose={() => {
           setIsModalCreateOpen(false);
           setModalFechadoManualmente(true);
         }}
         onCreated={async (payload) => {
           await handleCreatedEmpresas(payload);
-          setSearchTerm('');
-          setModalFechadoManualmente(false);
         }}
+        empresasExistentes={empresas}
       />
 
       {/* Modal de Ação Rápida ao Clicar na Empresa (Estilo Apple Sheet) */}
