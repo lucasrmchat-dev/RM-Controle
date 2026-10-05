@@ -2,21 +2,33 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getSolucoesSuporte, addSolucaoSuporte, deleteSolucaoSuporte, removerAcentos } from '@/lib/storage';
+import { getSolucoesSuporte, addSolucaoSuporte, deleteSolucaoSuporte, removerAcentos, fetchHistoricoChamados } from '@/lib/storage';
 import { showToast } from './ToastNotification';
 import ConfirmModal from './ConfirmModal';
-import { XMarkIcon, LightBulbIcon, BookOpenIcon, CheckIcon, CopyIcon, SparklesIcon } from './Icons';
+import { XMarkIcon, LightBulbIcon, BookOpenIcon, CheckIcon, CopyIcon, SparklesIcon, ViewGridIcon, ViewListIcon } from './Icons';
 
 export default function KnowledgeBaseTab({
   empresa = null,
   userEmail = 'admin@rmcontrole.com',
   initialQuery = '',
+  hideListWhenEmpty = false,
 }) {
+  const [kbViewMode, setKbViewMode] = useState('cards'); // 'cards' | 'list'
   const [query, setQuery] = useState(initialQuery || '');
   const [selectedTipo, setSelectedTipo] = useState('todos');
   const [solucoes, setSolucoes] = useState([]);
   const [isNovaSolucaoOpen, setIsNovaSolucaoOpen] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+  const [expandedIds, setExpandedIds] = useState(new Set());
+
+  const toggleExpand = (id) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   // Form para nova solução
   const [novoTitulo, setNovoTitulo] = useState('');
@@ -31,7 +43,10 @@ export default function KnowledgeBaseTab({
   const [solucaoParaExcluir, setSolucaoParaExcluir] = useState(null);
   const formRef = useRef(null);
 
-  const carregarSolucoes = () => {
+  const carregarSolucoes = async () => {
+    try {
+      await fetchHistoricoChamados();
+    } catch (e) {}
     const list = getSolucoesSuporte({
       empresa_id: empresa?.id || null,
       query,
@@ -141,12 +156,12 @@ export default function KnowledgeBaseTab({
               <span className="p-1.5 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400">
                 <BookOpenIcon className="w-5 h-5" />
               </span>
-              <h2 className="text-base sm:text-lg font-bold text-[#0a0a0c] dark:text-white">
+              <h2 className="text-lg font-bold tracking-tight text-[#0a0a0c] dark:text-white">
                 Como Resolver Chamados
               </h2>
             </div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
-              Catálogo oficial de procedimentos técnicos e resoluções do banco geral.
+              Banco global de procedimentos e resoluções técnicas aplicadas em todas as empresas.
             </p>
           </div>
 
@@ -367,17 +382,75 @@ export default function KnowledgeBaseTab({
           </motion.form>
         ) : (
           <div className="space-y-4">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-zinc-200">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                <span>Banco Geral de Soluções ({solucoes.length})</span>
-              </div>
-              <span className="text-[11px] font-normal text-slate-400">
-                Procedimentos catalogados pela equipe
-              </span>
-            </div>
+            {hideListWhenEmpty && !query.trim() ? (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="p-8 text-center rounded-3xl border border-dashed border-black/10 dark:border-white/10 bg-black/[0.015] dark:bg-white/[0.015] space-y-2.5"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto">
+                  <LightBulbIcon className="w-6 h-6" />
+                </div>
+                <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
+                  Digite para pesquisar resoluções de chamados
+                </h4>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                  Conforme você digita termos do erro, código ou dúvida da empresa, as soluções técnicas correspondentes são animadas na tela.
+                </p>
+                <div className="flex items-center justify-center gap-1.5 flex-wrap pt-2">
+                  <span className="text-[10px] text-slate-400 font-mono">Sugestões rápidas:</span>
+                  {['#login', '#senha', '#impressora', '#whatsapp', '#qrcode', '#timeout', '#banco'].map((sug) => (
+                    <button
+                      key={sug}
+                      type="button"
+                      onClick={() => setQuery(sug.replace('#', ''))}
+                      className="px-2.5 py-1 rounded-full bg-black/5 dark:bg-white/10 text-[11px] font-mono text-slate-600 dark:text-zinc-300 hover:bg-black/10 cursor-pointer transition-colors"
+                    >
+                      {sug}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-zinc-200 px-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Soluções Encontradas ({solucoes.length})</span>
+                  </div>
+                  <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.06]">
+                    <button
+                      type="button"
+                      onClick={() => setKbViewMode('cards')}
+                      className={`px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer transition-all ${
+                        kbViewMode === 'cards'
+                          ? 'bg-white dark:bg-zinc-800 text-black dark:text-white shadow-xs'
+                          : 'text-slate-500 hover:text-black dark:hover:text-white'
+                      }`}
+                      title="Visualizar em Cards"
+                    >
+                      <ViewGridIcon className="w-3.5 h-3.5" />
+                      <span className="text-[10px]">Cards</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setKbViewMode('list')}
+                      className={`px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer transition-all ${
+                        kbViewMode === 'list'
+                          ? 'bg-white dark:bg-zinc-800 text-black dark:text-white shadow-xs'
+                          : 'text-slate-500 hover:text-black dark:hover:text-white'
+                      }`}
+                      title="Visualizar em Lista"
+                    >
+                      <ViewListIcon className="w-3.5 h-3.5" />
+                      <span className="text-[10px]">Lista</span>
+                    </button>
+                  </div>
+                </div>
 
-            {solucoes.length === 0 ? (
+                <AnimatePresence mode="popLayout">
+                  {solucoes.length === 0 ? (
               <div className="p-10 rounded-3xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#16161a] text-center space-y-3 shadow-xs">
                 <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto">
                   <LightBulbIcon className="w-6 h-6" />
@@ -399,31 +472,143 @@ export default function KnowledgeBaseTab({
                   </button>
                 </div>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {solucoes.map((s) => {
-                  const isDestaEmpresa = Boolean(
-                    (empresa?.id && s.empresa_id === empresa.id) ||
-                    (empresa?.nome && s.empresa_nome && s.empresa_nome.toLowerCase().trim() === empresa.nome.toLowerCase().trim())
-                  );
-                  const temEmpresa = Boolean(s.empresa_nome && s.empresa_nome !== 'Global');
+            ) : kbViewMode === 'cards' ? (
+              <div className="flex flex-col gap-4 w-full">
+                  {solucoes.map((s) => {
+                    const isDestaEmpresa = Boolean(
+                      (empresa?.id && s.empresa_id === empresa.id) ||
+                      (empresa?.nome && s.empresa_nome && s.empresa_nome.toLowerCase().trim() === empresa.nome.toLowerCase().trim())
+                    );
+                    const temEmpresa = Boolean(s.empresa_nome && s.empresa_nome !== 'Global');
 
-                  return (
-                    <motion.div
-                      key={s.id}
-                      layout
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={`rounded-3xl p-5 border space-y-3 relative group flex flex-col justify-between shadow-xs transition-all ${
-                        isDestaEmpresa
-                          ? 'border-emerald-500/35 dark:border-emerald-500/25 bg-emerald-500/[0.02] dark:bg-emerald-500/[0.04]'
-                          : 'border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a]'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-start justify-between gap-3 mb-2">
-                          <div>
-                            <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+                    return (
+                      <motion.div
+                        key={s.id}
+                        layout
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`w-full rounded-3xl p-5 sm:p-6 border space-y-4 relative group flex flex-col justify-between shadow-xs transition-all ${
+                          isDestaEmpresa
+                            ? 'border-emerald-500/35 dark:border-emerald-500/25 bg-emerald-500/[0.02] dark:bg-emerald-500/[0.04]'
+                            : 'border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a]'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-3 mb-3">
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                                {s.erro_codigo && (
+                                  <span className="px-2.5 py-0.5 rounded-full bg-red-500/10 text-red-700 dark:text-red-400 font-mono text-[10px] font-bold border border-red-500/20">
+                                    {s.erro_codigo}
+                                  </span>
+                                )}
+                                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-300 font-semibold border border-black/[0.04] dark:border-white/[0.05]">
+                                  {s.tipo_erro}
+                                </span>
+
+                                {/* Menção direta da Empresa */}
+                                {temEmpresa ? (
+                                  <span
+                                    className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
+                                      isDestaEmpresa
+                                        ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30'
+                                        : 'bg-blue-500/10 text-blue-800 dark:text-blue-300 border border-blue-500/20'
+                                    }`}
+                                    title={`Empresa de origem: ${s.empresa_nome}`}
+                                  >
+                                    <span>🏢</span>
+                                    <span>{s.empresa_nome}</span>
+                                    {isDestaEmpresa && (
+                                      <span className="text-[9px] font-bold opacity-80 ml-0.5">• Desta Empresa</span>
+                                    )}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 font-mono">
+                                    • Geral
+                                  </span>
+                                )}
+                              </div>
+
+                              <h4 className="text-base font-bold text-[#1d1d1f] dark:text-white leading-snug">
+                                {s.titulo}
+                              </h4>
+                              {s.contexto && (
+                                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 italic">
+                                  {s.contexto}
+                                </p>
+                              )}
+                            </div>
+
+                            {s.is_user_created && (
+                              <button
+                                type="button"
+                                onClick={() => setSolucaoParaExcluir(s)}
+                                className="text-slate-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer"
+                                title="Excluir Solução"
+                              >
+                                <XMarkIcon className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="w-full p-4 sm:p-5 rounded-2xl bg-slate-50/90 dark:bg-zinc-900/90 border border-black/[0.05] dark:border-white/[0.06] text-xs sm:text-[13px] font-mono text-slate-800 dark:text-zinc-200 whitespace-pre-line leading-relaxed shadow-2xs">
+                            {s.solucao_passos}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-3 border-t border-black/[0.04] dark:border-white/[0.06] text-xs">
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {s.created_at ? new Date(s.created_at).toLocaleDateString('pt-BR') : 'Registrado'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyPassos(s.id, s.solucao_passos)}
+                            className="px-3 py-1.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.08] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] text-xs font-semibold text-slate-800 dark:text-zinc-200 cursor-pointer flex items-center gap-1.5 transition-all shadow-2xs"
+                          >
+                            {copiedId === s.id ? (
+                              <>
+                                <CheckIcon className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Copiado!</span>
+                              </>
+                            ) : (
+                              <>
+                                <CopyIcon className="w-3.5 h-3.5 text-slate-500" />
+                                <span>Copiar Passos</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* MODO LISTA COMPLETO, ELEGANTE E LARGURA TOTAL */
+                <div className="flex flex-col gap-2.5 w-full">
+                  {solucoes.map((s) => {
+                    const isDestaEmpresa = Boolean(
+                      (empresa?.id && s.empresa_id === empresa.id) ||
+                      (empresa?.nome && s.empresa_nome && s.empresa_nome.toLowerCase().trim() === empresa.nome.toLowerCase().trim())
+                    );
+                    const temEmpresa = Boolean(s.empresa_nome && s.empresa_nome !== 'Global');
+                    const isExpanded = expandedIds.has(s.id);
+
+                    return (
+                      <motion.div
+                        key={s.id}
+                        layout
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`w-full rounded-2xl border p-4 sm:p-5 transition-all shadow-2xs ${
+                          isDestaEmpresa
+                            ? 'border-emerald-500/35 dark:border-emerald-500/25 bg-emerald-500/[0.02] dark:bg-emerald-500/[0.04]'
+                            : 'border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a]'
+                        }`}
+                      >
+                        {/* Linha Principal do Item */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-1.5 flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               {s.erro_codigo && (
                                 <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-700 dark:text-red-400 font-mono text-[10px] font-bold border border-red-500/20">
                                   {s.erro_codigo}
@@ -433,7 +618,6 @@ export default function KnowledgeBaseTab({
                                 {s.tipo_erro}
                               </span>
 
-                              {/* Menção direta da Empresa */}
                               {temEmpresa ? (
                                 <span
                                   className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 ${
@@ -441,73 +625,99 @@ export default function KnowledgeBaseTab({
                                       ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30'
                                       : 'bg-blue-500/10 text-blue-800 dark:text-blue-300 border border-blue-500/20'
                                   }`}
-                                  title={`Empresa de origem: ${s.empresa_nome}`}
                                 >
                                   <span>🏢</span>
                                   <span>{s.empresa_nome}</span>
                                 </span>
                               ) : (
-                                <span className="text-[10px] text-slate-400 font-mono">
-                                  • Geral
-                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono">• Geral</span>
                               )}
                             </div>
 
-                            <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white leading-snug">
+                            <h4 className="text-sm sm:text-base font-bold text-[#1d1d1f] dark:text-white leading-snug">
                               {s.titulo}
                             </h4>
-                            {s.contexto && (
-                              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 italic">
-                                {s.contexto}
+
+                            {/* Preview resumido quando fechado */}
+                            {!isExpanded && (
+                              <p className="text-xs text-slate-500 dark:text-zinc-400 font-mono line-clamp-2 leading-relaxed bg-black/[0.015] dark:bg-white/[0.02] p-2 rounded-xl border border-black/[0.03] dark:border-white/[0.04]">
+                                {s.solucao_passos}
                               </p>
                             )}
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() => setSolucaoParaExcluir(s)}
-                            className="text-slate-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer"
-                            title="Excluir Solução"
-                          >
-                            <XMarkIcon className="w-4 h-4" />
-                          </button>
+                          {/* Ações da Linha */}
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => toggleExpand(s.id)}
+                              className="px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.02] dark:bg-white/[0.04] hover:bg-black/[0.06] text-xs font-semibold text-slate-700 dark:text-zinc-200 cursor-pointer flex items-center gap-1.5 transition-all shadow-2xs"
+                            >
+                              <span>{isExpanded ? 'Recolher' : 'Ver Passos'}</span>
+                              <span className="text-[9px]">{isExpanded ? '▲' : '▼'}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleCopyPassos(s.id, s.solucao_passos)}
+                              className="p-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] hover:bg-black/[0.05] text-slate-600 dark:text-zinc-300 cursor-pointer transition-colors shadow-2xs"
+                              title="Copiar Procedimento"
+                            >
+                              {copiedId === s.id ? (
+                                <CheckIcon className="w-4 h-4 text-emerald-600" />
+                              ) : (
+                                <CopyIcon className="w-4 h-4" />
+                              )}
+                            </button>
+
+                            {s.is_user_created && (
+                              <button
+                                type="button"
+                                onClick={() => setSolucaoParaExcluir(s)}
+                                className="text-slate-300 hover:text-red-500 p-1.5 rounded-xl hover:bg-red-500/10 transition-colors cursor-pointer"
+                                title="Excluir Solução"
+                              >
+                                <XMarkIcon className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
                         </div>
 
-                        <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-zinc-900/80 border border-black/[0.05] dark:border-white/[0.06] text-xs font-mono text-slate-800 dark:text-zinc-200 whitespace-pre-line leading-relaxed shadow-2xs">
-                          {s.solucao_passos}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-2 border-t border-black/[0.04] dark:border-white/[0.06] text-xs">
-                        <span className="text-[10px] text-slate-400 font-mono">
-                          {s.created_at ? new Date(s.created_at).toLocaleDateString('pt-BR') : 'Registrado'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyPassos(s.id, s.solucao_passos)}
-                          className="px-2.5 py-1 rounded-lg bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.08] text-[10px] font-semibold text-slate-700 dark:text-zinc-300 cursor-pointer flex items-center gap-1 transition-all"
-                        >
-                          {copiedId === s.id ? (
-                            <>
-                              <CheckIcon className="w-3 h-3 text-emerald-600" />
-                              <span>Copiado!</span>
-                            </>
-                          ) : (
-                            <>
-                              <CopyIcon className="w-3 h-3" />
-                              <span>Copiar Passos</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                        {/* Conteúdo Expandido do Modo Lista */}
+                        {isExpanded && (
+                          <div className="mt-3 pt-3 border-t border-black/[0.05] dark:border-white/[0.06] space-y-2.5">
+                            {s.contexto && (
+                              <p className="text-xs text-slate-500 dark:text-zinc-400 italic">
+                                {s.contexto}
+                              </p>
+                            )}
+                            <div className="w-full p-4 rounded-xl bg-slate-50/90 dark:bg-zinc-900/90 border border-black/[0.06] dark:border-white/[0.08] text-xs sm:text-[13px] font-mono text-slate-800 dark:text-zinc-200 whitespace-pre-line leading-relaxed shadow-inner">
+                              {s.solucao_passos}
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono pt-1">
+                              <span>Registrado em {s.created_at ? new Date(s.created_at).toLocaleDateString('pt-BR') : 'Data não informada'}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyPassos(s.id, s.solucao_passos)}
+                                className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                              >
+                                <CopyIcon className="w-3.5 h-3.5" />
+                                <span>Copiar procedimento completo</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </AnimatePresence>
+          </>
         )}
-      </AnimatePresence>
+      </div>
+    )}
+  </AnimatePresence>
 
       {/* Modal de Confirmação de Exclusão */}
       <ConfirmModal

@@ -268,17 +268,19 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
       {/* ============================================================================== */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 border border-[#4d7c0f]/20 dark:border-[#84cc16]/30 text-[#4d7c0f] dark:text-[#84cc16] text-xs font-semibold shadow-xs">
-              <span className="text-xs">📅</span>
-              <span className="capitalize">{new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date())}</span>
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#4d7c0f]/20 dark:bg-[#84cc16]/20 font-bold">Mês Vigente</span>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-zinc-400 font-mono">
+              Métricas Consolidadas & Performance
+            </span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-slate-500 dark:text-zinc-400 capitalize">
+              {new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date())}
             </span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#1d1d1f] dark:text-white">
-            Dashboard de Atendimentos & Métricas
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white">
+            Dashboard de Atendimentos
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-0.5">
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
             Métricas consolidadas, produtividade da equipe, clientes mais demandantes e análise temporal de suporte.
           </p>
         </div>
@@ -458,8 +460,9 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
               <div className="space-y-3.5">
                 {/* KPI 1: Total de Chamados */}
                 <motion.div 
+                  layoutId="shared-kpi-card-1"
                   whileHover={{ y: -2 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
                   className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2"
                 >
                   <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
@@ -478,8 +481,9 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
 
                 {/* KPI 2: Suportes Finalizados */}
                 <motion.div 
+                  layoutId="shared-kpi-card-2"
                   whileHover={{ y: -2 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
                   className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2"
                 >
                   <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
@@ -500,8 +504,9 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
 
                 {/* KPI 3: Chamados em Andamento (Redireciona para a Fila ao Clicar) */}
                 <motion.div 
+                  layoutId="shared-kpi-card-3"
                   whileHover={{ y: -2 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
                   onClick={() => onNavigate && onNavigate('fila')}
                   className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2 cursor-pointer hover:border-amber-500/40 hover:shadow-md transition-all group"
                   title="Clique para abrir a Fila de Suporte"
@@ -527,8 +532,9 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
 
                 {/* KPI 4: Tempo Médio de Atendimento (TMA) */}
                 <motion.div 
+                  layoutId="shared-kpi-card-4"
                   whileHover={{ y: -2 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
                   className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2"
                 >
                   <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">

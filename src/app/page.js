@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { 
   getDefaultViewMode,
+  existeEmpresaComTermo,
   removerAcentos,
   getEmpresas, 
   createEmpresa, 
@@ -126,6 +127,9 @@ export default function Home() {
   const [pageSize, setPageSize] = useState(12);
   const [totalPages, setTotalPages] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
+  const [quickCreateServidor, setQuickCreateServidor] = useState('servidor_1');
+  const [quickCreateFormato, setQuickCreateFormato] = useState('colaborativo');
+  const [isSubmittingQuickCreate, setIsSubmittingQuickCreate] = useState(false);
   const [filtroCanal, setFiltroCanal] = useState('todos');
   const [filtroFormato, setFiltroFormato] = useState('todos');
   const [filtroServidor, setFiltroServidor] = useState('todos'); // 'todos' | 'servidor_1' | 'servidor_2'
@@ -133,6 +137,9 @@ export default function Home() {
 
   // Modais e Menu de Ação Rápida da Empresa
   const [isModalCreateOpen, setIsModalCreateOpen] = useState(false);
+  const [modalInitialNome, setModalInitialNome] = useState('');
+  const [modalFechadoManualmente, setModalFechadoManualmente] = useState(false);
+  const debounceSearchRef = React.useRef(null);
   const [selectedEmpresa, setSelectedEmpresa] = useState(null);
   const [empresaAcaoModal, setEmpresaAcaoModal] = useState(null);
   const [modalEncerrarChamado, setModalEncerrarChamado] = useState(null);
@@ -577,6 +584,8 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
       setTotalPages(res.totalPages);
       setMotivosDisponiveis(getMotivosSuporte());
 
+
+
       if (selectedEmpresa) {
         const atualizada = res.items.find((e) => e.id === selectedEmpresa.id);
         if (atualizada) setSelectedEmpresa(atualizada);
@@ -745,6 +754,16 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
     setUserEmail('');
   };
 
+
+  const handleModalNomeChange = (novoNome) => {
+    setSearchTerm(novoNome);
+    // Se o usuário apagar o nome ou se o termo voltar a bater com alguma empresa existente:
+    if (!novoNome.trim() || existeEmpresaComTermo(novoNome)) {
+      setIsModalCreateOpen(false);
+      setModalFechadoManualmente(false);
+    }
+  };
+
   const handleCreatedEmpresas = async (payload) => {
     if (payload.tipo === 'manual') {
       await createEmpresa({
@@ -872,13 +891,19 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
               {activeTab === 'empresas' && (
                 <div className="space-y-5">
                   
-                  {/* Barra de Ações Superior Estilo Apple */}
+                  {/* Barra de Ações Superior Estilo Apple Padronizada */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                      <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#1d1d1f] dark:text-[#f5f5f7]">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-zinc-400 font-mono">
+                          Catálogo de Clientes & Infraestrutura
+                        </span>
+                      </div>
+                      <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white">
                         Empresas
                       </h1>
-                      <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-0.5">
+                      <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
                         Gerenciamento de clientes, instâncias de mensageria e credenciais técnicas de suporte.
                       </p>
                     </div>
@@ -937,8 +962,22 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                           type="text"
                           value={searchTerm}
                           onChange={(e) => {
-                            setSearchTerm(e.target.value);
+                            const val = e.target.value;
+                            setSearchTerm(val);
                             setPage(1);
+                            setModalFechadoManualmente(false);
+
+                            if (debounceSearchRef.current) {
+                              clearTimeout(debounceSearchRef.current);
+                            }
+
+                            // Debounce de 350ms para digitação fluida sem travar o navegador
+                            debounceSearchRef.current = setTimeout(() => {
+                              if (val.trim().length >= 1 && !existeEmpresaComTermo(val)) {
+                                setModalInitialNome(val.trim());
+                                setIsModalCreateOpen(true);
+                              }
+                            }, 350);
                           }}
                           placeholder="Buscar empresa, operador ou canal..."
                           className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 text-[#1d1d1f] dark:text-white placeholder-slate-400 font-medium"
@@ -1063,7 +1102,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                       <span>Carregando empresas...</span>
                     </div>
                   ) : empresas.length === 0 ? (
-                    /* Estado Vazio Estilo Apple */
+                    /* Estado Vazio Total Estilo Apple */
                     <div className="rounded-3xl p-12 border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/85 backdrop-blur-xl text-center space-y-4 shadow-sm">
                       <div className="w-12 h-12 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] text-slate-400 dark:text-zinc-500 flex items-center justify-center mx-auto">
                         <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
@@ -1078,13 +1117,13 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                       <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2.5">
                         <button
                           onClick={() => setIsModalCreateOpen(true)}
-                          className="px-4 py-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold shadow-sm"
+                          className="px-4 py-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold shadow-sm cursor-pointer"
                         >
                           + Cadastrar Empresa
                         </button>
                         <button
                           onClick={() => handleToggleMockData(true)}
-                          className="px-4 py-2 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-700 dark:text-zinc-300 text-xs font-medium hover:bg-black/[0.08]"
+                          className="px-4 py-2 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-700 dark:text-zinc-300 text-xs font-medium hover:bg-black/[0.08] cursor-pointer"
                         >
                           Ativar Dados Simulados (Mock Dev)
                         </button>
@@ -1476,11 +1515,20 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
         )}
       </main>
 
-      {/* Modal de Criação de Empresa */}
+      {/* Modal Oficial de Criação de Empresa */}
       <CompanyModal
         isOpen={isModalCreateOpen}
-        onClose={() => setIsModalCreateOpen(false)}
-        onCreated={handleCreatedEmpresas}
+        initialNome={modalInitialNome}
+        onNomeChange={handleModalNomeChange}
+        onClose={() => {
+          setIsModalCreateOpen(false);
+          setModalFechadoManualmente(true);
+        }}
+        onCreated={async (payload) => {
+          await handleCreatedEmpresas(payload);
+          setSearchTerm('');
+          setModalFechadoManualmente(false);
+        }}
       />
 
       {/* Modal de Ação Rápida ao Clicar na Empresa (Estilo Apple Sheet) */}

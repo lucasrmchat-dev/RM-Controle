@@ -17,6 +17,7 @@ import {
   getNomeTecnico,
   getEmpresaById,
   addColaboradorEmpresa,
+  addEmpresaCredencial,
   getEmpresaCredenciais,
   getCategoriasDemandas,
   fetchChamadosFila,
@@ -86,6 +87,9 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
   // Modal para Finalizar Suporte
   const [chamadoParaFinalizar, setChamadoParaFinalizar] = useState(null);
+  const [chamadoParaReatribuir, setChamadoParaReatribuir] = useState(null);
+  const [novoTecnicoReatribuir, setNovoTecnicoReatribuir] = useState('');
+  const [salvandoReatribuicao, setSalvandoReatribuicao] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(null);
 
   // Modal para Abrir Nova Demanda na Fila
@@ -145,6 +149,19 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   };
 
   const getTecKey = (tec) => (tec?.key || tec?.id || tec?.email || tec?.nome || '');
+
+  const isMeuAtendimento = (ch) => {
+    if (!ch) return false;
+    const myEmail = (userEmail || '').toLowerCase().trim();
+    const chEmail = (ch.tecnico_email || '').toLowerCase().trim();
+    const chNome = (ch.tecnico_nome || ch.atendente || '').toLowerCase().trim();
+    
+    if (chEmail && chEmail === myEmail) return true;
+    if (chEmail.includes('admin') && (myEmail.includes('admin') || myEmail.includes('lucas'))) return true;
+    if (chEmail.includes('lucas') && (myEmail.includes('lucas') || myEmail.includes('admin'))) return true;
+    if (chNome.includes('lucas') && (myEmail.includes('lucas') || myEmail.includes('admin'))) return true;
+    return false;
+  };
 
   const isTecnicoMim = (tec) => {
     if (!tec || !userEmail) return false;
@@ -986,6 +1003,31 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     showFeedbackMsg(`Você aceitou o suporte de ${chamado.empresa_nome}. Cronômetro ativo iniciado!`);
   };
 
+  const handleConfirmarReatribuicao = async (tecnicoDestino = null) => {
+    if (!chamadoParaReatribuir) return;
+    const target = tecnicoDestino || listaTecnicosKanban.find((t) => t.email === novoTecnicoReatribuir || t.key === novoTecnicoReatribuir);
+    const emailDestino = target?.email || novoTecnicoReatribuir;
+    const nomeDestino = target?.nome || getNomeTecnico(emailDestino);
+
+    if (!emailDestino && !nomeDestino) {
+      showToast('Selecione o novo atendente responsável.', 'error');
+      return;
+    }
+
+    try {
+      setSalvandoReatribuicao(true);
+      await reatribuirChamadoSuporte(chamadoParaReatribuir.id, emailDestino, nomeDestino, userEmail);
+      showToast(`Demanda transferida para ${nomeDestino} com sucesso!`, 'success');
+      setChamadoParaReatribuir(null);
+      setNovoTecnicoReatribuir('');
+      await carregarDados();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setSalvandoReatribuicao(false);
+    }
+  };
+
   const handleEncerrarSemResposta = (chamado) => {
     setConfirmDialog({
       title: 'Encerrar por Falta de Retorno?',
@@ -1147,6 +1189,29 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       setBuscaSolicitante('');
       setBuscaTecnicoModal('');
       setActiveModalDropdown(null);
+      // Registra o colaborador solicitante na empresa e nos Acessos e Senhas Técnicas
+      if (empresaIdFinal && solicitanteFinal && solicitanteFinal !== 'Colaborador da Empresa') {
+        try {
+          await addColaboradorEmpresa(empresaIdFinal, {
+            nome: solicitanteFinal,
+            email: solicitanteSelecionado?.email || '',
+            telefone: solicitanteSelecionado?.telefone || '',
+            cargo: 'Solicitante'
+          }, userEmail || 'admin@rmcontrole.com');
+
+          await addEmpresaCredencial(empresaIdFinal, {
+            rotulo: `Colaborador - ${solicitanteFinal}`,
+            nome_usuario: solicitanteFinal,
+            usuario_email: solicitanteSelecionado?.email || '',
+            senha: '',
+            observacao: 'Cadastrado automaticamente via Fila de Demandas',
+            is_principal: false
+          }, userEmail || 'admin@rmcontrole.com');
+        } catch (eColab) {
+          console.warn('Aviso ao registrar colaborador:', eColab);
+        }
+      }
+
       await carregarDados();
       showFeedbackMsg(iniciarDireto ? `Demanda de ${empresaNomeFinal} iniciada agora!` : `Demanda de ${empresaNomeFinal} aberta na fila.`);
     } catch (err) {
@@ -1164,17 +1229,17 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       {/* ============================================================================== */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400 font-mono">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-zinc-400 font-mono">
               Central Operacional ao Vivo
             </span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#1d1d1f] dark:text-white">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white">
             Fila de Demandas
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-0.5">
-            Central operacional ao vivo: triagem, acompanhamento por categorias e controle de demandas.
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
+            Triagem em tempo real, acompanhamento por categorias e controle operacional de chamados.
           </p>
         </div>
 
@@ -1335,7 +1400,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                   </div>
 
                   {/* KPI 1: Em Atendimento Ativo */}
-                  <div className="rounded-3xl p-5 border border-emerald-500/30 bg-emerald-500/[0.04] dark:bg-emerald-500/[0.08] shadow-xs space-y-2">
+                  <motion.div layoutId="shared-kpi-card-1" transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }} className="rounded-3xl p-5 border border-emerald-500/30 bg-emerald-500/[0.04] dark:bg-emerald-500/[0.08] shadow-xs space-y-2">
                     <div className="flex items-center justify-between text-emerald-800 dark:text-emerald-300">
                       <span className="text-xs font-semibold uppercase tracking-wider">Em Atendimento Ativo</span>
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
@@ -1346,10 +1411,10 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                       </span>
                       <span className="text-xs text-emerald-700/80 dark:text-emerald-400 font-medium">ao vivo</span>
                     </div>
-                  </div>
+                  </motion.div>
 
                   {/* KPI 2: Aguardando Visualização / Espera */}
-                  <div className="rounded-3xl p-5 border border-amber-500/30 bg-amber-500/[0.04] dark:bg-amber-500/[0.08] shadow-xs space-y-2">
+                  <motion.div layoutId="shared-kpi-card-2" transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }} className="rounded-3xl p-5 border border-amber-500/30 bg-amber-500/[0.04] dark:bg-amber-500/[0.08] shadow-xs space-y-2">
                     <div className="flex items-center justify-between text-amber-800 dark:text-amber-300">
                       <span className="text-xs font-semibold uppercase tracking-wider">Aguardando na Fila</span>
                       <span className="p-1.5 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-300 font-mono text-[10px] font-bold">
@@ -1362,10 +1427,10 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                       </span>
                       <span className="text-xs text-amber-700/80 dark:text-amber-400 font-medium">cronômetro ativo</span>
                     </div>
-                  </div>
+                  </motion.div>
 
                   {/* KPI 3: Tempo Médio de Espera (TME Hoje) */}
-                  <div className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2">
+                  <motion.div layoutId="shared-kpi-card-3" transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }} className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2">
                     <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
                       <span className="text-xs font-semibold uppercase tracking-wider">TME de Hoje (Espera)</span>
                       <ClockIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
@@ -1376,10 +1441,10 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                       </span>
                       <span className="text-xs text-slate-400 font-medium">minutos até atendimento</span>
                     </div>
-                  </div>
+                  </motion.div>
 
                   {/* KPI 4: Resolvidos Hoje */}
-                  <div className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2">
+                  <motion.div layoutId="shared-kpi-card-4" transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }} className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2">
                     <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
                       <span className="text-xs font-semibold uppercase tracking-wider">Concluídos Hoje</span>
                       <CheckIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -1390,7 +1455,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                       </span>
                       <span className="text-xs text-slate-400 font-medium">atendimentos finalizados</span>
                     </div>
-                  </div>
+                  </motion.div>
                 </motion.div>
               )}
             </motion.div>
@@ -1901,7 +1966,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                           {(Array.isArray(ch.etiquetas) ? ch.etiquetas : []).map((etq, idx) => (
                             <span
                               key={'card_etq_' + idx}
-                              className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-mono text-[9px] font-bold border border-amber-500/25"
+                              className="px-2.5 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.08] text-slate-700 dark:text-zinc-300 text-[10px] font-medium border border-black/[0.06] dark:border-white/[0.08]"
                               title="Etiqueta"
                             >
                               #{etq}
@@ -2287,7 +2352,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                               {(Array.isArray(ch.etiquetas) ? ch.etiquetas : []).map((etq, idx) => (
                                 <span
                                   key={'kanban_etq_' + idx}
-                                  className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-mono text-[9px] font-bold border border-amber-500/25"
+                                  className="px-2.5 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.08] text-slate-700 dark:text-zinc-300 text-[10px] font-medium border border-black/[0.06] dark:border-white/[0.08]"
                                 >
                                   #{etq}
                                 </span>
@@ -2528,7 +2593,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                   {(Array.isArray(ch.etiquetas) ? ch.etiquetas : []).map((etq, idx) => (
                                     <span
                                       key={'kanban_etq_' + idx}
-                                      className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-mono text-[9px] font-bold border border-amber-500/25"
+                                      className="px-2.5 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.08] text-slate-700 dark:text-zinc-300 text-[10px] font-medium border border-black/[0.06] dark:border-white/[0.08]"
                                     >
                                       #{etq}
                                     </span>
@@ -2562,24 +2627,46 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                     <span>⏳ Sem Resposta</span>
                                   </button>
 
-                                  {isRMControle ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => setKanbanAberto(true)}
-                                      className="px-2.5 py-1.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 text-[10px] font-bold hover:bg-blue-500/20 cursor-pointer shadow-xs"
-                                      title="Abrir Pipeline Kanban"
-                                    >
-                                      Pipeline Kanban
-                                    </button>
-                                  ) : onSelectEmpresa && (
-                                    <button
-                                      type="button"
-                                      onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
-                                      className="px-2.5 py-1.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-[10px] font-semibold text-slate-700 dark:text-zinc-200 hover:bg-black/5 cursor-pointer shadow-xs"
-                                    >
-                                      Acessar Empresa
-                                    </button>
-                                  )}
+                                   {/* Acessar Empresa */}
+                                   {onSelectEmpresa && (
+                                     <button
+                                       type="button"
+                                       onClick={() => onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome })}
+                                       className="px-2.5 py-1.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-[10px] font-semibold text-slate-700 dark:text-zinc-200 hover:bg-black/5 cursor-pointer shadow-xs flex items-center gap-1"
+                                       title="Acessar painel e credenciais da empresa"
+                                     >
+                                       <BuildingIcon className="w-3 h-3 text-slate-400" />
+                                       <span>Acessar Empresa</span>
+                                     </button>
+                                   )}
+
+                                   {/* Botão de Transferir / Repassar */}
+                                   {!isMeuAtendimento(ch) ? (
+                                     <button
+                                       type="button"
+                                       onClick={() => {
+                                         setChamadoParaReatribuir(ch);
+                                         setNovoTecnicoReatribuir('');
+                                       }}
+                                       className="px-2.5 py-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300 text-[10px] font-bold hover:bg-blue-500/20 transition-all cursor-pointer shadow-xs flex items-center gap-1"
+                                       title="Assumir ou transferir demanda de outro colaborador"
+                                     >
+                                       <UsersIcon className="w-3 h-3" />
+                                       <span>Assumir / Transferir</span>
+                                     </button>
+                                   ) : (
+                                     <button
+                                       type="button"
+                                       onClick={() => {
+                                         setChamadoParaReatribuir(ch);
+                                         setNovoTecnicoReatribuir('');
+                                       }}
+                                       className="px-2 py-1 rounded-full text-[10px] text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-500/10 transition-all cursor-pointer"
+                                       title="Repassar esta demanda para outro membro da equipe"
+                                     >
+                                       Repassar →
+                                     </button>
+                                   )}
 
                                   <button
                                     type="button"
@@ -2772,14 +2859,14 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                               </div>
                             </td>
 
-                            {/* Etiquetas */}
+                            {/* Etiquetas Refinadas */}
                             <td className="px-4 py-3.5 min-w-[120px]">
                               <div className="flex items-center gap-1 flex-wrap">
                                 {Array.isArray(ch.etiquetas) && ch.etiquetas.length > 0 ? (
                                   ch.etiquetas.map((etq, idx) => (
                                     <span
                                       key={'table_etq_' + idx}
-                                      className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-mono text-[9px] font-bold border border-amber-500/25"
+                                      className="px-2.5 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.08] text-slate-700 dark:text-zinc-300 text-[10px] font-medium border border-black/[0.06] dark:border-white/[0.08]"
                                     >
                                       #{etq}
                                     </span>
@@ -2800,20 +2887,60 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                               </div>
                             </td>
 
-                            {/* Cronômetros */}
-                            <td className="px-4 py-3.5 whitespace-nowrap font-mono text-[11px] space-y-0.5 min-w-[140px]">
-                              <div className="flex items-center gap-1 text-amber-800 dark:text-amber-300 font-bold">
-                                <HourglassIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                                <span className="text-[10px] text-slate-400 font-normal">Espera:</span>
-                                <span className="tabular-nums">{calcularTempoEspera(ch)}</span>
-                              </div>
-                              {isEmAndamento && (
-                                <div className="flex items-center gap-1 text-emerald-800 dark:text-emerald-300 font-bold">
-                                  <HourglassIcon className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                                  <span className="text-[10px] text-slate-400 font-normal">Ativo:</span>
-                                  <span className="tabular-nums">{calcularTempoAtivo(ch)}</span>
-                                </div>
-                              )}
+                            {/* Cronômetros Dinâmicos (Apenas Espera e Ativo com Mudança de Cor) */}
+                            <td className="px-4 py-3.5 whitespace-nowrap font-mono text-[11px] space-y-1 min-w-[130px]">
+                              {(() => {
+                                const cfg = getConfiguracoesSuporte();
+                                const tSaudavel = cfg.tempo_saudavel_minutos || 10;
+                                const tCritico = cfg.tempo_critico_minutos || 30;
+                                
+                                const minEspera = Math.floor((ch.tempo_espera_segundos || 0) / 60);
+                                const isCriticoEsp = minEspera >= tCritico;
+                                const isInterEsp = !isCriticoEsp && minEspera >= tSaudavel;
+                                const colorEsp = isCriticoEsp
+                                  ? 'text-rose-600 dark:text-rose-400'
+                                  : isInterEsp
+                                  ? 'text-amber-600 dark:text-amber-400'
+                                  : 'text-slate-600 dark:text-zinc-300';
+
+                                return (
+                                  <div className={`flex items-center gap-1 font-bold ${colorEsp}`}>
+                                    <HourglassIcon className="w-3 h-3 opacity-75" />
+                                    <span className="text-[10px] text-slate-400 font-normal">Espera:</span>
+                                    <span className="tabular-nums">{calcularTempoEspera(ch)}</span>
+                                  </div>
+                                );
+                              })()}
+
+                              {isEmAndamento && (() => {
+                                const cfg = getConfiguracoesSuporte();
+                                const tSaudavel = cfg.tempo_saudavel_minutos || 10;
+                                const tCritico = cfg.tempo_critico_minutos || 30;
+                                
+                                const minAtivo = Math.floor((ch.tempo_ativo_segundos || 0) / 60);
+                                const isCriticoAtivo = minAtivo >= tCritico;
+                                const isInterAtivo = !isCriticoAtivo && minAtivo >= tSaudavel;
+                                
+                                const colorAtivo = isCriticoAtivo
+                                  ? 'text-rose-600 dark:text-rose-400'
+                                  : isInterAtivo
+                                  ? 'text-amber-600 dark:text-amber-400'
+                                  : 'text-emerald-600 dark:text-emerald-400';
+
+                                const dotColor = isCriticoAtivo
+                                  ? 'bg-rose-500 animate-pulse'
+                                  : isInterAtivo
+                                  ? 'bg-amber-500'
+                                  : 'bg-emerald-500 animate-ping';
+
+                                return (
+                                  <div className={`flex items-center gap-1.5 font-bold ${colorAtivo}`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+                                    <span className="text-[10px] text-slate-400 font-normal">Ativo:</span>
+                                    <span className="tabular-nums">{calcularTempoAtivo(ch)}</span>
+                                  </div>
+                                );
+                              })()}
                             </td>
 
                             {/* Botão Único Elegante "Ações ▾" na Linha da Tabela (Focado e Compacto) */}
@@ -2888,49 +3015,11 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                       </div>
                                     )}
 
-                                    {/* Indicador Dinâmico de Tempo Operacional e Nível de Saúde (Saudável, Intermediário, Crítico) */}
-                                    {(() => {
-                                      const cfg = getConfiguracoesSuporte();
-                                      const tSaudavel = cfg.tempo_saudavel_minutos || 10;
-                                      const tIntermediario = cfg.tempo_intermediario_minutos || 20;
-                                      const tCritico = cfg.tempo_critico_minutos || 30;
-
-                                      const minPassados = isEmAndamento
-                                        ? Math.floor((ch.tempo_ativo_segundos || 0) / 60)
-                                        : Math.floor((ch.tempo_espera_segundos || 0) / 60);
-
-                                      const isCritico = minPassados >= tCritico;
-                                      const isIntermediario = !isCritico && minPassados >= tSaudavel;
-
-                                      const badgeColor = isCritico
-                                        ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30'
-                                        : isIntermediario
-                                        ? 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/30'
-                                        : 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/25';
-
-                                      const dotColor = isCritico ? 'bg-rose-500 animate-pulse' : isIntermediario ? 'bg-amber-500' : 'bg-emerald-500';
-                                      const rotuloNivel = isCritico ? 'Crítico (Alerta)' : isIntermediario ? 'Atenção / Intermediário' : 'Saudável';
-                                      const tempoFormatado = isEmAndamento ? calcularTempoAtivo(ch) : calcularTempoEspera(ch);
-
-                                      return (
-                                        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-mono font-semibold ${badgeColor}`}>
-                                          <span className={`w-2 h-2 rounded-full ${dotColor}`} />
-                                          <ClockIcon className="w-3.5 h-3.5" />
-                                          <span>
-                                            {isEmAndamento ? 'Em Atendimento:' : 'Tempo em Espera:'} <strong>{tempoFormatado}</strong>
-                                          </span>
-                                          <span className="text-[10px] font-bold uppercase tracking-wider opacity-80 border-l border-current/20 pl-2">
-                                            {rotuloNivel}
-                                          </span>
-                                        </div>
-                                      );
-                                    })()}
-
                                     {/* Gestão Interativa de Etiquetas (Editar Etiquetas da Demanda) */}
-                                    <div className="pt-2.5 border-t border-black/[0.04] dark:border-white/[0.05] space-y-1.5">
+                                    <div className="pt-3 border-t border-black/[0.05] dark:border-white/[0.06] space-y-2">
                                       <div className="flex items-center justify-between">
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500 font-mono flex items-center gap-1">
-                                          <TagIcon className="w-3.5 h-3.5 text-amber-500" />
+                                        <span className="text-[11px] font-semibold text-slate-600 dark:text-zinc-300 flex items-center gap-1.5">
+                                          <TagIcon className="w-3.5 h-3.5 text-slate-400" />
                                           <span>Etiquetas da Demanda</span>
                                         </span>
                                         <span className="text-[10px] text-slate-400 font-mono">
@@ -2942,9 +3031,10 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                         {(ch.etiquetas || []).map((etq, idx) => (
                                           <span
                                             key={idx}
-                                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/25 text-amber-800 dark:text-amber-300 font-mono text-[11px] font-bold shadow-2xs"
+                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/[0.04] dark:bg-white/[0.08] hover:bg-black/[0.07] dark:hover:bg-white/[0.12] text-slate-700 dark:text-zinc-200 border border-black/[0.06] dark:border-white/[0.08] text-xs font-medium transition-all group"
                                           >
-                                            <span>#{etq}</span>
+                                            <span className="text-slate-400 dark:text-zinc-500 font-mono text-[10px]">#</span>
+                                            <span>{etq}</span>
                                             <button
                                               type="button"
                                               onClick={async (e) => {
@@ -2954,7 +3044,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                                 await carregarDados();
                                                 showToast(`Etiqueta #${etq} removida.`, 'info');
                                               }}
-                                              className="w-3.5 h-3.5 rounded-full hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center text-[10px] cursor-pointer"
+                                              className="w-4 h-4 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-500/10 flex items-center justify-center text-[10px] cursor-pointer transition-colors"
                                               title={`Remover #${etq}`}
                                             >
                                               ✕
@@ -2965,7 +3055,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                         <div className="inline-flex items-center gap-1">
                                           <input
                                             type="text"
-                                            placeholder="+ Nova etiqueta"
+                                            placeholder="+ Nova etiqueta..."
                                             value={tagInputChamadoId === ch.id ? tagInputVal : ''}
                                             onFocus={() => {
                                               setTagInputChamadoId(ch.id);
@@ -2986,7 +3076,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                                 setTagInputVal('');
                                               }
                                             }}
-                                            className="px-2 py-0.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono text-slate-800 dark:text-zinc-200 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500/50 w-32"
+                                            className="px-3 py-1 rounded-full bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.08] dark:border-white/[0.1] text-xs text-slate-800 dark:text-zinc-200 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-black/20 dark:focus:ring-white/20 w-36"
                                           />
                                           {tagInputChamadoId === ch.id && tagInputVal.trim() && (
                                             <button
@@ -3002,15 +3092,15 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                                 }
                                                 setTagInputVal('');
                                               }}
-                                              className="px-2 py-0.5 rounded-lg bg-amber-500 text-white font-bold text-xs cursor-pointer shadow-xs"
+                                              className="px-2.5 py-1 rounded-full bg-black text-white dark:bg-white dark:text-black font-semibold text-xs cursor-pointer shadow-xs"
                                             >
-                                              +
+                                              Adicionar
                                             </button>
                                           )}
                                         </div>
                                       </div>
 
-                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                      <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
                                         <span className="text-[10px] text-slate-400 font-mono">Sugeridas:</span>
                                         {['urgente', 'financeiro', 'duvida', 'configuracao', 'bloqueado', 'reaberto'].map((sug) => {
                                           const jaTem = (ch.etiquetas || []).includes(sug);
@@ -3026,7 +3116,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                                 await carregarDados();
                                                 showToast(`Etiqueta #${sug} adicionada.`, 'success');
                                               }}
-                                              className="px-2 py-0.2 rounded-full bg-black/[0.02] dark:bg-white/[0.04] hover:bg-amber-500/10 hover:text-amber-700 dark:hover:text-amber-300 border border-black/[0.04] dark:border-white/[0.06] text-[10px] font-mono text-slate-500 dark:text-zinc-400 cursor-pointer transition-colors"
+                                              className="px-2 py-0.5 rounded-full bg-black/[0.02] dark:bg-white/[0.04] hover:bg-black/[0.06] dark:hover:bg-white/[0.08] border border-black/[0.05] dark:border-white/[0.07] text-[10px] text-slate-500 dark:text-zinc-400 cursor-pointer transition-colors"
                                             >
                                               +{sug}
                                             </button>
@@ -3036,8 +3126,12 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                     </div>
                                   </div>
 
-                                  {/* Grupo de Ações Espaçoso e Elegante */}
-                                  <div className="flex items-center gap-2.5 flex-wrap flex-shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-black/[0.04] dark:border-white/[0.05]">
+{/* Grupo de Ações VERTICAL para não ocupar espaço horizontal nem espremer */}
+                                  <div className="flex flex-col gap-2 w-full lg:w-56 flex-shrink-0 pt-3 lg:pt-0 border-t lg:border-t-0 lg:border-l lg:pl-5 border-black/[0.06] dark:border-white/[0.08]">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500 font-mono mb-1">
+                                      Ações da Demanda
+                                    </span>
+
                                     {isAguardando && (
                                       <button
                                         type="button"
@@ -3045,7 +3139,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                           e.stopPropagation();
                                           handleAceitarSuporte(ch);
                                         }}
-                                        className="px-4 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 flex items-center gap-1.5 cursor-pointer"
+                                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 flex items-center justify-center gap-1.5 cursor-pointer transition-all"
                                       >
                                         <PlayIcon className="w-3.5 h-3.5 fill-current" />
                                         <span>Assumir Atendimento</span>
@@ -3053,24 +3147,26 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                     )}
 
                                     {/* Botão Adiar Alerta (Visualizei, Lembrar em X min) */}
-                                    <div className="relative">
+                                    <div className="relative w-full">
                                       <button
                                         type="button"
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setSnoozePopoverChamadoId(snoozePopoverChamadoId === ch.id ? null : ch.id);
                                         }}
-                                        className="px-3 py-2.5 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 font-bold text-xs hover:bg-purple-500/20 transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
+                                        className="w-full px-3.5 py-2 rounded-xl border border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 font-bold text-xs hover:bg-purple-500/20 transition-all cursor-pointer shadow-2xs flex items-center justify-between"
                                         title="Visualizei, mas não posso atender agora — silenciar e me alertar mais tarde"
                                       >
-                                        <BellOffIcon className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                                        <span>Adiar Alerta</span>
+                                        <div className="flex items-center gap-1.5">
+                                          <BellOffIcon className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                                          <span>Adiar Alerta</span>
+                                        </div>
                                         <span className="text-[8px]">▼</span>
                                       </button>
 
                                       {snoozePopoverChamadoId === ch.id && (
                                         <div
-                                          className="absolute bottom-full mb-2 right-0 sm:right-auto sm:left-0 z-50 w-52 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.1] dark:border-white/[0.12] shadow-2xl p-2 text-xs space-y-1 text-[#1d1d1f] dark:text-[#f5f5f7]"
+                                          className="absolute bottom-full mb-2 right-0 sm:left-0 z-50 w-52 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.1] dark:border-white/[0.12] shadow-2xl p-2 text-xs space-y-1 text-[#1d1d1f] dark:text-[#f5f5f7]"
                                           onClick={(e) => e.stopPropagation()}
                                         >
                                           <div className="px-2 py-1 text-[10px] font-bold uppercase text-slate-400 font-mono border-b border-black/[0.05] dark:border-white/[0.06] mb-1">
@@ -3105,21 +3201,17 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                     </div>
 
                                     {isEmAndamento && (
-                                      <>
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setChamadoParaFinalizar(ch);
-                                          }}
-                                          className="px-4 py-2.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs shadow-md hover:opacity-90 flex items-center gap-1.5 cursor-pointer"
-                                        >
-                                          <CheckIcon className="w-3.5 h-3.5 stroke-[2.5]" />
-                                          <span>Concluir Atendimento</span>
-                                        </button>
-
-
-                                      </>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setChamadoParaFinalizar(ch);
+                                        }}
+                                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs shadow-md hover:opacity-90 flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                                      >
+                                        <CheckIcon className="w-3.5 h-3.5 stroke-[2.5]" />
+                                        <span>Concluir Atendimento</span>
+                                      </button>
                                     )}
 
                                     {!isAguardando && (
@@ -3130,34 +3222,56 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                             e.stopPropagation();
                                             setKanbanAberto(true);
                                           }}
-                                          className="px-4 py-2.5 rounded-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold text-xs border border-blue-500/30 cursor-pointer shadow-xs flex items-center gap-1.5"
+                                          className="w-full px-3.5 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold text-xs border border-blue-500/30 cursor-pointer shadow-2xs flex items-center justify-center gap-1.5 transition-all"
                                         >
-                                          <KanbanIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> <span>Pipeline Kanban</span>
+                                          <KanbanIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                          <span>Pipeline Kanban</span>
                                         </button>
-                                      ) : onSelectEmpresa && (
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome });
-                                          }}
-                                          className="px-4 py-2.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer shadow-xs"
-                                        >
-                                          <BuildingIcon className="w-3.5 h-3.5 text-slate-400 inline mr-1" /> Acessar Empresa
-                                        </button>
+                                      ) : (
+                                        <>
+                                          {onSelectEmpresa && (
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                onSelectEmpresa(empresaObj || { id: ch.empresa_id, nome: ch.empresa_nome });
+                                              }}
+                                              className="w-full px-3.5 py-2 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer shadow-2xs flex items-center justify-center gap-1.5 transition-all"
+                                              title="Acessar painel e credenciais da empresa"
+                                            >
+                                              <BuildingIcon className="w-3.5 h-3.5 text-slate-400" />
+                                              <span>Acessar Empresa</span>
+                                            </button>
+                                          )}
+
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setChamadoParaReatribuir(ch);
+                                              setNovoTecnicoReatribuir('');
+                                            }}
+                                            className="w-full px-3.5 py-2 rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300 text-xs font-bold hover:bg-blue-500/20 cursor-pointer shadow-2xs flex items-center justify-center gap-1.5 transition-all"
+                                            title="Repassar este atendimento para outro colega"
+                                          >
+                                            <UsersIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                            <span>Repassar Atendimento</span>
+                                          </button>
+                                        </>
                                       )
                                     )}
+
                                     <button
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         handleCancelarChamado(ch);
                                       }}
-                                      className="px-3 py-2.5 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer text-xs font-semibold flex items-center gap-1"
+                                      className="w-full px-3 py-1.5 text-slate-400 hover:text-red-500 rounded-xl hover:bg-red-500/10 transition-colors cursor-pointer text-xs font-semibold flex items-center justify-center gap-1 mt-1"
                                       title={isFinalizado ? "Excluir do histórico" : "Cancelar chamado"}
                                     >
-                                      <XMarkIcon className="w-4 h-4" />
-                                      <span>Cancelar</span>
+                                      <XMarkIcon className="w-3.5 h-3.5" />
+                                      <span>{isFinalizado ? "Excluir" : "Cancelar Demanda"}</span>
                                     </button>
                                   </div>
                                 </motion.div>
@@ -3581,12 +3695,25 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                             {
                               id: 'opt_para_mim',
                               email: userEmail || 'admin@rmcontrole.com',
-                              nome: `Para mim (${getNomeTecnico(userEmail)})`,
-                              cargo: userEmail || 'Operador',
+                              nome: `Para mim (${getNomeTecnico(userEmail) || 'Lucas'})`,
+                              cargo: userEmail || 'Administrador',
                               isMim: true,
                             },
                             ...equipeLista
-                              .filter((eq) => (eq.email || '').toLowerCase() !== (userEmail || '').toLowerCase())
+                              .filter((eq) => {
+                                const eqEmail = (eq.email || '').toLowerCase().trim();
+                                const eqNome = removerAcentos((eq.nome || '').toLowerCase().trim());
+                                const uEmail = (userEmail || '').toLowerCase().trim();
+                                const uNome = removerAcentos((getNomeTecnico(userEmail) || '').toLowerCase().trim());
+
+                                if (eqEmail === uEmail) return false;
+                                // DEDUPLICAÇÃO ESTRITA: Se o usuário atual for Lucas/Admin, elimina qualquer outro Lucas da lista
+                                if ((eqNome.includes('lucas') || eqEmail.includes('lucas') || eqEmail === 'admin@rmcontrole.com') &&
+                                    (uNome.includes('lucas') || uEmail.includes('lucas') || uEmail === 'admin@rmcontrole.com')) {
+                                  return false;
+                                }
+                                return true;
+                              })
                               .map((eq) => ({
                                 id: eq.id || eq.email,
                                 email: eq.email,
@@ -3976,6 +4103,147 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
         onClose={() => setKanbanAberto(false)}
         userEmail={userEmail}
       />
+
+      {/* Modal de Transferência / Alteração de Responsável da Demanda (Portal em Tela Cheia Centralizado) */}
+      {isClient && chamadoParaReatribuir && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-md overflow-y-auto">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="w-full max-w-lg rounded-3xl border border-black/10 dark:border-white/15 bg-white dark:bg-[#16161a] p-6 shadow-2xl space-y-5 my-auto"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-black/6 dark:border-white/8">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 font-mono">
+                    Gestão de Responsabilidade
+                  </span>
+                </div>
+                <h3 className="text-base font-bold text-[#1d1d1f] dark:text-white">
+                  Transferir Atendimento da Demanda
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                  Altere o colaborador responsável ou assuma o chamado diretamente para você.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setChamadoParaReatribuir(null)}
+                className="p-1 rounded-full text-slate-400 hover:text-black dark:hover:text-white hover:bg-black/5 cursor-pointer"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Dados do Chamado */}
+            <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/6 dark:border-white/8 space-y-1.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Empresa:</span>
+                <strong className="text-[#1d1d1f] dark:text-white">{chamadoParaReatribuir.empresa_nome}</strong>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Motivo:</span>
+                <strong className="text-[#1d1d1f] dark:text-white">{chamadoParaReatribuir.motivo || 'Atendimento Geral'}</strong>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Atendente Atual:</span>
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 font-bold font-mono text-[11px]">
+                  {chamadoParaReatribuir.atendente || chamadoParaReatribuir.tecnico_nome || chamadoParaReatribuir.tecnico_email}
+                </span>
+              </div>
+            </div>
+
+            {/* Ação 1: Assumir Demanda (se o atendente atual não for o usuário logado) */}
+            {(() => {
+              const atendenteAtualEmail = (chamadoParaReatribuir.tecnico_email || '').toLowerCase().trim();
+              const isMeuChamado = isMeuAtendimento(chamadoParaReatribuir);
+
+              if (!isMeuChamado) {
+                return (
+                  <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                        Você deseja assumir este atendimento?
+                      </span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold">
+                        1 Clique
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={salvandoReatribuicao}
+                      onClick={() => handleConfirmarReatribuicao({ email: userEmail, nome: getNomeTecnico(userEmail) || 'Lucas' })}
+                      className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+                    >
+                      <span>✋ Assumir Atendimento Agora</span>
+                    </button>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            {/* Ação 2: Transferir para outro colaborador */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-700 dark:text-zinc-300">
+                Selecione o novo colaborador responsável:
+              </label>
+              <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                {listaTecnicosKanban.map((tec) => {
+                  const isAtual = tec.email === chamadoParaReatribuir.tecnico_email || tec.nome === (chamadoParaReatribuir.tecnico_nome || chamadoParaReatribuir.atendente);
+                  return (
+                    <button
+                      key={tec.key || tec.id}
+                      type="button"
+                      disabled={isAtual || salvandoReatribuicao}
+                      onClick={() => handleConfirmarReatribuicao(tec)}
+                      className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                        isAtual
+                          ? 'border-black/5 dark:border-white/5 opacity-50 cursor-not-allowed bg-black/[0.01]'
+                          : 'border-black/10 dark:border-white/10 hover:border-blue-500 hover:bg-blue-500/5 dark:hover:bg-blue-500/10'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-black/5 dark:bg-white/10 flex items-center justify-center text-xs font-bold text-slate-700 dark:text-zinc-300">
+                          {tec.nome.charAt(0)}
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-[#1d1d1f] dark:text-white block">
+                            {tec.nome}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {tec.email}
+                          </span>
+                        </div>
+                      </div>
+                      {isAtual ? (
+                        <span className="text-[10px] text-slate-400 font-semibold">Atual</span>
+                      ) : (
+                        <span className="text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline">
+                          Transferir →
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end pt-3 border-t border-black/6 dark:border-white/8">
+              <button
+                type="button"
+                onClick={() => setChamadoParaReatribuir(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-zinc-300 hover:bg-black/5 cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
+          </motion.div>
+        </div>,
+        document.body
+      )}
 
       {/* Modal de Conclusão do Chamado */}
       {chamadoParaFinalizar && (

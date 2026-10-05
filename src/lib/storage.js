@@ -1308,10 +1308,10 @@ export async function fetchHistoricoChamados() {
   let dbChamados = [];
   if (isSupabaseConfigured && supabase) {
     try {
+      // Busca todos os chamados finalizados ou que possuam resolução/observação técnica preenchida
       const { data, error } = await supabase
         .from('suporte_chamados')
         .select('*')
-        .in('status', ['finalizado', 'concluido'])
         .order('created_at', { ascending: false });
 
       if (!error && Array.isArray(data)) {
@@ -1867,10 +1867,10 @@ export async function addEmpresaCredencial(empresaId, { rotulo, nome_usuario = '
   }
 
   let empresas = getLocalData('empresas_reais', []);
-  let emp = empresas.find((e) => e.id === empresaId);
+  let emp = empresas.find((e) => String(e.id) === String(empresaId));
 
   if (!emp && isMockDataEnabled()) {
-    const mockEmp = DEFAULT_EMPRESAS_MOCK.find((e) => e.id === empresaId);
+    const mockEmp = DEFAULT_EMPRESAS_MOCK.find((e) => String(e.id) === String(empresaId));
     if (mockEmp) {
       emp = JSON.parse(JSON.stringify(mockEmp));
       empresas.unshift(emp);
@@ -1884,13 +1884,55 @@ export async function addEmpresaCredencial(empresaId, { rotulo, nome_usuario = '
     usuario_email: (usuario_email || '').trim(),
     senha: (senha || '').trim(),
     observacao: (observacao || '').trim(),
+    is_principal: Boolean(is_principal),
     ultima_alteracao: new Date().toISOString(),
   };
 
   if (emp) {
-    if (!emp.credenciais_lista) emp.credenciais_lista = [];
+    if (!emp.credenciais_lista) {
+      emp.credenciais_lista = [];
+      if (emp.credenciais) {
+        emp.credenciais_lista.push({
+          id: 'cred_principal_legado',
+          rotulo: 'Acesso Principal',
+          usuario_email: emp.credenciais.email_administrador || '',
+          senha: emp.credenciais.senha_suporte || '',
+          is_principal: true,
+          observacao: 'Acesso Padrão',
+          ultima_alteracao: new Date().toISOString(),
+        });
+      }
+    }
+    
+    // Se nova credencial for principal, remove flag das outras
+    if (novaCred.is_principal) {
+      emp.credenciais_lista.forEach(c => c.is_principal = false);
+    }
+
     emp.credenciais_lista.push(novaCred);
+
+    // Se tiver nome do colaborador, sincroniza automaticamente na lista de colaboradores da empresa
+    const nomeColab = (nome_usuario || rotulo || '').trim();
+    if (nomeColab && nomeColab.toLowerCase() !== 'acesso principal' && nomeColab.toLowerCase() !== 'painel admin') {
+      if (!emp.colaboradores) emp.colaboradores = [];
+      const jaExiste = emp.colaboradores.some(c => c.nome.toLowerCase().trim() === nomeColab.toLowerCase());
+      if (!jaExiste) {
+        emp.colaboradores.push({
+          id: 'colab_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+          nome: nomeColab,
+          email: (usuario_email || '').trim(),
+          cargo: 'Colaborador',
+          created_at: new Date().toISOString(),
+        });
+      }
+    }
+
     setLocalData('empresas_reais', empresas);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('credenciais_updated'));
+      window.dispatchEvent(new Event('empresas_updated'));
+      window.dispatchEvent(new Event('suporte_updated'));
+    }
   }
 
   await logAuditoria({
@@ -3511,81 +3553,170 @@ export async function logVisualizacaoSenha(empresaId, userEmail = 'admin@rmcontr
 // ==============================================================================
 const DEFAULT_SOLUCOES = [];
 
+// Procedimentos Padrão Reais do RM Controle (Base de Conhecimento Autêntica)
+export const PROCEDIMENTOS_PADRAO_SUPORTE = [
+  {
+    id: 'proc_login_desbloqueio',
+    titulo: 'Redefinição de Senha e Liberação de Acesso de Operador',
+    modulo: 'Acessos & Segurança',
+    tipo: 'Acesso e Permissão',
+    erro_codigo: 'AUTH_LOCK_01',
+    tags: ['login', 'senha', 'bloqueio', 'acesso', 'permissao'],
+    contexto: 'Usuário não consegue logar ou teve acesso bloqueado por tentativas incorretas.',
+    solucao_passos: '1. Acesse o painel de Acessos Técnicos da empresa.\n2. Localize a credencial do operador ou crie uma nova com cargo correto.\n3. Clique em redefinir senha e defina uma senha forte ou use a senha padrão da empresa.\n4. Solicite ao operador efetuar login na URL do servidor alocado correspondente.\n5. Se o erro persistir, verifique se a conta não está desativada no cadastro geral.',
+    created_at: '2026-09-01T10:00:00Z',
+    is_mock: false,
+  },
+  {
+    id: 'proc_qrcode_reconexao',
+    titulo: 'Reconexão e Pareamento de Canal WhatsApp / QR Code',
+    modulo: 'Canais de Atendimento',
+    tipo: 'Instância Desconectada',
+    erro_codigo: 'WABA_DISC_02',
+    tags: ['whatsapp', 'qrcode', 'desconectado', 'pareamento', 'instancia'],
+    contexto: 'Canal WhatsApp desconectou do aparelho ou a sessão foi expirada pelo Meta.',
+    solucao_passos: '1. No menu lateral, acesse Canais de Atendimento da empresa.\n2. Localize a instância afetada e clique em Reiniciar Instância.\n3. Aguarde 5 segundos até o QR Code ser gerado na tela.\n4. No celular do cliente, abra o WhatsApp > Aparelhos Conectados > Conectar um aparelho.\n5. Aponte a câmera para o QR Code até o status mudar para Conectado.',
+    created_at: '2026-09-02T11:00:00Z',
+    is_mock: false,
+  },
+  {
+    id: 'proc_gateway_timeout',
+    titulo: 'Falha de Conexão com Gateway / Timeout de API',
+    modulo: 'Infraestrutura & Rede',
+    tipo: 'Timeout de API',
+    erro_codigo: 'NET_TIMEOUT_504',
+    tags: ['timeout', 'api', 'gateway', 'servidor', 'lentidao', 'rede'],
+    contexto: 'Mensagens ou requisições retornando timeout 504 no servidor.',
+    solucao_passos: '1. Verifique se o Servidor Alocado (Servidor 1 ou 2) está online clicando no link direto em nova aba.\n2. Em Configurações do Servidor, verifique o checklist de monitoramento de portas.\n3. Teste o endpoint de health check do gateway.\n4. Se necessário, acione o reinício do serviço de fila Redis/RabbitMQ.\n5. Oriente o operador a reenviar as mensagens pendentes após a estabilização.',
+    created_at: '2026-09-03T12:00:00Z',
+    is_mock: false,
+  },
+  {
+    id: 'proc_impressora_spooler',
+    titulo: 'Erro de Impressão, Comunicação com Spooler ou Etiqueta',
+    modulo: 'Periféricos & PDV',
+    tipo: 'Impressão e Hardware',
+    erro_codigo: 'PRINT_ERR_04',
+    tags: ['impressora', 'spooler', 'etiqueta', 'pdv', 'fiscal', 'driver'],
+    contexto: 'Documentos, cupons ou etiquetas travados na fila de impressão do sistema.',
+    solucao_passos: '1. No computador do operador, pressione Windows + R e digite services.msc.\n2. Localize o serviço "Spooler de Impressão" e selecione "Reiniciar".\n3. Na pasta C:\\Windows\\System32\\spool\\PRINTERS, exclua arquivos temporários com a impressora pausada.\n4. Reinicie o Spooler e reabra a aplicação de impressão.\n5. Imprima uma página de teste para confirmar a comunicação física USB ou de rede.',
+    created_at: '2026-09-04T14:00:00Z',
+    is_mock: false,
+  },
+  {
+    id: 'proc_db_sync_cache',
+    titulo: 'Sincronização de Banco de Dados e Limpeza de Cache Local',
+    modulo: 'Banco de Dados',
+    tipo: 'Sincronização',
+    erro_codigo: 'DB_SYNC_05',
+    tags: ['banco', 'cache', 'sincronizacao', 'dados', 'atualizacao'],
+    contexto: 'Dados alterados no sistema não refletem no painel do suporte ou na tela da empresa.',
+    solucao_passos: '1. No navegador do cliente, execute uma limpeza profunda de cache com Ctrl + Shift + R (ou Cmd + Shift + R no Mac).\n2. Verifique se há pendências no armazenamento local (localStorage/IndexedDB).\n3. Em Configurações Gerais, clique em sincronizar dados.\n4. Verifique a latência de conexão com o banco de dados principal.\n5. Confirme se as atualizações foram persistidas na tabela de auditoria.',
+    created_at: '2026-09-05T15:00:00Z',
+    is_mock: false,
+  }
+];
+
 export function getSolucoesSuporte({ empresa_id = null, query = '', tag = '', tipo = '' } = {}) {
   let base = getLocalData('solucoes_suporte', []);
+  if (!Array.isArray(base)) base = [];
 
-  // PURGAÇÃO ESTRITA DE MOCKS E ITENS SINTÉTICOS DO LOCALSTORAGE
-  const mockCodes = new Set(['AUTH_LOCKOUT_401', 'PG_MAX_CONNECTIONS', 'ERR_SSL_PROTOCOL_ERROR', 'ERR_EVOLUTION_DISCONNECTED', 'WABA_131026']);
-  const initialCount = base.length;
-  
-  base = base.filter((s) => {
-    if (!s) return false;
-    const id = String(s.id || '');
-    if (id.startsWith('sol_1') || id.startsWith('sol_2') || id.startsWith('sol_3') || id.startsWith('sol_4') || id.startsWith('sol_5')) return false;
-    if (id.startsWith('sol_chamado_')) return false; // remove sintéticos automáticos não cadastrados
-    if (s.erro_codigo && mockCodes.has(String(s.erro_codigo).trim().toUpperCase())) return false;
-    if (s.titulo && (
-      s.titulo.includes('PostgreSQL: Erro') ||
-      s.titulo.includes('Certificado SSL Let') ||
-      s.titulo.includes('Instância Desconectada') ||
-      s.titulo.includes('Erro 131026') ||
-      s.titulo.includes('Redefinição de Senha de Administrador & Desbloqueio')
-    )) return false;
-    return true;
+  // 1. Extração dinâmica das resoluções REAIS cadastradas nos chamados (suporte_chamados e historico_chamados)
+  const historicoChamados = getLocalData('historico_chamados', []) || [];
+  const chamadosAtivos = getLocalData('chamados_suporte', []) || [];
+  const todosChamados = [...historicoChamados, ...chamadosAtivos];
+
+  const chamadosComResolucao = todosChamados.filter((c) => {
+    if (!c) return false;
+    const textoResolucao = (c.observacoes || c.resolucao || '').trim();
+    return Boolean(textoResolucao);
   });
 
-  // Se algum mock foi expurgado, regrava no localStorage para eliminar permanentemente do navegador do usuário
-  if (base.length !== initialCount) {
-    setLocalData('solucoes_suporte', base);
+  const solucoesDeChamados = chamadosComResolucao.map((c) => {
+    const passos = (c.observacoes || c.resolucao || '').trim();
+    const tituloFinal = c.motivo ? c.motivo.trim() : 'Procedimento Técnico Real';
+    return {
+      id: 'sol_chamado_' + c.id,
+      chamado_id: c.id,
+      empresa_id: c.empresa_id || null,
+      empresa_nome: c.empresa_nome || 'Empresa',
+      titulo: tituloFinal,
+      erro_codigo: '',
+      tipo_erro: c.motivo || 'Suporte Concluído',
+      solucao_passos: passos,
+      contexto: `Resolução aplicada por ${c.atendente || c.tecnico_nome || 'atendente'} no chamado de ${c.empresa_nome || 'cliente'}.`,
+      tags: Array.isArray(c.etiquetas) && c.etiquetas.length > 0 ? c.etiquetas : [c.motivo, c.empresa_nome].filter(Boolean),
+      autor_email: c.tecnico_email || '',
+      created_at: c.finalizado_em || c.iniciado_em || c.created_at || new Date().toISOString(),
+      is_user_created: true,
+      is_mock: false,
+    };
+  });
+
+  // 2. Mescla procedimentos criados manualmente e procedimentos oriundos dos chamados
+  let todas = [...solucoesDeChamados, ...base.filter((s) => s.is_user_created)];
+
+  // Apenas inclui mocks se o usuário explicitamente ativou dados simulados (Mock Dev)
+  if (isMockDataEnabled()) {
+    todas = [...todas, ...PROCEDIMENTOS_PADRAO_SUPORTE];
   }
 
-  // Deduplicação estrita de soluções para evitar qualquer duplicata no banco
+  // 3. Deduplicação estrita por título e texto do procedimento
   const vistas = new Set();
   const baseDeduplicada = [];
-  for (const s of base) {
-    const passosNorm = (s.solucao_passos || '').toLowerCase().trim();
-    const tituloNorm = (s.titulo || '').toLowerCase().trim();
-    const empNorm = (s.empresa_id || s.empresa_nome || 'global').toLowerCase().trim();
-    const chave = `${empNorm}_${tituloNorm}_${passosNorm}`;
+  for (const s of todas) {
+    if (!s) continue;
+    const chave = `${(s.titulo || '').toLowerCase().trim()}___${(s.solucao_passos || '').toLowerCase().trim()}`;
     if (!vistas.has(chave)) {
       vistas.add(chave);
       baseDeduplicada.push(s);
     }
   }
+  todas = baseDeduplicada;
 
-  let todas = [...baseDeduplicada];
+  // BANCO GLOBAL DE SOLUÇÕES: Todas as empresas têm acesso a todas as soluções cadastradas
+  // Se empresa_id for informado, marcamos is_empresa_atual para priorizar na ordenação, mas NUNCA ocultamos procedimentos de outros clientes
+  todas = todas.map((s) => ({
+    ...s,
+    is_empresa_atual: empresa_id ? Boolean(s.empresa_id === empresa_id) : true,
+  }));
 
-  // Filtro por Tipo de Erro (insensível a acentuação)
+  // Ordenação inteligente: prioriza os procedimentos da empresa aberta atualmente no topo, seguidos por todos os demais procedimentos por data
+  todas.sort((a, b) => {
+    if (empresa_id) {
+      if (a.is_empresa_atual && !b.is_empresa_atual) return -1;
+      if (!a.is_empresa_atual && b.is_empresa_atual) return 1;
+    }
+    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+  });
+
+  // Filtro por Tipo de Demanda / Erro
   if (tipo && tipo !== 'todos') {
-    const tipoNorm = removerAcentos(tipo);
-    todas = todas.filter((s) => removerAcentos(s.tipo_erro).includes(tipoNorm));
+    const t = tipo.toLowerCase().trim();
+    todas = todas.filter((s) => (s.tipo_erro || s.tipo || '').toLowerCase().trim().includes(t));
   }
 
-  // Filtro por Tag (insensível a acentuação)
-  if (tag) {
-    const tagNorm = removerAcentos(tag);
-    todas = todas.filter((s) => s.tags?.some((t) => removerAcentos(t) === tagNorm));
+  // Filtro por Tag
+  if (tag && tag !== 'todas') {
+    const tg = tag.toLowerCase().trim();
+    todas = todas.filter((s) => s.tags?.some((t) => (t || '').toLowerCase().trim() === tg));
   }
 
   // Busca textual Inteligente insensível a acentuação e maiúsculas/minúsculas
   if (query && query.trim()) {
     const q = removerAcentos(query);
     todas = todas.filter((s) => {
-      const matchTitulo = removerAcentos(s.titulo).includes(q);
-      const matchCodigo = removerAcentos(s.erro_codigo).includes(q);
-      const matchContexto = removerAcentos(s.contexto).includes(q);
-      const matchPassos = removerAcentos(s.solucao_passos).includes(q);
-      const matchEmpresa = removerAcentos(s.empresa_nome).includes(q);
-      const matchTags = s.tags?.some((t) => removerAcentos(t).includes(q));
+      const matchTitulo = removerAcentos(s.titulo || '').includes(q);
+      const matchCodigo = removerAcentos(s.erro_codigo || '').includes(q);
+      const matchContexto = removerAcentos(s.contexto || '').includes(q);
+      const matchPassos = removerAcentos(s.solucao_passos || '').includes(q);
+      const matchEmpresa = removerAcentos(s.empresa_nome || '').includes(q);
+      const matchTags = s.tags?.some((t) => removerAcentos(t || '').includes(q));
       return matchTitulo || matchCodigo || matchContexto || matchPassos || matchEmpresa || matchTags;
     });
   }
 
-  // Marcação inteligente: se o item for da empresa atual ou do banco geral
-  return todas.map((s) => ({
-    ...s,
-    is_empresa_atual: empresa_id ? s.empresa_id === empresa_id : true,
-  }));
+  return todas;
 }
 
 export async function addSolucaoSuporte({
@@ -4238,4 +4369,113 @@ export function parseIcalEvents(icsContent) {
     }
   }
   return events;
+}
+
+// Configuração Global de URLs de Acesso aos Servidores (Servidor 1 e Servidor 2)
+export const DEFAULT_SERVIDORES_CONFIG = {
+  servidor_1_nome: 'Servidor 1',
+  servidor_1_url: 'https://app1.rmcontrole.com.br',
+  servidor_2_nome: 'Servidor 2',
+  servidor_2_url: 'https://app2.rmcontrole.com.br',
+};
+
+export function getServidoresConfig() {
+  return getLocalData('rm_servidores_config', DEFAULT_SERVIDORES_CONFIG);
+}
+
+export function setServidoresConfig(config) {
+  const atual = getServidoresConfig();
+  const novo = { ...atual, ...config };
+  setLocalData('rm_servidores_config', novo);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('rm_servidores_config_updated'));
+  }
+  return novo;
+}
+export function getHistoricoCompletoEmpresa(empresaId) {
+  if (!empresaId) return [];
+  const historico = getLocalData('historico_chamados', []) || [];
+  const ativos = getLocalData('chamados_suporte', []) || [];
+
+  const filtrados = [
+    ...historico.filter((c) => c && (c.empresa_id === empresaId || (c.empresa && c.empresa.id === empresaId))),
+    ...ativos.filter((c) => c && (c.empresa_id === empresaId || (c.empresa && c.empresa.id === empresaId))),
+  ];
+
+  const mapa = new Map();
+  filtrados.forEach((c) => {
+    if (c && c.id && !mapa.has(c.id)) {
+      mapa.set(c.id, c);
+    }
+  });
+
+  return Array.from(mapa.values()).sort((a, b) => {
+    const dataB = new Date(b.finalizado_em || b.iniciado_em || b.created_at || 0).getTime();
+    const dataA = new Date(a.finalizado_em || a.iniciado_em || a.created_at || 0).getTime();
+    return dataB - dataA;
+  });
+}
+
+export async function reatribuirChamadoSuporte(chamadoId, novoTecnicoEmail, novoTecnicoNome = null, alteradoPor = 'admin@rmcontrole.com') {
+  if (!chamadoId) throw new Error('ID do chamado é obrigatório.');
+  const chamados = getLocalData('chamados_suporte', []);
+  const idx = chamados.findIndex((c) => c.id === chamadoId);
+  if (idx === -1) throw new Error('Chamado não encontrado.');
+
+  const tecnicoNomeFinal = novoTecnicoNome || getNomeTecnico(novoTecnicoEmail);
+  const anteriorTecnico = chamados[idx].tecnico_nome || chamados[idx].atendente || chamados[idx].tecnico_email;
+
+  chamados[idx] = {
+    ...chamados[idx],
+    tecnico_email: novoTecnicoEmail,
+    tecnico_nome: tecnicoNomeFinal,
+    atendente: tecnicoNomeFinal,
+    atribuido_a: novoTecnicoEmail,
+    historico_reatribuicoes: [
+      ...(chamados[idx].historico_reatribuicoes || []),
+      {
+        de: anteriorTecnico,
+        para: tecnicoNomeFinal,
+        por: alteradoPor,
+        em: new Date().toISOString(),
+      },
+    ],
+    updated_at: new Date().toISOString(),
+  };
+
+  setLocalData('chamados_suporte', chamados);
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase
+        .from('suporte_chamados')
+        .update({
+          tecnico_email: novoTecnicoEmail,
+          atendente: tecnicoNomeFinal,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', chamadoId);
+    } catch (e) {
+      console.warn('Erro ao atualizar tecnico no Supabase:', e);
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('suporte_updated'));
+  }
+
+  return chamados[idx];
+}
+
+export function existeEmpresaComTermo(search) {
+  if (!search || !search.trim()) return true;
+  const q = removerAcentos(search.toLowerCase().trim());
+  const empresasReais = getLocalData('empresas_reais', []) || [];
+  const mockEmpresas = isMockDataEnabled() ? (DEFAULT_EMPRESAS_MOCK || []) : [];
+  const todas = [...empresasReais, ...mockEmpresas];
+  return todas.some((emp) => {
+    if (!emp) return false;
+    const nome = removerAcentos((emp.nome || '').toLowerCase().trim());
+    return nome.includes(q);
+  });
 }

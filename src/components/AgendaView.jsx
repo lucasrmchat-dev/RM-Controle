@@ -313,21 +313,21 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
       {/* ============================================================================== */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400 font-mono">
-              Agenda Integrada ao Google Calendar
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-zinc-400 font-mono">
+              Google Calendar & Compromissos
             </span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#1d1d1f] dark:text-white flex items-center gap-3">
-            <span>Agenda & Compromissos</span>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white flex items-center gap-3">
+            <span>Agenda & Compromissos da Equipe</span>
             {compromissosHoje.length > 0 && (
               <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 font-bold font-mono">
                 {compromissosHoje.length} hoje
               </span>
             )}
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-0.5">
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
             Sincronização com Google Agenda, alertas prévios de reuniões e atribuição direta a membros da equipe.
           </p>
         </div>

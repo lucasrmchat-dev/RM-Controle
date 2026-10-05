@@ -12,6 +12,7 @@ import {
   getNomeTecnico,
   getEmpresaById,
   addColaboradorEmpresa,
+  getColaboradoresEmpresa,
   deleteColaboradorEmpresa,
   removerAcentos,
   addSolucaoSuporte
@@ -100,29 +101,42 @@ export default function SupportCompletionModal({
   const carregarColaboradores = () => {
     if (!chamado?.empresa_id) return;
     const creds = getEmpresaCredenciais(chamado.empresa_id) || [];
-    let listaColabs = creds.map((c) => ({
-      id: c.id,
-      nome: c.nome_usuario || c.rotulo || c.email_administrador || c.usuario_email || 'Acesso Principal',
-      email: c.usuario_email || c.email_administrador || '',
-      cargo: 'Credencial / Admin',
-      is_credencial: true,
-    }));
+    const colabsDiretos = getColaboradoresEmpresa(chamado.empresa_id) || [];
 
-    try {
-      const emp = getEmpresaById(chamado.empresa_id);
-      if (emp && emp.colaboradores) {
-        const extras = emp.colaboradores.map((col) => ({
-          id: col.id,
-          nome: col.nome,
-          email: col.email || '',
-          cargo: col.cargo || 'Colaborador',
+    const lista = [];
+    const vistos = new Set();
+
+    // 1. Colaboradores diretos cadastrados na empresa
+    for (const c of colabsDiretos) {
+      const nomeLimpo = (c?.nome || '').trim();
+      if (nomeLimpo && !vistos.has(nomeLimpo.toLowerCase())) {
+        vistos.add(nomeLimpo.toLowerCase());
+        lista.push({
+          id: c.id || ('col_' + Math.random()),
+          nome: nomeLimpo,
+          email: c.email || '',
+          cargo: c.cargo || 'Colaborador da Empresa',
           is_colaborador: true,
-        }));
-        listaColabs = [...extras, ...listaColabs];
+        });
       }
-    } catch (e) {}
+    }
 
-    setColaboradores(listaColabs);
+    // 2. Colaboradores e usuários registrados via Credenciais de Acesso
+    for (const cr of creds) {
+      const nomeCred = (cr.nome_usuario || cr.rotulo || '').trim();
+      if (nomeCred && !vistos.has(nomeCred.toLowerCase()) && nomeCred.toLowerCase() !== 'painel admin') {
+        vistos.add(nomeCred.toLowerCase());
+        lista.push({
+          id: cr.id,
+          nome: nomeCred,
+          email: cr.usuario_email || '',
+          cargo: cr.rotulo || 'Acesso / Colaborador',
+          is_credencial: true,
+        });
+      }
+    }
+
+    setColaboradores(lista);
 
     // O usuário especificou: NÃO quer que tenha colaborador nem motivo pré-definido!
     setColaboradorSelecionado(null);

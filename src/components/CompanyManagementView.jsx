@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   getCanaisCatalogo, 
@@ -46,14 +47,18 @@ import {
   XMarkIcon,
   TrashIcon,
   EditIcon,
-  LightBulbIcon
+  LightBulbIcon,
+  ExternalLinkIcon
 } from './Icons';
 import SupportCompletionModal from './SupportCompletionModal';
 import KnowledgeBaseTab from './KnowledgeBaseModal';
 import ConfirmModal from './ConfirmModal';
 import { showToast } from './ToastNotification';
 import {
+  getHistoricoCompletoEmpresa,
   getServidorConfigPadrao,
+  getServidoresConfig,
+  getColaboradoresEmpresa,
   getEmpresaServidorDetalhes,
   updateEmpresaServidorDetalhes,
   toggleServidorChecklistItem,
@@ -66,14 +71,19 @@ import {
 import RegisterSupportModal from './RegisterSupportModal';
 
 export default function CompanyManagementView({ empresa, onBack, onUpdated, userEmail }) {
-  const [activeTab, setActiveTab] = useState('como_resolver'); // 'como_resolver' | 'canais' | 'credenciais' | 'servidor' | 'observacoes' | 'chamados'
+  const [activeTab, setActiveTab] = useState('cockpit'); // 'como_resolver' | 'canais' | 'credenciais' | 'servidor' | 'observacoes' | 'chamados'
   const [catalogoCanais, setCatalogoCanais] = useState([]);
+  const [servidoresConfig, setServidoresConfigState] = useState(getServidoresConfig() || {});
   const [isRegistrarModalOpen, setIsRegistrarModalOpen] = useState(false);
   const [solucoesCount, setSolucoesCount] = useState(0);
+  const [isEditServidoresModalOpen, setIsEditServidoresModalOpen] = useState(false);
+  const [servidor1UrlInput, setServidor1UrlInput] = useState('');
+  const [servidor2UrlInput, setServidor2UrlInput] = useState('');
+  const [cockpitMobileTab, setCockpitMobileTab] = useState('acessos'); // 'acessos' | 'como_resolver' | 'empresa'
 
   // Garante que ao abrir a tela de suporte de uma empresa, a aba padrão seja sempre "Como Resolver Chamado"
   useEffect(() => {
-    setActiveTab('como_resolver');
+    setActiveTab('cockpit');
   }, [empresa?.id]);
 
   useEffect(() => {
@@ -148,6 +158,9 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
   // Formato de Atendimento e Servidor Alocado
   const [formatoSelecionado, setFormatoSelecionado] = useState(empresa?.formato_atendimento || 'colaborativo');
   const [servidorSelecionado, setServidorSelecionado] = useState(empresa?.servidor_alocado || 'servidor_1');
+  const [empresaNomeEditInput, setEmpresaNomeEditInput] = useState(empresa?.nome || '');
+  const [isEditingNomeInline, setIsEditingNomeInline] = useState(false);
+  const [salvandoEmpresaServidor, setSalvandoEmpresaServidor] = useState(false);
   const [salvandoFormato, setSalvandoFormato] = useState(false);
   const [salvandoServidor, setSalvandoServidor] = useState(false);
 
@@ -209,6 +222,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
       verificarChamadoAtivo();
       setFormatoSelecionado(empresa?.formato_atendimento || 'colaborativo');
       setServidorSelecionado(empresa?.servidor_alocado || 'servidor_1');
+      setEmpresaNomeEditInput(empresa?.nome || '');
     }
     init();
 
@@ -328,6 +342,101 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
   };
 
   // Salvar Servidor Alocado
+  const handleSalvarUrlsServidores = (e) => {
+    e?.preventDefault?.();
+    const atual = getServidoresConfig() || {};
+    const novo = {
+      ...atual,
+      servidor_1_url: servidor1UrlInput.trim() || 'https://app1.rmcontrole.com.br',
+      servidor_2_url: servidor2UrlInput.trim() || 'https://app2.rmcontrole.com.br',
+    };
+    setServidoresConfig(novo);
+    setServidoresConfigState(novo);
+    setIsEditServidoresModalOpen(false);
+    showToast('Links dos servidores atualizados com sucesso!', 'success');
+  };
+
+  const handleTrocarAlocacaoServidor = async (novoServidor) => {
+    try {
+      setServidorSelecionado(novoServidor);
+      await updateEmpresa(empresa.id, { servidor_alocado: novoServidor }, userEmail);
+      empresa.servidor_alocado = novoServidor;
+      showToast(`Empresa alocada no ${novoServidor === 'servidor_2' ? 'Servidor 2' : 'Servidor 1'}!`, 'success');
+      onUpdated?.();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const handleTornarCredencialPrincipal = async (credId) => {
+    try {
+      await updateEmpresaCredencial(empresa.id, credId, { is_principal: true }, userEmail);
+      showToast('Credencial definida como Acesso Principal!', 'success');
+      recarregarCredenciais();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const handleSalvarNomeInline = async (e) => {
+    e?.preventDefault?.();
+    const novoNome = (empresaNomeEditInput || '').trim();
+    if (!novoNome) {
+      showToast('O nome da empresa é obrigatório.', 'error');
+      return;
+    }
+    try {
+      setSalvandoEmpresaServidor(true);
+      await updateEmpresa(empresa.id, { nome: novoNome }, userEmail);
+      empresa.nome = novoNome;
+      setEmpresaNomeEditInput(novoNome);
+      setIsEditingNomeInline(false);
+      showToast('Nome da empresa atualizado com sucesso!', 'success');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('empresas_updated'));
+        window.dispatchEvent(new Event('suporte_updated'));
+      }
+      onUpdated?.();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setSalvandoEmpresaServidor(false);
+    }
+  };
+
+  const handleSalvarEdicaoEmpresaServidor = async (e) => {
+    e?.preventDefault?.();
+    const novoNome = (empresaNomeEditInput || empresa.nome || '').trim();
+    if (!novoNome) {
+      showToast('O nome da empresa é obrigatório.', 'error');
+      return;
+    }
+
+    try {
+      setSalvandoEmpresaServidor(true);
+      await updateEmpresa(empresa.id, {
+        nome: novoNome,
+        servidor_alocado: servidorSelecionado,
+        formato_atendimento: formatoSelecionado,
+      }, userEmail);
+
+      empresa.nome = novoNome;
+      empresa.servidor_alocado = servidorSelecionado;
+      empresa.formato_atendimento = formatoSelecionado;
+      showToast('Nome da empresa e servidor atualizados com sucesso!', 'success');
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('empresas_updated'));
+        window.dispatchEvent(new Event('suporte_updated'));
+      }
+      onUpdated?.();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setSalvandoEmpresaServidor(false);
+    }
+  };
+
   const handleSalvarServidor = async () => {
     try {
       setSalvandoServidor(true);
@@ -351,7 +460,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
   const totalChecklist = checklistFiltrado.length;
   const concluidosChecklist = checklistFiltrado.filter((c) => c.concluido).length;
   const pctChecklist = totalChecklist > 0 ? Math.round((concluidosChecklist / totalChecklist) * 100) : 0;
-  const chamadosEmpresa = getChamadosSuporte({ empresa_id: empresa.id });
+  const chamadosEmpresa = getHistoricoCompletoEmpresa(empresa.id);
 
   // Ícones de Canal (Puro SVG minimalista Apple, zero ícones de WhatsApp)
   const renderCanalIcon = (c) => {
@@ -500,6 +609,12 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
       setEditandoCredId(null);
       setIsAddCredOpen(false);
       recarregarCredenciais();
+      onUpdated?.();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('suporte_updated'));
+        window.dispatchEvent(new Event('empresas_updated'));
+        window.dispatchEvent(new Event('credenciais_updated'));
+      }
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -604,11 +719,10 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
           {/* Abas Apple Minimalistas na Mesma Linha de Voltar */}
           <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 px-0.5 rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.05] dark:border-white/[0.06]">
             {[
-              { id: 'como_resolver', label: 'Como Resolver Chamado', count: solucoesCount, highlight: true },
+              { id: 'cockpit', label: 'Cockpit de Atendimento', highlight: true },
               { id: 'canais', label: 'Canais de Atendimento', count: empresa.canais?.length || 0 },
-              { id: 'credenciais', label: 'Acessos & Senhas Técnicas', count: credenciaisList.length },
-              { id: 'servidor', label: 'Configuração do Servidor', count: `${concluidosChecklist}/${totalChecklist}` },
-              { id: 'chamados', label: 'Histórico de Suporte', count: chamadosEmpresa.length },
+              { id: 'servidor', label: 'Configurações do Servidor', count: `${concluidosChecklist}/${totalChecklist}` },
+              { id: 'chamados', label: 'Histórico de Atendimentos', count: chamadosEmpresa.length },
             ].map((tab) => {
               const isActive = activeTab === tab.id;
               return (
@@ -692,11 +806,50 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 {empresa.nome.charAt(0)}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-xl font-bold tracking-tight text-[#0a0a0c] dark:text-white truncate">
-                    {empresa.nome}
-                  </h1>
-                </div>
+                {isEditingNomeInline ? (
+                  <form onSubmit={handleSalvarNomeInline} className="space-y-2">
+                    <input
+                      type="text"
+                      value={empresaNomeEditInput}
+                      onChange={(e) => setEmpresaNomeEditInput(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-xl border border-black/15 dark:border-white/20 bg-white dark:bg-zinc-800 text-sm font-bold text-[#0a0a0c] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]"
+                      autoFocus
+                    />
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="submit"
+                        disabled={salvandoEmpresaServidor}
+                        className="px-3 py-1 rounded-lg bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold shadow-xs hover:opacity-95 cursor-pointer"
+                      >
+                        Salvar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEmpresaNomeEditInput(empresa.nome);
+                          setIsEditingNomeInline(false);
+                        }}
+                        className="px-3 py-1 rounded-lg border border-black/10 dark:border-white/10 text-xs text-slate-500 hover:bg-black/5 cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h1 className="text-lg font-bold tracking-tight text-[#0a0a0c] dark:text-white truncate">
+                      {empresaNomeEditInput || empresa.nome}
+                    </h1>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingNomeInline(true)}
+                      className="p-1 rounded-lg text-slate-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                      title="Editar nome da empresa"
+                    >
+                      <EditIcon className="w-4 h-4 text-slate-500 hover:text-[#4d7c0f] dark:hover:text-[#84cc16]" />
+                    </button>
+                  </div>
+                )}
                 <div className="flex items-center gap-1.5 mt-1">
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-semibold">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
@@ -711,48 +864,46 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
               </div>
             </div>
 
-            {/* Configuração de Servidor Alocado */}
+            {/* Servidor Alocado com Link Direto para Abrir em Nova Aba */}
             <div className="pt-4 border-t border-black/8 dark:border-white/10 space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-700 dark:text-zinc-300">Servidor Alocado</span>
-                <button
-                  type="button"
-                  onClick={handleSalvarServidor}
-                  disabled={salvandoServidor}
-                  className="text-[11px] font-bold text-[#4d7c0f] dark:text-[#84cc16] hover:underline flex items-center gap-1 cursor-pointer"
-                >
-                  {salvandoServidor ? 'Salvando...' : (
-                    <>
-                      <SaveIcon className="w-3 h-3" />
-                      <span>Salvar</span>
-                    </>
-                  )}
-                </button>
+                <span className="font-semibold text-slate-700 dark:text-zinc-300">Servidor Alocado:</span>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-slate-600 dark:text-zinc-300">
+                  {(empresa.servidor_alocado || 'servidor_1') === 'servidor_2' ? (servidoresConfig?.servidor_2_nome || 'Servidor 2') : (servidoresConfig?.servidor_1_nome || 'Servidor 1')}
+                </span>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setServidorSelecionado('servidor_1')}
-                  className={`p-2.5 rounded-xl border text-center text-xs font-semibold transition-all ${
-                    servidorSelecionado === 'servidor_1'
-                      ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/10 dark:bg-[#84cc16]/10 text-[#0a0a0c] dark:text-white'
-                      : 'border-black/10 dark:border-white/10 text-slate-500'
-                  }`}
-                >
-                  Servidor 1
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setServidorSelecionado('servidor_2')}
-                  className={`p-2.5 rounded-xl border text-center text-xs font-semibold transition-all ${
-                    servidorSelecionado === 'servidor_2'
-                      ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/10 dark:bg-[#84cc16]/10 text-[#0a0a0c] dark:text-white'
-                      : 'border-black/10 dark:border-white/10 text-slate-500'
-                  }`}
-                >
-                  Servidor 2
-                </button>
-              </div>
+
+              {/* Botão de Link Direto com target="_blank" */}
+              {(() => {
+                const isS2 = (empresa.servidor_alocado || 'servidor_1') === 'servidor_2';
+                const sUrl = isS2 ? (servidoresConfig?.servidor_2_url || 'https://app2.rmcontrole.com.br') : (servidoresConfig?.servidor_1_url || 'https://app1.rmcontrole.com.br');
+                const sNome = isS2 ? (servidoresConfig?.servidor_2_nome || 'Servidor 2') : (servidoresConfig?.servidor_1_nome || 'Servidor 1');
+
+                return (
+                  <div className="space-y-1.5">
+                    <a
+                      href={sUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full px-3.5 py-2.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 font-bold text-xs flex items-center justify-between transition-all shadow-2xs group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span>Acessar {sNome}</span>
+                      </div>
+                      <ExternalLinkIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('servidor')}
+                      className="text-[10px] text-slate-400 hover:text-black dark:hover:text-white underline cursor-pointer block text-left"
+                    >
+                      Alterar servidor em Configurações do Servidor →
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
 
 
@@ -1841,49 +1992,99 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
 
               {chamadosEmpresa.length === 0 ? (
                 <div className="rounded-3xl p-10 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] text-center text-xs text-slate-500">
-                  Nenhum atendimento realizado para esta empresa ainda.
+                  Nenhum atendimento registrado para esta empresa ainda.
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {chamadosEmpresa.map((ch) => (
-                    <div
-                      key={ch.id}
-                      className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${
-                            ch.status === 'finalizado'
-                              ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'
-                              : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20'
-                          }`}>
-                            {ch.status}
-                          </span>
-                          <strong className="text-xs text-[#0a0a0c] dark:text-white">{ch.motivo || 'Sem motivo'}</strong>
-                        </div>
-                        <p className="text-[11px] text-slate-500 font-mono">
-                          Técnico: {ch.tecnico_email} • Início: {new Date(ch.iniciado_em).toLocaleString('pt-BR')}
-                        </p>
-                        {ch.colaborador_solicitante && (
-                          <p className="text-[11px] text-slate-600 dark:text-zinc-400">
-                            Solicitante: <strong>{ch.colaborador_solicitante}</strong>
-                          </p>
-                        )}
-                        {ch.observacoes && (
-                          <p className="text-[11px] text-slate-600 dark:text-zinc-400 italic">
-                            Solução: {ch.observacoes}
-                          </p>
-                        )}
-                      </div>
+                  {chamadosEmpresa.map((ch) => {
+                    const isAtivo = ch.status === 'em_andamento' || (!ch.finalizado_em && ch.status !== 'concluido' && ch.status !== 'finalizado');
+                    
+                    // Cálculo preciso de duração
+                    let segs = ch.duracao_segundos || ch.tempo_ativo_segundos;
+                    if (!segs && ch.finalizado_em && (ch.iniciado_em || ch.created_at)) {
+                      segs = Math.max(1, Math.floor((new Date(ch.finalizado_em).getTime() - new Date(ch.iniciado_em || ch.created_at).getTime()) / 1000));
+                    }
 
-                      <div className="text-right font-mono self-end sm:self-center">
-                        <span className="text-xs font-bold text-slate-800 dark:text-zinc-200 block tabular-nums">
-                          {formatarTempo(ch.duracao_segundos)}
-                        </span>
-                        <span className="text-[10px] text-slate-400">Duração</span>
+                    const duracaoFormatada = (() => {
+                      if (isAtivo) return 'Atendimento Ativo';
+                      if (!segs || segs <= 0) return '< 1 min';
+                      const hrs = Math.floor(segs / 3600);
+                      const mins = Math.floor((segs % 3600) / 60);
+                      const s = segs % 60;
+                      if (hrs > 0) return `${hrs}h ${mins}m ${s > 0 ? `${s}s` : ''}`;
+                      if (mins > 0) return `${mins}m ${s > 0 ? `${s}s` : ''}`;
+                      return `${s}s`;
+                    })();
+
+                    return (
+                      <div
+                        key={ch.id}
+                        className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                      >
+                        <div className="space-y-1.5 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full border ${
+                              isAtivo
+                                ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 animate-pulse'
+                                : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20'
+                            }`}>
+                              {isAtivo ? 'Em Andamento' : 'Finalizado'}
+                            </span>
+                            <strong className="text-sm text-[#0a0a0c] dark:text-white">
+                              {ch.motivo || 'Atendimento Geral'}
+                            </strong>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-zinc-400 font-mono pt-1">
+                            <div>
+                              <span>Início: </span>
+                              <strong className="text-slate-700 dark:text-zinc-200">
+                                {new Date(ch.iniciado_em || ch.created_at || Date.now()).toLocaleString('pt-BR')}
+                              </strong>
+                            </div>
+                            <div>
+                              <span>Término: </span>
+                              <strong className="text-slate-700 dark:text-zinc-200">
+                                {ch.finalizado_em ? new Date(ch.finalizado_em).toLocaleString('pt-BR') : 'Em andamento'}
+                              </strong>
+                            </div>
+                            <div>
+                              <span>Atendente: </span>
+                              <strong className="text-slate-700 dark:text-zinc-200">
+                                {ch.atendente_nome || ch.tecnico_nome || ch.atendente || ch.tecnico_email || 'Suporte'}
+                              </strong>
+                            </div>
+                            {(ch.colaborador_solicitante || ch.solicitante_nome) && (
+                              <div>
+                                <span>Solicitante: </span>
+                                <strong className="text-slate-700 dark:text-zinc-200">
+                                  {ch.colaborador_solicitante || ch.solicitante_nome}
+                                </strong>
+                              </div>
+                            )}
+                          </div>
+
+                          {(ch.observacoes || ch.resolucao) && (
+                            <p className="text-xs text-slate-600 dark:text-zinc-300 italic pt-1 border-t border-black/[0.04] dark:border-white/[0.05]">
+                              Resolução: &ldquo;{ch.observacoes || ch.resolucao}&rdquo;
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Tempo de Duração em Destaque */}
+                        <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center p-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/6 dark:border-white/8 flex-shrink-0">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 font-mono">
+                            Tempo de Duração
+                          </span>
+                          <span className={`text-sm font-bold font-mono tabular-nums ${
+                            isAtivo ? 'text-amber-600 dark:text-amber-400 animate-pulse' : 'text-[#4d7c0f] dark:text-[#84cc16]'
+                          }`}>
+                            {duracaoFormatada}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1892,16 +2093,389 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
           {/* ============================================================================== */}
           {/* ABA 5: COMO RESOLVER CHAMADO (BASE DE CONHECIMENTO OPERACIONAL) */}
           {/* ============================================================================== */}
-          {activeTab === 'como_resolver' && (
-            <KnowledgeBaseTab
-              empresa={empresa}
-              userEmail={userEmail}
-            />
+          {/* ============================================================================== */}
+          {/* COCKPIT TRIPARTIDO: CENTRO (COMO RESOLVER) E DIREITA (ACESSOS E SENHAS) */}
+          {/* ============================================================================== */}
+          {(activeTab === 'como_resolver' || activeTab === 'cockpit') && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+              
+              {/* COLUNA 1: COMO RESOLVER CHAMADOS (50% IGUALITÁRIO) */}
+              <div className="w-full space-y-4">
+                <KnowledgeBaseTab
+                  empresa={empresa}
+                  userEmail={userEmail}
+                  hideListWhenEmpty={true}
+                />
+              </div>
+
+              {/* COLUNA 2: ACESSOS E SENHAS TÉCNICAS (50% IGUALITÁRIO) */}
+              <div className="w-full space-y-4">
+                <div className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] shadow-sm space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-black/6 dark:border-white/8">
+                    <div>
+                      <h2 className="text-lg font-bold tracking-tight text-[#0a0a0c] dark:text-white flex items-center gap-2">
+                        <span>Acessos & Senhas Técnicas</span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-slate-600 dark:text-zinc-300">
+                          {credenciaisList.length}
+                        </span>
+                      </h2>
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-0.5">
+                        Acesso principal e credenciais de colaboradores
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditandoCredId(null);
+                        setCredRotulo('');
+                        setCredNomeUsuario('');
+                        setCredUsuario('');
+                        setCredSenha('');
+                        setCredObs('');
+                        setIsAddCredOpen(true);
+                      }}
+                      className="px-3 py-1.5 rounded-full bg-black text-white dark:bg-white dark:text-black font-semibold text-[11px] hover:opacity-90 transition-all cursor-pointer shadow-xs"
+                    >
+                      + Novo
+                    </button>
+                  </div>
+
+                  {/* Lista de Acessos com Destaque para o Principal */}
+                  {credenciaisList.length === 0 ? (
+                    <div className="p-8 text-center rounded-2xl border border-dashed border-black/10 dark:border-white/10 text-xs text-slate-400 space-y-2">
+                      <p>Nenhuma credencial cadastrada ainda para esta empresa.</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditandoCredId(null);
+                          setCredRotulo('Acesso Principal');
+                          setCredNomeUsuario('');
+                          setCredUsuario('');
+                          setCredSenha('');
+                          setCredObs('');
+                          setIsAddCredOpen(true);
+                        }}
+                        className="px-3.5 py-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-xs hover:opacity-95 transition-all cursor-pointer inline-flex items-center gap-1.5"
+                      >
+                        + Cadastrar Acesso Principal
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
+                      {credenciaisList.map((cred) => {
+                        const isRevelada = Boolean(senhasReveladas[cred.id]);
+                        return (
+                          <div
+                            key={cred.id}
+                            className={`p-3.5 rounded-2xl border transition-all space-y-2.5 ${
+                              cred.is_principal
+                                ? 'border-[#4d7c0f]/40 dark:border-[#84cc16]/40 bg-[#4d7c0f]/[0.03] dark:bg-[#84cc16]/[0.04]'
+                                : 'border-black/6 dark:border-white/8 bg-black/[0.015] dark:bg-white/[0.02]'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-[#0a0a0c] dark:text-white truncate">
+                                  {cred.rotulo}
+                                </span>
+                                {cred.nome_usuario && (
+                                  <span className="text-[10px] text-slate-400 font-medium truncate max-w-[120px]">
+                                    ({cred.nome_usuario})
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                {cred.is_principal ? (
+                                  <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16]">
+                                    Principal
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleTornarCredencialPrincipal(cred.id)}
+                                    className="text-[9px] font-semibold text-slate-400 hover:text-[#4d7c0f] dark:hover:text-[#84cc16] underline cursor-pointer"
+                                  >
+                                    Tornar Principal
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditarCredencial(cred)}
+                                  className="text-slate-400 hover:text-black dark:hover:text-white p-1"
+                                  title="Editar"
+                                >
+                                  <EditIcon className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Email / Usuário */}
+                            {cred.usuario_email && (
+                              <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white dark:bg-[#1a1a20] border border-black/5 dark:border-white/6 text-xs">
+                                <span className="text-[11px] font-mono text-slate-600 dark:text-zinc-300 truncate">
+                                  {cred.usuario_email}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopiarTexto(cred.usuario_email, cred.id + '_u')}
+                                  className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer"
+                                  title="Copiar e-mail"
+                                >
+                                  {copiadoId === cred.id + '_u' ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <CopyIcon className="w-3.5 h-3.5" />}
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Senha */}
+                            {cred.senha && (
+                              <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white dark:bg-[#1a1a20] border border-black/5 dark:border-white/6 text-xs">
+                                <span className="text-[11px] font-mono text-slate-800 dark:text-zinc-200">
+                                  {isRevelada ? cred.senha : '••••••••••••'}
+                                </span>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleVerSenha(cred)}
+                                    className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer"
+                                    title={isRevelada ? 'Ocultar' : 'Visualizar'}
+                                  >
+                                    {isRevelada ? <EyeOffIcon className="w-3.5 h-3.5" /> : <EyeIcon className="w-3.5 h-3.5" />}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopiarTexto(cred.senha, cred.id + '_s')}
+                                    className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer"
+                                    title="Copiar senha"
+                                  >
+                                    {copiadoId === cred.id + '_s' ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <CopyIcon className="w-3.5 h-3.5" />}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </div>
           )}
 
         </div>
 
       </div>
+
+      {/* Modal para Edição das URLs dos Servidores 1 e 2 */}
+      {isEditServidoresModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-lg rounded-3xl border border-black/10 dark:border-white/12 bg-white dark:bg-[#16161a] p-6 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-black/6 dark:border-white/8">
+              <div>
+                <h3 className="text-base font-bold text-[#1d1d1f] dark:text-white">
+                  Configurar Links dos Servidores
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                  Defina os links dos ambientes de produção para abertura em nova aba.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditServidoresModalOpen(false)}
+                className="p-1 rounded-full text-slate-400 hover:text-black dark:hover:text-white hover:bg-black/5"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSalvarUrlsServidores} className="space-y-4 pt-1">
+              {/* Servidor 1 */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <span>URL do Servidor 1 (Principal)</span>
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://app1.rmcontrole.com.br"
+                  value={servidor1UrlInput}
+                  onChange={(e) => setServidor1UrlInput(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-[#1a1a20] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]"
+                />
+              </div>
+
+              {/* Servidor 2 */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                  <span>URL do Servidor 2 (Secundário)</span>
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://app2.rmcontrole.com.br"
+                  value={servidor2UrlInput}
+                  onChange={(e) => setServidor2UrlInput(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-[#1a1a20] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-black/6 dark:border-white/8">
+                <button
+                  type="button"
+                  onClick={() => setIsEditServidoresModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-zinc-300 hover:bg-black/5"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 transition-all cursor-pointer"
+                >
+                  Salvar Links
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal Global de Cadastro / Edição de Credencial Técnica (Renderizado via Portal com blur em toda a tela) */}
+      {isAddCredOpen && typeof window !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-lg rounded-3xl border border-black/10 dark:border-white/15 bg-white dark:bg-[#16161a] p-6 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-black/6 dark:border-white/8">
+              <div>
+                <h3 className="text-base font-bold text-[#0a0a0c] dark:text-white">
+                  {editandoCredId ? 'Editar Credencial Técnica' : 'Novo Acesso de Suporte'}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                  Cadastre o rótulo do serviço, usuário/e-mail e senha técnica.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddCredOpen(false);
+                  setEditandoCredId(null);
+                }}
+                className="p-1 rounded-full text-slate-400 hover:text-black dark:hover:text-white hover:bg-black/5"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSalvarNovaCredencial} className="space-y-3.5">
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                  Rótulo / Serviço <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={credRotulo}
+                  onChange={(e) => setCredRotulo(e.target.value)}
+                  placeholder="Ex: Painel Admin, Colaborador - João, Servidor SSH"
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs text-[#0a0a0c] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                    Nome do Colaborador (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={credNomeUsuario}
+                    onChange={(e) => setCredNomeUsuario(e.target.value)}
+                    placeholder="Ex: João Silva, Gerente"
+                    className="w-full px-3.5 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs text-[#0a0a0c] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                    Usuário / E-mail de Login
+                  </label>
+                  <input
+                    type="text"
+                    value={credUsuario}
+                    onChange={(e) => setCredUsuario(e.target.value)}
+                    placeholder="joao@empresa.com ou admin"
+                    className="w-full px-3.5 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs font-mono text-[#0a0a0c] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                    Senha Técnica <span className="text-red-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setCredSenha(generateSecurePassword(14))}
+                    className="text-[10px] text-[#4d7c0f] dark:text-[#84cc16] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <SparklesIcon className="w-3 h-3" />
+                    <span>Gerar Senha Segura</span>
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={credSenha}
+                  onChange={(e) => setCredSenha(e.target.value)}
+                  placeholder="Digite a senha..."
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs font-mono text-[#0a0a0c] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                  Observações / Instruções de Acesso
+                </label>
+                <textarea
+                  value={credObs}
+                  onChange={(e) => setCredObs(e.target.value)}
+                  rows={2}
+                  placeholder="Ex: Acesso via VPN necessária, porta 2222, etc."
+                  className="w-full px-3.5 py-2 rounded-2xl bg-black/[0.02] dark:bg-zinc-900 border border-black/10 dark:border-white/15 text-xs text-[#0a0a0c] dark:text-white focus:outline-none resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-black/6 dark:border-white/8">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddCredOpen(false);
+                    setEditandoCredId(null);
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-zinc-300 hover:bg-black/5"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 transition-all cursor-pointer"
+                >
+                  {editandoCredId ? 'Salvar Alterações' : 'Cadastrar Acesso'}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>,
+        document.body
+      )}
 
       {/* Modal Imersivo de Finalização de Suporte */}
       <SupportCompletionModal

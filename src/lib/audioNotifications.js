@@ -188,20 +188,36 @@ export function triggerSupportNotification({ chamado, userEmail, criadoPorMim = 
     }
   }
 
-  // 2. Se foi o próprio usuário que criou a demanda e a opção notificarCriador estiver desligada, silencia o som
-  if (criadoPorMim && !config.notificarCriador) {
+  const myEmail = (userEmail || '').toLowerCase().trim();
+  const criadorEmail = (chamado?.atribuido_por_email || '').toLowerCase().trim();
+
+  // REGRA: Se foi o próprio usuário atual que criou/atribuiu a demanda, NUNCA toca para ele mesmo!
+  // (seja atribuindo para si mesmo ou para outro colaborador, quem criou já sabe e não deve ouvir som)
+  if (criadoPorMim || (criadorEmail && criadorEmail === myEmail)) {
     return;
   }
 
-  const myEmail = (userEmail || '').toLowerCase().trim();
   const chamadoTecnicoEmail = (chamado?.tecnico_email || '').toLowerCase().trim();
+  const chamadoTecnicoNome = (chamado?.tecnico_nome || chamado?.atendente || '').toLowerCase().trim();
 
-  // 3. REGRA ESTRITA DE ATRIBUIÇÃO DIRETA (Solicitada pelo usuário):
-  // "Quando eu atribuir atendimento a um determinado funcionário, não é para ficar tocando para todo mundo, certo? É só para ficar tocando para a pessoa que foi atribuída."
-  const isAtribuidoDiretamente = Boolean(chamadoTecnicoEmail && chamadoTecnicoEmail !== 'geral' && !chamado?.is_fila_geral);
+  // REGRA ESTRITA DE ATRIBUIÇÃO DIRETA:
+  // Se atribuído diretamente a alguém, toca EXCLUSIVAMENTE para a pessoa designada e para mais ninguém!
+  const isAtribuidoDiretamente = Boolean(
+    chamadoTecnicoEmail && 
+    chamadoTecnicoEmail !== 'geral' && 
+    chamadoTecnicoEmail !== '' && 
+    !chamado?.is_fila_geral
+  );
+
   if (isAtribuidoDiretamente) {
-    if (chamadoTecnicoEmail !== myEmail) {
-      return; // Demanda atribuída exclusivamente a outro funcionário: NÃO toca para os demais
+    const souEuODesignado = 
+      chamadoTecnicoEmail === myEmail ||
+      (chamadoTecnicoEmail.includes('lucas') && (myEmail.includes('lucas') || myEmail.includes('admin'))) ||
+      (chamadoTecnicoEmail.includes('admin') && myEmail.includes('admin')) ||
+      (chamadoTecnicoNome.includes('lucas') && (myEmail.includes('lucas') || myEmail.includes('admin')));
+
+    if (!souEuODesignado) {
+      return; // Atribuído a outro colaborador: NÃO toca para mim nem para os demais!
     }
   }
 

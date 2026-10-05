@@ -10,6 +10,8 @@ import {
   setSenhaPadraoRedefinicao,
   getConfiguracoesSuporte,
   setConfiguracoesSuporte,
+  getServidoresConfig,
+  setServidoresConfig,
   getCategoriasDemandas,
   addCategoriaDemanda,
   removeCategoriaDemanda,
@@ -56,6 +58,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
   // 3. Regras de Suporte & Senha Padrão
   const [senhaPadrao, setSenhaPadrao] = useState('');
   const [senhaSalva, setSenhaSalva] = useState(false);
+  const [servidoresConfig, setServidoresConfigState] = useState(getServidoresConfig() || {});
   const [configSuporte, setConfigSuporteState] = useState({
     motivo_obrigatorio: true,
     solucao_obrigatoria: false,
@@ -89,12 +92,17 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
     window.addEventListener('rm_default_view_mode_updated', handleViewModeUpdate);
     window.addEventListener('categorias_demandas_updated', handleCatsUpdate);
     window.addEventListener('rm_agenda_config_updated', handleAgendaUpdate);
+    const handleServidoresUpdate = () => setServidoresConfigState(getServidoresConfig() || {});
+    window.addEventListener('rm_servidores_config_updated', handleServidoresUpdate);
+    window.addEventListener('rm_servidores_urls_updated', handleServidoresUpdate);
 
     return () => {
       window.removeEventListener('rm_audio_config_updated', handleAudioUpdate);
       window.removeEventListener('rm_default_view_mode_updated', handleViewModeUpdate);
       window.removeEventListener('categorias_demandas_updated', handleCatsUpdate);
       window.removeEventListener('rm_agenda_config_updated', handleAgendaUpdate);
+      window.removeEventListener('rm_servidores_config_updated', handleServidoresUpdate);
+      window.removeEventListener('rm_servidores_urls_updated', handleServidoresUpdate);
     };
   }, []);
 
@@ -285,17 +293,20 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
 
   return (
     <div className="space-y-6 text-[#1d1d1f] dark:text-[#f5f5f7]">
-      {/* Cabeçalho Unificado de Configurações */}
+      {/* Cabeçalho Unificado de Configurações Padronizado */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-[#4d7c0f] dark:text-[#84cc16] px-2.5 py-0.5 rounded-full bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 border border-[#4d7c0f]/20 inline-block mb-1.5">
-            Painel Central do Sistema
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#1d1d1f] dark:text-white">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-zinc-400 font-mono">
+              Sistema & Regras Operacionais
+            </span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white">
             Configurações Gerais
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-1">
-            Gerencie modo de visualização, alertas sonoros, categorias de demandas, servidores e auditoria.
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
+            Gerencie modo de visualização, alertas sonoros, links de servidores e auditoria.
           </p>
         </div>
       </div>
@@ -1205,6 +1216,65 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                   <option value={60}>Acima de 60 minutos</option>
                 </select>
               </div>
+            </div>
+          </div>
+          {/* Card: URLs de Acesso aos Servidores (Servidor 1 e Servidor 2) */}
+          <div className="p-6 rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] shadow-xs space-y-4">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-mono">
+                Redirecionamento Rápido de Suporte
+              </span>
+              <h3 className="text-lg font-bold text-[#1d1d1f] dark:text-white mt-0.5">
+                URLs de Acesso aos Servidores (Servidor 1 e Servidor 2)
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
+                Configure os links dos ambientes de produção. Na tela inicial da empresa, o suporte poderá clicar diretamente para abrir o servidor correspondente em uma nova aba do navegador.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+              {/* Servidor 1 */}
+              <div className="p-4 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.015] dark:bg-white/[0.02] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#1d1d1f] dark:text-white">Servidor 1 (Principal)</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                </div>
+                <input
+                  type="url"
+                  placeholder="https://app1.rmcontrole.com.br"
+                  value={servidoresConfig.servidor_1_url || ''}
+                  onChange={(e) => setServidoresConfigState({ ...servidoresConfig, servidor_1_url: e.target.value })}
+                  className="w-full px-3.5 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none"
+                />
+              </div>
+
+              {/* Servidor 2 */}
+              <div className="p-4 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.015] dark:bg-white/[0.02] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#1d1d1f] dark:text-white">Servidor 2 (Secundário)</span>
+                  <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                </div>
+                <input
+                  type="url"
+                  placeholder="https://app2.rmcontrole.com.br"
+                  value={servidoresConfig.servidor_2_url || ''}
+                  onChange={(e) => setServidoresConfigState({ ...servidoresConfig, servidor_2_url: e.target.value })}
+                  className="w-full px-3.5 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setServidoresConfig(servidoresConfig);
+                  showToast('URLs dos servidores salvas com sucesso!', 'success');
+                }}
+                className="px-4 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 transition-all cursor-pointer"
+              >
+                Salvar URLs dos Servidores
+              </button>
             </div>
           </div>
         </motion.div>

@@ -6,9 +6,46 @@ import { generateSecurePassword } from '@/lib/security';
 import { getSenhaPadraoRedefinicao } from '@/lib/storage';
 import { CheckIcon, SparklesIcon, XMarkIcon } from './Icons';
 
-export default function CompanyModal({ isOpen, onClose, onCreated }) {
+export default function CompanyModal({ isOpen, onClose, onCreated, initialNome = '', onNomeChange = null }) {
   const [mode, setMode] = useState('manual'); // 'manual' | 'massa'
-  const [nome, setNome] = useState('');
+  const [nome, setNome] = useState(initialNome || '');
+  const nomeInputRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setNome(initialNome || '');
+      const timer = setTimeout(() => {
+        if (nomeInputRef.current) {
+          nomeInputRef.current.focus();
+          const len = (initialNome || '').length;
+          nomeInputRef.current.setSelectionRange(len, len);
+        }
+      }, 60);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, initialNome]);
+
+  const debounceNomeChangeRef = React.useRef(null);
+
+  const handleNomeInput = (val) => {
+    setNome(val);
+    if (onNomeChange) {
+      if (debounceNomeChangeRef.current) {
+        clearTimeout(debounceNomeChangeRef.current);
+      }
+      debounceNomeChangeRef.current = setTimeout(() => {
+        onNomeChange(val);
+      }, 280);
+    }
+  };
+
+  React.useEffect(() => {
+    return () => {
+      if (debounceNomeChangeRef.current) {
+        clearTimeout(debounceNomeChangeRef.current);
+      }
+    };
+  }, []);
   const [servidor, setServidor] = useState('servidor_1'); // 'servidor_1' | 'servidor_2'
   const [adminEmail, setAdminEmail] = useState('');
   const [senhaSuporte, setSenhaSuporte] = useState('');
@@ -220,9 +257,10 @@ Aqui está a lista de empresas bruta:
                   Nome da Empresa <span className="text-red-500">*</span>
                 </label>
                 <input
+                  ref={nomeInputRef}
                   type="text"
                   value={nome}
-                  onChange={(e) => setNome(e.target.value)}
+                  onChange={(e) => handleNomeInput(e.target.value)}
                   placeholder="Ex: Comercial Ramos & Filhos"
                   required
                   className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 text-[#1d1d1f] dark:text-white"
