@@ -31,7 +31,8 @@ import {
   adiarAlertaChamado,
   cancelarAdiarAlertaChamado,
   marcarChamadoEscalonado,
-  getConfiguracoesSuporte
+  getConfiguracoesSuporte,
+  reatribuirChamadoSuporte
 } from '@/lib/storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { stopSupportNotificationLoop, playNotificationTone } from '@/lib/audioNotifications';
@@ -101,6 +102,8 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   // Solicitante & Atendente
   const [buscaSolicitante, setBuscaSolicitante] = useState('');
   const [buscaTecnicoModal, setBuscaTecnicoModal] = useState('');
+  const [novoPrazoModal, setNovoPrazoModal] = useState('');
+  const [isLembreteModal, setIsLembreteModal] = useState(false);
   const [highlightedEmpresaIdx, setHighlightedEmpresaIdx] = useState(0);
   const [highlightedSolicitanteIdx, setHighlightedSolicitanteIdx] = useState(0);
   const [highlightedTecnicoIdx, setHighlightedTecnicoIdx] = useState(0);
@@ -115,7 +118,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   const filtroTecnicoRef = useRef(null);
 
   // Métricas Operacionais Recolhíveis em todos os modos (Cards, Lista e Kanban)
-  const [metricasRecolhidas, setMetricasRecolhidas] = useState(false);
+  const [metricasRecolhidas, setMetricasRecolhidas] = useState(true);
   const [metricasRecolhidasKanban, setMetricasRecolhidasKanban] = useState(true);
   const [colaboradoresRecolhidos, setColaboradoresRecolhidos] = useState([]);
   const [kanbanPreset, setKanbanPreset] = useState('foco_mim'); // 'foco_mim' | 'expandir_todos' | 'recolher_todos' | 'custom'
@@ -414,7 +417,10 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     setCategoriasDisponiveis(getCategoriasDemandas());
     const resEmp = await getEmpresas({ pageSize: 1000 });
     const lista = Array.isArray(resEmp) ? resEmp : (resEmp?.items || []);
-    setEmpresasLista(lista);
+    const listaOrdenada = [...lista].sort((a, b) =>
+      (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' })
+    );
+    setEmpresasLista(listaOrdenada);
   };
 
   useEffect(() => {
@@ -1164,7 +1170,17 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       }
     }
 
-    const solicitanteFinal = solicitanteSelecionado?.nome || solicitanteManual.trim() || buscaSolicitante.trim() || 'Colaborador da Empresa';
+    // Solicitante estritamente opcional: se não preencheu, deixa em branco sem inventar 'Colaborador da Empresa'
+    const solicitanteFinal = solicitanteSelecionado?.nome || solicitanteManual.trim() || buscaSolicitante.trim() || '';
+
+    // Se o atendimento foi atribuído para mim mesmo, assume automaticamente (não precisa clicar em assumir)
+    const isAtribuidoParaMim = Boolean(
+      tecnicoAtribuido &&
+      userEmail &&
+      (tecnicoAtribuido.toLowerCase().trim() === userEmail.toLowerCase().trim() ||
+       getNomeTecnico(tecnicoAtribuido).toLowerCase().trim() === getNomeTecnico(userEmail).toLowerCase().trim())
+    );
+    const iniciarAgoraFinal = iniciarDireto || isAtribuidoParaMim;
 
     try {
       await adicionarChamadoFila({
@@ -1177,7 +1193,9 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
         etiquetas: novasEtiquetasModal,
         atribuido_a: tecnicoAtribuido || null,
         observacao_inicial: novaObservacao,
-        iniciarAgora: iniciarDireto,
+        prazo_limite: novoPrazoModal || null,
+        is_lembrete: isLembreteModal,
+        iniciarAgora: iniciarAgoraFinal,
         tempo_escalonamento_minutos: tempoEscalonamentoModal,
         userEmail: userEmail || 'admin@rmcontrole.com',
       });
@@ -1188,9 +1206,11 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       setBuscaEmpresa('');
       setBuscaSolicitante('');
       setBuscaTecnicoModal('');
+      setNovoPrazoModal('');
+      setIsLembreteModal(false);
       setActiveModalDropdown(null);
-      // Registra o colaborador solicitante na empresa e nos Acessos e Senhas Técnicas
-      if (empresaIdFinal && solicitanteFinal && solicitanteFinal !== 'Colaborador da Empresa') {
+      // Registra o colaborador solicitante na empresa e nos Acessos e Senhas Técnicas apenas se houver nome real
+      if (empresaIdFinal && solicitanteFinal && solicitanteFinal !== 'Colaborador da Empresa' && solicitanteFinal.length > 1) {
         try {
           await addColaboradorEmpresa(empresaIdFinal, {
             nome: solicitanteFinal,
@@ -2895,13 +2915,20 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                               </div>
                             </td>
 
-                            {/* Solicitante (Cliente da Empresa) & Técnico Criador */}
+                            {/* Solicitante & Aberto por */}
                             <td className="hidden sm:table-cell px-4 py-3.5 min-w-[140px]">
                               <div className="font-semibold text-slate-800 dark:text-zinc-100 truncate text-[12px]">
-                                {ch.solicitante_nome || ch.solicitante || 'Não informado'}
+                                {ch.solicitante_nome && ch.solicitante_nome !== 'Colaborador da Empresa' && ch.solicitante_nome !== 'Colaborador' ? (
+                                  ch.solicitante_nome
+                                ) : (
+                                  <span className="text-slate-400 dark:text-zinc-500 font-normal italic text-[11px]">— Sem solicitante</span>
+                                )}
                               </div>
-                              <div className="text-[10px] text-slate-400 font-mono truncate mt-0.5" title={`Aberto por: ${ch.criador_nome || getNomeTecnico(ch.criador_email || ch.tecnico_email)}`}>
-                                Aberto por: <span className="text-slate-600 dark:text-zinc-300 font-medium">{ch.criador_nome || getNomeTecnico(ch.criador_email || ch.tecnico_email)}</span>
+                              <div className="mt-1 flex items-center gap-1.5" title={`Demanda aberta por ${ch.criador_nome || getNomeTecnico(ch.criador_email || ch.tecnico_email)}`}>
+                                <span className="text-[9px] uppercase tracking-wider font-semibold text-slate-400 font-mono">Aberto por</span>
+                                <span className="text-[10px] font-medium text-slate-600 dark:text-zinc-300 px-1.5 py-0.5 rounded-md bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.06]">
+                                  {ch.criador_nome || getNomeTecnico(ch.criador_email || ch.tecnico_email)}
+                                </span>
                               </div>
                             </td>
 
@@ -2963,8 +2990,28 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                               })()}
                             </td>
 
-                            {/* Cronômetros Dinâmicos (Apenas Espera e Ativo com Mudança de Cor) */}
+                            {/* Cronômetros Dinâmicos & Prazo de Entrega */}
                             <td className="px-4 py-3.5 whitespace-nowrap font-mono text-[11px] space-y-1 min-w-[130px]">
+                              {ch.prazo_limite && (() => {
+                                const agoraMs = Date.now();
+                                const prazoMs = new Date(ch.prazo_limite).getTime();
+                                const isAtrasado = prazoMs < agoraMs && ch.status !== 'finalizado' && ch.status !== 'concluido';
+                                const dFmt = new Date(ch.prazo_limite).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                                return (
+                                  <div 
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                      isAtrasado
+                                        ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/25'
+                                        : 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20'
+                                    }`}
+                                    title={`Prazo de Execução: ${dFmt}${isAtrasado ? ' (Atrasado!)' : ''}`}
+                                  >
+                                    <span>📅</span>
+                                    <span>{dFmt}</span>
+                                    {isAtrasado && <span className="text-[9px] uppercase tracking-wider font-bold">Atrasado</span>}
+                                  </div>
+                                );
+                              })()}
                               {(() => {
                                 const cfg = getConfiguracoesSuporte();
                                 const tSaudavel = cfg.tempo_saudavel_minutos || 10;
