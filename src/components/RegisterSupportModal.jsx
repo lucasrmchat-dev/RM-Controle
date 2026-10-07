@@ -8,7 +8,8 @@ import {
   getEmpresaCredenciais, 
   getNomeTecnico,
   registrarSuporteRetroativo,
-  getEmpresas
+  getEmpresas,
+  getCategoriasDemandas
 } from '@/lib/storage';
 import { XMarkIcon, CheckIcon, BuildingIcon, UserIcon, ClockIcon } from './Icons';
 import { showToast } from './ToastNotification';
@@ -23,6 +24,8 @@ export default function RegisterSupportModal({
   const [empresas, setEmpresas] = useState([]);
   const [empresaId, setEmpresaId] = useState('');
   const [empresaNome, setEmpresaNome] = useState('');
+  const [departamentos, setDepartamentos] = useState([]);
+  const [departamento, setDepartamento] = useState('Suporte');
   const [motivos, setMotivos] = useState([]);
   const [motivo, setMotivo] = useState('');
   const [equipe, setEquipe] = useState([]);
@@ -37,7 +40,12 @@ export default function RegisterSupportModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    // Inicializa motivos
+    // Inicializa departamentos da demanda
+    const deps = getCategoriasDemandas();
+    setDepartamentos(deps);
+    if (deps.length > 0) setDepartamento(deps[0]);
+
+    // Inicializa motivos diagnosticados
     const motList = getMotivosSuporte();
     setMotivos(motList);
     if (motList.length > 0) setMotivo(motList[0].nome);
@@ -124,6 +132,7 @@ export default function RegisterSupportModal({
         empresa_id: alvoId,
         empresa_nome: alvoNome,
         motivo,
+        categorias: [departamento || 'Suporte'],
         observacoes,
         solicitante_nome: solicitanteNome,
         atendente,
@@ -221,12 +230,39 @@ export default function RegisterSupportModal({
               </div>
             )}
 
-            {/* Motivo do Atendimento */}
+            {/* 1. Departamento / Setor da Demanda */}
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                Motivo / Categoria do Suporte <span className="text-red-500">*</span>
+                Departamento / Setor da Demanda <span className="text-red-500">*</span>
               </label>
-              <div className="flex flex-wrap gap-2 pt-1">
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                {departamentos.map((dep) => {
+                  const isSel = departamento === dep;
+                  return (
+                    <button
+                      key={dep}
+                      type="button"
+                      onClick={() => setDepartamento(dep)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        isSel
+                          ? 'bg-[#09090b] dark:bg-white text-white dark:text-black shadow-xs font-bold'
+                          : 'bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-slate-600 dark:text-zinc-400 hover:border-black/[0.15]'
+                      }`}
+                    >
+                      {isSel && <CheckIcon className="w-3 h-3 stroke-[2.5]" />}
+                      <span>{dep}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 2. Motivo Diagnosticado da Resolução */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
+                Motivo Diagnosticado da Resolução <span className="text-red-500">*</span>
+              </label>
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
                 {motivos.map((m) => {
                   const isSel = motivo === m.nome;
                   return (
@@ -236,7 +272,7 @@ export default function RegisterSupportModal({
                       onClick={() => setMotivo(m.nome)}
                       className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                         isSel
-                          ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 shadow-sm'
+                          ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 shadow-xs'
                           : 'bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-slate-600 dark:text-zinc-400 hover:border-black/[0.15]'
                       }`}
                     >

@@ -287,6 +287,69 @@ export const DEFAULT_DEPARTAMENTOS = [
 ];
 export const DEFAULT_CATEGORIAS_DEMANDAS = DEFAULT_DEPARTAMENTOS;
 
+
+// ==============================================================================
+// SEPARAÇÃO RIGOROSA: DEPARTAMENTOS (SETORES) VS MOTIVOS (DIAGNÓSTICOS)
+// ==============================================================================
+export function inferirDepartamentoPorMotivo(motivo = '') {
+  const m = (motivo || '').toLowerCase().trim();
+  if (m.includes('fluxo') || m.includes('automaç') || m.includes('automac') || m.includes('ia') || m.includes('bot') || m.includes('inteligente')) {
+    return 'Automação';
+  }
+  if (m.includes('financeiro') || m.includes('pagamento') || m.includes('meta') || m.includes('cobrança') || m.includes('fatura')) {
+    return 'Financeiro';
+  }
+  if (m.includes('implantaç') || m.includes('implantac') || m.includes('setup') || m.includes('onboarding')) {
+    return 'Implantação';
+  }
+  if (m.includes('feedback') || m.includes('bug') || m.includes('melhoria')) {
+    return 'Feedback';
+  }
+  if (m.includes('dúvida') || m.includes('duvida') || m.includes('treinamento')) {
+    return 'Dúvidas Gerais';
+  }
+  return 'Suporte';
+}
+
+export function sanitizarCategoriasDemanda(categorias, motivo = '') {
+  const depsValidos = getDepartamentos();
+  const depsValidosLower = new Set(depsValidos.map((d) => d.toLowerCase().trim()));
+  // Adiciona variações sem acento
+  depsValidos.forEach((d) => depsValidosLower.add(removerAcentos(d).toLowerCase().trim()));
+
+  const rawList = Array.isArray(categorias) ? categorias : (categorias ? [categorias] : []);
+  
+  // Lista de motivos conhecidos que NUNCA devem ser tratados como departamento
+  const motivosNomesLower = new Set(
+    (DEFAULT_MOTIVOS_SUPORTE || []).map((m) => m.nome.toLowerCase().trim())
+  );
+  (DEFAULT_MOTIVOS_SUPORTE || []).forEach((m) => motivosNomesLower.add(removerAcentos(m.nome).toLowerCase().trim()));
+  motivosNomesLower.add('alteracao no fluxo inteligente');
+  motivosNomesLower.add('alteração no fluxo inteligente');
+  motivosNomesLower.add('duvida operacional / treinamento');
+  motivosNomesLower.add('dúvida operacional / treinamento');
+  motivosNomesLower.add('redefinicao de senha / acesso');
+  motivosNomesLower.add('redefinição de senha / acesso');
+  motivosNomesLower.add('desconexao / queda de instancia');
+  motivosNomesLower.add('desconexão / queda de instância');
+  motivosNomesLower.add('servidor vps indisponivel / reinicio');
+  motivosNomesLower.add('servidor vps indisponível / reinício');
+  motivosNomesLower.add('bloqueio ou limite na api meta');
+
+  const filtrados = rawList.filter((c) => {
+    if (!c) return false;
+    const cNorm = c.toLowerCase().trim();
+    const cSemAcento = removerAcentos(c).toLowerCase().trim();
+    // Rejeita terminantemente se for um motivo diagnosticado
+    if (motivosNomesLower.has(cNorm) || motivosNomesLower.has(cSemAcento)) return false;
+    return depsValidosLower.has(cNorm) || depsValidosLower.has(cSemAcento);
+  });
+
+  if (filtrados.length > 0) return filtrados;
+  // Se não restou nenhum departamento legítimo, infere o departamento correto com base no motivo
+  return [inferirDepartamentoPorMotivo(motivo)];
+}
+
 export function getDepartamentos() {
   const deps = getLocalData('categorias_demandas', DEFAULT_DEPARTAMENTOS);
   if (!deps.some((d) => d.toLowerCase().trim() === 'feedback')) {
@@ -1029,6 +1092,7 @@ export async function finalizarSuporte({
     ...chamado,
     status: 'concluido',
     status_resolucao: status_resolucao || 'resolvido',
+    categorias: sanitizarCategoriasDemanda(chamado.categorias, motivo || chamado.motivo),
     motivo: motivo || chamado.motivo || (status_resolucao === 'sem_resposta' ? 'Sem resposta do cliente' : 'Atendimento Geral'),
     solicitante_nome: colaborador_solicitante || chamado.solicitante_nome || 'Colaborador',
     resolucao: observacoes || '',
@@ -1364,16 +1428,17 @@ export async function fetchHistoricoChamados() {
         dbChamados = data.map((d) => {
           const localItem = localHistMap.get(d.id);
           // Extrai categorias do motivo ou do localItem
-          let cats = [];
+          // Separa rigorosamente departamentos (categorias) dos motivos diagnosticados
+          let rawCats = [];
           if (Array.isArray(d.categorias) && d.categorias.length > 0) {
-            cats = d.categorias;
+            rawCats = d.categorias;
           } else if (localItem && Array.isArray(localItem.categorias) && localItem.categorias.length > 0) {
-            cats = localItem.categorias;
-          } else if (d.motivo) {
-            cats = d.motivo.split(',').map((s) => s.trim()).filter(Boolean);
-          } else {
-            cats = ['Suporte'];
+            rawCats = localItem.categorias;
+          } else if (d.etiquetas && Array.isArray(d.etiquetas)) {
+            const depEtq = d.etiquetas.find((etq) => typeof etq === 'string' && etq.startsWith('dep:'));
+            if (depEtq) rawCats = [depEtq.replace('dep:', '')];
           }
+          const cats = sanitizarCategoriasDemanda(rawCats, d.motivo);
 
           return {
             id: d.id,
@@ -1439,6 +1504,7 @@ export async function registrarSuporteRetroativo({
   empresa_id,
   empresa_nome,
   motivo,
+  categorias = [],
   observacoes = '',
   solicitante_nome = '',
   atendente = '',
@@ -1460,6 +1526,7 @@ export async function registrarSuporteRetroativo({
     atendente_nome: nomeAtendente,
     solicitante_nome: (solicitante_nome || '').trim(),
     status: 'concluido',
+    categorias: sanitizarCategoriasDemanda(categorias, motivo),
     motivo: motivo.trim(),
     observacoes: (observacoes || '').trim(),
     resolucao: (observacoes || '').trim(),

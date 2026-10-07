@@ -32,7 +32,8 @@ import {
   cancelarAdiarAlertaChamado,
   marcarChamadoEscalonado,
   getConfiguracoesSuporte,
-  reatribuirChamadoSuporte
+  reatribuirChamadoSuporte,
+  sanitizarCategoriasDemanda
 } from '@/lib/storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { stopSupportNotificationLoop, playNotificationTone } from '@/lib/audioNotifications';
@@ -2883,18 +2884,28 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                               )}
                             </td>
 
-                            {/* Departamentos */}
+                            {/* Departamentos (Setores da Demanda) */}
                             <td className="px-4 py-3.5 min-w-[130px]">
                               <div className="flex items-center gap-1 flex-wrap">
-                                {(Array.isArray(ch.categorias) && ch.categorias.length > 0 ? ch.categorias : ['Suporte']).map((cat, idx) => (
-                                  <span
-                                    key={idx}
-                                    className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-mono text-[9px] font-bold border border-blue-500/20"
-                                  >
-                                    {cat}
-                                  </span>
-                                ))}
+                                {(() => {
+                                  const deps = sanitizarCategoriasDemanda(ch.categorias, ch.motivo);
+                                  return deps.map((cat, idx) => (
+                                    <span
+                                      key={idx}
+                                      className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-mono text-[9px] font-bold border border-blue-500/20"
+                                    >
+                                      {cat}
+                                    </span>
+                                  ));
+                                })()}
                               </div>
+                              {/* Motivo diagnosticado da resolução (exibido claramente separado) */}
+                              {Boolean(isFinalizado && ch.motivo && ch.motivo !== 'Atendimento Geral') && (
+                                <div className="text-[10px] text-slate-500 dark:text-zinc-400 font-mono mt-0.5 truncate max-w-[150px]" title={`Diagnóstico Técnico: ${ch.motivo}`}>
+                                  <span className="opacity-70">Motivo: </span>
+                                  <span className="text-slate-700 dark:text-zinc-300 font-medium">{ch.motivo}</span>
+                                </div>
+                              )}
                             </td>
 
                             {/* Etiquetas Refinadas */}

@@ -324,6 +324,7 @@ export default function SupportCompletionModal({
       await finalizarSuporte({
         chamado_id: chamado.id,
         motivo: motivoFinal,
+        categorias: chamado?.categorias || [],
         // Nunca injeta texto automático em observações! Fica rigorosamente o que o usuário digitou (ou vazio)
         observacoes: observacoes.trim(),
         colaborador_solicitante: solicitanteFinal,
