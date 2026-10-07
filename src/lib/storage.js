@@ -397,8 +397,8 @@ export async function iniciarSuporte({
     }
   }
 
-  const jaEmAndamento = chamados.find((c) => c.empresa_id === empresa_id && c.status === 'em_andamento');
-  if (jaEmAndamento) return jaEmAndamento;
+// Permite múltiplas demandas em andamento para a mesma empresa
+  // if (jaEmAndamento) return jaEmAndamento;
 
   const novoChamado = {
     id: 'chamado_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
@@ -480,6 +480,8 @@ export async function adicionarChamadoFila({
   is_demanda_interna = false,
   atribuido_a = null,
   observacao_inicial = '',
+  prazo_limite = null,
+  is_lembrete = false,
   iniciarAgora = false,
   tempo_escalonamento_minutos = 15,
   userEmail = 'admin@rmcontrole.com',
@@ -491,23 +493,23 @@ export async function adicionarChamadoFila({
     ? categorias 
     : (categorias ? [categorias] : ['Suporte']);
 
-  // Prevenção estrita de duplicidade: se chamado com mesma empresa, solicitante e observação foi criado nos últimos 10s, retorna o existente
-  const solicitanteFinalCheck = (solicitante_nome || 'Colaborador').trim().toLowerCase();
+  // Prevenção apenas contra duplo-clique imediato (menos de 1.5s com exatamente a mesma observação e mesmo solicitante)
+  const solicitanteFinalCheck = (solicitante_nome || '').trim().toLowerCase();
   const obsFinalCheck = (observacao_inicial || '').trim();
-  const duplicadoRecente = chamados.find((c) => {
-    if (!c) return false;
-    const mesmaEmpresa = (c.empresa_id && c.empresa_id === empresa_id) ||
-      (c.empresa_nome && empresa_nome && c.empresa_nome.toLowerCase().trim() === empresa_nome.toLowerCase().trim());
-    if (!mesmaEmpresa) return false;
-    const mesmoSol = (c.solicitante_nome || '').toLowerCase().trim() === solicitanteFinalCheck;
-    const mesmaObs = (c.observacao_inicial || c.observacoes || '').trim() === obsFinalCheck;
-    const diff = Math.abs(Date.now() - new Date(c.created_at || c.tempo_espera_inicio || 0).getTime());
-    return mesmaEmpresa && mesmoSol && mesmaObs && diff < 10000;
-  });
-
-  if (duplicadoRecente) {
-    console.warn('Prevenção de duplicidade: chamado idêntico recente detectado. Reutilizando:', duplicadoRecente.id);
-    return duplicadoRecente;
+  if (obsFinalCheck || solicitanteFinalCheck) {
+    const cliqueDuplo = chamados.find((c) => {
+      if (!c) return false;
+      const mesmaEmpresa = (c.empresa_id && c.empresa_id === empresa_id) ||
+        (c.empresa_nome && empresa_nome && c.empresa_nome.toLowerCase().trim() === empresa_nome.toLowerCase().trim());
+      if (!mesmaEmpresa) return false;
+      const mesmoSol = (c.solicitante_nome || '').toLowerCase().trim() === solicitanteFinalCheck;
+      const mesmaObs = (c.observacao_inicial || c.observacoes || '').trim() === obsFinalCheck;
+      const diff = Math.abs(Date.now() - new Date(c.created_at || c.tempo_espera_inicio || 0).getTime());
+      return mesmaEmpresa && mesmoSol && mesmaObs && diff < 1500;
+    });
+    if (cliqueDuplo) {
+      return cliqueDuplo;
+    }
   }
 
   if (iniciarAgora) {
@@ -527,10 +529,12 @@ export async function adicionarChamadoFila({
       atribuido_nome: getNomeTecnico(userEmail),
       atribuido_por_email: userEmail,
       atribuido_em: agora,
-      solicitante_nome: (solicitante_nome || 'Colaborador').trim(),
+      solicitante_nome: (solicitante_nome || '').trim(),
       solicitante_email: solicitante_email.trim(),
       solicitante_telefone: solicitante_telefone.trim(),
       observacao_inicial: observacao_inicial.trim(),
+      prazo_limite: prazo_limite || null,
+      is_lembrete: Boolean(is_lembrete),
       status: 'em_andamento',
       created_at: agora,
       tempo_espera_inicio: agora,
@@ -588,6 +592,29 @@ export async function adicionarChamadoFila({
       acao: 'iniciou_suporte_tecnico',
       detalhes: { empresa_nome, modulo: 'Fila de Suporte' },
     });
+    // Sincroniza prazo com a Agenda se informado
+    if (prazo_limite) {
+      try {
+        const dataPrazo = prazo_limite.split('T')[0];
+        const horaPrazo = prazo_limite.includes('T') ? prazo_limite.split('T')[1].slice(0, 5) : '09:00';
+        addAgendaEvento({
+          id: 'evt_prazo_' + novoChamado.id,
+          titulo: `[Prazo Demanda] ${empresa_nome || 'Empresa'}${is_lembrete ? ' (Lembrete)' : ''}`,
+          empresa: empresa_nome || 'Empresa',
+          data: dataPrazo,
+          hora_inicio: horaPrazo,
+          hora_fim: horaPrazo,
+          responsavel_email: userEmail,
+          responsavel_nome: getNomeTecnico(userEmail),
+          tipo: is_lembrete ? 'lembrete' : 'suporte',
+          observacoes: observacao_inicial || 'Prazo cadastrado na Fila de Demandas',
+          chamado_id: novoChamado.id,
+        });
+      } catch (eAg) {
+        console.warn('Aviso ao sincronizar prazo com agenda:', eAg);
+      }
+    }
+
     window.dispatchEvent(new Event('suporte_updated'));
     return novoChamado;
   }
@@ -615,10 +642,12 @@ export async function adicionarChamadoFila({
     atribuido_em: agora,
     tempo_escalonamento_minutos: Number(tempo_escalonamento_minutos) || 15,
     escalonado_notificado: false,
-    solicitante_nome: (solicitante_nome || 'Colaborador').trim(),
+    solicitante_nome: (solicitante_nome || '').trim(),
     solicitante_email: solicitante_email.trim(),
     solicitante_telefone: solicitante_telefone.trim(),
     observacao_inicial: observacao_inicial.trim(),
+    prazo_limite: prazo_limite || null,
+    is_lembrete: Boolean(is_lembrete),
     status: statusInicial,
     created_at: agora,
     tempo_espera_inicio: agora,
@@ -1331,24 +1360,42 @@ export async function fetchHistoricoChamados() {
         .order('created_at', { ascending: false });
 
       if (!error && Array.isArray(data)) {
-        dbChamados = data.map((d) => ({
-          id: d.id,
-          empresa_id: d.empresa_id,
-          empresa_nome: d.empresa_nome,
-          tecnico_email: d.tecnico_email,
-          tecnico_nome: d.atendente || getNomeTecnico(d.tecnico_email),
-          atendente_nome: d.atendente || getNomeTecnico(d.tecnico_email),
-          solicitante_nome: d.colaborador_solicitante || 'Colaborador',
-          status: 'finalizado',
-          motivo: (d.motivo || '').trim() || 'Atendimento Geral',
-          observacoes: d.observacoes || '',
-          resolucao: d.observacoes || '',
-          iniciado_em: d.iniciado_em,
-          finalizado_em: d.finalizado_em || d.iniciado_em || d.created_at,
-          duracao_segundos: d.duracao_segundos || 0,
-          tempo_ativo_segundos: d.duracao_segundos || 0,
-          created_at: d.created_at || d.iniciado_em,
-        }));
+        const localHistMap = new Map((getLocalData('historico_chamados', []) || []).map((h) => [h.id, h]));
+        dbChamados = data.map((d) => {
+          const localItem = localHistMap.get(d.id);
+          // Extrai categorias do motivo ou do localItem
+          let cats = [];
+          if (Array.isArray(d.categorias) && d.categorias.length > 0) {
+            cats = d.categorias;
+          } else if (localItem && Array.isArray(localItem.categorias) && localItem.categorias.length > 0) {
+            cats = localItem.categorias;
+          } else if (d.motivo) {
+            cats = d.motivo.split(',').map((s) => s.trim()).filter(Boolean);
+          } else {
+            cats = ['Suporte'];
+          }
+
+          return {
+            id: d.id,
+            empresa_id: d.empresa_id,
+            empresa_nome: d.empresa_nome,
+            tecnico_email: d.tecnico_email,
+            tecnico_nome: d.atendente || getNomeTecnico(d.tecnico_email),
+            atendente_nome: d.atendente || getNomeTecnico(d.tecnico_email),
+            solicitante_nome: d.colaborador_solicitante || localItem?.solicitante_nome || '',
+            status: 'finalizado',
+            motivo: (d.motivo || '').trim() || 'Atendimento Geral',
+            categorias: cats,
+            observacoes: d.observacoes || '',
+            resolucao: d.observacoes || '',
+            iniciado_em: d.iniciado_em,
+            finalizado_em: d.finalizado_em || d.iniciado_em || d.created_at,
+            duracao_segundos: d.duracao_segundos || 0,
+            tempo_ativo_segundos: d.duracao_segundos || 0,
+            created_at: d.created_at || d.iniciado_em,
+            prazo_limite: d.prazo_limite || localItem?.prazo_limite || null,
+          };
+        });
       }
     } catch (e) {
       console.warn('Erro ao buscar suporte_chamados no Supabase:', e);
@@ -1411,7 +1458,7 @@ export async function registrarSuporteRetroativo({
     tecnico_email: userEmail,
     tecnico_nome: nomeAtendente,
     atendente_nome: nomeAtendente,
-    solicitante_nome: (solicitante_nome || 'Colaborador').trim(),
+    solicitante_nome: (solicitante_nome || '').trim(),
     status: 'concluido',
     motivo: motivo.trim(),
     observacoes: (observacoes || '').trim(),
@@ -1594,14 +1641,14 @@ export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim 
   let chamados = Array.from(mapa.values());
   const hoje = new Date();
 
-  // Filtro por Categoria se especificado
+  // Filtro por Categoria se especificado (inclui verificação ampla em categorias e motivo)
   if (categoria && categoria !== 'todas') {
     const catLower = categoria.toLowerCase().trim();
     chamados = chamados.filter((c) => {
       const cats = Array.isArray(c.categorias) && c.categorias.length > 0
         ? c.categorias
-        : (c.categoria ? [c.categoria] : ['Suporte']);
-      return cats.some((cat) => (cat || '').toLowerCase().trim() === catLower);
+        : (c.categoria ? [c.categoria] : (c.motivo ? c.motivo.split(',').map((s) => s.trim()) : ['Suporte']));
+      return cats.some((cat) => (cat || '').toLowerCase().trim() === catLower || (cat || '').toLowerCase().includes(catLower));
     });
   }
 

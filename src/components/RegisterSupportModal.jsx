@@ -61,11 +61,14 @@ export default function RegisterSupportModal({
     } else {
       getEmpresas({ pageSize: 1000 }).then((res) => {
         const items = Array.isArray(res) ? res : (res?.items || []);
-        setEmpresas(items);
-        if (items.length > 0) {
-          setEmpresaId(items[0].id);
-          setEmpresaNome(items[0].nome);
-          carregarContatosEmpresa(items[0].id, items[0]);
+        const ordenadas = [...items].sort((a, b) =>
+          (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' })
+        );
+        setEmpresas(ordenadas);
+        if (ordenadas.length > 0) {
+          setEmpresaId(ordenadas[0].id);
+          setEmpresaNome(ordenadas[0].nome);
+          carregarContatosEmpresa(ordenadas[0].id, ordenadas[0]);
         }
       });
     }

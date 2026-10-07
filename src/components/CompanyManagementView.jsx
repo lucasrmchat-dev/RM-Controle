@@ -754,29 +754,25 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
           </div>
         </div>
 
-        {/* Ações de Suporte (Sem redundância: Concluir ou Cancelar se ativo; Iniciar se inativo) */}
+        {/* Ações de Suporte: Permite adicionar múltiplas demandas para a mesma empresa */}
         <div className="flex items-center gap-2 self-start 2xl:self-center flex-wrap flex-shrink-0">
-          {!chamadoAtivo && (
-            <>
-              <motion.button
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleAbrirModalIniciarSuporte}
-                className="px-4 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 flex items-center gap-2 transition-all cursor-pointer"
-              >
-                <PlayIcon className="w-3.5 h-3.5" />
-                <span>Iniciar Atendimento de Demanda</span>
-              </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleAbrirModalIniciarSuporte}
+            className="px-4 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 flex items-center gap-2 transition-all cursor-pointer"
+          >
+            <PlayIcon className="w-3.5 h-3.5" />
+            <span>{chamadoAtivo ? '+ Nova Demanda' : 'Iniciar Atendimento de Demanda'}</span>
+          </motion.button>
 
-              <button
-                type="button"
-                onClick={() => setIsRegistrarModalOpen(true)}
-                className="px-3.5 py-2.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-[#1d1d1f] dark:text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <span>+ Registrar Suporte</span>
-              </button>
-            </>
-          )}
+          <button
+            type="button"
+            onClick={() => setIsRegistrarModalOpen(true)}
+            className="px-3.5 py-2.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-[#1d1d1f] dark:text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+          >
+            <span>+ Registrar Suporte</span>
+          </button>
         </div>
       </div>
 

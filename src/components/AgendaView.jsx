@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   getAgendaConfig, 
   setAgendaConfig,
-  getAgendaEventos, 
+  getAgendaEventos,
+  getChamadosSuporte, 
   addAgendaEvento, 
   updateAgendaEvento, 
   deleteAgendaEvento,
@@ -59,12 +60,48 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
   const [confirmDialog, setConfirmDialog] = useState(null);
 
   const carregarDados = () => {
-    setEventos(getAgendaEventos());
+    const eventosNormais = getAgendaEventos() || [];
+    // Também mescla demandas ativas com prazo de execução ou marcadas como lembrete
+    const chamadosFila = (getChamadosSuporte() || []).filter(
+      (c) => c && c.prazo_limite && c.status !== 'concluido' && c.status !== 'finalizado'
+    );
+
+    const eventosChamados = chamadosFila.map((c) => {
+      const dataPrazo = c.prazo_limite.split('T')[0];
+      const horaPrazo = c.prazo_limite.includes('T') ? c.prazo_limite.split('T')[1].slice(0, 5) : '09:00';
+      return {
+        id: 'evt_demanda_' + c.id,
+        titulo: `[${c.is_lembrete ? 'Lembrete' : 'Prazo Demanda'}] ${c.empresa_nome || 'Empresa'}${c.solicitante_nome ? ' — ' + c.solicitante_nome : ''}`,
+        empresa: c.empresa_nome || 'Empresa',
+        empresa_id: c.empresa_id,
+        data: dataPrazo,
+        hora_inicio: horaPrazo,
+        hora_fim: horaPrazo,
+        responsavel_email: c.atribuido_a || userEmail,
+        responsavel_nome: c.atribuido_nome || getNomeTecnico(c.atribuido_a || userEmail),
+        tipo: c.is_lembrete ? 'lembrete' : 'suporte',
+        status: c.status === 'em_andamento' ? 'em_andamento' : 'agendada',
+        origem: 'fila_demandas',
+        chamado_id: c.id,
+        observacoes: c.observacao_inicial || 'Prazo cadastrado na Fila de Demandas',
+      };
+    });
+
+    const mapa = new Map();
+    eventosNormais.forEach((e) => mapa.set(e.id, e));
+    eventosChamados.forEach((e) => {
+      if (!mapa.has(e.id)) mapa.set(e.id, e);
+    });
+
+    setEventos(Array.from(mapa.values()));
     setEquipe(getEquipeUsuarios());
     setConfig(getAgendaConfig());
     getEmpresas({ pageSize: 1000 }).then((res) => {
       const lista = Array.isArray(res) ? res : (res?.items || []);
-      setEmpresas(lista);
+      const ordenadas = [...lista].sort((a, b) =>
+        (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' })
+      );
+      setEmpresas(ordenadas);
     });
   };
 
@@ -74,6 +111,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
     const handleConfigUpdate = () => setConfig(getAgendaConfig());
     window.addEventListener('agenda_eventos_updated', handleEventsUpdate);
     window.addEventListener('rm_agenda_config_updated', handleConfigUpdate);
+    window.addEventListener('suporte_updated', carregarDados);
 
     // Ticker a cada 30 segundos para atualizar cronômetros e proximidade de reuniões
     const interval = setInterval(() => setTick((t) => t + 1), 30000);
@@ -81,6 +119,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
     return () => {
       window.removeEventListener('agenda_eventos_updated', handleEventsUpdate);
       window.removeEventListener('rm_agenda_config_updated', handleConfigUpdate);
+      window.removeEventListener('suporte_updated', carregarDados);
       clearInterval(interval);
     };
   }, []);

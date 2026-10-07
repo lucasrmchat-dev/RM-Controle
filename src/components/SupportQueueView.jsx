@@ -3566,7 +3566,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                       <div className="space-y-1.5 relative">
                         <div className="flex items-center justify-between pl-1">
                           <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
-                            Colaborador Solicitante na Empresa
+                            Colaborador Solicitante na Empresa (Opcional)
                           </label>
                           {empresaSelecionada && !modoCadastroColab && (
                             <button
@@ -4098,6 +4098,37 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                               )}
                             </div>
                           )}
+                        </div>
+                      </div>
+
+                      {/* Prazo de Execução & Departamento de Lembretes (Opcional) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.05] dark:border-white/[0.07]">
+                        <div className="space-y-1">
+                          <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5 pl-0.5">
+                            <span>📅 Prazo para Executar (Opcional)</span>
+                          </label>
+                          <input
+                            type="datetime-local"
+                            value={novoPrazoModal}
+                            onChange={(e) => setNovoPrazoModal(e.target.value)}
+                            className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20"
+                          />
+                          <span className="text-[10px] text-slate-400 block pl-0.5">Sincroniza automaticamente com a Agenda da equipe</span>
+                        </div>
+
+                        <div className="flex flex-col justify-center space-y-1.5 pt-1 sm:pt-0">
+                          <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                            <input
+                              type="checkbox"
+                              checked={isLembreteModal}
+                              onChange={(e) => setIsLembreteModal(e.target.checked)}
+                              className="w-4 h-4 rounded text-[#4d7c0f] focus:ring-[#4d7c0f] border-gray-300"
+                            />
+                            <span>Definir como Lembrete Operacional</span>
+                          </label>
+                          <p className="text-[10px] text-slate-500 dark:text-zinc-400 pl-6">
+                            Aparece com destaque na fila de demandas e na visão de Agenda da equipe.
+                          </p>
                         </div>
                       </div>
 
