@@ -189,7 +189,7 @@ export function triggerSupportNotification({ chamado, userEmail, criadoPorMim = 
   }
 
   const myEmail = (userEmail || '').toLowerCase().trim();
-  const criadorEmail = (chamado?.atribuido_por_email || '').toLowerCase().trim();
+  const criadorEmail = (chamado?.atribuido_por_email || chamado?.criador_email || '').toLowerCase().trim();
 
   // REGRA: Se foi o próprio usuário atual que criou/atribuiu a demanda, NUNCA toca para ele mesmo!
   // (seja atribuindo para si mesmo ou para outro colaborador, quem criou já sabe e não deve ouvir som)
@@ -197,7 +197,8 @@ export function triggerSupportNotification({ chamado, userEmail, criadoPorMim = 
     return;
   }
 
-  const chamadoTecnicoEmail = (chamado?.tecnico_email || '').toLowerCase().trim();
+  const tecnicoBruto = (chamado?.tecnico_email || '').toLowerCase().trim();
+  const chamadoTecnicoEmail = tecnicoBruto === 'geral' ? '' : tecnicoBruto;
   const chamadoTecnicoNome = (chamado?.tecnico_nome || chamado?.atendente || '').toLowerCase().trim();
 
   // REGRA ESTRITA DE ATRIBUIÇÃO DIRETA:
@@ -250,7 +251,7 @@ export function triggerSupportNotification({ chamado, userEmail, criadoPorMim = 
         if (typeof window !== 'undefined') {
           const rawUsers = localStorage.getItem('rm_equipe_usuarios');
           const role = localStorage.getItem('rm_user_role') || '';
-          const isAdmin = role === 'administrador' || myEmail === 'admin@rmcontrole.com' || myEmail === 'lucas.rmchat@gmail.com' || myEmail.includes('admin') || myEmail.includes('lucas');
+          const isAdmin = role === 'administrador';
 
           if (!isAdmin && rawUsers) {
             const equipe = JSON.parse(rawUsers);
@@ -290,7 +291,8 @@ export function triggerSupportNotification({ chamado, userEmail, criadoPorMim = 
   const loopCallback = () => {
     try {
       if (typeof window !== 'undefined') {
-        const raw = localStorage.getItem('chamados_suporte');
+        // Chave real usada por storage.js (getLocalData prefixa com 'rm_'); a chave sem prefixo nunca existia
+        const raw = localStorage.getItem('rm_chamados_suporte');
         if (raw) {
           const list = JSON.parse(raw);
           const myEmail = (userEmail || '').toLowerCase().trim();
@@ -304,7 +306,8 @@ export function triggerSupportNotification({ chamado, userEmail, criadoPorMim = 
               return false;
             }
 
-            const tec = (c.tecnico_email || '').toLowerCase().trim();
+            const tecRaw = (c.tecnico_email || '').toLowerCase().trim();
+            const tec = tecRaw === 'geral' ? '' : tecRaw;
             const isAtribuidoOutro = Boolean(tec && tec !== 'geral' && !c.is_fila_geral && tec !== myEmail);
             if (isAtribuidoOutro) {
               return false; // Atribuído a outro funcionário, não continua tocando para mim

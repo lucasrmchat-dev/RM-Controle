@@ -320,6 +320,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
           setConfirmDialog(null);
           onUpdated();
         } catch (err) {
+          setConfirmDialog(null);
           showToast(err.message, 'error');
         }
       },

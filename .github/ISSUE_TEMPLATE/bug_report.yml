@@ -1,0 +1,55 @@
+name: 🐛 Reporte de Bug
+description: Crie um relatório de erro técnico ou visual para correção
+title: "[BUG]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por relatar o problema! Forneça detalhes objetivos para reprodução.
+  - type: textarea
+    id: description
+    attributes:
+      label: Descrição do Problema
+      description: Explicação clara do que ocorreu de forma inesperada.
+      placeholder: Ao acessar a fila de demandas...
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Passos para Reproduzir
+      description: Passo a passo numerado para reprodução do bug.
+      placeholder: |
+        1. Acessar '...'
+        2. Clicar em '...'
+        3. Observar erro '...'
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamento Esperado
+      description: O que deveria acontecer normalmente.
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severidade
+      options:
+        - Baixa (Estética / UI)
+        - Média (Funcionalidade com contorno)
+        - Alta (Bloqueio operacional)
+        - Crítica (Segurança / Vazamento / Perda de Dados)
+    validations:
+      required: true
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Validações Pré-Abertura
+      options:
+        - label: Verifiquei se não há dados confidenciais ou senhas anexados neste relato (LGPD)
+          required: true
+        - label: Testei se o bug persiste em aba anônima
+          required: false

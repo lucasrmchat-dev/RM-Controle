@@ -3,7 +3,6 @@
 export function isChamadoFeedback(c) {
   if (!c) return false;
   if (c.feedback_id) return true;
-  if (c.is_demanda_interna) return true;
   const emp = (c.empresa_nome || '').toLowerCase().trim();
   if (emp.startsWith('rm controle (')) return true;
   if (emp === 'rm controle (fila de demandas)') return true;
@@ -22,6 +21,7 @@ export function isChamadoFeedback(c) {
 import { triggerSupportNotification, stopSupportNotificationLoop } from './audioNotifications';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { logAuditoria } from './security';
+import { resolverPapel, ADMINS_PROPRIETARIOS } from './roles';
 
 // ==============================================================================
 // CONTROLE DE DADOS SIMULADOS (MOCK DEV)
@@ -210,6 +210,81 @@ export function setLocalData(key, val) {
 }
 
 // ==============================================================================
+// SINCRONIZAÇÃO CONFIÁVEL COM O SUPABASE (FILA DE DEMANDAS)
+// O supabase-js NÃO lança exceção em erro de banco/RLS: ele retorna { error }.
+// Por isso todo resultado precisa ser verificado explicitamente.
+// ==============================================================================
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isCloudId(id) {
+  return typeof id === 'string' && UUID_RE.test(id);
+}
+
+function isErroColunaInexistente(error) {
+  if (!error) return false;
+  const msg = `${error.message || ''} ${error.details || ''}`.toLowerCase();
+  return error.code === 'PGRST204' || error.code === '42703' || msg.includes('column');
+}
+
+// Insere um chamado tentando primeiro as colunas estendidas e recuando para as colunas
+// base caso o schema remoto ainda não tenha recebido a migração.
+async function inserirChamadoNuvem(payloadBase, extras = {}) {
+  const { etiquetas } = extras;
+  const tentativas = [
+    { ...payloadBase, ...extras },
+    etiquetas !== undefined ? { ...payloadBase, etiquetas } : null,
+    payloadBase,
+  ].filter(Boolean);
+
+  let ultimoErro = null;
+  for (const payload of tentativas) {
+    const { data, error } = await supabase.from('suporte_chamados').insert([payload]).select().maybeSingle();
+    if (!error) return { data, error: null };
+    ultimoErro = error;
+    // Só tenta a próxima variação quando o problema for coluna inexistente; outros erros (RLS, rede) são definitivos
+    if (!isErroColunaInexistente(error)) break;
+  }
+  return { data: null, error: ultimoErro };
+}
+
+// Troca o ID provisório local pelo UUID oficial, eliminando cópias que o polling já tenha trazido
+function substituirIdLocalChamado(localId, cloudId) {
+  const lista = getLocalData('chamados_suporte', []);
+  const idx = lista.findIndex((c) => c && c.id === localId);
+  if (idx === -1) return;
+  const atualizado = { ...lista[idx], id: cloudId, sync_estado: 'sincronizado', sync_erro: null };
+  const semDuplicatas = lista.filter((c, i) => i === idx || (c && c.id !== cloudId));
+  const novoIdx = semDuplicatas.findIndex((c) => c && c.id === localId);
+  semDuplicatas[novoIdx] = atualizado;
+  setLocalData('chamados_suporte', semDuplicatas);
+}
+
+function marcarChamadoSyncPendente(localId, erro) {
+  const lista = getLocalData('chamados_suporte', []);
+  const idx = lista.findIndex((c) => c && c.id === localId);
+  if (idx === -1) return;
+  lista[idx] = { ...lista[idx], sync_estado: 'pendente', sync_erro: erro?.message || 'Falha ao sincronizar' };
+  setLocalData('chamados_suporte', lista);
+}
+
+// Lista de chamados cancelados neste navegador: impede que um polling em andamento os traga de volta
+function getChamadosCanceladosIds() {
+  return new Set(getLocalData('chamados_cancelados_ids', []));
+}
+
+function registrarChamadoCancelado(id) {
+  const lista = getLocalData('chamados_cancelados_ids', []);
+  if (!lista.includes(id)) {
+    lista.push(id);
+    setLocalData('chamados_cancelados_ids', lista.slice(-300));
+  }
+}
+
+function desfazerRegistroCancelado(id) {
+  setLocalData('chamados_cancelados_ids', getLocalData('chamados_cancelados_ids', []).filter((x) => x !== id));
+}
+
+// ==============================================================================
 // GESTÃO DO CHECKLIST GLOBAL DE SERVIDORES (CRIADO PELO ADMINISTRADOR)
 // ==============================================================================
 export function getServerChecklistTemplate() {
@@ -284,7 +359,9 @@ export const DEFAULT_DEPARTAMENTOS = [
   'Dúvidas Gerais',
   'Feedback',
   'Feedback / Bug RM',
+  'Lembretes',
 ];
+export const DEPARTAMENTO_LEMBRETES = 'Lembretes';
 export const DEFAULT_CATEGORIAS_DEMANDAS = DEFAULT_DEPARTAMENTOS;
 
 
@@ -352,10 +429,16 @@ export function sanitizarCategoriasDemanda(categorias, motivo = '') {
 
 export function getDepartamentos() {
   const deps = getLocalData('categorias_demandas', DEFAULT_DEPARTAMENTOS);
+  let alterou = false;
   if (!deps.some((d) => d.toLowerCase().trim() === 'feedback')) {
     deps.push('Feedback');
-    setLocalData('categorias_demandas', deps);
+    alterou = true;
   }
+  if (!deps.some((d) => d.toLowerCase().trim() === DEPARTAMENTO_LEMBRETES.toLowerCase())) {
+    deps.push(DEPARTAMENTO_LEMBRETES);
+    alterou = true;
+  }
+  if (alterou) setLocalData('categorias_demandas', deps);
   return deps;
 }
 
@@ -418,8 +501,8 @@ export async function iniciarSuporte({
   const agora = new Date().toISOString();
   const agoraMs = new Date(agora).getTime();
   const chamados = getLocalData('chamados_suporte', []);
-  const categoriasValidas = Array.isArray(categorias) && categorias.length > 0 
-    ? categorias 
+  const categoriasValidas = Array.isArray(categorias)
+    ? (categorias.length > 0 ? categorias : ['Suporte'])
     : (categorias ? [categorias] : ['Suporte']);
 
   // Se já existe um ID específico (ex: item que estava 'pendente' ou 'aguardando_visualizacao')
@@ -443,6 +526,15 @@ export async function iniciarSuporte({
         solicitante_nome: solicitante_nome || solicitante || anterior.solicitante_nome || anterior.solicitante || 'Colaborador',
       };
       setLocalData('chamados_suporte', chamados);
+
+      // Propaga o início para a nuvem; sem isso o próximo sync devolvia o chamado para "aguardando"
+      if (isSupabaseConfigured && supabase && isCloudId(chamado_id)) {
+        const { error } = await supabase
+          .from('suporte_chamados')
+          .update({ status: 'em_andamento', tecnico_email: userEmail, atendente: getNomeTecnico(userEmail), iniciado_em: agora })
+          .eq('id', chamado_id);
+        if (error) console.warn('Erro ao iniciar chamado no Supabase:', error);
+      }
 
       try {
         stopSupportNotificationLoop();
@@ -483,16 +575,19 @@ export async function iniciarSuporte({
     finalizado_em: null,
     duracao_segundos: 0,
     observacoes: descricao || '',
+    sync_estado: isSupabaseConfigured && supabase ? 'enviando' : 'local',
   };
 
   chamados.unshift(novoChamado);
   setLocalData('chamados_suporte', chamados);
+  window.dispatchEvent(new Event('suporte_updated'));
 
   // Sincroniza em tempo real com o Supabase
   if (isSupabaseConfigured && supabase) {
+    const localId = novoChamado.id;
     try {
-      const payload = {
-        empresa_id: (empresa_id && empresa_id.includes('-')) ? empresa_id : null,
+      const { data: dbSaved, error } = await inserirChamadoNuvem({
+        empresa_id: isCloudId(empresa_id) ? empresa_id : null,
         empresa_nome: empresa_nome || 'Empresa',
         tecnico_email: userEmail,
         atendente: getNomeTecnico(userEmail),
@@ -501,18 +596,18 @@ export async function iniciarSuporte({
         observacoes: descricao || '',
         motivo: categoriasValidas.join(', '),
         iniciado_em: agora,
-      };
-      const { data: dbSaved } = await supabase.from('suporte_chamados').insert([payload]).select().maybeSingle();
+      });
+      if (error) throw error;
       if (dbSaved?.id) {
         novoChamado.id = dbSaved.id;
-        const chAtual = getLocalData('chamados_suporte', []);
-        if (chAtual.length > 0 && chAtual[0].iniciado_em === agora) {
-          chAtual[0].id = dbSaved.id;
-          setLocalData('chamados_suporte', chAtual);
-        }
+        novoChamado.sync_estado = 'sincronizado';
+        substituirIdLocalChamado(localId, dbSaved.id);
       }
     } catch (e) {
       console.warn('Erro ao inserir chamado ativo no Supabase:', e);
+      novoChamado.sync_estado = 'pendente';
+      novoChamado.sync_erro = e?.message || 'Falha ao sincronizar';
+      marcarChamadoSyncPendente(localId, e);
     }
   }
 
@@ -552,9 +647,22 @@ export async function adicionarChamadoFila({
   const agora = new Date().toISOString();
   const agoraMs = Date.now();
   const chamados = getLocalData('chamados_suporte', []);
-  const categoriasValidas = Array.isArray(categorias) && categorias.length > 0 
-    ? categorias 
+  let categoriasValidas = Array.isArray(categorias)
+    ? (categorias.length > 0 ? categorias : ['Suporte'])
     : (categorias ? [categorias] : ['Suporte']);
+  // Lembretes operacionais vivem no departamento próprio para poderem ser filtrados na fila
+  if (is_lembrete && !categoriasValidas.some((c) => (c || '').toLowerCase().trim() === DEPARTAMENTO_LEMBRETES.toLowerCase())) {
+    categoriasValidas = [...categoriasValidas, DEPARTAMENTO_LEMBRETES];
+  }
+
+  // Campos que só existem no schema após a migração de colunas estendidas (opcionais no insert)
+  const extrasNuvem = {
+    etiquetas: Array.isArray(etiquetas) ? etiquetas : [],
+    prazo_limite: prazo_limite || null,
+    is_lembrete: Boolean(is_lembrete),
+    criador_email: userEmail,
+  };
+  const syncInicial = isSupabaseConfigured && supabase ? 'enviando' : 'local';
 
   // Prevenção apenas contra duplo-clique imediato (menos de 1.5s com exatamente a mesma observação e mesmo solicitante)
   const solicitanteFinalCheck = (solicitante_nome || '').trim().toLowerCase();
@@ -598,6 +706,7 @@ export async function adicionarChamadoFila({
       observacao_inicial: observacao_inicial.trim(),
       prazo_limite: prazo_limite || null,
       is_lembrete: Boolean(is_lembrete),
+      sync_estado: syncInicial,
       status: 'em_andamento',
       created_at: agora,
       tempo_espera_inicio: agora,
@@ -611,12 +720,14 @@ export async function adicionarChamadoFila({
     };
     chamados.unshift(novoChamado);
     setLocalData('chamados_suporte', chamados);
+    window.dispatchEvent(new Event('suporte_updated'));
 
     // Sincroniza em tempo real com o Supabase
     if (isSupabaseConfigured && supabase) {
+      const localId = novoChamado.id;
       try {
-        const payload = {
-          empresa_id: (empresa_id && empresa_id.includes('-')) ? empresa_id : null,
+        const { data: dbSaved, error } = await inserirChamadoNuvem({
+          empresa_id: isCloudId(empresa_id) ? empresa_id : null,
           empresa_nome: empresa_nome || 'Empresa',
           tecnico_email: userEmail,
           atendente: getNomeTecnico(userEmail),
@@ -624,28 +735,19 @@ export async function adicionarChamadoFila({
           status: 'em_andamento',
           observacoes: observacao_inicial ? observacao_inicial.trim() : '',
           motivo: categoriasValidas.join(', '),
-          etiquetas: Array.isArray(etiquetas) ? etiquetas : [],
           iniciado_em: agora,
-        };
-        let dbSaved = null;
-        try {
-          const res = await supabase.from('suporte_chamados').insert([payload]).select().maybeSingle();
-          dbSaved = res?.data;
-        } catch (eTag) {
-          delete payload.etiquetas;
-          const res = await supabase.from('suporte_chamados').insert([payload]).select().maybeSingle();
-          dbSaved = res?.data;
-        }
+        }, { ...extrasNuvem, atribuido_a: userEmail });
+        if (error) throw error;
         if (dbSaved?.id) {
           novoChamado.id = dbSaved.id;
-          const chAtual = getLocalData('chamados_suporte', []);
-          if (chAtual.length > 0 && chAtual[0].tempo_espera_inicio === agora) {
-            chAtual[0].id = dbSaved.id;
-            setLocalData('chamados_suporte', chAtual);
-          }
+          novoChamado.sync_estado = 'sincronizado';
+          substituirIdLocalChamado(localId, dbSaved.id);
         }
       } catch (e) {
         console.warn('Erro ao inserir suporte_chamados direto no Supabase:', e);
+        novoChamado.sync_estado = 'pendente';
+        novoChamado.sync_erro = e?.message || 'Falha ao sincronizar';
+        marcarChamadoSyncPendente(localId, e);
       }
     }
 
@@ -711,6 +813,7 @@ export async function adicionarChamadoFila({
     observacao_inicial: observacao_inicial.trim(),
     prazo_limite: prazo_limite || null,
     is_lembrete: Boolean(is_lembrete),
+    sync_estado: syncInicial,
     status: statusInicial,
     created_at: agora,
     tempo_espera_inicio: agora,
@@ -725,41 +828,36 @@ export async function adicionarChamadoFila({
 
   chamados.unshift(novoChamado);
   setLocalData('chamados_suporte', chamados);
+  window.dispatchEvent(new Event('suporte_updated'));
 
   // Sincroniza imediatamente na nuvem (Supabase) para que apareça em tempo real para toda a equipe
   if (isSupabaseConfigured && supabase) {
+    const localId = novoChamado.id;
     try {
-      const payload = {
-        empresa_id: (empresa_id && empresa_id.includes('-')) ? empresa_id : null,
+      const { data: dbSaved, error } = await inserirChamadoNuvem({
+        empresa_id: isCloudId(empresa_id) ? empresa_id : null,
         empresa_nome: empresa_nome || 'Empresa',
-        tecnico_email: tecnicoDesignado || userEmail,
-        atendente: getNomeTecnico(tecnicoDesignado || userEmail),
+        // 'geral' marca a Fila Geral sem ambiguidade. Antes gravava o e-mail de quem criou, e os outros
+        // colaboradores interpretavam como "atribuída a outra pessoa" e nunca recebiam o alerta sonoro.
+        tecnico_email: tecnicoDesignado || 'geral',
+        atendente: tecnicoDesignado ? getNomeTecnico(tecnicoDesignado) : 'Fila Geral (Aguardando Atendente)',
         colaborador_solicitante: (solicitante_nome || 'Colaborador da Empresa').trim(),
         status: statusInicial,
         observacoes: observacao_inicial ? observacao_inicial.trim() : '',
         motivo: categoriasValidas.join(', '),
-        etiquetas: Array.isArray(etiquetas) ? etiquetas : [],
         iniciado_em: agora,
-      };
-      let dbSaved = null;
-      try {
-        const res = await supabase.from('suporte_chamados').insert([payload]).select().maybeSingle();
-        dbSaved = res?.data;
-      } catch (eTag) {
-        delete payload.etiquetas;
-        const res = await supabase.from('suporte_chamados').insert([payload]).select().maybeSingle();
-        dbSaved = res?.data;
-      }
+      }, { ...extrasNuvem, atribuido_a: isFilaGeral ? 'geral' : tecnicoDesignado });
+      if (error) throw error;
       if (dbSaved?.id) {
         novoChamado.id = dbSaved.id;
-        const chAtual = getLocalData('chamados_suporte', []);
-        if (chAtual.length > 0 && (chAtual[0].id === novoChamado.id || chAtual[0].tempo_espera_inicio === agora)) {
-          chAtual[0].id = dbSaved.id;
-          setLocalData('chamados_suporte', chAtual);
-        }
+        novoChamado.sync_estado = 'sincronizado';
+        substituirIdLocalChamado(localId, dbSaved.id);
       }
     } catch (e) {
       console.warn('Erro ao inserir suporte_chamados na nuvem do Supabase:', e);
+      novoChamado.sync_estado = 'pendente';
+      novoChamado.sync_erro = e?.message || 'Falha ao sincronizar';
+      marcarChamadoSyncPendente(localId, e);
     }
   }
 
@@ -934,6 +1032,10 @@ export async function fetchChamadosFila() {
     try {
       const historicoLocal = getLocalData('historico_chamados', []);
       const historicoIds = new Set((historicoLocal || []).map((h) => h.id));
+      const canceladosIds = getChamadosCanceladosIds();
+
+      // Reenvia demandas que falharam ao sincronizar antes de ler a nuvem
+      await reenviarChamadosPendentes();
 
       const { data, error } = await supabase
         .from('suporte_chamados')
@@ -949,6 +1051,7 @@ export async function fetchChamadosFila() {
           if (d.status === 'finalizado' || d.status === 'concluido' || d.status === 'cancelado') return false;
           if (d.finalizado_em) return false;
           if (historicoIds.has(d.id)) return false;
+          if (canceladosIds.has(d.id)) return false;
           if (isChamadoFeedback(d)) return false;
           return true;
         });
@@ -994,7 +1097,7 @@ export async function fetchChamadosFila() {
             empresa_id: d.empresa_id,
             empresa_nome: d.empresa_nome,
             solicitante_nome: d.colaborador_solicitante || 'Colaborador da Empresa',
-            tecnico_email: d.tecnico_email || '',
+            tecnico_email: d.tecnico_email === 'geral' ? '' : (d.tecnico_email || ''),
             tecnico_nome: d.atendente || getNomeTecnico(d.tecnico_email),
             criador_email: d.criador_email || localMatch?.criador_email || '',
             criador_nome: d.criador_nome || localMatch?.criador_nome || (d.criador_email ? getNomeTecnico(d.criador_email) : ''),
@@ -1013,6 +1116,16 @@ export async function fetchChamadosFila() {
             tempo_ativo_segundos: ativoSegundos,
             iniciado_em: d.iniciado_em,
             finalizado_em: null,
+            // Campos operacionais preservados mesmo quando o schema remoto ainda não tem as colunas
+            is_lembrete: Boolean(d.is_lembrete ?? localMatch?.is_lembrete ?? cats.some((cat) => cat.toLowerCase() === DEPARTAMENTO_LEMBRETES.toLowerCase())),
+            prazo_limite: d.prazo_limite || localMatch?.prazo_limite || null,
+            is_fila_geral: localMatch?.is_fila_geral ?? (d.atribuido_a === 'geral' || d.tecnico_email === 'geral'),
+            atribuido_por_email: localMatch?.atribuido_por_email || d.criador_email || '',
+            motivo: d.motivo || '',
+            atribuido_em: localMatch?.atribuido_em || dataCriacao,
+            tempo_escalonamento_minutos: localMatch?.tempo_escalonamento_minutos || 15,
+            escalonado_notificado: Boolean(localMatch?.escalonado_notificado),
+            sync_estado: 'sincronizado',
           };
         });
 
@@ -1025,15 +1138,25 @@ export async function fetchChamadosFila() {
           if (c.status === 'finalizado' || c.status === 'concluido' || c.status === 'cancelado') return false;
           if (c.finalizado_em) return false;
           if (historicoIds.has(c.id)) return false;
+          if (canceladosIds.has(c.id)) return false;
 
+          // Só descarta a cópia local se o insert ainda estiver em andamento E a nuvem já tiver
+          // exatamente a mesma demanda (empresa + solicitante + observação + horário próximo).
+          // Antes, qualquer demanda da mesma empresa em 30s escondia a nova, o que impedia
+          // ter várias demandas para a mesma empresa.
+          if (c.sync_estado !== 'enviando') return true;
           const jaExisteNaNuvem = cloudChamados.some((d) => {
-            const mesmaEmpresa = (d.empresa_id && d.empresa_id === c.empresa_id) ||
-              (d.empresa_nome && c.empresa_nome && d.empresa_nome.toLowerCase().trim() === c.empresa_nome.toLowerCase().trim());
-            const diff = Math.abs(new Date(d.created_at || d.iniciado_em || 0).getTime() - new Date(c.created_at || c.tempo_espera_inicio || 0).getTime());
-            return mesmaEmpresa && diff < 30000;
+            const mesmaEmpresa = (d.empresa_nome || '').toLowerCase().trim() === (c.empresa_nome || '').toLowerCase().trim();
+            const normSol = (v) => {
+              const n = (v || '').toLowerCase().trim();
+              return n === 'colaborador' || n === 'colaborador da empresa' ? '' : n;
+            };
+            const mesmoSolicitante = normSol(d.solicitante_nome) === normSol(c.solicitante_nome);
+            const mesmaObs = (d.observacao_inicial || '').trim() === (c.observacao_inicial || '').trim();
+            const diff = Math.abs(new Date(d.iniciado_em || d.created_at || 0).getTime() - new Date(c.created_at || c.tempo_espera_inicio || 0).getTime());
+            return mesmaEmpresa && mesmoSolicitante && mesmaObs && diff < 10000;
           });
-          if (jaExisteNaNuvem) return false;
-          return true;
+          return !jaExisteNaNuvem;
         });
 
         const merged = [...cloudChamados, ...localMocks];
@@ -1045,6 +1168,40 @@ export async function fetchChamadosFila() {
     }
   }
   return getChamadosSuporte();
+}
+
+// Tenta novamente enviar demandas criadas enquanto a nuvem estava indisponível
+let reenvioEmAndamento = false;
+async function reenviarChamadosPendentes() {
+  if (reenvioEmAndamento || !isSupabaseConfigured || !supabase) return;
+  const pendentes = getLocalData('chamados_suporte', []).filter((c) => c && c.sync_estado === 'pendente' && !isCloudId(c.id));
+  if (pendentes.length === 0) return;
+  reenvioEmAndamento = true;
+  try {
+    for (const c of pendentes) {
+      const { data, error } = await inserirChamadoNuvem({
+        empresa_id: isCloudId(c.empresa_id) ? c.empresa_id : null,
+        empresa_nome: c.empresa_nome || 'Empresa',
+        tecnico_email: c.tecnico_email || (c.is_fila_geral ? 'geral' : c.criador_email) || 'geral',
+        atendente: c.tecnico_nome || getNomeTecnico(c.tecnico_email || c.criador_email),
+        colaborador_solicitante: (c.solicitante_nome || 'Colaborador da Empresa').trim(),
+        status: c.status === 'em_andamento' ? 'em_andamento' : 'aguardando_visualizacao',
+        observacoes: c.observacao_inicial || c.observacoes || '',
+        motivo: (c.categorias || ['Suporte']).join(', '),
+        iniciado_em: c.iniciado_em || c.created_at,
+      }, {
+        etiquetas: c.etiquetas || [],
+        prazo_limite: c.prazo_limite || null,
+        is_lembrete: Boolean(c.is_lembrete),
+        criador_email: c.criador_email || null,
+        atribuido_a: c.atribuido_a || null,
+      });
+      if (!error && data?.id) substituirIdLocalChamado(c.id, data.id);
+      else if (error) marcarChamadoSyncPendente(c.id, error);
+    }
+  } finally {
+    reenvioEmAndamento = false;
+  }
 }
 
 export function getFilaChamados() {
@@ -1227,30 +1384,57 @@ export async function finalizarSuporte({
 }
 
 export async function cancelarSuporte({ chamado_id, userEmail = 'admin@rmcontrole.com' }) {
-  let chamados = getLocalData('chamados_suporte', []);
-  const idx = chamados.findIndex((c) => c.id === chamado_id);
-  const anteriorChamado = idx !== -1 ? chamados[idx] : null;
+  const chamadosAntes = getLocalData('chamados_suporte', []);
+  const historicoAntes = getLocalData('historico_chamados', []);
+  const anteriorChamado = chamadosAntes.find((c) => c.id === chamado_id) || null;
+  const histItem = historicoAntes.find((c) => c.id === chamado_id) || null;
 
-  if (idx !== -1) {
-    chamados.splice(idx, 1);
-    setLocalData('chamados_suporte', chamados);
-  }
-
-  // Remove também do histórico de chamados (garante que saia dos históricos)
-  let historico = getLocalData('historico_chamados', []);
-  const histItem = historico.find((c) => c.id === chamado_id);
-  historico = historico.filter((c) => c.id !== chamado_id);
-  setLocalData('historico_chamados', historico);
+  // 1. Remoção otimista: some da fila e do histórico imediatamente
+  registrarChamadoCancelado(chamado_id);
+  setLocalData('chamados_suporte', chamadosAntes.filter((c) => c.id !== chamado_id));
+  setLocalData('historico_chamados', historicoAntes.filter((c) => c.id !== chamado_id));
+  window.dispatchEvent(new Event('suporte_updated'));
 
   const empresaId = anteriorChamado?.empresa_id || histItem?.empresa_id || null;
   const empresaNome = anteriorChamado?.empresa_nome || histItem?.empresa_nome || '';
 
-  // Remove no Supabase se configurado
-  if (isSupabaseConfigured && supabase) {
-    try {
-      await supabase.from('suporte_chamados').delete().eq('id', chamado_id);
-    } catch (e) {
-      console.warn('Erro ao excluir chamado no Supabase ao cancelar:', e);
+  // 2. Persiste na nuvem. O cancelamento é um UPDATE de status (permitido para a equipe de suporte);
+  //    o DELETE é restrito a administradores pela RLS e falhava silenciosamente, fazendo a demanda voltar.
+  if (isSupabaseConfigured && supabase && isCloudId(chamado_id)) {
+    const agora = new Date().toISOString();
+    let confirmado = false;
+    let ultimoErro = null;
+
+    const upd = await supabase
+      .from('suporte_chamados')
+      .update({ status: 'cancelado', finalizado_em: agora })
+      .eq('id', chamado_id)
+      .select('id');
+    if (!upd.error && Array.isArray(upd.data) && upd.data.length > 0) {
+      confirmado = true;
+    } else {
+      ultimoErro = upd.error;
+      const del = await supabase.from('suporte_chamados').delete().eq('id', chamado_id).select('id');
+      if (!del.error && Array.isArray(del.data) && del.data.length > 0) confirmado = true;
+      else ultimoErro = del.error || ultimoErro;
+    }
+
+    if (!confirmado) {
+      // Nenhuma linha afetada: pode já ter sido removida por outro colaborador
+      const { data: aindaExiste } = await supabase
+        .from('suporte_chamados')
+        .select('id, status')
+        .eq('id', chamado_id)
+        .maybeSingle();
+      if (aindaExiste && aindaExiste.status !== 'cancelado') {
+        // 3. Reverte a remoção otimista e informa o motivo
+        desfazerRegistroCancelado(chamado_id);
+        setLocalData('chamados_suporte', chamadosAntes);
+        setLocalData('historico_chamados', historicoAntes);
+        window.dispatchEvent(new Event('suporte_updated'));
+        console.warn('Falha ao cancelar chamado no Supabase:', ultimoErro);
+        throw new Error('Não foi possível cancelar no servidor — seu usuário não tem permissão para alterar esta demanda. A demanda foi mantida na fila.');
+      }
     }
   }
 
@@ -1425,7 +1609,8 @@ export async function fetchHistoricoChamados() {
 
       if (!error && Array.isArray(data)) {
         const localHistMap = new Map((getLocalData('historico_chamados', []) || []).map((h) => [h.id, h]));
-        dbChamados = data.map((d) => {
+        const canceladosIds = getChamadosCanceladosIds();
+        dbChamados = data.filter((d) => d && d.status !== 'cancelado' && !canceladosIds.has(d.id)).map((d) => {
           const localItem = localHistMap.get(d.id);
           // Extrai categorias do motivo ou do localItem
           // Separa rigorosamente departamentos (categorias) dos motivos diagnosticados
@@ -1655,10 +1840,12 @@ export function getChamadosSuporte({ empresa_id = null, status = 'todos' } = {})
   let chamados = getLocalData('chamados_suporte', []);
   const historico = getLocalData('historico_chamados', []);
   const historicoIds = new Set((historico || []).map((h) => h.id));
+  const canceladosIds = getChamadosCanceladosIds();
 
   // Purga estritamente qualquer chamado que já foi concluído ou arquivado no histórico
   chamados = chamados.filter((c) => {
     if (!c || !c.id) return false;
+    if (canceladosIds.has(c.id)) return false;
     if (c.status === 'concluido' || c.status === 'finalizado' || c.status === 'cancelado') return false;
     if (c.finalizado_em) return false;
     if (historicoIds.has(c.id)) return false;
@@ -2172,16 +2359,9 @@ export const PERMISSOES_PADRAO = {
   vendas: ['empresas', 'fila', 'dashboard', 'feedbacks', 'agenda', 'configuracoes'],
 };
 
+// Mesma regra do servidor (src/lib/roles.js): lista de administradores + papel em Equipe & Senhas
 export function resolveUserRole(email) {
-  if (!email) return 'suporte';
-  const emailNorm = email.toLowerCase().trim();
-  if (emailNorm === 'admin@rmcontrole.com' || emailNorm === 'lucas.rmchat@gmail.com') return 'administrador';
-  const equipe = getEquipeUsuarios();
-  const membro = equipe.find((u) => (u.email || '').toLowerCase().trim() === emailNorm);
-  if (membro && membro.papel) return membro.papel;
-  if (emailNorm.includes('admin') || emailNorm.includes('lucas')) return 'administrador';
-  if (emailNorm.includes('vendas') || emailNorm.includes('comercial')) return 'vendas';
-  return 'suporte';
+  return resolverPapel(email, getEquipeUsuarios());
 }
 
 export function getCurrentUserRole() {
@@ -2221,13 +2401,7 @@ export async function fetchEquipeUsuarios() {
           if (!u.email) return;
           const email = u.email.toLowerCase().trim();
           const prev = map.get(email) || {};
-          const localPass = typeof window !== 'undefined' ? localStorage.getItem(`rm_user_password_${email}`) : null;
-          let senhaDefinida = localPass || u.senha || prev.senha || '';
-          if (localPass) {
-            senhaDefinida = localPass;
-          } else if (prev.senha && prev.senha !== 'RmControle@Admin2026!' && u.senha === 'RmControle@Admin2026!') {
-            senhaDefinida = prev.senha;
-          }
+          let senhaDefinida = u.senha || prev.senha || '';
           map.set(email, {
             ...prev,
             id: u.id,
@@ -2291,9 +2465,9 @@ export function getEquipeUsuarios() {
   const lista = rawList;
   return lista.map((u) => {
     const emailNorm = (u.email || '').toLowerCase().trim();
-    const localPass = typeof window !== 'undefined' ? localStorage.getItem(`rm_user_password_${emailNorm}`) : null;
-    const senhaFinal = localPass || u.senha;
-    if (emailNorm === 'admin@rmcontrole.com' || emailNorm === 'lucas.rmchat@gmail.com' || emailNorm.includes('admin') || emailNorm.includes('lucas')) {
+    const senhaFinal = u.senha;
+    // Apenas os administradores proprietários são fixados; os demais usam o papel cadastrado
+    if (ADMINS_PROPRIETARIOS.includes(emailNorm)) {
       return { ...u, senha: senhaFinal, papel: 'administrador' };
     }
     return { ...u, senha: senhaFinal };
@@ -2534,10 +2708,11 @@ export async function concluirPrimeiroAcesso(userEmail, {
     setDefaultViewMode(viewMode);
   }
 
-  // 4. Se novaSenha fornecida, armazena permanentemente em chave individual blindada
-  if (novaSenha && novaSenha.trim()) {
-    const passLimpa = novaSenha.trim();
-    localStorage.setItem(`rm_user_password_${emailNorm}`, passLimpa);
+  // 4. Se novaSenha fornecida, remove resíduos do storage (LGPD)
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.removeItem(`rm_user_password_${emailNorm}`);
+    } catch (e) {}
   }
 
   // 5. Atualiza equipe_usuarios local
@@ -2555,7 +2730,7 @@ export async function concluirPrimeiroAcesso(userEmail, {
       id: 'usr_' + Date.now(),
       nome: getNomeTecnico(userEmail),
       email: emailNorm,
-      papel: emailNorm.includes('admin') ? 'administrador' : 'suporte',
+      papel: resolverPapel(emailNorm, []),
       senha: novaSenha ? novaSenha.trim() : '',
       primeiro_acesso_concluido: true,
       primeiro_acesso_data: agora,
@@ -4059,7 +4234,23 @@ export function getFeedbacks() {
   return getLocalData('feedbacks_lista', []);
 }
 
+// Status alterados localmente e ainda não confirmados pelo servidor (expiram em 60s)
+const FEEDBACK_PENDENTE_TTL_MS = 60000;
+
+function extrairModuloFeedback(descricao = '') {
+  const match = /^\[Módulo: ([^\]]+)\]\s*/.exec(descricao || '');
+  return match ? { modulo: match[1], descricao: descricao.slice(match[0].length) } : { modulo: null, descricao };
+}
+
 export async function fetchFeedbacks() {
+  if (typeof window !== 'undefined') {
+    // Remove o antigo mapa de "overrides" locais, que impedia ver o status alterado por outros colaboradores
+    try {
+      localStorage.removeItem('rm_feedbacks_status_override');
+      localStorage.removeItem('rm_rm_feedbacks_status_override');
+    } catch (e) {}
+  }
+
   if (isSupabaseConfigured && supabase) {
     try {
       const { data, error } = await supabase
@@ -4070,48 +4261,32 @@ export async function fetchFeedbacks() {
       if (!error && Array.isArray(data)) {
         const local = getLocalData('feedbacks_lista', []);
         const localById = new Map((local || []).map((f) => [f.id, f]));
-        const localByTitle = new Map((local || []).map((f) => [(f.titulo || '').trim().toLowerCase(), f]));
+        const pendentes = getLocalData('feedbacks_status_pendente', {});
+        const agoraMs = Date.now();
 
+        // A nuvem é a fonte da verdade do status; só um status local ainda não confirmado (recente) prevalece
         const merged = data.map((cloudItem) => {
-          const tKey = (cloudItem.titulo || '').trim().toLowerCase();
-          const localItem = localById.get(cloudItem.id) || localByTitle.get(tKey);
-
-          if (localItem) {
-            // Robustez total: preserva o status local definido pelo usuário para que nunca reverta para triagem
-            const statusFinal = localItem.status || cloudItem.status || 'em_analise';
-            return {
-              ...cloudItem,
-              ...localItem,
-              id: cloudItem.id, // Unifica com o ID oficial do Supabase
-              status: statusFinal,
-              updated_at: localItem.updated_at || cloudItem.created_at,
-            };
-          }
-          return cloudItem;
+          const localItem = localById.get(cloudItem.id);
+          const { modulo, descricao } = extrairModuloFeedback(cloudItem.descricao);
+          const pend = pendentes[cloudItem.id];
+          const pendValido = pend && agoraMs - new Date(pend.em).getTime() < FEEDBACK_PENDENTE_TTL_MS;
+          return {
+            ...cloudItem,
+            descricao,
+            modulo_afetado: modulo || localItem?.modulo_afetado || 'Geral',
+            status: (pendValido && pend.status) || cloudItem.status || 'em_analise',
+          };
         });
 
-        const cloudTitles = new Set(data.map((d) => (d.titulo || '').trim().toLowerCase()));
+        // Mantém apenas feedbacks locais que nunca chegaram à nuvem (IDs provisórios)
         const cloudIds = new Set(data.map((d) => d.id));
-        const onlyLocal = (local || []).filter(
-          (f) => f.id && !cloudIds.has(f.id) && !cloudTitles.has((f.titulo || '').trim().toLowerCase())
-        );
+        const onlyLocal = (local || []).filter((f) => f.id && !cloudIds.has(f.id) && !isCloudId(f.id));
 
         const finalLista = [...merged, ...onlyLocal];
-
-        // Blindagem permanente: aplica status definidos pelo usuário via mapa de overrides
-        const overrides = getLocalData('rm_feedbacks_status_override', {});
-        const finalListaComOverrides = finalLista.map((fb) => {
-          const tKey = (fb.titulo || '').trim().toLowerCase();
-          const overStatus = overrides[fb.id] || overrides[tKey];
-          if (overStatus) {
-            return { ...fb, status: overStatus };
-          }
-          return fb;
-        });
-
-        setLocalData('feedbacks_lista', finalListaComOverrides);
-        return finalListaComOverrides;
+        setLocalData('feedbacks_lista', finalLista);
+        return finalLista;
       }
+      if (error) console.warn('Erro ao buscar feedbacks do Supabase:', error);
     } catch (e) {
       console.warn('Erro ao buscar feedbacks do Supabase:', e);
     }
@@ -4168,10 +4343,13 @@ export async function createFeedback({
         status: 'em_analise',
         created_at: agora,
       };
-      const { data: dbSaved } = await supabase.from('feedbacks').insert([payload]).select().maybeSingle();
+      const { data: dbSaved, error } = await supabase.from('feedbacks').insert([payload]).select().maybeSingle();
+      if (error) console.warn('Aviso ao salvar feedback no Supabase:', error);
       if (dbSaved?.id) {
+        const localId = novoFeedback.id;
         novoFeedback.id = dbSaved.id;
-        setLocalData('feedbacks_lista', lista);
+        const atual = getLocalData('feedbacks_lista', []);
+        setLocalData('feedbacks_lista', atual.map((f) => (f.id === localId ? { ...f, id: dbSaved.id } : f)));
       }
     } catch (e) {
       console.warn('Aviso ao salvar feedback no Supabase:', e);
@@ -4198,7 +4376,7 @@ export async function updateFeedbackStatus(feedbackId, newStatus, userEmail = 'a
   const feedbacks = getLocalData('feedbacks_lista', []);
   const idx = feedbacks.findIndex((f) => f.id === feedbackId);
   const agora = new Date().toISOString();
-  let fbItem = null;
+  const fbAnterior = idx !== -1 ? feedbacks[idx] : null;
 
   if (idx !== -1) {
     feedbacks[idx] = {
@@ -4207,35 +4385,40 @@ export async function updateFeedbackStatus(feedbackId, newStatus, userEmail = 'a
       updated_at: agora,
       ...(newStatus === 'resolvido' ? { finalizado_em: agora } : {}),
     };
-    fbItem = feedbacks[idx];
     setLocalData('feedbacks_lista', feedbacks);
   }
 
-  // Registra no mapa blindado permanente de overrides para jamais reverter para triagem
-  const overrides = getLocalData('rm_feedbacks_status_override', {});
-  if (feedbackId) overrides[feedbackId] = newStatus;
-  if (fbItem?.titulo) overrides[fbItem.titulo.trim().toLowerCase()] = newStatus;
-  setLocalData('rm_feedbacks_status_override', overrides);
-
   if (isSupabaseConfigured && supabase) {
-    try {
-      // 1. Tenta atualizar pelo ID
-      const { error: err1 } = await supabase
-        .from('feedbacks')
-        .update({ status: newStatus })
-        .eq('id', feedbackId);
+    const pendentes = getLocalData('feedbacks_status_pendente', {});
+    pendentes[feedbackId] = { status: newStatus, em: agora };
+    setLocalData('feedbacks_status_pendente', pendentes);
 
-      // 2. Se falhar ou for ID local ('fb_...'), sincroniza também pelo título para garantir persistência na nuvem
-      if (err1 || (feedbackId && feedbackId.startsWith('fb_'))) {
-        if (fbItem?.titulo) {
-          await supabase
-            .from('feedbacks')
-            .update({ status: newStatus })
-            .eq('titulo', fbItem.titulo);
+    let res;
+    if (isCloudId(feedbackId)) {
+      res = await supabase.from('feedbacks').update({ status: newStatus }).eq('id', feedbackId).select('id');
+    } else if (fbAnterior?.titulo) {
+      // Feedback criado offline: localiza pelo título exato
+      res = await supabase.from('feedbacks').update({ status: newStatus }).eq('titulo', fbAnterior.titulo).select('id');
+    }
+
+    const pendentesAtuais = getLocalData('feedbacks_status_pendente', {});
+    delete pendentesAtuais[feedbackId];
+    setLocalData('feedbacks_status_pendente', pendentesAtuais);
+
+    const confirmado = res && !res.error && Array.isArray(res.data) && res.data.length > 0;
+    if (res && !confirmado) {
+      // Reverte o status local para não exibir algo que os outros colaboradores não verão
+      if (fbAnterior) {
+        const lista = getLocalData('feedbacks_lista', []);
+        const i = lista.findIndex((f) => f.id === feedbackId);
+        if (i !== -1) {
+          lista[i] = fbAnterior;
+          setLocalData('feedbacks_lista', lista);
         }
       }
-    } catch (e) {
-      console.warn('Aviso ao atualizar status do feedback no Supabase:', e);
+      console.warn('Falha ao atualizar status do feedback no Supabase:', res.error);
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('feedbacks_updated'));
+      throw new Error('Não foi possível salvar o novo status no servidor. Verifique sua conexão e tente de novo.');
     }
   }
 

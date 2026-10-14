@@ -58,6 +58,20 @@ import {
   CheckIcon 
 } from '@/components/Icons';
 
+// O papel oficial vem do servidor (cadastro da equipe); a regra local é só contingência sem rede
+async function obterPapelAtual(email) {
+  try {
+    const res = await fetch('/api/auth/session', { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.user?.role && (data.user.email || '').toLowerCase() === (email || '').toLowerCase()) {
+        return data.user.role;
+      }
+    }
+  } catch (e) {}
+  return resolveUserRole(email);
+}
+
 export default function Home() {
   // Tema Visual: 'light' (Padrão Apple) | 'dark'
   const [theme, setTheme] = useState('light');
@@ -106,6 +120,7 @@ export default function Home() {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [loginSubmitting, setLoginSubmitting] = useState(false);
+  const [honeypot, setHoneypot] = useState('');
 
   // Inatividade (30 minutos = 1800 segundos)
   const [inactivityTimeLeft, setInactivityTimeLeft] = useState(1800);
@@ -222,6 +237,26 @@ export default function Home() {
   // ==============================================================================
   // VALIDAÇÃO DE SESSÃO COM SUPABASE
   // ==============================================================================
+  // ==============================================================================
+  // LIMPEZA AUTOMÁTICA DE SESSÃO EFÊMERA (LGPD) AO FECHAR ABA DO NAVEGADOR
+  // ==============================================================================
+  useEffect(() => {
+    const handleUnload = () => {
+      try {
+        sessionStorage.clear();
+      } catch (e) {}
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    window.addEventListener('pagehide', handleUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload);
+      window.removeEventListener('pagehide', handleUnload);
+    };
+  }, []);
+
+  // ==============================================================================
+  // VALIDAÇÃO DE SESSÃO SEGURA VIA COOKIES HTTP-ONLY E SUPABASE
+  // ==============================================================================
   useEffect(() => {
     async function checkSession() {
       try {
@@ -240,51 +275,53 @@ export default function Home() {
           await fetchEquipeUsuarios();
         } catch (e) {}
 
+        // 1. Validação prioritária por Cookie HTTP-Only seguro (/api/auth/session)
+        try {
+          const res = await fetch('/api/auth/session', { cache: 'no-store' });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.authenticated && data.user?.email) {
+              setIsAuthenticated(true);
+              setUserEmail(data.user.email);
+              const role = data.user.role || resolveUserRole(data.user.email);
+              setCurrentUserRole(role);
+              localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
+
+              // Higienização preventiva contra vazamento no LocalStorage
+              try {
+                localStorage.removeItem('rm_auth_user');
+                localStorage.removeItem('rm_user_role');
+              } catch (e) {}
+
+              const pendente = await isPrimeiroAcessoPendente(data.user.email);
+              setPrimeiroAcessoPendente(pendente);
+              setAuthLoading(false);
+              return;
+            }
+          }
+        } catch (cookieErr) {
+          // Continua para validação Supabase
+        }
+
+        // 2. Validação por Supabase Auth nativo
         if (isSupabaseConfigured && supabase) {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
             const email = session.user.email || 'admin@rmcontrole.com';
             setIsAuthenticated(true);
             setUserEmail(email);
-            const role = resolveUserRole(email);
-            setCurrentUserRole(role);
-            localStorage.setItem('rm_auth_user', email);
+            setCurrentUserRole(await obterPapelAtual(email));
             localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
 
             const pendente = await isPrimeiroAcessoPendente(email);
             setPrimeiroAcessoPendente(pendente);
-          } else {
-            const savedUser = localStorage.getItem('rm_auth_user');
-            if (savedUser) {
-              setIsAuthenticated(true);
-              setUserEmail(savedUser);
-              const role = resolveUserRole(savedUser);
-              setCurrentUserRole(role);
-              localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
-
-              const pendente = await isPrimeiroAcessoPendente(savedUser);
-              setPrimeiroAcessoPendente(pendente);
-            } else {
-              setIsAuthenticated(false);
-              setUserEmail('');
-            }
-          }
-        } else {
-          const savedUser = localStorage.getItem('rm_auth_user');
-          if (savedUser) {
-            setIsAuthenticated(true);
-            setUserEmail(savedUser);
-            const role = resolveUserRole(savedUser);
-            setCurrentUserRole(role);
-            localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
-
-            const pendente = await isPrimeiroAcessoPendente(savedUser);
-            setPrimeiroAcessoPendente(pendente);
-          } else {
-            setIsAuthenticated(false);
-            setUserEmail('');
+            setAuthLoading(false);
+            return;
           }
         }
+
+        setIsAuthenticated(false);
+        setUserEmail('');
       } catch (e) {
         console.error('Erro ao checar sessão:', e);
         setIsAuthenticated(false);
@@ -302,8 +339,7 @@ export default function Home() {
           const email = session.user.email || 'admin@rmcontrole.com';
           setIsAuthenticated(true);
           setUserEmail(email);
-          const role = resolveUserRole(email);
-          setCurrentUserRole(role);
+          setCurrentUserRole(await obterPapelAtual(email));
           localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
 
           const pendente = await isPrimeiroAcessoPendente(email);
@@ -321,23 +357,28 @@ export default function Home() {
   // Proteção e Redirecionamento de Abas Permitidas por Papel (Hierarquia Estrita)
   useEffect(() => {
     if (!isAuthenticated) return;
+    // Só lê o papel já definido pelo servidor; regravá-lo aqui disparava 'user_role_updated'
+    // dentro do próprio ouvinte (recursão) e trocava o papel do servidor pela regra local
     const checkRoleAndTab = () => {
-      const role = resolveUserRole(userEmail);
-      setCurrentUserRole(role);
-      const permitidas = getAbasPermitidas(role);
+      const permitidas = getAbasPermitidas(getCurrentUserRole());
       if (!permitidas.includes(activeTab)) {
         setActiveTab('empresas');
       }
+    };
+    // Papel alterado em Equipe & Senhas: pergunta ao servidor e aplica
+    const atualizarPapelDoServidor = async () => {
+      const papel = await obterPapelAtual(userEmail);
+      if (papel !== getCurrentUserRole()) setCurrentUserRole(papel);
     };
 
     checkRoleAndTab();
 
     window.addEventListener('user_role_updated', checkRoleAndTab);
-    window.addEventListener('equipe_updated', checkRoleAndTab);
+    window.addEventListener('equipe_updated', atualizarPapelDoServidor);
 
     return () => {
       window.removeEventListener('user_role_updated', checkRoleAndTab);
-      window.removeEventListener('equipe_updated', checkRoleAndTab);
+      window.removeEventListener('equipe_updated', atualizarPapelDoServidor);
     };
   }, [isAuthenticated, userEmail, activeTab]);
 
@@ -394,8 +435,10 @@ export default function Home() {
                 const isPendingOrWaiting = item.status === 'aguardando_visualizacao' || item.status === 'pendente' || item.status === 'em_andamento';
 
                 if (isPendingOrWaiting && !prevIds.has(item.id)) {
-                  // Dispara Alerta Sonoro de acordo com o escopo e timbre do usuário
-                  triggerSupportNotification({ chamado: item, userEmail });
+                  // Usa o chamado já normalizado (categorias, fila geral, criador) em vez da linha crua do banco,
+                  // para que escopo, departamentos e repetição sejam avaliados corretamente
+                  const normalizado = novosChamados.find((c) => c.id === item.id) || item;
+                  triggerSupportNotification({ chamado: normalizado, userEmail });
 
                   // Dispara Alerta Visual Toast
                   const empresaNome = item.empresa_nome || 'Empresa';
@@ -619,6 +662,12 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
     e.preventDefault();
     setLoginError('');
 
+    // Prevenção Anti-Bot via Honeypot
+    if (honeypot && honeypot.trim() !== '') {
+      setLoginError('Credenciais inválidas.');
+      return;
+    }
+
     const emailLimpo = loginEmail.trim().toLowerCase();
     const senhaLimpa = loginPassword.trim();
 
@@ -630,7 +679,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
     setLoginSubmitting(true);
 
     try {
-      // 1. Resolve o e-mail completo (aceita tanto 'maria' quanto 'maria@rmcontrole.com')
+      // 1. Resolve o e-mail formal
       let emailFormal = emailLimpo;
       const equipe = getEquipeUsuarios();
       const membroEquipe = equipe.find((u) => {
@@ -648,49 +697,83 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
       const isAdminEmail = emailFormal === 'admin@rmcontrole.com' || emailFormal.includes('admin') || membroEquipe?.papel === 'administrador';
       const senhaEsperada = (membroEquipe?.senha || '').trim();
 
-      // 2. Autenticação oficial no Supabase Auth (gera sessão JWT e concede papel 'authenticated' para o RLS)
+      // 2. Autenticação no servidor via API segura com Rate Limit e Cookies HTTP-Only
+      let serverRole = null;
+      try {
+        const resAuth = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: emailFormal,
+            password: senhaLimpa,
+            honeypot,
+          }),
+        });
+
+        if (resAuth.status === 429) {
+          const errData = await resAuth.json().catch(() => ({}));
+          throw new Error(errData.error || 'Muitas tentativas de login. Tente novamente mais tarde.');
+        }
+
+        if (resAuth.ok) {
+          const dataAuth = await resAuth.json();
+          serverRole = dataAuth.user?.role;
+        } else if (resAuth.status === 401 || resAuth.status === 403) {
+          // O servidor é a autoridade: sem a sessão dele, as APIs protegidas recusariam o usuário depois
+          const errData = await resAuth.json().catch(() => ({}));
+          throw new Error(errData.error || 'E-mail ou senha incorretos. Verifique suas credenciais.');
+        }
+      } catch (srvErr) {
+        // Só segue sem o servidor em falha de rede; recusas explícitas encerram o login
+        if (!(srvErr instanceof TypeError)) {
+          throw srvErr;
+        }
+      }
+
+      // 3. Autenticação no Supabase Auth para RLS e WebSockets
       if (isSupabaseConfigured && supabase) {
         let authResult = await supabase.auth.signInWithPassword({
           email: emailFormal,
           password: senhaLimpa,
         });
 
-        // Se falhar a autenticação no Supabase Auth:
-        // LGPD & Segurança Máxima: Só tenta auto-provisionar se a senha digitada corresponder EXATAMENTE à cadastrada na equipe
-        if (authResult.error) {
-          if (membroEquipe && senhaEsperada && senhaEsperada === senhaLimpa) {
-            try {
-              await supabase.auth.signUp({
-                email: emailFormal,
-                password: senhaLimpa,
-                options: {
-                  data: {
-                    name: membroEquipe?.nome || (isAdminEmail ? 'Lucas Amorim' : emailFormal.split('@')[0]),
-                    papel: membroEquipe?.papel || (isAdminEmail ? 'administrador' : 'suporte'),
-                  },
+        if (authResult.error && membroEquipe && senhaEsperada && senhaEsperada === senhaLimpa) {
+          try {
+            await supabase.auth.signUp({
+              email: emailFormal,
+              password: senhaLimpa,
+              options: {
+                data: {
+                  name: membroEquipe?.nome || (isAdminEmail ? 'Lucas Amorim' : emailFormal.split('@')[0]),
+                  papel: membroEquipe?.papel || (isAdminEmail ? 'administrador' : 'suporte'),
                 },
-              });
-              authResult = await supabase.auth.signInWithPassword({
-                email: emailFormal,
-                password: senhaLimpa,
-              });
-            } catch (autoErr) {
-              console.warn('Tentativa de auto-registro no Supabase Auth:', autoErr);
-            }
-          }
+              },
+            });
+            authResult = await supabase.auth.signInWithPassword({
+              email: emailFormal,
+              password: senhaLimpa,
+            });
+          } catch (autoErr) {}
         }
 
-        // Se autenticou no Supabase Auth com sucesso (tem sessão JWT oficial):
         if (authResult?.data?.user) {
           const user = authResult.data.user;
           setIsAuthenticated(true);
           setUserEmail(user.email);
-          const role = resolveUserRole(user.email);
+          const role = serverRole || resolveUserRole(user.email);
           setCurrentUserRole(role);
-          localStorage.setItem('rm_auth_user', user.email);
+
+          // Limpeza rigorosa de senhas e dados sensíveis de LocalStorage (Conformidade LGPD)
+          try {
+            localStorage.removeItem('rm_auth_user');
+            localStorage.removeItem('rm_user_role');
+            Object.keys(localStorage).forEach((k) => {
+              if (k.startsWith('rm_user_password_')) localStorage.removeItem(k);
+            });
+          } catch (e) {}
+
           localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
 
-          // Se a senha esperada local estava desatualizada, sincroniza com a nova autenticada
           if (membroEquipe && membroEquipe.senha !== senhaLimpa) {
             updateEquipeUsuario(membroEquipe.id, { senha: senhaLimpa }).catch(() => {});
           }
@@ -700,14 +783,21 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
           return;
         }
 
-        // Fallback restrito de contingência (apenas se Supabase Auth indisponível ou e-mail pendente de confirmação)
-        // EXIGE RIGOROSAMENTE que a senha informada seja idêntica à senha cadastrada do colaborador
+        // Fallback restrito de contingência se a senha conferir exatamente
         if (membroEquipe && senhaEsperada && senhaEsperada === senhaLimpa) {
           setIsAuthenticated(true);
           setUserEmail(membroEquipe.email);
-          const role = membroEquipe.papel || (isAdminEmail ? 'administrador' : 'suporte');
+          const role = serverRole || membroEquipe.papel || (isAdminEmail ? 'administrador' : 'suporte');
           setCurrentUserRole(role);
-          localStorage.setItem('rm_auth_user', membroEquipe.email);
+
+          try {
+            localStorage.removeItem('rm_auth_user');
+            localStorage.removeItem('rm_user_role');
+            Object.keys(localStorage).forEach((k) => {
+              if (k.startsWith('rm_user_password_')) localStorage.removeItem(k);
+            });
+          } catch (e) {}
+
           localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
 
           const pendente = await isPrimeiroAcessoPendente(membroEquipe.email);
@@ -715,15 +805,21 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
           return;
         }
 
-        // Credenciais incorretas - NUNCA permite login com bypass de tamanho de senha ou senha padrão antiga
         throw new Error('E-mail ou senha incorretos. Verifique suas credenciais.');
       } else {
-        // Fallback quando Supabase não está configurado
         if (membroEquipe && senhaEsperada && senhaEsperada === senhaLimpa) {
           setIsAuthenticated(true);
           setUserEmail(membroEquipe.email);
-          setCurrentUserRole(membroEquipe.papel || (isAdminEmail ? 'administrador' : 'suporte'));
-          localStorage.setItem('rm_auth_user', membroEquipe.email);
+          setCurrentUserRole(serverRole || membroEquipe.papel || (isAdminEmail ? 'administrador' : 'suporte'));
+
+          try {
+            localStorage.removeItem('rm_auth_user');
+            localStorage.removeItem('rm_user_role');
+            Object.keys(localStorage).forEach((k) => {
+              if (k.startsWith('rm_user_password_')) localStorage.removeItem(k);
+            });
+          } catch (e) {}
+
           localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
           return;
         }
@@ -737,24 +833,36 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
   };
 
   const handleBypassDevLogin = async () => {
-    // Desativado por conformidade com LGPD e RLS estrito
     setLoginError('Acesso direto desativado por segurança. Autentique-se com suas credenciais cadastradas.');
   };
 
   const handleLogout = async () => {
+    // 1. Limpa cookie de sessão HTTP-Only no servidor
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {}
+
+    // 2. Encerra sessão do Supabase Auth
     if (isSupabaseConfigured && supabase) {
       try {
         await supabase.auth.signOut();
       } catch (e) {}
     }
-    localStorage.removeItem('rm_auth_user');
-    localStorage.removeItem('rm_user_role');
-    localStorage.removeItem('rm_last_active_timestamp');
+
+    // 3. Limpeza completa de SessionStorage e chaves legadas de LocalStorage (LGPD)
+    try {
+      sessionStorage.clear();
+      localStorage.removeItem('rm_auth_user');
+      localStorage.removeItem('rm_user_role');
+      localStorage.removeItem('rm_last_active_timestamp');
+      Object.keys(localStorage).forEach((k) => {
+        if (k.startsWith('rm_user_password_')) localStorage.removeItem(k);
+      });
+    } catch (e) {}
+
     setIsAuthenticated(false);
     setUserEmail('');
   };
-
-
 
 
   const handleCreatedEmpresas = async (payload) => {
@@ -820,6 +928,8 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
         handleBypassDevLogin={handleBypassDevLogin}
         theme={theme}
         handleToggleTheme={handleToggleTheme}
+        honeypot={honeypot}
+        setHoneypot={setHoneypot}
       />
     );
   }
@@ -1613,11 +1723,16 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                           confirmText: 'Sim, Cancelar',
                           variant: 'danger',
                           onConfirm: async () => {
-                            await cancelarSuporte({ chamado_id: ativo.id, userEmail });
-                            showToast(`Atendimento de ${empresaAcaoModal.nome} cancelado.`, 'info');
-                            setEmpresaAcaoModal(null);
-                            setConfirmModalData(null);
-                            carregarEmpresas();
+                            try {
+                              await cancelarSuporte({ chamado_id: ativo.id, userEmail });
+                              showToast(`Atendimento de ${empresaAcaoModal.nome} cancelado.`, 'info');
+                              setEmpresaAcaoModal(null);
+                            } catch (err) {
+                              showToast(err.message || 'Não foi possível cancelar o atendimento.', 'error');
+                            } finally {
+                              setConfirmModalData(null);
+                              carregarEmpresas();
+                            }
                           },
                         });
                       }}
@@ -1626,6 +1741,24 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                       <XMarkIcon className="w-3.5 h-3.5" />
                       <span>Cancelar Chamado</span>
                     </motion.button>
+
+                    {/* Uma empresa pode ter várias demandas simultâneas */}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await iniciarSuporte({
+                          empresa_id: empresaAcaoModal.id,
+                          empresa_nome: empresaAcaoModal.nome,
+                          userEmail,
+                        });
+                        showToast(`Nova demanda iniciada para ${empresaAcaoModal.nome}.`, 'success');
+                        setSelectedEmpresa(empresaAcaoModal);
+                        setEmpresaAcaoModal(null);
+                      }}
+                      className="w-full py-2.5 px-4 rounded-xl border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.04] text-xs font-semibold hover:bg-black/5 dark:hover:bg-white/5 flex items-center justify-center gap-2 cursor-pointer transition-all"
+                    >
+                      <span>+ Iniciar outra demanda</span>
+                    </button>
                   </>
                 ) : (
                   <>

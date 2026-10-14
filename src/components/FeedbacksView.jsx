@@ -25,6 +25,7 @@ import {
   BugIcon
 } from './Icons';
 import { showToast } from './ToastNotification';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
   const [feedbacks, setFeedbacks] = useState([]);
@@ -45,31 +46,21 @@ export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
   const [colunaArrastando, setColunaArrastando] = useState(null);
 
   const handleMudarStatusFeedback = async (fbId, novoStatus) => {
-    const agora = new Date().toISOString();
-    // 1. Atualização otimista imediata na interface
-    setFeedbacks((prev) =>
-      prev.map((fb) =>
-        fb.id === fbId ? { ...fb, status: novoStatus, updated_at: agora } : fb
-      )
-    );
+    const anterior = feedbacks.find((f) => f.id === fbId);
+    if (!anterior || (anterior.status || 'em_analise') === novoStatus) return;
 
-    // 2. Grava imediatamente no mapa blindado permanente de overrides para jamais reverter
-    try {
-      const overrides = JSON.parse(localStorage.getItem('rm_feedbacks_status_override') || '{}');
-      overrides[fbId] = novoStatus;
-      const targetFb = feedbacks.find((f) => f.id === fbId);
-      if (targetFb?.titulo) {
-        overrides[targetFb.titulo.trim().toLowerCase()] = novoStatus;
-      }
-      localStorage.setItem('rm_feedbacks_status_override', JSON.stringify(overrides));
-    } catch (e) {}
+    // Interface otimista: move o card imediatamente e reverte se o servidor recusar
+    setFeedbacks((prev) =>
+      prev.map((fb) => (fb.id === fbId ? { ...fb, status: novoStatus, updated_at: new Date().toISOString() } : fb))
+    );
 
     try {
       await updateFeedbackStatus(fbId, novoStatus, userEmail);
       const rotulo = novoStatus === 'resolvido' ? 'Concluído' : novoStatus === 'no_roadmap' ? 'No Roadmap' : novoStatus === 'em_correcao' ? 'Em Correção' : 'Triagem';
-      showToast(`Feedback movido para "${rotulo}"!`, 'success');
+      showToast(`Feedback movido para "${rotulo}" — visível para toda a equipe.`, 'success');
     } catch (err) {
-      showToast(err.message || 'Erro ao atualizar feedback.', 'error');
+      setFeedbacks((prev) => prev.map((fb) => (fb.id === fbId ? anterior : fb)));
+      showToast(err.message || 'Não foi possível atualizar o feedback.', 'error');
     }
   };
 
@@ -104,13 +95,17 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
 
   const fileInputRef = useRef(null);
 
-  const carregarDados = async () => {
+  const atualizarFeedbacks = async () => {
     try {
       const res = await fetchFeedbacks();
       setFeedbacks(res);
     } catch (e) {
       setFeedbacks(getFeedbacks());
     }
+  };
+
+  const carregarDados = async () => {
+    await atualizarFeedbacks();
 
     try {
       const resEmp = await getEmpresas({ pageSize: 1000 });
@@ -121,9 +116,33 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
 
   useEffect(() => {
     carregarDados();
-    const handleUpdate = () => carregarDados();
+    const handleUpdate = () => atualizarFeedbacks();
     window.addEventListener('feedbacks_updated', handleUpdate);
-    return () => window.removeEventListener('feedbacks_updated', handleUpdate);
+
+    // Atualização ao vivo: alterações de status feitas por outros colaboradores chegam via Supabase Realtime
+    let canal = null;
+    if (isSupabaseConfigured && supabase) {
+      canal = supabase
+        .channel('feedbacks_status_stream')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'feedbacks' }, () => atualizarFeedbacks())
+        .subscribe();
+    }
+
+    // Rede de segurança caso o Realtime esteja indisponível: revalida ao voltar para a aba e a cada 20s
+    const handleVisivel = () => {
+      if (document.visibilityState === 'visible') atualizarFeedbacks();
+    };
+    document.addEventListener('visibilitychange', handleVisivel);
+    const polling = setInterval(() => {
+      if (document.visibilityState === 'visible') atualizarFeedbacks();
+    }, 20000);
+
+    return () => {
+      window.removeEventListener('feedbacks_updated', handleUpdate);
+      document.removeEventListener('visibilitychange', handleVisivel);
+      clearInterval(polling);
+      if (canal) supabase.removeChannel(canal);
+    };
   }, []);
 
   // Trava scroll da tela enquanto o modal estiver aberto

@@ -1,0 +1,78 @@
+name: 🚀 CI/CD Pipeline & Security Hardening
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security-audit:
+    name: 🔒 Security & Secrets Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Histórico completo para rastreamento de segredos passados
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci --prefer-offline
+
+      - name: Executar Auditoria de Segredos e LGPD
+        run: node scripts/security-audit.js
+
+      - name: Verificação de Vulnerabilidades em Dependências
+        run: npm audit --audit-level=high
+
+  quality-and-lint:
+    name: 🎨 Code Quality & Architecture
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci --prefer-offline
+
+      - name: Biome Linter & Format Check
+        run: npx @biomejs/biome check --diagnostic-level=warn src/ || true
+
+  build-validation:
+    name: ⚡ Next.js Build & Smoke Test
+    needs: [security-audit, quality-and-lint]
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://mock.supabase.co' }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.dummy' }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci --prefer-offline
+
+      - name: Build Next.js Application
+        run: npm run build

@@ -139,3 +139,29 @@ body {
 .animate-fade-in {
   animation: appleFadeIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* ==============================================================================
+   ACESSIBILIDADE INCORPORADA
+   ============================================================================== */
+
+/* Foco sempre visível para quem navega por teclado (sem afetar cliques de mouse) */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid #4d7c0f;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.dark :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline-color: #84cc16;
+}
+
+/* Coreografia alternativa para movimento reduzido: mudanças imediatas, feedback preservado */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

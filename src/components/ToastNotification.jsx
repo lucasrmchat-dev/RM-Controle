@@ -74,7 +74,11 @@ export default function ToastContainer() {
   };
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-sm pointer-events-none">
+    <div
+      aria-live="polite"
+      aria-relevant="additions"
+      className="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-sm pointer-events-none"
+    >
       <AnimatePresence>
         {toasts.map((toast) => {
           const cfg = typeConfig[toast.type] || typeConfig.success;
@@ -85,6 +89,7 @@ export default function ToastContainer() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.95 }}
               transition={{ type: 'spring', damping: 24, stiffness: 350 }}
+              role={toast.type === 'error' || toast.type === 'warning' ? 'alert' : 'status'}
               onClick={() => removeToast(toast.id)}
               className={`pointer-events-auto p-3.5 sm:p-4 rounded-2xl border backdrop-blur-2xl shadow-xl flex items-center gap-3 cursor-pointer select-none transition-all ${cfg.bg}`}
             >
@@ -97,6 +102,8 @@ export default function ToastContainer() {
                   e.stopPropagation();
                   removeToast(toast.id);
                 }}
+                type="button"
+                aria-label="Fechar notificação"
                 className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 rounded-full text-xs"
               >
                 ✕
