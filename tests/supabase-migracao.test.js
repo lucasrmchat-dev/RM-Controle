@@ -275,3 +275,50 @@ test('credenciais das empresas são lidas pela função que decifra', async () =
   const empresas = Array.isArray(lista) ? lista : lista.items;
   assert.equal(empresas[0].credenciais_lista[0].senha, 'SegredoDoCliente');
 });
+
+test('erro de configuração diz quais variáveis faltam no servidor (só nomes, nunca valores)', async () => {
+  const { diagnosticarConfiguracao } = await import('../src/lib/server/acesso.js');
+  const salvo = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const msg = diagnosticarConfiguracao();
+  assert.match(msg, /NEXT_PUBLIC_SUPABASE_ANON_KEY/);
+  assert.doesNotMatch(msg, /NEXT_PUBLIC_SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY/);
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'chave-de-teste';
+  assert.match(diagnosticarConfiguracao('relation does not exist'), /a consulta à equipe falhou/);
+  if (salvo) process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = salvo;
+  else delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+});
+
+// ---------------------------------------------------------------- caso Juliana: login sem cadastro na equipe
+test('quem tem login mas não está em Equipe & Senhas é barrado com explicação (antes entrava e via tudo vazio)', async () => {
+  db.authUsers.push({ id: 'auth-juliana', email: 'juliana@rmchat.com', password: 'SenhaJu#1' });
+  const r = await login({ email: 'juliana@rmchat.com', password: 'SenhaJu#1' }, '30.0.0.1');
+  assert.equal(r.status, 403);
+  assert.match((await r.json()).error, /não está cadastrado em Equipe & Senhas/);
+
+  const { GET: sessao } = await import('../src/app/api/auth/session/route.js');
+  const cookie = `${SESSION_COOKIE_NAME}=${await createSessionToken({ email: 'juliana@rmchat.com', role: 'suporte' })}`;
+  const s = await sessao(new NextRequest('http://localhost/api/auth/session', { headers: { Cookie: cookie } }));
+  assert.equal(s.status, 403, 'sessão já aberta também deixa de valer');
+
+  db.tables.equipe_usuarios.push({ id: 'aaaaaaaa-0000-4000-8000-000000000009', email: 'juliana@rmchat.com', nome: 'Juliana', papel: 'suporte', ativo: true });
+  assert.equal((await login({ email: 'juliana@rmchat.com', password: 'SenhaJu#1' }, '30.0.0.2')).status, 200, 'depois de cadastrada, entra');
+});
+
+test('demandas sem ID aparecem na empresa certa pelo nome, sem misturar com outra empresa', () => {
+  localStorage.setItem('rm_empresas_reais', JSON.stringify([{ id: EMPRESA, nome: 'Rocha e Vargas' }]));
+  localStorage.setItem('rm_historico_chamados', JSON.stringify([
+    { id: 'h1', empresa_id: null, empresa_nome: 'ROCHA E VARGAS', status: 'concluido' },
+    { id: 'h2', empresa_id: 'outra-empresa', empresa_nome: 'Rocha e Vargas', status: 'concluido' },
+    { id: 'h3', empresa_id: EMPRESA, empresa_nome: 'Nome Antigo', status: 'concluido' },
+  ]));
+  assert.deepEqual(storage.getHistoricoCompletoEmpresa(EMPRESA, 'Rocha e Vargas').map((c) => c.id).sort(), ['h1', 'h3']);
+  assert.equal(storage.resolverEmpresaIdPorNome('  rocha e vargas '), EMPRESA);
+});
+
+test('tela de equipe mostra exatamente quem está no banco (não completa com a lista fixa do código)', async () => {
+  db.tables.equipe_usuarios = [{ id: 'aaaaaaaa-0000-4000-8000-000000000003', email: 'teste@rmchat.com', nome: 'teste', papel: 'suporte', ativo: true }];
+  localStorage.setItem('rm_equipe_usuarios', JSON.stringify([{ id: 'usr_maria', email: 'maria@rmchat.com', nome: 'Maria', papel: 'suporte' }]));
+  await storage.fetchEquipeUsuarios();
+  assert.deepEqual(storage.getEquipeUsuarios().map((u) => u.email), ['teste@rmchat.com']);
+});

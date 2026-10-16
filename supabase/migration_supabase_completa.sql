@@ -215,6 +215,31 @@ CREATE TABLE IF NOT EXISTS public.servidor_checklist_template (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Toda demanda fica vinculada pelo ID da empresa: quem abrir a demanda digitando o nome
+-- (ou pela integração) ganha o ID automaticamente, e as antigas sem ID são corrigidas agora.
+CREATE OR REPLACE FUNCTION public.rm_chamado_vincular_empresa()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF NEW.empresa_id IS NULL AND coalesce(NEW.empresa_nome, '') <> '' THEN
+    SELECT e.id INTO NEW.empresa_id
+      FROM public.empresas e
+     WHERE lower(trim(e.nome)) = lower(trim(NEW.empresa_nome))
+     ORDER BY e.created_at
+     LIMIT 1;
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS trg_rm_chamado_vincular_empresa ON public.suporte_chamados;
+CREATE TRIGGER trg_rm_chamado_vincular_empresa BEFORE INSERT OR UPDATE OF empresa_nome, empresa_id ON public.suporte_chamados
+  FOR EACH ROW EXECUTE FUNCTION public.rm_chamado_vincular_empresa();
+UPDATE public.suporte_chamados c
+   SET empresa_id = e.id
+  FROM public.empresas e
+ WHERE c.empresa_id IS NULL AND lower(trim(c.empresa_nome)) = lower(trim(e.nome));
+CREATE INDEX IF NOT EXISTS idx_suporte_chamados_empresa ON public.suporte_chamados (empresa_id);
+
 -- ==============================================================================
 -- 4. CRIPTOGRAFIA
 -- ==============================================================================

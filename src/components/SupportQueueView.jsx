@@ -34,6 +34,7 @@ import {
   reatribuirChamadoSuporte,
   sanitizarCategoriasDemanda,
   getCurrentUserRole,
+  diagnosticarVisibilidadeFila,
 } from '@/lib/storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { stopSupportNotificationLoop, playNotificationTone } from '@/lib/audioNotifications';
@@ -372,6 +373,9 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   // Sequência de carregamento: uma carga antiga e lenta nunca sobrescreve uma mais recente
   // (antes, uma demanda recém-criada podia "sumir" quando um sync anterior terminava depois)
   const cargaSeqRef = useRef(0);
+  // Diagnóstico: demandas que existem no banco mas não chegaram a este usuário (e o motivo)
+  const [diagnosticoVisibilidade, setDiagnosticoVisibilidade] = useState(null);
+  const ultimoDiagnosticoRef = useRef(0);
 
   const carregarDados = async () => {
     const seq = ++cargaSeqRef.current;
@@ -410,6 +414,11 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
     const listaUnica = Array.from(mapa.values());
     setChamados(listaUnica);
+
+    if (Date.now() - ultimoDiagnosticoRef.current > 60000) {
+      ultimoDiagnosticoRef.current = Date.now();
+      diagnosticarVisibilidadeFila().then(setDiagnosticoVisibilidade).catch(() => {});
+    }
     setEquipeLista(getEquipeUsuarios());
     setCategoriasDisponiveis(getCategoriasDemandas());
     const resEmp = await getEmpresas({ pageSize: 1000 });
@@ -1903,6 +1912,18 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
               </div>
             </div>
           </div>
+
+          {/* Demandas que existem no banco mas não chegam a este usuário (permissão/sessão) */}
+          {diagnosticoVisibilidade && (
+            <div role="alert" className="relative z-10 px-4 py-3 rounded-2xl border border-red-500/30 bg-red-500/10 text-red-800 dark:text-red-200 text-xs leading-relaxed">
+              <strong>
+                {diagnosticoVisibilidade.ocultas === 1
+                  ? 'Existe 1 demanda aberta que você não está conseguindo ver'
+                  : `Existem ${diagnosticoVisibilidade.ocultas} demandas abertas que você não está conseguindo ver`}
+              </strong>{' '}
+              (de {diagnosticoVisibilidade.total} no total). Motivo provável: {diagnosticoVisibilidade.motivo}
+            </div>
+          )}
 
           {/* Aviso de filtros ativos: deixa explícito que há demandas fora da visão atual */}
           {ocultasPorFiltro > 0 && (

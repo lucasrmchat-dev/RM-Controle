@@ -537,7 +537,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
   const totalChecklist = checklistFiltrado.length;
   const concluidosChecklist = checklistFiltrado.filter((c) => c.concluido).length;
   const pctChecklist = totalChecklist > 0 ? Math.round((concluidosChecklist / totalChecklist) * 100) : 0;
-  const chamadosEmpresa = getHistoricoCompletoEmpresa(empresa.id);
+  const chamadosEmpresa = getHistoricoCompletoEmpresa(empresa.id, empresa.nome);
 
   // Ícones de Canal (Puro SVG minimalista Apple, zero ícones de WhatsApp)
   const renderCanalIcon = (c) => {

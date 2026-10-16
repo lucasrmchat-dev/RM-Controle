@@ -5,7 +5,7 @@
  */
 import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
-import { resolverPapel, normalizarEmail } from '@/lib/roles';
+import { resolverPapel, normalizarEmail, listaAdministradores } from '@/lib/roles';
 
 let clienteAnon = null;
 function getSupabaseAnon() {
@@ -30,14 +30,46 @@ async function buscarMembroEquipe(email) {
     .select('id, email, papel, ativo, senha, nome')
     .eq('email', normalizarEmail(email))
     .maybeSingle();
-  if (error) return { disponivel: false, membro: null };
+  if (error) return { disponivel: false, membro: null, erro: error.message };
   return { disponivel: true, membro: data || null };
+}
+
+/**
+ * Situação de acesso completa: o banco (RLS) só mostra dados a proprietários e membros ATIVOS
+ * de Equipe & Senhas. O app precisa seguir a mesma regra, senão a pessoa entra e vê tudo vazio.
+ */
+export async function obterAcessoServidor(email) {
+  const emailNorm = normalizarEmail(email);
+  const { disponivel, membro } = await buscarMembroEquipe(emailNorm);
+  const proprietario = listaAdministradores(process.env.RM_ADMIN_EMAILS).has(emailNorm);
+  return {
+    papel: resolverPapel(emailNorm, membro ? [membro] : [], process.env.RM_ADMIN_EMAILS),
+    proprietario,
+    naEquipe: Boolean(membro),
+    ativo: membro ? membro.ativo !== false : false,
+    // Só dá para afirmar "fora da equipe" quando a consulta ao banco funcionou
+    verificado: disponivel,
+    liberado: proprietario || !disponivel || (Boolean(membro) && membro.ativo !== false),
+  };
 }
 
 /** Papel atual do usuário segundo o cadastro da equipe e a lista de administradores. */
 export async function obterPapelServidor(email) {
   const { membro } = await buscarMembroEquipe(email);
   return resolverPapel(email, membro ? [membro] : [], process.env.RM_ADMIN_EMAILS);
+}
+
+/**
+ * Explica, só com NOMES de variáveis (nunca valores), o que falta no servidor para autenticar.
+ * As variáveis precisam estar no painel da hospedagem (ex.: Vercel); o .env.local não vai para o deploy.
+ */
+export function diagnosticarConfiguracao(erroEquipe = null) {
+  const faltando = ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY'].filter(
+    (nome) => !process.env[nome]
+  );
+  if (faltando.length > 0) return `variáveis ausentes no servidor: ${faltando.join(', ')}`;
+  if (erroEquipe) return `a consulta à equipe falhou (${erroEquipe})`;
+  return 'conexão com o Supabase indisponível';
 }
 
 const BCRYPT_RE = /^\$2[abxy]\$/;
@@ -107,12 +139,12 @@ export async function verificarCredenciais(email, senha) {
   if (!emailNorm || !senha) return { ok: false, motivo: 'credenciais_invalidas' };
 
   const anon = getSupabaseAnon();
-  const { disponivel, membro } = await buscarMembroEquipe(emailNorm);
+  const { disponivel, membro, erro: erroEquipe } = await buscarMembroEquipe(emailNorm);
 
   if (!anon && !disponivel) {
     // Sem banco configurado: só permitido em desenvolvimento local
     return process.env.NODE_ENV === 'production'
-      ? { ok: false, motivo: 'servidor_nao_configurado' }
+      ? { ok: false, motivo: 'servidor_nao_configurado', detalhe: diagnosticarConfiguracao(erroEquipe) }
       : { ok: true };
   }
 
