@@ -15,6 +15,8 @@ export default function CompanyModal({ isOpen, onClose, onCreated, initialNome =
     if (isOpen) {
       setNome(initialNome || '');
       setErrorMsg('');
+      setTipoCliente('');
+      setDataCliente(new Date().toISOString().slice(0, 10));
       const timer = setTimeout(() => {
         if (nomeInputRef.current) {
           nomeInputRef.current.focus();
@@ -38,6 +40,9 @@ export default function CompanyModal({ isOpen, onClose, onCreated, initialNome =
     )
   );
   const [servidor, setServidor] = useState('servidor_1'); // 'servidor_1' | 'servidor_2'
+  // Cliente novo (setup do zero, checklist 0%) ou já existente (setup já feito, checklist 100%)
+  const [tipoCliente, setTipoCliente] = useState('');
+  const [dataCliente, setDataCliente] = useState(() => new Date().toISOString().slice(0, 10));
   const [adminEmail, setAdminEmail] = useState('');
   const [senhaSuporte, setSenhaSuporte] = useState('');
   const [massaTexto, setMassaTexto] = useState('');
@@ -141,6 +146,10 @@ Aqui está a lista de empresas bruta:
       setErrorMsg(`A empresa "${nomeLimpo}" já está cadastrada no sistema. Por favor, utilize um nome diferente.`);
       return;
     }
+    if (!tipoCliente) {
+      setErrorMsg('Informe se é um cliente novo ou um cliente que já existia antes do RM Controle.');
+      return;
+    }
 
     try {
       setLoading(true);
@@ -148,6 +157,8 @@ Aqui está a lista de empresas bruta:
         tipo: 'manual',
         nome: nomeLimpo,
         servidor_alocado: servidor,
+        tipo_cliente: tipoCliente,
+        cliente_desde: dataCliente,
         email_administrador: adminEmail.trim(),
         senha_suporte: senhaSuporte.trim() || getSenhaPadraoRedefinicao(),
       });
@@ -174,6 +185,11 @@ Aqui está a lista de empresas bruta:
       )
     );
 
+    if (!tipoCliente) {
+      setErrorMsg('Informe se as empresas são clientes novos ou clientes que já existiam antes do RM Controle.');
+      return;
+    }
+
     if (nomesJaCadastrados.length > 0) {
       setErrorMsg(
         `As seguintes empresas já estão cadastradas e não podem ser duplicadas: ${nomesJaCadastrados.map((i) => i.nome).join(', ')}.`
@@ -187,6 +203,8 @@ Aqui está a lista de empresas bruta:
         tipo: 'massa',
         empresas: empresasDetectadas,
         servidor_alocado: servidor,
+        tipo_cliente: tipoCliente,
+        cliente_desde: dataCliente,
       });
       onClose();
     } catch (err) {
@@ -328,6 +346,13 @@ Aqui está a lista de empresas bruta:
                   </button>
                 </div>
               </div>
+
+              <CamposTipoCliente
+                tipo={tipoCliente}
+                onTipo={(v) => { setTipoCliente(v); setErrorMsg(''); }}
+                data={dataCliente}
+                onData={setDataCliente}
+              />
 
               {/* Credenciais Iniciais */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
@@ -510,6 +535,13 @@ Aqui está a lista de empresas bruta:
                 </div>
               </div>
 
+              <CamposTipoCliente
+                tipo={tipoCliente}
+                onTipo={(v) => { setTipoCliente(v); setErrorMsg(''); }}
+                data={dataCliente}
+                onData={setDataCliente}
+              />
+
               {/* Ações do Formulário Em Massa */}
               <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-black/[0.05] dark:border-white/[0.06]">
                 <button
@@ -534,5 +566,55 @@ Aqui está a lista de empresas bruta:
         </motion.div>
       </div>
     </AnimatePresence>
+  );
+}
+
+// Escolha obrigatória: define o checklist inicial (0% para novo, 100% para já existente) e a data
+function CamposTipoCliente({ tipo, onTipo, data, onData }) {
+  const hoje = new Date().toISOString().slice(0, 10);
+  const opcoes = [
+    { id: 'novo', titulo: 'Cliente novo', desc: 'Implantação começa agora. Checklist de setup em 0%.' },
+    { id: 'existente', titulo: 'Cliente já existente', desc: 'Já era cliente; só está entrando no RM Controle. Checklist em 100%.' },
+  ];
+  return (
+    <div className="space-y-2">
+      <span id="tipo-cliente-rotulo" className="block text-xs font-medium text-slate-600 dark:text-zinc-400 pl-1">
+        Tipo de cliente <span className="text-red-500">*</span>
+      </span>
+      <div role="radiogroup" aria-labelledby="tipo-cliente-rotulo" className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        {opcoes.map((op) => (
+          <button
+            key={op.id}
+            type="button"
+            role="radio"
+            aria-checked={tipo === op.id}
+            onClick={() => onTipo(op.id)}
+            className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+              tipo === op.id
+                ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/10 dark:bg-[#84cc16]/10 text-[#1d1d1f] dark:text-white shadow-xs'
+                : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.03] text-slate-600 dark:text-zinc-400'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="text-xs font-semibold">{op.titulo}</span>
+              {tipo === op.id && <CheckIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16]" />}
+            </div>
+            <p className="text-[11px] text-slate-500 leading-tight">{op.desc}</p>
+          </button>
+        ))}
+      </div>
+      <label className="flex items-center justify-between gap-3 pl-1">
+        <span className="text-xs font-medium text-slate-600 dark:text-zinc-400">
+          {tipo === 'existente' ? 'Cliente desde' : 'Data de cadastro'}
+        </span>
+        <input
+          type="date"
+          value={data}
+          max={hoje}
+          onChange={(e) => onData(e.target.value || hoje)}
+          className="px-3 py-2 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono text-[#1d1d1f] dark:text-white"
+        />
+      </label>
+    </div>
   );
 }

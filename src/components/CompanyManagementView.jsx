@@ -58,8 +58,11 @@ import {
   getHistoricoCompletoEmpresa,
   getServidorConfigPadrao,
   getServidoresConfig,
+  fetchServidoresConfig,
+  TIPOS_CLIENTE,
   getColaboradoresEmpresa,
   getEmpresaServidorDetalhes,
+  fetchEmpresaServidorDetalhes,
   updateEmpresaServidorDetalhes,
   toggleServidorChecklistItem,
   addEmpresaChecklistItem,
@@ -113,6 +116,20 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
   const [novoChecklistDesc, setNovoChecklistDesc] = useState('');
   const [isAddChecklistOpen, setIsAddChecklistOpen] = useState(false);
   const [salvandoNovoChecklist, setSalvandoNovoChecklist] = useState(false);
+
+  // Detalhes do servidor vêm do Supabase (compartilhados pela equipe) e se atualizam quando alguém altera
+  useEffect(() => {
+    if (!empresa?.id) return undefined;
+    let ativo = true;
+    setServidorDetalhes(getEmpresaServidorDetalhes(empresa.id));
+    fetchEmpresaServidorDetalhes(empresa.id).then((d) => ativo && setServidorDetalhes(d));
+    const atualizar = () => setServidorDetalhes(getEmpresaServidorDetalhes(empresa.id));
+    window.addEventListener('servidor_empresa_updated', atualizar);
+    return () => {
+      ativo = false;
+      window.removeEventListener('servidor_empresa_updated', atualizar);
+    };
+  }, [empresa?.id]);
 
   // Estados de Soluções & Base de Conhecimento na aba de observações
   const [kbBuscaGeral, setKbBuscaGeral] = useState(false);
@@ -320,6 +337,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
           setConfirmDialog(null);
           onUpdated();
         } catch (err) {
+          setConfirmDialog(null);
           showToast(err.message, 'error');
         }
       },
@@ -342,7 +360,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
   };
 
   // Salvar Servidor Alocado
-  const handleSalvarUrlsServidores = (e) => {
+  const handleSalvarUrlsServidores = async (e) => {
     e?.preventDefault?.();
     const atual = getServidoresConfig() || {};
     const novo = {
@@ -350,21 +368,80 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
       servidor_1_url: servidor1UrlInput.trim() || 'https://app1.rmcontrole.com.br',
       servidor_2_url: servidor2UrlInput.trim() || 'https://app2.rmcontrole.com.br',
     };
-    setServidoresConfig(novo);
-    setServidoresConfigState(novo);
-    setIsEditServidoresModalOpen(false);
-    showToast('Links dos servidores atualizados com sucesso!', 'success');
+    try {
+      const salvo = await setServidoresConfig(novo);
+      setServidoresConfigState(salvo);
+      setIsEditServidoresModalOpen(false);
+      showToast('Links dos servidores atualizados para toda a equipe.', 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
   };
 
+  // URLs dos servidores são compartilhadas pela equipe (Supabase)
+  useEffect(() => {
+    const atualizar = () => setServidoresConfigState(getServidoresConfig() || {});
+    window.addEventListener('rm_servidores_config_updated', atualizar);
+    fetchServidoresConfig();
+    return () => window.removeEventListener('rm_servidores_config_updated', atualizar);
+  }, []);
+
+  const [trocandoServidor, setTrocandoServidor] = useState(false);
   const handleTrocarAlocacaoServidor = async (novoServidor) => {
+    const anterior = empresa.servidor_alocado || 'servidor_1';
+    if (novoServidor === anterior || trocandoServidor) return;
+    const nomeNovo = novoServidor === 'servidor_2' ? (servidoresConfig?.servidor_2_nome || 'Servidor 2') : (servidoresConfig?.servidor_1_nome || 'Servidor 1');
+    setTrocandoServidor(true);
+    // Otimista com reversão: muda na hora e volta se o servidor recusar
+    setServidorSelecionado(novoServidor);
+    empresa.servidor_alocado = novoServidor;
     try {
-      setServidorSelecionado(novoServidor);
       await updateEmpresa(empresa.id, { servidor_alocado: novoServidor }, userEmail);
-      empresa.servidor_alocado = novoServidor;
-      showToast(`Empresa alocada no ${novoServidor === 'servidor_2' ? 'Servidor 2' : 'Servidor 1'}!`, 'success');
+      showToast(`${empresa.nome} agora está no ${nomeNovo}.`, 'success');
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('empresas_updated'));
+      onUpdated?.();
+    } catch (err) {
+      setServidorSelecionado(anterior);
+      empresa.servidor_alocado = anterior;
+      showToast(err.message, 'error');
+    } finally {
+      setTrocandoServidor(false);
+    }
+  };
+
+  // Tipo de cliente (novo / já existente) e data de início
+  const [tipoClienteEdit, setTipoClienteEdit] = useState(empresa?.tipo_cliente || '');
+  const [clienteDesdeEdit, setClienteDesdeEdit] = useState(empresa?.cliente_desde || (empresa?.created_at || '').slice(0, 10));
+  const [salvandoTipoCliente, setSalvandoTipoCliente] = useState(false);
+  useEffect(() => {
+    setTipoClienteEdit(empresa?.tipo_cliente || '');
+    setClienteDesdeEdit(empresa?.cliente_desde || (empresa?.created_at || '').slice(0, 10));
+  }, [empresa?.id, empresa?.tipo_cliente, empresa?.cliente_desde]);
+
+  const handleSalvarTipoCliente = async () => {
+    if (!tipoClienteEdit) {
+      showToast('Escolha se é um cliente novo ou já existente.', 'error');
+      return;
+    }
+    setSalvandoTipoCliente(true);
+    try {
+      await updateEmpresa(empresa.id, { tipo_cliente: tipoClienteEdit, cliente_desde: clienteDesdeEdit }, userEmail);
+      empresa.tipo_cliente = tipoClienteEdit;
+      empresa.cliente_desde = clienteDesdeEdit;
+      // Cliente já existente: o setup já foi feito antes do RM Controle, então o checklist fica 100%
+      if (tipoClienteEdit === 'existente') {
+        const pendentes = (empresa.checklist || []).filter((c) => !c.concluido);
+        for (const item of pendentes) {
+          await toggleChecklistItem(empresa.id, item.id, { concluido: true }, userEmail);
+          item.concluido = true;
+        }
+      }
+      showToast(`${TIPOS_CLIENTE[tipoClienteEdit]} salvo para ${empresa.nome}.`, 'success');
       onUpdated?.();
     } catch (err) {
       showToast(err.message, 'error');
+    } finally {
+      setSalvandoTipoCliente(false);
     }
   };
 
@@ -890,19 +967,96 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                       <ExternalLinkIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                     </a>
 
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('servidor')}
-                      className="text-[10px] text-slate-400 hover:text-black dark:hover:text-white underline cursor-pointer block text-left"
-                    >
-                      Alterar servidor em Configurações do Servidor →
-                    </button>
+                    {/* Troca de servidor: antes só era possível no cadastro */}
+                    <div role="radiogroup" aria-label="Servidor alocado" className="grid grid-cols-2 gap-1 p-1 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06]">
+                      {['servidor_1', 'servidor_2'].map((srv) => {
+                        const ativo = (empresa.servidor_alocado || 'servidor_1') === srv;
+                        return (
+                          <button
+                            key={srv}
+                            type="button"
+                            role="radio"
+                            aria-checked={ativo}
+                            disabled={trocandoServidor}
+                            onClick={() => handleTrocarAlocacaoServidor(srv)}
+                            className={`py-1.5 rounded-xl text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-60 ${
+                              ativo
+                                ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-sm'
+                                : 'text-slate-500 dark:text-zinc-400 hover:text-black dark:hover:text-white'
+                            }`}
+                          >
+                            {srv === 'servidor_2' ? (servidoresConfig?.servidor_2_nome || 'Servidor 2') : (servidoresConfig?.servidor_1_nome || 'Servidor 1')}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               })()}
             </div>
 
 
+
+            {/* Tipo de cliente: novo (implantação do zero) ou já existente (setup já concluído) */}
+            <div className="pt-4 border-t border-black/8 dark:border-white/10 space-y-2.5 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-slate-700 dark:text-zinc-300">Tipo de cliente:</span>
+                {empresa.tipo_cliente ? (
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    empresa.tipo_cliente === 'existente'
+                      ? 'bg-blue-500/10 text-blue-700 dark:text-blue-300'
+                      : 'bg-[#4d7c0f]/10 text-[#4d7c0f] dark:text-[#84cc16]'
+                  }`}>
+                    {TIPOS_CLIENTE[empresa.tipo_cliente]}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold">Não informado</span>
+                )}
+              </div>
+              <div role="radiogroup" aria-label="Tipo de cliente" className="grid grid-cols-2 gap-1 p-1 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06]">
+                {[['novo', 'Novo'], ['existente', 'Já existente']].map(([valor, rotulo]) => (
+                  <button
+                    key={valor}
+                    type="button"
+                    role="radio"
+                    aria-checked={tipoClienteEdit === valor}
+                    onClick={() => setTipoClienteEdit(valor)}
+                    className={`py-1.5 rounded-xl text-[11px] font-semibold transition-colors cursor-pointer ${
+                      tipoClienteEdit === valor
+                        ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-sm'
+                        : 'text-slate-500 dark:text-zinc-400 hover:text-black dark:hover:text-white'
+                    }`}
+                  >
+                    {rotulo}
+                  </button>
+                ))}
+              </div>
+              <label className="flex items-center justify-between gap-2">
+                <span className="text-slate-500 dark:text-zinc-400">{tipoClienteEdit === 'existente' ? 'Cliente desde' : 'Data de cadastro'}</span>
+                <input
+                  type="date"
+                  value={clienteDesdeEdit || ''}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setClienteDesdeEdit(e.target.value)}
+                  className="px-2.5 py-1 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-[11px] font-mono"
+                />
+              </label>
+              {tipoClienteEdit === 'existente' && empresa.tipo_cliente !== 'existente' && (
+                <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-snug">
+                  Ao salvar, todos os itens do checklist de setup serão marcados como concluídos (100%).
+                </p>
+              )}
+              {(tipoClienteEdit !== (empresa.tipo_cliente || '') || clienteDesdeEdit !== (empresa.cliente_desde || (empresa.created_at || '').slice(0, 10))) && (
+                <button
+                  type="button"
+                  onClick={handleSalvarTipoCliente}
+                  disabled={salvandoTipoCliente}
+                  className="w-full py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-[11px] font-bold disabled:opacity-60 cursor-pointer"
+                >
+                  {salvandoTipoCliente ? 'Salvando…' : 'Salvar tipo de cliente'}
+                </button>
+              )}
+            </div>
 
             {/* Indicadores Rápidos da Empresa */}
             <div className="pt-4 border-t border-black/8 dark:border-white/10 space-y-2.5 text-xs">
@@ -1799,9 +1953,14 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                         <div
                           className="flex items-start gap-3.5 flex-1 min-w-0 cursor-pointer select-none"
                           onClick={async () => {
-                            await toggleServidorChecklistItem(empresa.id, item.id, userEmail);
-                            setServidorDetalhes(getEmpresaServidorDetalhes(empresa.id));
-                            showToast(item.concluido ? `Item desmarcado` : `Requisito "${item.titulo}" validado!`, 'success');
+                            try {
+                              await toggleServidorChecklistItem(empresa.id, item.id, userEmail);
+                              showToast(item.concluido ? `Item desmarcado` : `Requisito "${item.titulo}" validado!`, 'success');
+                            } catch (err) {
+                              showToast(err.message, 'error');
+                            } finally {
+                              setServidorDetalhes(getEmpresaServidorDetalhes(empresa.id));
+                            }
                           }}
                         >
                           <input
@@ -1842,10 +2001,15 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                               confirmText: 'Remover',
                               variant: 'danger',
                               onConfirm: async () => {
-                                await deleteEmpresaChecklistItem(empresa.id, item.id, userEmail);
-                                setServidorDetalhes(getEmpresaServidorDetalhes(empresa.id));
-                                showToast('Requisito removido do checklist.', 'info');
-                                setConfirmDialog(null);
+                                try {
+                                  await deleteEmpresaChecklistItem(empresa.id, item.id, userEmail);
+                                  showToast('Requisito removido do checklist.', 'info');
+                                } catch (err) {
+                                  showToast(err.message, 'error');
+                                } finally {
+                                  setServidorDetalhes(getEmpresaServidorDetalhes(empresa.id));
+                                  setConfirmDialog(null);
+                                }
                               },
                             });
                           }}

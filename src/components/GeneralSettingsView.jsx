@@ -12,10 +12,12 @@ import {
   setConfiguracoesSuporte,
   getServidoresConfig,
   setServidoresConfig,
+  fetchServidoresConfig,
   getCategoriasDemandas,
   addCategoriaDemanda,
   removeCategoriaDemanda,
   resolveUserRole,
+  getCurrentUserRole,
   getAgendaConfig,
   setAgendaConfig
 } from '@/lib/storage';
@@ -23,6 +25,8 @@ import { generateSecurePassword } from '@/lib/security';
 import ChannelsManagement from '@/components/ChannelsManagement';
 import ServerConfigView from './ServerConfigView';
 import AuditLogsView from './AuditLogsView';
+import SupportIntegrationSettings from './SupportIntegrationSettings';
+import { podeVerConfiguracoesAvancadas, podeAcessarAbaConfiguracao, ROTULOS_PAPEL } from '@/lib/roles';
 import { 
   SparklesIcon, 
   SaveIcon, 
@@ -38,9 +42,23 @@ import {
 import { showToast } from './ToastNotification';
 
 export default function GeneralSettingsView({ userEmail, initialSubTab = 'visualizacao' }) {
-  const [subTab, setSubTab] = useState(initialSubTab);
-  const currentRole = resolveUserRole(userEmail);
-  const isAdmin = currentRole === 'administrador';
+  // Papel definido pelo servidor no login/sessão (mesma regra de src/lib/roles.js)
+  const [currentRole, setCurrentRole] = useState(() => getCurrentUserRole() || resolveUserRole(userEmail));
+  const isAdmin = podeVerConfiguracoesAvancadas(currentRole);
+  const [subTab, setSubTab] = useState(() =>
+    podeAcessarAbaConfiguracao(getCurrentUserRole(), initialSubTab) ? initialSubTab : 'visualizacao'
+  );
+
+  useEffect(() => {
+    const atualizarPapel = () => setCurrentRole(getCurrentUserRole());
+    window.addEventListener('user_role_updated', atualizarPapel);
+    return () => window.removeEventListener('user_role_updated', atualizarPapel);
+  }, []);
+
+  // Se o papel mudar (ou a aba inicial vier de um link), nunca deixa um não-administrador numa aba avançada
+  useEffect(() => {
+    if (!podeAcessarAbaConfiguracao(currentRole, subTab)) setSubTab('visualizacao');
+  }, [currentRole, subTab]);
 
   // 1. Preferência de Visualização Global
   const [viewMode, setViewModeState] = useState('list');
@@ -93,6 +111,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
     window.addEventListener('categorias_demandas_updated', handleCatsUpdate);
     window.addEventListener('rm_agenda_config_updated', handleAgendaUpdate);
     const handleServidoresUpdate = () => setServidoresConfigState(getServidoresConfig() || {});
+    fetchServidoresConfig();
     window.addEventListener('rm_servidores_config_updated', handleServidoresUpdate);
     window.addEventListener('rm_servidores_urls_updated', handleServidoresUpdate);
 
@@ -262,6 +281,16 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           ),
         },
         {
+          id: 'suporte_automatico',
+          label: 'Suporte Automático (API)',
+          icon: (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
+          ),
+        },
+        {
           id: 'auditoria',
           label: 'Auditoria & LGPD',
           icon: (
@@ -286,7 +315,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
         <h4 className="font-bold text-sm tracking-tight">Acesso Restrito ao Administrador</h4>
       </div>
       <p className="text-xs opacity-90 leading-relaxed max-w-xl">
-        A seção <strong>{tituloSecao}</strong> é exclusiva para administradores da infraestrutura. O seu perfil ({currentRole}) possui acesso total às <strong>Configurações Básicas</strong> (Visualização do Sistema, Alertas Sonoros, Categorias de Demandas e Regras de Atendimento).
+        A seção <strong>{tituloSecao}</strong> faz parte das Configurações Avançadas, exclusivas para administradores. O seu perfil ({ROTULOS_PAPEL[currentRole] || currentRole}) tem acesso às <strong>Configurações Básicas</strong>: Visualização do Sistema, Alertas Sonoros, Google Agenda e Regras de Atendimento.
       </p>
     </motion.div>
   );
@@ -313,8 +342,8 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
 
       {/* Setorização em Configurações Básicas e Avançadas */}
       <div className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {gruposNavegacao.map((grp, idx) => (
+        <div className={`grid grid-cols-1 gap-4 ${isAdmin ? 'md:grid-cols-2' : ''}`}>
+          {gruposNavegacao.filter((_, idx) => idx === 0 || isAdmin).map((grp, idx) => (
             <div
               key={idx}
               className="p-4 sm:p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-3 shadow-xs"
@@ -956,7 +985,9 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
       )}
 
       {/* BÁSICA 3: CATEGORIAS DE DEMANDAS */}
-      {(subTab === 'departamentos' || subTab === 'categorias_demandas') && (
+      {(subTab === 'departamentos' || subTab === 'categorias_demandas') && !isAdmin && renderRestrictedNotice('Departamentos')}
+
+      {(subTab === 'departamentos' || subTab === 'categorias_demandas') && isAdmin && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1267,9 +1298,13 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
             <div className="flex justify-end pt-2">
               <button
                 type="button"
-                onClick={() => {
-                  setServidoresConfig(servidoresConfig);
-                  showToast('URLs dos servidores salvas com sucesso!', 'success');
+                onClick={async () => {
+                  try {
+                    await setServidoresConfig(servidoresConfig);
+                    showToast('URLs dos servidores salvas para toda a equipe.', 'success');
+                  } catch (err) {
+                    showToast(err.message, 'error');
+                  }
                 }}
                 className="px-4 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 transition-all cursor-pointer"
               >
@@ -1311,6 +1346,10 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
       )}
 
       {/* AVANÇADA 3: AUDITORIA & LGPD */}
+      {subTab === 'suporte_automatico' && (
+        isAdmin ? <SupportIntegrationSettings /> : renderRestrictedNotice('Suporte Automático (API)')
+      )}
+
       {subTab === 'auditoria' && (
         isAdmin ? (
           <motion.div

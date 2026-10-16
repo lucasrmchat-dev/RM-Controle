@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -16,10 +16,47 @@ export default function ConfirmModal({
   isProcessing = false,
 }) {
   const [mounted, setMounted] = useState(false);
+  // Estado real da operação: enquanto o onConfirm (ex.: cancelar no servidor) não termina,
+  // os botões ficam bloqueados — evita duplo envio e dá feedback de progresso.
+  const [executando, setExecutando] = useState(false);
+  const cancelarRef = useRef(null);
+  const tituloId = useId();
+  const mensagemId = useId();
+  const ocupado = isProcessing || executando;
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Foco inicial no botão seguro (Cancelar/Voltar), Esc fecha e o foco volta para quem abriu o modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const focoAnterior = document.activeElement;
+    const t = setTimeout(() => cancelarRef.current?.focus(), 0);
+    const onKey = (e) => {
+      if (e.key === 'Escape' && !ocupado) onClose?.();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('keydown', onKey);
+      if (focoAnterior && typeof focoAnterior.focus === 'function') focoAnterior.focus();
+    };
+  }, [isOpen, ocupado, onClose]);
+
+  useEffect(() => {
+    if (!isOpen) setExecutando(false);
+  }, [isOpen]);
+
+  const handleConfirmar = async () => {
+    if (ocupado || !onConfirm) return;
+    setExecutando(true);
+    try {
+      await onConfirm();
+    } finally {
+      setExecutando(false);
+    }
+  };
 
   // Travar o scroll da página enquanto o modal estiver aberto
   useEffect(() => {
@@ -108,7 +145,7 @@ export default function ConfirmModal({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.18 }}
           className="absolute inset-0 bg-black/75 backdrop-blur-md"
-          onClick={!isProcessing ? onClose : undefined}
+          onClick={!ocupado ? onClose : undefined}
         />
 
         {/* Janela do Modal Centralizada com Física de Molas Apple */}
@@ -117,6 +154,11 @@ export default function ConfirmModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.92, y: 15 }}
           transition={{ type: 'spring', damping: 28, stiffness: 360 }}
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby={tituloId}
+          aria-describedby={mensagemId}
+          aria-busy={ocupado}
           className="relative w-full max-w-md rounded-[32px] border border-black/[0.08] dark:border-white/[0.14] bg-white dark:bg-[#18181b] backdrop-blur-3xl p-6 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] space-y-5 text-[#1d1d1f] dark:text-[#f5f5f7] z-10 overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
@@ -134,10 +176,10 @@ export default function ConfirmModal({
                   {style.badgeText}
                 </span>
               </div>
-              <h3 className="text-base sm:text-lg font-bold tracking-tight text-[#1d1d1f] dark:text-white leading-snug">
+              <h3 id={tituloId} className="text-base sm:text-lg font-bold tracking-tight text-[#1d1d1f] dark:text-white leading-snug">
                 {title}
               </h3>
-              <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed pt-0.5">
+              <p id={mensagemId} className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed pt-0.5">
                 {message}
               </p>
             </div>
@@ -148,8 +190,9 @@ export default function ConfirmModal({
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
+              ref={cancelarRef}
               type="button"
-              disabled={isProcessing}
+              disabled={ocupado}
               onClick={onClose}
               className="px-4 py-2.5 rounded-full border border-black/10 dark:border-white/10 text-xs font-semibold text-slate-600 dark:text-zinc-300 hover:bg-black/5 dark:hover:bg-white/5 transition-all cursor-pointer disabled:opacity-50"
             >
@@ -160,14 +203,14 @@ export default function ConfirmModal({
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               type="button"
-              disabled={isProcessing}
-              onClick={onConfirm}
+              disabled={ocupado}
+              onClick={handleConfirmar}
               className={`px-5 py-2.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 ${style.confirmButton}`}
             >
-              {isProcessing && (
-                <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              {ocupado && (
+                <div aria-hidden="true" className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
               )}
-              <span>{confirmText}</span>
+              <span>{ocupado ? 'Processando…' : confirmText}</span>
             </motion.button>
           </div>
         </motion.div>

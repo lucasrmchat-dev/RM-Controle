@@ -296,6 +296,8 @@ export default function SupportCompletionModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Evita concluir duas vezes com Enter/clique repetido enquanto o servidor responde
+    if (submitting) return;
     setErrorMsg('');
 
     const solicitanteFinal = (buscaColab.trim() || colaboradorSelecionado?.nome || 'Colaborador da Empresa').trim();
@@ -334,6 +336,8 @@ export default function SupportCompletionModal({
         tempo_ativo_inicio: horarioInicio ? new Date(horarioInicio).toISOString() : null,
         finalizado_em: horarioFim ? new Date(horarioFim).toISOString() : null,
         status_resolucao: statusResolucao,
+        // A solução é catalogada logo abaixo com o título e o código informados aqui
+        catalogarSolucao: false,
       });
 
       if (observacoes.trim()) {

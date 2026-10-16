@@ -9,7 +9,8 @@ import {
   getChamadosAtivos, 
   getFilaChamados,
   getAbasPermitidas, 
-  getCurrentUserRole, 
+  getCurrentUserRole,
+  resolveUserRole,
   setCurrentUserRole,
   cancelarSuporte,
   getAgendaEventos
@@ -321,7 +322,7 @@ export default function Navbar({
                     </div>
 
                     {/* Controles exclusivos do Administrador Principal */}
-                    {((userEmail || '').toLowerCase() === 'admin@rmcontrole.com' || (userEmail || '').toLowerCase().includes('admin')) && (
+                    {resolveUserRole(userEmail) === 'administrador' && (
                       <>
                         <div className="py-2 border-b border-black/[0.05] dark:border-white/[0.06] space-y-1.5">
                           <span className="text-[11px] font-medium text-slate-600 dark:text-zinc-400 block">

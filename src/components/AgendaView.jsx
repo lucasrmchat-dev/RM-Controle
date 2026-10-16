@@ -14,7 +14,8 @@ import {
   getNomeTecnico,
   getEmpresas,
   parseIcalEvents,
-  saveAgendaEventos
+  saveAgendaEventos,
+  fetchAgendaEventos
 } from '@/lib/storage';
 import { playMeetingAlertTone } from '@/lib/audioNotifications';
 import { showToast } from './ToastNotification';
@@ -107,6 +108,8 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
 
   useEffect(() => {
     carregarDados();
+    // Agenda da equipe vem do Supabase (eventos importados do Google pessoal continuam locais)
+    fetchAgendaEventos().catch(() => {});
     const handleEventsUpdate = () => setEventos(getAgendaEventos());
     const handleConfigUpdate = () => setConfig(getAgendaConfig());
     window.addEventListener('agenda_eventos_updated', handleEventsUpdate);
@@ -245,15 +248,19 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
       status: editingEvent?.status || 'agendada',
     };
 
-    if (editingEvent) {
-      await updateAgendaEvento(editingEvent.id, payload);
-      showToast(`Compromisso "${formTitulo}" atualizado!`, 'success');
-    } else {
-      await addAgendaEvento(payload);
-      showToast(`Reunião "${formTitulo}" agendada com sucesso!`, 'success');
+    // Agenda compartilhada: o modal só fecha quando o Supabase confirma (o formulário é preservado em caso de erro)
+    try {
+      if (editingEvent) {
+        await updateAgendaEvento(editingEvent.id, payload);
+        showToast(`Compromisso "${formTitulo}" atualizado!`, 'success');
+      } else {
+        await addAgendaEvento(payload);
+        showToast(`Reunião "${formTitulo}" agendada com sucesso!`, 'success');
+      }
+      setModalOpen(false);
+    } catch (err) {
+      showToast(err.message, 'error');
     }
-
-    setModalOpen(false);
   };
 
   const handleExcluirEvento = (evt) => {
@@ -263,15 +270,25 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
       confirmText: 'Excluir',
       variant: 'danger',
       onConfirm: async () => {
-        await deleteAgendaEvento(evt.id);
-        showToast('Compromisso removido da agenda.', 'success');
+        try {
+          await deleteAgendaEvento(evt.id);
+          showToast('Compromisso removido da agenda.', 'success');
+        } catch (err) {
+          showToast(err.message, 'error');
+        } finally {
+          setConfirmDialog(null);
+        }
       },
     });
   };
 
   const handleAlterarStatus = async (evt, novoStatus) => {
-    await updateAgendaEvento(evt.id, { status: novoStatus });
-    showToast(`Status atualizado para: ${novoStatus.toUpperCase()}`, 'info');
+    try {
+      await updateAgendaEvento(evt.id, { status: novoStatus });
+      showToast(`Status atualizado para: ${novoStatus.toUpperCase()}`, 'info');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
   };
 
   // Cálculo de dias da semana selecionada (Segunda a Domingo)

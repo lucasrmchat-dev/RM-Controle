@@ -26,14 +26,14 @@ import {
   isChamadoFeedback,
   getHistoricoChamados,
   createEmpresa,
-  setLocalData,
   atualizarEtiquetasChamado,
   adiarAlertaChamado,
   cancelarAdiarAlertaChamado,
   marcarChamadoEscalonado,
   getConfiguracoesSuporte,
   reatribuirChamadoSuporte,
-  sanitizarCategoriasDemanda
+  sanitizarCategoriasDemanda,
+  getCurrentUserRole,
 } from '@/lib/storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { stopSupportNotificationLoop, playNotificationTone } from '@/lib/audioNotifications';
@@ -369,17 +369,24 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     }
   }, [modalNovoChamadoOpen]);
 
+  // Sequência de carregamento: uma carga antiga e lenta nunca sobrescreve uma mais recente
+  // (antes, uma demanda recém-criada podia "sumir" quando um sync anterior terminava depois)
+  const cargaSeqRef = useRef(0);
+
   const carregarDados = async () => {
+    const seq = ++cargaSeqRef.current;
     try {
       await Promise.all([fetchChamadosFila(), fetchHistoricoChamados(), fetchEquipeUsuarios()]);
     } catch (e) {}
+    if (seq !== cargaSeqRef.current) return;
     const ativos = getChamadosSuporte();
     const historico = getHistoricoChamados();
     const historicoIds = new Set((historico || []).map((h) => h.id));
 
-    // Filtra estritamente apenas chamados ativos que NÃO tenham sido finalizados nem estejam no histórico
+    // Filtra estritamente apenas chamados ativos que NÃO tenham sido finalizados nem estejam no histórico.
+    // A deduplicação é feita apenas por ID: a antiga assinatura empresa+solicitante+janela de 20s
+    // escondia demandas legítimas (ex.: duas demandas da mesma empresa sem observação).
     const mapa = new Map();
-    const seenSigs = new Set();
 
     (ativos || []).forEach((c) => {
       if (!c || !c.id) return;
@@ -387,17 +394,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       if (c.finalizado_em) return;
       if (historicoIds.has(c.id)) return;
       if (isChamadoFeedback(c)) return;
-
-      const empKey = (c.empresa_nome || c.empresa_id || '').toLowerCase().trim();
-      const solKey = (c.solicitante_nome || '').toLowerCase().trim();
-      const obsKey = (c.observacao_inicial || c.observacoes || c.descricao || '').trim().slice(0, 50);
-      const timeMs = new Date(c.created_at || c.tempo_espera_inicio || 0).getTime();
-      const timeBucket = Math.floor(timeMs / 20000);
-      const sig = `${empKey}|${solKey}|${obsKey}|${timeBucket}`;
-
-      if (seenSigs.has(sig)) return;
-      seenSigs.add(sig);
-      mapa.set(c.id, c);
+      if (!mapa.has(c.id)) mapa.set(c.id, c);
     });
 
     // Chamados do histórico entram com status estritamente 'concluido'
@@ -413,7 +410,6 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
     const listaUnica = Array.from(mapa.values());
     setChamados(listaUnica);
-    setLocalData('chamados_suporte', listaUnica.filter((c) => c.status !== 'concluido' && c.status !== 'finalizado' && !c.finalizado_em));
     setEquipeLista(getEquipeUsuarios());
     setCategoriasDisponiveis(getCategoriasDemandas());
     const resEmp = await getEmpresas({ pageSize: 1000 });
@@ -444,7 +440,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
         const chamadosAtuais = getChamadosSuporte();
         const agoraMs = Date.now();
         const myEmail = (userEmail || '').toLowerCase().trim();
-        const isAdmin = myEmail === 'admin@rmcontrole.com' || myEmail.includes('admin');
+        const isAdmin = getCurrentUserRole() === 'administrador';
 
         chamadosAtuais.forEach((ch) => {
           const isPendente = ch.status === 'aguardando_visualizacao' || ch.status === 'pendente' || ch.status === 'em_andamento';
@@ -857,10 +853,9 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
 
   const ehAdmin = useMemo(() => {
     return (
-      usuarioLogado?.papel === 'administrador' ||
-      Boolean(userEmail && (userEmail.includes('admin') || userEmail.includes('lucas')))
+      usuarioLogado?.papel === 'administrador' || getCurrentUserRole() === 'administrador'
     );
-  }, [usuarioLogado, userEmail]);
+  }, [usuarioLogado]);
 
   // KPIs (filtra estritamente chamados ativos e remove chamados finalizados ou com data de término)
   const emAndamento = useMemo(() => chamados.filter((c) => c.status === 'em_andamento' && !c.finalizado_em && c.status !== 'concluido' && c.status !== 'finalizado'), [chamados]);
@@ -1003,11 +998,44 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     });
   }, [chamados, filtroStatus, filtrosDepartamentos, filtroTecnico, targetTec, filtroEtiqueta, busca, ehAdmin, depsBloqueados]);
 
+  // Quantas demandas do status atual existem SEM os filtros pessoais (técnico, departamentos,
+  // etiqueta e busca). Cada colaborador tem filtros padrão salvos: sem este aviso, duas pessoas
+  // olhando a mesma fila viam listas diferentes sem perceber.
+  const totalSemFiltrosPessoais = useMemo(() => {
+    return chamados.filter((c) => {
+      if (isChamadoFeedback(c)) return false;
+      if (!ehAdmin && depsBloqueados.length > 0) {
+        const cats = Array.isArray(c.categorias) && c.categorias.length > 0 ? c.categorias : ['Suporte'];
+        if (cats.some((cat) => depsBloqueados.includes((cat || '').toLowerCase().trim()))) return false;
+      }
+      const concluido = c.status === 'concluido' || c.status === 'finalizado' || Boolean(c.finalizado_em);
+      if (filtroStatus === 'resolvidos_hoje') return concluido && isDataHoje(c.finalizado_em || c.created_at || c.iniciado_em);
+      if (concluido || c.status === 'cancelado') return false;
+      if (filtroStatus === 'em_andamento') return c.status === 'em_andamento';
+      if (filtroStatus === 'espera') return c.status === 'pendente' || c.status === 'aguardando_visualizacao';
+      return true;
+    }).length;
+  }, [chamados, filtroStatus, ehAdmin, depsBloqueados]);
+  const ocultasPorFiltro = Math.max(0, totalSemFiltrosPessoais - chamadosFiltrados.length);
+
+  const handleLimparFiltrosPessoais = () => {
+    setFiltroTecnico('todos');
+    setFiltrosDepartamentos([]);
+    setFiltroEtiqueta('todas');
+    setBusca('');
+  };
+
   // Ações de Chamado
   const handleAceitarSuporte = async (chamado) => {
-    await assumirSuporte({ chamado_id: chamado.id, userEmail: userEmail || 'admin@rmcontrole.com' });
-    stopSupportNotificationLoop();
-    showFeedbackMsg(`Você aceitou o suporte de ${chamado.empresa_nome}. Cronômetro ativo iniciado!`);
+    try {
+      await assumirSuporte({ chamado_id: chamado.id, userEmail: userEmail || 'admin@rmcontrole.com' });
+      stopSupportNotificationLoop();
+      showFeedbackMsg(`Você aceitou o suporte de ${chamado.empresa_nome}. Cronômetro ativo iniciado!`);
+    } catch (err) {
+      // Ex.: outro colaborador assumiu primeiro — recarrega para mostrar o estado real
+      showToast(err.message || 'Não foi possível assumir a demanda.', 'error');
+      await carregarDados();
+    }
   };
 
   const handleConfirmarReatribuicao = async (tecnicoDestino = null) => {
@@ -1086,6 +1114,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
           setConfirmDialog(null);
           await carregarDados();
         } catch (err) {
+          setConfirmDialog(null);
           showToast(err.message || 'Erro ao cancelar chamado.', 'error');
         }
       },
@@ -1184,7 +1213,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     const iniciarAgoraFinal = iniciarDireto || isAtribuidoParaMim;
 
     try {
-      await adicionarChamadoFila({
+      const criado = await adicionarChamadoFila({
         empresa_id: empresaIdFinal,
         empresa_nome: empresaNomeFinal,
         solicitante_nome: solicitanteFinal,
@@ -1234,7 +1263,11 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       }
 
       await carregarDados();
-      showFeedbackMsg(iniciarDireto ? `Demanda de ${empresaNomeFinal} iniciada agora!` : `Demanda de ${empresaNomeFinal} aberta na fila.`);
+      if (criado?.sync_estado === 'pendente') {
+        showToast(`Demanda de ${empresaNomeFinal} salva neste computador, mas ainda não chegou à equipe. O envio será repetido automaticamente.`, 'warning');
+      } else {
+        showFeedbackMsg(iniciarAgoraFinal ? `Demanda de ${empresaNomeFinal} iniciada agora!` : `Demanda de ${empresaNomeFinal} aberta na fila.`);
+      }
     } catch (err) {
       showToast(err.message, 'error');
     } finally {
@@ -1871,6 +1904,30 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
             </div>
           </div>
 
+          {/* Aviso de filtros ativos: deixa explícito que há demandas fora da visão atual */}
+          {ocultasPorFiltro > 0 && (
+            <div
+              role="status"
+              className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs"
+            >
+              <span>
+                Mostrando <strong>{chamadosFiltrados.length}</strong> de <strong>{totalSemFiltrosPessoais}</strong> demandas.{' '}
+                {ocultasPorFiltro === 1 ? '1 está oculta' : `${ocultasPorFiltro} estão ocultas`} pelos filtros
+                {filtroTecnico !== 'todos' ? ` de responsável (${targetTec?.nome || (filtroTecnico === 'nao_atribuido' ? 'não atribuídas' : filtroTecnico)})` : ''}
+                {filtrosDepartamentos?.length > 0 ? ` de departamento (${filtrosDepartamentos.join(', ')})` : ''}
+                {filtroEtiqueta !== 'todas' ? ` de etiqueta (#${filtroEtiqueta})` : ''}
+                {busca.trim() ? ` de busca ("${busca.trim()}")` : ''}.
+              </span>
+              <button
+                type="button"
+                onClick={handleLimparFiltrosPessoais}
+                className="self-start sm:self-auto px-3 py-1.5 rounded-full bg-amber-900/10 dark:bg-amber-200/10 hover:bg-amber-900/20 font-semibold cursor-pointer whitespace-nowrap"
+              >
+                Mostrar todas
+              </button>
+            </div>
+          )}
+
           {/* LISTAGEM DE CHAMADOS (CARDS OU TABELA HTML ROBUSTA) */}
           {chamadosFiltrados.length === 0 ? (
             <div className="relative z-10 rounded-3xl p-12 border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/85 backdrop-blur-xl text-center space-y-4 shadow-sm">
@@ -1964,6 +2021,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                         <div className="flex items-center gap-2 flex-wrap mb-1">
                           <h3 className="text-base font-bold text-[#1d1d1f] dark:text-white leading-snug">
                             {ch.empresa_nome}
+                            <StatusExtraBadges chamado={ch} />
                           </h3>
                           {empresaObj?.servidor_alocado && (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-400 font-mono font-semibold">
@@ -2352,6 +2410,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                             <div>
                               <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white leading-snug">
                                 {ch.empresa_nome}
+                                <StatusExtraBadges chamado={ch} />
                               </h4>
                               <p className="text-[11px] text-slate-500 dark:text-zinc-400">
                                 Solicitante: <strong className="text-slate-700 dark:text-zinc-300">{ch.solicitante_nome || 'Colaborador da Empresa'}</strong>
@@ -2593,6 +2652,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                 <div>
                                   <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white leading-snug">
                                     {ch.empresa_nome}
+                                    <StatusExtraBadges chamado={ch} />
                                   </h4>
                                   <p className="text-[11px] text-slate-500 dark:text-zinc-400">
                                     Solicitante: <strong className="text-slate-700 dark:text-zinc-300">{ch.solicitante_nome || 'Colaborador da Empresa'}</strong>
@@ -2870,6 +2930,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                               <div className="flex items-center gap-2">
                                 <span className="font-bold text-[#1d1d1f] dark:text-white truncate block text-[13px]">
                                   {ch.empresa_nome}
+                                  <StatusExtraBadges chamado={ch} />
                                 </span>
                                 {empresaObj?.servidor_alocado && (
                                   <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-500 font-mono font-semibold">
@@ -3113,6 +3174,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <span className="text-sm font-bold text-[#1d1d1f] dark:text-white">
                                         {ch.empresa_nome}
+                                        <StatusExtraBadges chamado={ch} />
                                       </span>
                                       <span className="text-xs text-slate-400 font-mono">
                                         • Solicitante: <strong className="text-slate-800 dark:text-zinc-200">{ch.solicitante_nome || ch.solicitante || 'Colaborador da Empresa'}</strong>
@@ -4474,5 +4536,35 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       />
 
     </div>
+  );
+}
+
+// Selos discretos no título do card: lembrete operacional e demandas ainda não sincronizadas com a equipe
+function StatusExtraBadges({ chamado }) {
+  if (!chamado) return null;
+  const pendente = chamado.sync_estado === 'pendente';
+  const enviando = chamado.sync_estado === 'enviando';
+  if (!chamado.is_lembrete && !pendente && !enviando) return null;
+  return (
+    <span className="inline-flex items-center gap-1 ml-1.5 align-middle">
+      {chamado.is_lembrete && (
+        <span className="px-1.5 py-0.5 rounded-md bg-violet-500/10 text-violet-700 dark:text-violet-300 border border-violet-500/25 text-[9px] font-bold uppercase tracking-wide">
+          Lembrete
+        </span>
+      )}
+      {(pendente || enviando) && (
+        <span
+          role="status"
+          title={pendente ? `Ainda não sincronizada: ${chamado.sync_erro || 'sem conexão com o servidor'}. Reenvio automático em andamento.` : 'Enviando para a equipe…'}
+          className={`px-1.5 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-wide ${
+            pendente
+              ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
+              : 'bg-slate-500/10 text-slate-500 dark:text-zinc-400 border-slate-500/20'
+          }`}
+        >
+          {pendente ? 'Não sincronizada' : 'Enviando…'}
+        </span>
+      )}
+    </span>
   );
 }

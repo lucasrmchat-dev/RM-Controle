@@ -1,0 +1,31 @@
+name: 🛡️ Correção de Segurança / LGPD
+description: Relate ou planeje correções estruturais de segurança, headers ou conformidade LGPD
+title: "[SEC]: "
+labels: ["security", "lgpd", "critical"]
+body:
+  - type: textarea
+    id: vulnerability
+    attributes:
+      label: Detalhes da Vulnerabilidade ou Não-Conformidade
+      description: Descreva a falha de segurança, brecha de RLS, ou dado sensível não minimizado.
+    validations:
+      required: true
+  - type: dropdown
+    id: vector
+    attributes:
+      label: Vetor de Ataque / Risco
+      options:
+        - Supabase RLS / Vazamento de Dados
+        - Sessão / Cookies / LocalStorage PII
+        - Injeção / XSS / Sanitização
+        - Cabeçalhos de Segurança (CSP/HSTS/CORS)
+        - LGPD / Rastro de Auditoria
+    validations:
+      required: true
+  - type: textarea
+    id: remediation
+    attributes:
+      label: Plano de Mitigação Proposto
+      description: Alterações de código ou migrações SQL necessárias.
+    validations:
+      required: true

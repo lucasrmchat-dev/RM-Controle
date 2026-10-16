@@ -1,0 +1,48 @@
+name: ✨ Nova Funcionalidade / Melhoria
+description: Proponha uma nova funcionalidade, automação ou melhoria de UI/UX
+title: "[FEAT]: "
+labels: ["enhancement", "design"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Toda nova funcionalidade deve ser associada a uma Issue antes do desenvolvimento e posterior Pull Request.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Contexto e Motivação
+      description: Qual necessidade do usuário ou gargalo operacional motivou esta solicitação?
+      placeholder: Atualmente, os operadores precisam...
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposta de Solução
+      description: Como a funcionalidade deve se comportar e qual a experiência visual esperada.
+    validations:
+      required: true
+  - type: dropdown
+    id: module
+    attributes:
+      label: Módulo Afetado
+      options:
+        - Empresas & Clientes
+        - Fila de Demandas & Suporte
+        - Servidores & Infraestrutura
+        - Dashboard & Métricas
+        - Agenda & Reuniões
+        - Segurança, RLS & Auditoria
+    validations:
+      required: true
+  - type: checkboxes
+    id: compliance
+    attributes:
+      label: Conformidade e Padrões
+      options:
+        - label: A funcionalidade respeita as diretrizes de privacidade da LGPD (minimização e consentimento)
+          required: true
+        - label: As tabelas e consultas respeitam as políticas de Row-Level Security (RLS)
+          required: true
+        - label: A interface segue o padrão visual Apple/Vercel com animações spring fluidas
+          required: true
