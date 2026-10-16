@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EyeIcon, EyeOffIcon, AppleLockIcon } from './Icons';
+import CaptchaTurnstile from './CaptchaTurnstile';
 
 // ==============================================================================
 // CONFIGURAÇÃO DOS SLIDES INSTITUCIONAIS (ESTÉTICA VERCEL & APPLE)
@@ -57,6 +58,7 @@ export default function LoginView({
   slides = DEFAULT_LOGIN_SLIDES,
   honeypot = '',
   setHoneypot = () => {},
+  onCaptchaToken = () => {},
 }) {
   const [focusedField, setFocusedField] = useState(null);
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -411,14 +413,8 @@ export default function LoginView({
               </div>
             </div>
 
-            {/* Selo Anti-Bot & Conformidade LGPD */}
-            <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between text-[11px] text-zinc-600 dark:text-zinc-400">
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <span>Navegador Verificado</span>
-              </div>
-              <span className="font-mono text-[10px] text-zinc-400">SSL 256-bit</span>
-            </div>
+            {/* Verificação anti-robô real (Cloudflare Turnstile), conferida pelo servidor */}
+            <CaptchaTurnstile onToken={onCaptchaToken} theme={theme} />
 
             {/* Botão de Autenticação */}
             <div className="pt-1">

@@ -170,9 +170,11 @@ test('schema sem colunas estendidas: cria com as colunas base', async () => {
 // ---------------------------------------------------------------- alerta sonoro
 test('alerta sonoro: demanda da Fila Geral criada por outro colaborador toca e respeita repetição/escopo', async () => {
   let tons = 0;
+  // O módulo de áudio guarda o AudioContext em cache: o contador é global para valer entre testes
+  globalThis.__contarTom = () => tons++;
   globalThis.window.AudioContext = class {
     constructor() { this.state = 'running'; this.currentTime = 0; this.destination = {}; }
-    createOscillator() { tons++; return { type: '', frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {}, linearRampToValueAtTime() {} }, connect() {}, start() {}, stop() {} }; }
+    createOscillator() { globalThis.__contarTom?.(); return { type: '', frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {}, linearRampToValueAtTime() {} }, connect() {}, start() {}, stop() {} }; }
     createGain() { return { gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} }; }
     createBiquadFilter() { return { type: '', frequency: { setValueAtTime() {} }, Q: { setValueAtTime() {} }, connect() {} }; }
   };
@@ -200,4 +202,48 @@ test('alerta sonoro: demanda da Fila Geral criada por outro colaborador toca e r
   triggerSupportNotification({ chamado, userEmail: 'maria@rmcontrole.com' });
   assert.equal(tons, 0, 'não toca para quem criou');
   stopSupportNotificationLoop();
+});
+
+test('alerta sonoro: repetição para quando a demanda não está (ou deixa de estar) na fila exibida', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'] });
+  let tons = 0;
+  // O módulo de áudio guarda o AudioContext em cache: o contador é global para valer entre testes
+  globalThis.__contarTom = () => tons++;
+  globalThis.window.AudioContext = class {
+    constructor() { this.state = 'running'; this.currentTime = 0; this.destination = {}; }
+    createOscillator() { globalThis.__contarTom?.(); return { type: '', frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {}, linearRampToValueAtTime() {} }, connect() {}, start() {}, stop() {} }; }
+    createGain() { return { gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} }; }
+    createBiquadFilter() { return { type: '', frequency: { setValueAtTime() {} }, Q: { setValueAtTime() {} }, connect() {} }; }
+  };
+  const audio = await import('../src/lib/audioNotifications.js');
+  const chamado = { id: 'fantasma', status: 'aguardando_visualizacao', tecnico_email: 'geral', is_fila_geral: true, atribuido_por_email: 'maria@rmcontrole.com', categorias: ['Suporte'] };
+  audio.setAudioConfig({ habilitado: true, escopo: 'selecionados', departamentosSelecionados: ['Suporte'], modoRepeticao: 'intermitente', tipoSom: 'harmonico' });
+
+  // 1. Demanda fantasma: tocou uma vez, mas não está na fila exibida → a repetição para
+  let filaExibida = [];
+  audio.registrarFonteChamadosAtivos(() => filaExibida);
+  audio.triggerSupportNotification({ chamado, userEmail: 'joao@rmcontrole.com' });
+  const aposPrimeiroToque = tons;
+  assert.ok(aposPrimeiroToque > 0);
+  t.mock.timers.tick(1100 * 5);
+  assert.equal(tons, aposPrimeiroToque, 'não repete para demanda que não aparece na fila');
+
+  // 2. Demanda real: repete enquanto pendente e para quando alguém assume
+  filaExibida = [chamado];
+  audio.triggerSupportNotification({ chamado, userEmail: 'joao@rmcontrole.com' });
+  t.mock.timers.tick(1100 * 3);
+  const durantePendencia = tons;
+  assert.ok(durantePendencia > aposPrimeiroToque * 2, 'repete enquanto pendente');
+  filaExibida = [{ ...chamado, status: 'em_andamento' }];
+  t.mock.timers.tick(1100 * 5);
+  assert.equal(tons, durantePendencia, 'para quando a demanda é assumida');
+
+  // 3. Mesmo pendente para sempre, a repetição para sozinha depois de 10 minutos
+  filaExibida = [chamado];
+  audio.triggerSupportNotification({ chamado, userEmail: 'joao@rmcontrole.com' });
+  t.mock.timers.tick(11 * 60 * 1000);
+  const aposLimite = tons;
+  t.mock.timers.tick(1100 * 5);
+  assert.equal(tons, aposLimite, 'não toca indefinidamente');
+  audio.stopSupportNotificationLoop();
 });

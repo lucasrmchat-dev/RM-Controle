@@ -34,4 +34,11 @@ globalThis.localStorage = {
   removeItem: (k) => store.delete(k),
   clear: () => store.clear(),
 };
+const sessao = new Map();
+globalThis.sessionStorage = {
+  getItem: (k) => (sessao.has(k) ? sessao.get(k) : null),
+  setItem: (k, v) => sessao.set(k, String(v)),
+  removeItem: (k) => sessao.delete(k),
+  clear: () => sessao.clear(),
+};
 globalThis.window = new EventTarget();

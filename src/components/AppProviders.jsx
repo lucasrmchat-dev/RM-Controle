@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { MotionConfig, AnimatePresence, motion } from 'framer-motion';
+import { showToast } from './ToastNotification';
 
 // Provedores globais da interface:
 // - MotionConfig respeita "reduzir movimento" do sistema em todas as animações do framer-motion
@@ -28,12 +29,17 @@ export default function AppProviders({ children }) {
       window.dispatchEvent(new Event('feedbacks_updated'));
     };
 
+    // Gravações que o Supabase recusou: a mudança foi desfeita na tela e o motivo aparece aqui
+    const handleFalhaSync = (e) => showToast(e.detail || 'Uma alteração não foi salva para a equipe.', 'error');
+
     window.addEventListener('offline', handleOffline);
     window.addEventListener('online', handleOnline);
+    window.addEventListener('rm_sync_erro', handleFalhaSync);
     return () => {
       clearTimeout(timer);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
+      window.removeEventListener('rm_sync_erro', handleFalhaSync);
     };
   }, []);
 

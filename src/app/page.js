@@ -21,6 +21,7 @@ import {
   fetchEquipeUsuarios,
   setCurrentUserRole,
   getCurrentUserRole,
+  sincronizarDadosCompartilhados,
   getAbasPermitidas,
   resolveUserRole,
   isPrimeiroAcessoPendente,
@@ -119,6 +120,7 @@ export default function Home() {
   const [loginPassword, setLoginPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [loginCaptchaToken, setLoginCaptchaToken] = useState('');
   const [loginSubmitting, setLoginSubmitting] = useState(false);
   const [honeypot, setHoneypot] = useState('');
 
@@ -407,6 +409,17 @@ export default function Home() {
       } catch (e) {}
     }
 
+    // Tudo que é compartilhado pela equipe vem do Supabase (e o legado local é enviado na 1ª vez)
+    sincronizarDadosCompartilhados();
+    let ultimaSincronizacao = Date.now();
+    const sincronizarAoVoltar = () => {
+      if (document.visibilityState === 'visible' && Date.now() - ultimaSincronizacao > 60000) {
+        ultimaSincronizacao = Date.now();
+        sincronizarDadosCompartilhados();
+      }
+    };
+    document.addEventListener('visibilitychange', sincronizarAoVoltar);
+
     // Sincronização inicial global da fila de demandas
     fetchChamadosFila().then(() => {
       window.dispatchEvent(new Event('suporte_updated'));
@@ -434,10 +447,10 @@ export default function Home() {
                 const item = payload.new;
                 const isPendingOrWaiting = item.status === 'aguardando_visualizacao' || item.status === 'pendente' || item.status === 'em_andamento';
 
-                if (isPendingOrWaiting && !prevIds.has(item.id)) {
-                  // Usa o chamado já normalizado (categorias, fila geral, criador) em vez da linha crua do banco,
-                  // para que escopo, departamentos e repetição sejam avaliados corretamente
-                  const normalizado = novosChamados.find((c) => c.id === item.id) || item;
+                // Usa o chamado já normalizado (categorias, fila geral, criador) em vez da linha crua do banco.
+                // Se ele não estiver na fila exibida (feedback, já concluído, filtrado), não há o que notificar.
+                const normalizado = novosChamados.find((c) => c.id === item.id);
+                if (isPendingOrWaiting && !prevIds.has(item.id) && normalizado) {
                   triggerSupportNotification({ chamado: normalizado, userEmail });
 
                   // Dispara Alerta Visual Toast
@@ -570,6 +583,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
         supabase.removeChannel(realtimeChannel);
       }
       clearInterval(backgroundSyncTimer);
+      document.removeEventListener('visibilitychange', sincronizarAoVoltar);
       clearInterval(agendaTimer);
     };
   }, [isAuthenticated, userEmail, primeiroAcessoPendente]);
@@ -679,152 +693,58 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
     setLoginSubmitting(true);
 
     try {
-      // 1. Resolve o e-mail formal
+      // Permite entrar pelo nome ou pelo usuário (antes do @), como antes
       let emailFormal = emailLimpo;
-      const equipe = getEquipeUsuarios();
-      const membroEquipe = equipe.find((u) => {
+      const membroEquipe = getEquipeUsuarios().find((u) => {
         const uEmail = (u.email || '').toLowerCase().trim();
         const uNome = (u.nome || '').toLowerCase().trim();
         return uEmail === emailLimpo || uNome === emailLimpo || uEmail.split('@')[0] === emailLimpo;
       });
-
       if (membroEquipe?.email) {
         emailFormal = membroEquipe.email.toLowerCase().trim();
       } else if (!emailFormal.includes('@')) {
         emailFormal = `${emailFormal}@rmcontrole.com`;
       }
 
-      const isAdminEmail = emailFormal === 'admin@rmcontrole.com' || emailFormal.includes('admin') || membroEquipe?.papel === 'administrador';
-      const senhaEsperada = (membroEquipe?.senha || '').trim();
-
-      // 2. Autenticação no servidor via API segura com Rate Limit e Cookies HTTP-Only
-      let serverRole = null;
-      try {
-        const resAuth = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: emailFormal,
-            password: senhaLimpa,
-            honeypot,
-          }),
-        });
-
-        if (resAuth.status === 429) {
-          const errData = await resAuth.json().catch(() => ({}));
-          throw new Error(errData.error || 'Muitas tentativas de login. Tente novamente mais tarde.');
-        }
-
-        if (resAuth.ok) {
-          const dataAuth = await resAuth.json();
-          serverRole = dataAuth.user?.role;
-        } else if (resAuth.status === 401 || resAuth.status === 403) {
-          // O servidor é a autoridade: sem a sessão dele, as APIs protegidas recusariam o usuário depois
-          const errData = await resAuth.json().catch(() => ({}));
-          throw new Error(errData.error || 'E-mail ou senha incorretos. Verifique suas credenciais.');
-        }
-      } catch (srvErr) {
-        // Só segue sem o servidor em falha de rede; recusas explícitas encerram o login
-        if (!(srvErr instanceof TypeError)) {
-          throw srvErr;
-        }
+      // 1. O servidor é a autoridade: confere a senha (hash), o captcha e o limite de tentativas,
+      //    cria o cookie de sessão e deixa a conta de login do Supabase sincronizada.
+      const resAuth = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailFormal, password: senhaLimpa, honeypot, captchaToken: loginCaptchaToken }),
+      }).catch(() => null);
+      const dataAuth = resAuth ? await resAuth.json().catch(() => ({})) : {};
+      if (!resAuth || !resAuth.ok) {
+        // O captcha é de uso único: pede um novo depois de qualquer tentativa recusada
+        setLoginCaptchaToken('');
+        window.dispatchEvent(new Event('rm_captcha_reset'));
+        throw new Error(dataAuth.error || 'Não foi possível conectar ao servidor. Verifique sua internet.');
       }
+      const serverRole = dataAuth.user?.role || 'suporte';
 
-      // 3. Autenticação no Supabase Auth para RLS e WebSockets
+      // 2. Sessão do Supabase (RLS e tempo real) com a mesma senha já validada pelo servidor
       if (isSupabaseConfigured && supabase) {
-        let authResult = await supabase.auth.signInWithPassword({
-          email: emailFormal,
-          password: senhaLimpa,
-        });
-
-        if (authResult.error && membroEquipe && senhaEsperada && senhaEsperada === senhaLimpa) {
-          try {
-            await supabase.auth.signUp({
-              email: emailFormal,
-              password: senhaLimpa,
-              options: {
-                data: {
-                  name: membroEquipe?.nome || (isAdminEmail ? 'Lucas Amorim' : emailFormal.split('@')[0]),
-                  papel: membroEquipe?.papel || (isAdminEmail ? 'administrador' : 'suporte'),
-                },
-              },
-            });
-            authResult = await supabase.auth.signInWithPassword({
-              email: emailFormal,
-              password: senhaLimpa,
-            });
-          } catch (autoErr) {}
+        const { error: authError } = await supabase.auth.signInWithPassword({ email: emailFormal, password: senhaLimpa });
+        if (authError) {
+          throw new Error('Login validado, mas a conexão com o banco falhou. Tente novamente em instantes.');
         }
-
-        if (authResult?.data?.user) {
-          const user = authResult.data.user;
-          setIsAuthenticated(true);
-          setUserEmail(user.email);
-          const role = serverRole || resolveUserRole(user.email);
-          setCurrentUserRole(role);
-
-          // Limpeza rigorosa de senhas e dados sensíveis de LocalStorage (Conformidade LGPD)
-          try {
-            localStorage.removeItem('rm_auth_user');
-            localStorage.removeItem('rm_user_role');
-            Object.keys(localStorage).forEach((k) => {
-              if (k.startsWith('rm_user_password_')) localStorage.removeItem(k);
-            });
-          } catch (e) {}
-
-          localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
-
-          if (membroEquipe && membroEquipe.senha !== senhaLimpa) {
-            updateEquipeUsuario(membroEquipe.id, { senha: senhaLimpa }).catch(() => {});
-          }
-
-          const pendente = await isPrimeiroAcessoPendente(user.email);
-          setPrimeiroAcessoPendente(pendente);
-          return;
-        }
-
-        // Fallback restrito de contingência se a senha conferir exatamente
-        if (membroEquipe && senhaEsperada && senhaEsperada === senhaLimpa) {
-          setIsAuthenticated(true);
-          setUserEmail(membroEquipe.email);
-          const role = serverRole || membroEquipe.papel || (isAdminEmail ? 'administrador' : 'suporte');
-          setCurrentUserRole(role);
-
-          try {
-            localStorage.removeItem('rm_auth_user');
-            localStorage.removeItem('rm_user_role');
-            Object.keys(localStorage).forEach((k) => {
-              if (k.startsWith('rm_user_password_')) localStorage.removeItem(k);
-            });
-          } catch (e) {}
-
-          localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
-
-          const pendente = await isPrimeiroAcessoPendente(membroEquipe.email);
-          setPrimeiroAcessoPendente(pendente);
-          return;
-        }
-
-        throw new Error('E-mail ou senha incorretos. Verifique suas credenciais.');
-      } else {
-        if (membroEquipe && senhaEsperada && senhaEsperada === senhaLimpa) {
-          setIsAuthenticated(true);
-          setUserEmail(membroEquipe.email);
-          setCurrentUserRole(serverRole || membroEquipe.papel || (isAdminEmail ? 'administrador' : 'suporte'));
-
-          try {
-            localStorage.removeItem('rm_auth_user');
-            localStorage.removeItem('rm_user_role');
-            Object.keys(localStorage).forEach((k) => {
-              if (k.startsWith('rm_user_password_')) localStorage.removeItem(k);
-            });
-          } catch (e) {}
-
-          localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
-          return;
-        }
-        throw new Error('E-mail ou senha incorretos. Verifique suas credenciais.');
       }
+
+      setIsAuthenticated(true);
+      setUserEmail(emailFormal);
+      setCurrentUserRole(serverRole);
+
+      // Limpeza de resíduos sensíveis de versões antigas (LGPD)
+      try {
+        localStorage.removeItem('rm_auth_user');
+        Object.keys(localStorage).forEach((k) => {
+          if (k.startsWith('rm_user_password_')) localStorage.removeItem(k);
+        });
+      } catch (e) {}
+      localStorage.setItem('rm_last_active_timestamp', Date.now().toString());
+
+      const pendente = await isPrimeiroAcessoPendente(emailFormal);
+      setPrimeiroAcessoPendente(pendente);
     } catch (err) {
       setLoginError(err.message || 'Falha ao autenticar.');
     } finally {
@@ -868,20 +788,28 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
   const handleCreatedEmpresas = async (payload) => {
     try {
       if (payload.tipo === 'manual') {
-        await createEmpresa({
+        const criada = await createEmpresa({
           nome: payload.nome,
           formato_atendimento: 'colaborativo',
           servidor_alocado: payload.servidor_alocado,
+          tipo_cliente: payload.tipo_cliente,
+          cliente_desde: payload.cliente_desde,
           email_administrador: payload.email_administrador,
           senha_suporte: payload.senha_suporte,
           userEmail,
         });
-        showToast(`Empresa "${payload.nome}" cadastrada com sucesso!`, 'success');
+        if (criada?.avisos?.length) {
+          showToast(`Empresa "${payload.nome}" cadastrada, mas: ${criada.avisos.join('; ')}.`, 'warning');
+        } else {
+          showToast(`Empresa "${payload.nome}" cadastrada com sucesso!`, 'success');
+        }
       } else if (payload.tipo === 'massa') {
         const total = (payload.empresas || payload.nomes || []).length;
         await createEmpresasEmMassa(payload.empresas || payload.nomes, {
           formato_atendimento: 'colaborativo',
           servidor_alocado: payload.servidor_alocado,
+          tipo_cliente: payload.tipo_cliente,
+          cliente_desde: payload.cliente_desde,
           userEmail,
         });
         showToast(`${total} empresas cadastradas com sucesso!`, 'success');
@@ -924,6 +852,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
         setShowLoginPassword={setShowLoginPassword}
         loginError={loginError}
         loginSubmitting={loginSubmitting}
+        onCaptchaToken={setLoginCaptchaToken}
         handleLogin={handleLogin}
         handleBypassDevLogin={handleBypassDevLogin}
         theme={theme}

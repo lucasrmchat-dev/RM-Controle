@@ -154,3 +154,113 @@ test('status de feedback recusado pelo servidor é revertido e gera erro', async
   const lista = JSON.parse(localStorage.getItem('rm_feedbacks_lista'));
   assert.equal(lista[0].status, 'em_analise');
 });
+
+// ============================================================================
+// Consistência da fila (relatos: "fechar duas vezes", "demanda some",
+// "cada colaborador vê uma lista diferente")
+// ============================================================================
+const { finalizarSuporte, assumirSuporte, reatribuirChamadoSuporte } = storage;
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+
+test('concluir enquanto um sync lento está em andamento: a demanda NÃO volta (antes precisava fechar 2x)', async () => {
+  const ch = await adicionarChamadoFila({ empresa_nome: 'Empresa G', userEmail: USER });
+  await fetchChamadosFila();
+
+  db.atraso.select = 40; // o sync de 5s "fotografa" a fila antes da conclusão
+  const syncAtrasado = fetchChamadosFila();
+  await esperar(5);
+  await finalizarSuporte({ chamado_id: ch.id, motivo: 'Resolvido', userEmail: USER });
+  await syncAtrasado;
+  db.atraso.select = 0;
+
+  assert.equal(getChamadosSuporte().length, 0, 'continua fora da fila');
+  assert.equal(db.tables.suporte_chamados[0].status, 'finalizado');
+  assert.equal((await fetchChamadosFila()).length, 0);
+});
+
+test('modal aberto com o ID provisório conclui no primeiro clique depois da troca pelo UUID', async () => {
+  db.atraso.insert = 30;
+  const criacao = adicionarChamadoFila({ empresa_nome: 'Empresa H', userEmail: USER });
+  const idProvisorio = getChamadosSuporte()[0].id;
+  assert.ok(idProvisorio.startsWith('chamado_'));
+  await criacao; // ID trocado pelo UUID enquanto o "modal" segurava o provisório
+  db.atraso.insert = 0;
+
+  await finalizarSuporte({ chamado_id: idProvisorio, motivo: 'Ok', userEmail: USER });
+  assert.equal(getChamadosSuporte().length, 0);
+  assert.equal(db.tables.suporte_chamados.length, 1);
+  assert.equal(db.tables.suporte_chamados[0].status, 'finalizado');
+});
+
+test('concluir logo após criar (envio em andamento) não duplica nem deixa a original aberta', async () => {
+  db.atraso.insert = 30;
+  const criacao = adicionarChamadoFila({ empresa_nome: 'Empresa I', userEmail: USER });
+  const idProvisorio = getChamadosSuporte()[0].id;
+  await finalizarSuporte({ chamado_id: idProvisorio, motivo: 'Rápido', userEmail: USER });
+  await criacao;
+  db.atraso.insert = 0;
+
+  assert.equal(db.tables.suporte_chamados.length, 1, 'uma única linha na nuvem');
+  assert.equal(db.tables.suporte_chamados[0].status, 'finalizado');
+  trocarDeNavegador();
+  assert.equal((await fetchChamadosFila()).length, 0, 'fechada para os outros colaboradores');
+});
+
+test('segundo clique em "Concluir" não gera erro nem duplica', async () => {
+  const ch = await adicionarChamadoFila({ empresa_nome: 'Empresa J', userEmail: USER });
+  await finalizarSuporte({ chamado_id: ch.id, motivo: 'Ok', userEmail: USER });
+  await finalizarSuporte({ chamado_id: ch.id, motivo: 'Ok', userEmail: USER });
+  assert.equal(JSON.parse(localStorage.getItem('rm_historico_chamados')).length, 1);
+});
+
+test('servidor recusa a conclusão: demanda volta para a fila e o erro é informado', async () => {
+  const ch = await adicionarChamadoFila({ empresa_nome: 'Empresa K', userEmail: USER });
+  db.rls.updateAllowed = false;
+  await assert.rejects(() => finalizarSuporte({ chamado_id: ch.id, motivo: 'X', userEmail: USER }), /continua na fila/);
+  assert.equal(getChamadosSuporte().length, 1);
+});
+
+test('reatribuição chega à nuvem (antes falhava por coluna inexistente) e todos veem o novo responsável', async () => {
+  db.columns.suporte_chamados = [
+    'empresa_id', 'empresa_nome', 'tecnico_email', 'atendente', 'colaborador_solicitante',
+    'status', 'observacoes', 'motivo', 'iniciado_em', 'finalizado_em', 'duracao_segundos',
+  ];
+  const ch = await adicionarChamadoFila({ empresa_nome: 'Empresa L', userEmail: USER });
+  db.columns.suporte_chamados = null;
+  await reatribuirChamadoSuporte(ch.id, 'pedro@rmcontrole.com', 'Pedro', USER);
+  trocarDeNavegador();
+  const [visto] = await fetchChamadosFila();
+  assert.equal(visto.tecnico_email, 'pedro@rmcontrole.com');
+});
+
+test('dois colaboradores assumem a mesma demanda: o segundo é avisado', async () => {
+  const ch = await adicionarChamadoFila({ empresa_nome: 'Empresa M', userEmail: USER });
+  await assumirSuporte({ chamado_id: ch.id, userEmail: 'joao@rmcontrole.com' });
+  db.tables.suporte_chamados[0].status = 'finalizado'; // outro colaborador já concluiu
+  await fetchChamadosFila();
+  localStorage.setItem('rm_chamados_suporte', JSON.stringify([{ ...ch, status: 'aguardando_visualizacao' }]));
+  await assert.rejects(() => assumirSuporte({ chamado_id: ch.id, userEmail: 'ana@rmcontrole.com' }), /Não foi possível assumir/);
+});
+
+test('demanda antiga que só existia num navegador é enviada para todos verem', async () => {
+  localStorage.setItem('rm_chamados_suporte', JSON.stringify([{
+    id: 'chamado_legado_1', empresa_nome: 'Empresa Legada', status: 'aguardando_visualizacao',
+    categorias: ['Suporte'], solicitante_nome: 'Ana', observacao_inicial: 'criada antes da correção',
+    created_at: new Date().toISOString(),
+  }]));
+  await fetchChamadosFila(); // detecta e agenda
+  await fetchChamadosFila(); // reenvia
+  assert.equal(db.tables.suporte_chamados.length, 1);
+  trocarDeNavegador();
+  assert.equal((await fetchChamadosFila())[0].empresa_nome, 'Empresa Legada');
+});
+
+test('demanda antiga duplicada localmente é descartada quando a nuvem já a tem', async () => {
+  const nuvem = await adicionarChamadoFila({ empresa_nome: 'Empresa N', solicitante_nome: 'Bia', observacao_inicial: 'x', userEmail: USER });
+  const lista = JSON.parse(localStorage.getItem('rm_chamados_suporte'));
+  lista.push({ ...lista[0], id: 'chamado_copia_antiga', sync_estado: undefined });
+  localStorage.setItem('rm_chamados_suporte', JSON.stringify(lista));
+  const fila = await fetchChamadosFila();
+  assert.deepEqual(fila.map((c) => c.id), [nuvem.id]);
+  assert.equal(db.tables.suporte_chamados.length, 1);
+});

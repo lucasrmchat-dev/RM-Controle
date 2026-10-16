@@ -185,11 +185,16 @@ export default function ServerConfigView() {
       message: 'Deseja realmente revogar o acesso deste membro da equipe?',
       confirmText: 'Remover Membro',
       variant: 'danger',
-      onConfirm: () => {
-        deleteEquipeUsuario(usuarioId);
-        setEquipe(getEquipeUsuarios());
-        showToast('Membro removido da equipe.', 'info');
-        setConfirmDialog(null);
+      onConfirm: async () => {
+        try {
+          await deleteEquipeUsuario(usuarioId);
+          showToast('Membro removido da equipe e acesso revogado.', 'info');
+        } catch (err) {
+          showToast(err.message, 'error');
+        } finally {
+          setEquipe(getEquipeUsuarios());
+          setConfirmDialog(null);
+        }
       },
     });
   };
@@ -1034,7 +1039,7 @@ export default function ServerConfigView() {
                 type="text"
                 value={senhaPadrao}
                 onChange={(e) => setSenhaPadrao(e.target.value)}
-                placeholder="Ex: RmSuporte@Padrao2026!"
+                placeholder="Mínimo de 8 caracteres"
                 required
                 className="flex-1 px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono focus:outline-none text-[#1d1d1f] dark:text-white"
               />

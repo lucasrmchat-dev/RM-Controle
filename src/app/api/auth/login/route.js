@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sanitizeEmail, sanitizeString } from '@/lib/sanitize';
-import { authRateLimiter } from '@/lib/rateLimit';
+import { consumirLimite, verificarCaptcha, ipDaRequisicao } from '@/lib/server/protecao';
 import { createSessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
 import { verificarCredenciais, obterPapelServidor } from '@/lib/server/acesso';
 import { ROTULOS_PAPEL } from '@/lib/roles';
@@ -9,28 +9,17 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
   try {
-    // 1. Obtenção do IP do cliente para Rate Limiting
-    const forwarded = request.headers.get('x-forwarded-for');
-    const clientIp = forwarded ? forwarded.split(',')[0].trim() : '127.0.0.1';
-
-    // 2. Rate Limiting Estrito: Máximo 5 tentativas de login por 15 minutos por IP
-    const rateCheck = authRateLimiter.check(`login_${clientIp}`, 5, 15 * 60 * 1000);
-    if (!rateCheck.success) {
+    // 1. Limite por IP, persistente no banco (vale entre todas as instâncias do servidor)
+    const clientIp = ipDaRequisicao(request);
+    if (!(await consumirLimite(`login_ip_${clientIp}`, 10, 15 * 60))) {
       return NextResponse.json(
-        {
-          error: 'Muitas tentativas de login consecutivas. Por segurança, tente novamente em 15 minutos.',
-        },
-        {
-          status: 429,
-          headers: {
-            'Retry-After': Math.ceil(rateCheck.resetMs / 1000).toString(),
-          },
-        }
+        { error: 'Muitas tentativas de login a partir desta rede. Por segurança, tente novamente em 15 minutos.' },
+        { status: 429, headers: { 'Retry-After': '900' } }
       );
     }
 
     const body = await request.json().catch(() => ({}));
-    const { email, password, honeypot, antiBotToken } = body;
+    const { email, password, honeypot, captchaToken } = body;
 
     // 3. Mecanismo Anti-bot Honeypot: Se o campo oculto estiver preenchido, é um bot automatizado
     if (honeypot && String(honeypot).trim() !== '') {
@@ -48,6 +37,25 @@ export async function POST(request) {
       return NextResponse.json(
         { error: 'E-mail corporativo e senha são obrigatórios.' },
         { status: 400 }
+      );
+    }
+
+    // 3.1 Captcha (Cloudflare Turnstile), quando configurado
+    const captcha = await verificarCaptcha(captchaToken, clientIp);
+    if (!captcha.ok) {
+      return NextResponse.json(
+        { error: captcha.motivo === 'captcha_indisponivel'
+            ? 'Verificação anti-robô indisponível no momento. Tente novamente.'
+            : 'Confirme a verificação anti-robô antes de entrar.' },
+        { status: 400 }
+      );
+    }
+
+    // 3.2 Limite por conta: impede força bruta distribuída contra um mesmo e-mail
+    if (!(await consumirLimite(`login_email_${emailLimpo}`, 8, 15 * 60))) {
+      return NextResponse.json(
+        { error: 'Muitas tentativas para esta conta. Por segurança, aguarde 15 minutos.' },
+        { status: 429, headers: { 'Retry-After': '900' } }
       );
     }
 

@@ -83,11 +83,12 @@ export async function middleware(request) {
   // Content Security Policy (CSP) robusta
   const cspHeader = `
     default-src 'self';
-    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co;
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co https://challenges.cloudflare.com;
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
     font-src 'self' https://fonts.gstatic.com data:;
     img-src 'self' data: blob: https://images.unsplash.com https://*.supabase.co;
-    connect-src 'self' https://*.supabase.co wss://*.supabase.co https://calendar.google.com;
+    connect-src 'self' https://*.supabase.co wss://*.supabase.co https://calendar.google.com https://challenges.cloudflare.com;
+    frame-src https://challenges.cloudflare.com;
     frame-ancestors 'none';
     form-action 'self';
     base-uri 'self';

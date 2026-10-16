@@ -998,11 +998,44 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     });
   }, [chamados, filtroStatus, filtrosDepartamentos, filtroTecnico, targetTec, filtroEtiqueta, busca, ehAdmin, depsBloqueados]);
 
+  // Quantas demandas do status atual existem SEM os filtros pessoais (técnico, departamentos,
+  // etiqueta e busca). Cada colaborador tem filtros padrão salvos: sem este aviso, duas pessoas
+  // olhando a mesma fila viam listas diferentes sem perceber.
+  const totalSemFiltrosPessoais = useMemo(() => {
+    return chamados.filter((c) => {
+      if (isChamadoFeedback(c)) return false;
+      if (!ehAdmin && depsBloqueados.length > 0) {
+        const cats = Array.isArray(c.categorias) && c.categorias.length > 0 ? c.categorias : ['Suporte'];
+        if (cats.some((cat) => depsBloqueados.includes((cat || '').toLowerCase().trim()))) return false;
+      }
+      const concluido = c.status === 'concluido' || c.status === 'finalizado' || Boolean(c.finalizado_em);
+      if (filtroStatus === 'resolvidos_hoje') return concluido && isDataHoje(c.finalizado_em || c.created_at || c.iniciado_em);
+      if (concluido || c.status === 'cancelado') return false;
+      if (filtroStatus === 'em_andamento') return c.status === 'em_andamento';
+      if (filtroStatus === 'espera') return c.status === 'pendente' || c.status === 'aguardando_visualizacao';
+      return true;
+    }).length;
+  }, [chamados, filtroStatus, ehAdmin, depsBloqueados]);
+  const ocultasPorFiltro = Math.max(0, totalSemFiltrosPessoais - chamadosFiltrados.length);
+
+  const handleLimparFiltrosPessoais = () => {
+    setFiltroTecnico('todos');
+    setFiltrosDepartamentos([]);
+    setFiltroEtiqueta('todas');
+    setBusca('');
+  };
+
   // Ações de Chamado
   const handleAceitarSuporte = async (chamado) => {
-    await assumirSuporte({ chamado_id: chamado.id, userEmail: userEmail || 'admin@rmcontrole.com' });
-    stopSupportNotificationLoop();
-    showFeedbackMsg(`Você aceitou o suporte de ${chamado.empresa_nome}. Cronômetro ativo iniciado!`);
+    try {
+      await assumirSuporte({ chamado_id: chamado.id, userEmail: userEmail || 'admin@rmcontrole.com' });
+      stopSupportNotificationLoop();
+      showFeedbackMsg(`Você aceitou o suporte de ${chamado.empresa_nome}. Cronômetro ativo iniciado!`);
+    } catch (err) {
+      // Ex.: outro colaborador assumiu primeiro — recarrega para mostrar o estado real
+      showToast(err.message || 'Não foi possível assumir a demanda.', 'error');
+      await carregarDados();
+    }
   };
 
   const handleConfirmarReatribuicao = async (tecnicoDestino = null) => {
@@ -1870,6 +1903,30 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
               </div>
             </div>
           </div>
+
+          {/* Aviso de filtros ativos: deixa explícito que há demandas fora da visão atual */}
+          {ocultasPorFiltro > 0 && (
+            <div
+              role="status"
+              className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs"
+            >
+              <span>
+                Mostrando <strong>{chamadosFiltrados.length}</strong> de <strong>{totalSemFiltrosPessoais}</strong> demandas.{' '}
+                {ocultasPorFiltro === 1 ? '1 está oculta' : `${ocultasPorFiltro} estão ocultas`} pelos filtros
+                {filtroTecnico !== 'todos' ? ` de responsável (${targetTec?.nome || (filtroTecnico === 'nao_atribuido' ? 'não atribuídas' : filtroTecnico)})` : ''}
+                {filtrosDepartamentos?.length > 0 ? ` de departamento (${filtrosDepartamentos.join(', ')})` : ''}
+                {filtroEtiqueta !== 'todas' ? ` de etiqueta (#${filtroEtiqueta})` : ''}
+                {busca.trim() ? ` de busca ("${busca.trim()}")` : ''}.
+              </span>
+              <button
+                type="button"
+                onClick={handleLimparFiltrosPessoais}
+                className="self-start sm:self-auto px-3 py-1.5 rounded-full bg-amber-900/10 dark:bg-amber-200/10 hover:bg-amber-900/20 font-semibold cursor-pointer whitespace-nowrap"
+              >
+                Mostrar todas
+              </button>
+            </div>
+          )}
 
           {/* LISTAGEM DE CHAMADOS (CARDS OU TABELA HTML ROBUSTA) */}
           {chamadosFiltrados.length === 0 ? (

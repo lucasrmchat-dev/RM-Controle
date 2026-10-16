@@ -173,20 +173,28 @@ export function playNotificationTone(tipo = 'harmonico') {
   }
 }
 
-/**
- * Dispara notificação sonora para um novo chamado respeitando as regras configuradas
- */
-export function triggerSupportNotification({ chamado, userEmail, criadoPorMim = false }) {
-  const config = getAudioConfig();
-  if (!config.habilitado) return;
+// Fonte oficial dos chamados ativos (registrada por storage.js): a MESMA lista que a tela mostra,
+// já sem concluídos, cancelados, feedbacks e cópias que só existem neste navegador.
+let fonteChamadosAtivos = null;
+export function registrarFonteChamadosAtivos(fn) {
+  fonteChamadosAtivos = typeof fn === 'function' ? fn : null;
+}
 
-  // 1. Se o chamado foi adiado / pausado pelo usuário (Snooze), silencia até expirar o tempo
-  if (chamado?.adiado_ate) {
-    const adiadoAteMs = new Date(chamado.adiado_ate).getTime();
-    if (Date.now() < adiadoAteMs) {
-      return; // Alerta adiado, não toca
-    }
-  }
+// Repetição nunca toca indefinidamente: depois deste tempo para sozinha
+const DURACAO_MAXIMA_LOOP_MS = 10 * 60 * 1000;
+let loopIniciadoEm = 0;
+
+/**
+ * Regras de quem deve ouvir o alerta de um chamado (usadas no primeiro toque E na repetição,
+ * para que a repetição nunca toque por algo que o primeiro toque não tocaria).
+ */
+export function deveNotificarChamado(chamado, userEmail, config = getAudioConfig(), criadoPorMim = false) {
+  if (!chamado || !config.habilitado) return false;
+  const isPendente = !chamado.status || chamado.status === 'aguardando_visualizacao' || chamado.status === 'pendente';
+  if (!isPendente) return false;
+
+  // Adiado / pausado pelo usuário (Snooze): silencia até expirar o tempo
+  if (chamado.adiado_ate && Date.now() < new Date(chamado.adiado_ate).getTime()) return false;
 
   const myEmail = (userEmail || '').toLowerCase().trim();
   const criadorEmail = (chamado?.atribuido_por_email || chamado?.criador_email || '').toLowerCase().trim();
@@ -194,7 +202,7 @@ export function triggerSupportNotification({ chamado, userEmail, criadoPorMim = 
   // REGRA: Se foi o próprio usuário atual que criou/atribuiu a demanda, NUNCA toca para ele mesmo!
   // (seja atribuindo para si mesmo ou para outro colaborador, quem criou já sabe e não deve ouvir som)
   if (criadoPorMim || (criadorEmail && criadorEmail === myEmail)) {
-    return;
+    return false;
   }
 
   const tecnicoBruto = (chamado?.tecnico_email || '').toLowerCase().trim();
@@ -218,7 +226,7 @@ export function triggerSupportNotification({ chamado, userEmail, criadoPorMim = 
       (chamadoTecnicoNome.includes('lucas') && (myEmail.includes('lucas') || myEmail.includes('admin')));
 
     if (!souEuODesignado) {
-      return; // Atribuído a outro colaborador: NÃO toca para mim nem para os demais!
+      return false; // Atribuído a outro colaborador: NÃO toca para mim nem para os demais!
     }
   }
 
@@ -226,7 +234,7 @@ export function triggerSupportNotification({ chamado, userEmail, criadoPorMim = 
   if (!isAtribuidoDiretamente) {
     // 1. Se o usuário só quer receber alertas do que foi atribuído diretamente a ele
     if (config.escopo === 'apenas_meus' || config.escopo === 'atribuidos') {
-      return;
+      return false;
     }
 
     // 2. Filtro por departamentos personalizados selecionados (ex: gestor)
@@ -240,7 +248,7 @@ export function triggerSupportNotification({ chamado, userEmail, criadoPorMim = 
           : (chamado?.motivo ? chamado.motivo.split(',').map((s) => s.trim().toLowerCase()) : ['suporte']);
         const pertence = chamadoCats.some((c) => depsAlvo.includes(c));
         if (!pertence) {
-          return; // Não pertence a nenhum dos departamentos selecionados
+          return false; // Não pertence a nenhum dos departamentos selecionados
         }
       }
     }
@@ -266,13 +274,23 @@ export function triggerSupportNotification({ chamado, userEmail, criadoPorMim = 
 
             const pertenceAoMeuDep = chamadoCats.some((c) => meusDeps.includes(c));
             if (!pertenceAoMeuDep) {
-              return; // Demanda não pertence a nenhum departamento do operador
+              return false; // Demanda não pertence a nenhum departamento do operador
             }
           }
         }
       } catch (e) {}
     }
   }
+
+  return true;
+}
+
+/**
+ * Dispara notificação sonora para um novo chamado respeitando as regras configuradas
+ */
+export function triggerSupportNotification({ chamado, userEmail, criadoPorMim = false }) {
+  const config = getAudioConfig();
+  if (!deveNotificarChamado({ status: 'aguardando_visualizacao', ...chamado }, userEmail, config, criadoPorMim)) return;
 
   // Toca o som imediatamente
   playNotificationTone(config.tipoSom);
@@ -288,48 +306,31 @@ export function triggerSupportNotification({ chamado, userEmail, criadoPorMim = 
     return;
   }
 
+  loopIniciadoEm = Date.now();
   const loopCallback = () => {
+    // Para sozinho depois do tempo máximo, mesmo que algo continue pendente
+    if (Date.now() - loopIniciadoEm > DURACAO_MAXIMA_LOOP_MS) {
+      stopSupportNotificationLoop();
+      return;
+    }
+    const configAtual = getAudioConfig();
+    let lista = [];
     try {
-      if (typeof window !== 'undefined') {
-        // Chave real usada por storage.js (getLocalData prefixa com 'rm_'); a chave sem prefixo nunca existia
-        const raw = localStorage.getItem('rm_chamados_suporte');
-        if (raw) {
-          const list = JSON.parse(raw);
-          const myEmail = (userEmail || '').toLowerCase().trim();
-
-          const hasPending = list.some((c) => {
-            const isPending = c.status === 'aguardando_visualizacao' || c.status === 'pendente';
-            if (!isPending) return false;
-
-            // Se o chamado foi adiado pelo usuário e ainda está dentro do período de silêncio, não toca
-            if (c.adiado_ate && Date.now() < new Date(c.adiado_ate).getTime()) {
-              return false;
-            }
-
-            const tecRaw = (c.tecnico_email || '').toLowerCase().trim();
-            const tec = tecRaw === 'geral' ? '' : tecRaw;
-            const isAtribuidoOutro = Boolean(tec && tec !== 'geral' && !c.is_fila_geral && tec !== myEmail);
-            if (isAtribuidoOutro) {
-              return false; // Atribuído a outro funcionário, não continua tocando para mim
-            }
-
-            if (!tec || c.is_fila_geral) {
-              if (config.escopo === 'apenas_meus' || config.escopo === 'atribuidos') {
-                return false;
-              }
-            }
-
-            return true;
-          });
-
-          if (!hasPending) {
-            stopSupportNotificationLoop();
-            return;
-          }
-        }
+      if (fonteChamadosAtivos) {
+        lista = fonteChamadosAtivos() || [];
+      } else if (typeof window !== 'undefined') {
+        lista = JSON.parse(localStorage.getItem('rm_chamados_suporte') || '[]');
       }
-    } catch (e) {}
-    playNotificationTone(config.tipoSom);
+    } catch (e) {
+      lista = [];
+    }
+    // Só continua tocando se existir na tela uma demanda que, pelas MESMAS regras, deveria tocar para mim
+    const aindaHaPendente = lista.some((c) => deveNotificarChamado(c, userEmail, configAtual));
+    if (!aindaHaPendente) {
+      stopSupportNotificationLoop();
+      return;
+    }
+    playNotificationTone(configAtual.tipoSom);
   };
 
   // Modo intermitente: sem tempo mínimo de espera, toca em ciclo contínuo (~1.1s logo após o término do toque)

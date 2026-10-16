@@ -12,6 +12,7 @@ import {
   setConfiguracoesSuporte,
   getServidoresConfig,
   setServidoresConfig,
+  fetchServidoresConfig,
   getCategoriasDemandas,
   addCategoriaDemanda,
   removeCategoriaDemanda,
@@ -110,6 +111,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
     window.addEventListener('categorias_demandas_updated', handleCatsUpdate);
     window.addEventListener('rm_agenda_config_updated', handleAgendaUpdate);
     const handleServidoresUpdate = () => setServidoresConfigState(getServidoresConfig() || {});
+    fetchServidoresConfig();
     window.addEventListener('rm_servidores_config_updated', handleServidoresUpdate);
     window.addEventListener('rm_servidores_urls_updated', handleServidoresUpdate);
 
@@ -1296,9 +1298,13 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
             <div className="flex justify-end pt-2">
               <button
                 type="button"
-                onClick={() => {
-                  setServidoresConfig(servidoresConfig);
-                  showToast('URLs dos servidores salvas com sucesso!', 'success');
+                onClick={async () => {
+                  try {
+                    await setServidoresConfig(servidoresConfig);
+                    showToast('URLs dos servidores salvas para toda a equipe.', 'success');
+                  } catch (err) {
+                    showToast(err.message, 'error');
+                  }
                 }}
                 className="px-4 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 transition-all cursor-pointer"
               >

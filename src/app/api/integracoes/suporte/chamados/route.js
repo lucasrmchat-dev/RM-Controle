@@ -1,5 +1,7 @@
 import { autenticarIntegracao, criarChamadoIntegracao, respostaErro } from '@/lib/server/integracaoSuporte';
 
+import { consumirLimite, ipDaRequisicao } from '@/lib/server/protecao';
+
 export const dynamic = 'force-dynamic';
 
 /**
@@ -16,6 +18,10 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request) {
   try {
+    // Limite persistente por IP (vale entre instâncias), além do limite em memória do middleware
+    if (!(await consumirLimite(`integracao_${ipDaRequisicao(request)}`, 120, 60))) {
+      return Response.json({ ok: false, erro: 'limite_excedido', mensagem: 'Muitas requisições. Tente novamente em instantes.' }, { status: 429, headers: { 'Retry-After': '60' } });
+    }
     const config = await autenticarIntegracao(request);
     const body = await request.json().catch(() => ({}));
     const resultado = await criarChamadoIntegracao(body, config);

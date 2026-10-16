@@ -6,8 +6,16 @@
 const SESSION_COOKIE_NAME = 'rm_session_token';
 const DEFAULT_SECRET = 'rm_ctrl_sec_k9_f8a29b4e710d486cb7301c238e88e89f1';
 
+// Em produção, nunca usa o segredo fixo do código (ele é público no repositório): sem SESSION_SECRET,
+// deriva um segredo da SUPABASE_SERVICE_ROLE_KEY, que só existe no servidor.
+let segredoDerivado = null;
 function getSessionSecret() {
-  return process.env.SESSION_SECRET || DEFAULT_SECRET;
+  if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
+  if (process.env.NODE_ENV === 'production' && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    if (!segredoDerivado) segredoDerivado = `rm_sessao_${process.env.SUPABASE_SERVICE_ROLE_KEY}`;
+    return segredoDerivado;
+  }
+  return DEFAULT_SECRET;
 }
 
 /**
