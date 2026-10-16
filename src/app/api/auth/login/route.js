@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { sanitizeEmail, sanitizeString } from '@/lib/sanitize';
 import { consumirLimite, verificarCaptcha, ipDaRequisicao } from '@/lib/server/protecao';
 import { createSessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
-import { verificarCredenciais, obterPapelServidor } from '@/lib/server/acesso';
+import { verificarCredenciais, obterAcessoServidor } from '@/lib/server/acesso';
 import { ROTULOS_PAPEL } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
@@ -67,15 +67,29 @@ export async function POST(request) {
           error: credenciais.motivo === 'usuario_inativo'
             ? 'Este usuário está desativado. Fale com o administrador.'
             : credenciais.motivo === 'servidor_nao_configurado'
-              ? 'Autenticação indisponível: servidor sem configuração do banco.'
+              ? `Autenticação indisponível: ${credenciais.detalhe || 'servidor sem configuração do banco'}.`
               : 'E-mail ou senha incorretos.',
         },
         { status: credenciais.motivo === 'servidor_nao_configurado' ? 503 : 401 }
       );
     }
 
+    // Só proprietários e membros ATIVOS de Equipe & Senhas entram: é a mesma regra da RLS do banco.
+    // Antes a pessoa entrava como "suporte" e via a fila e as empresas vazias, sem nenhum aviso.
+    const acesso = await obterAcessoServidor(emailLimpo);
+    if (!acesso.liberado) {
+      return NextResponse.json(
+        {
+          error: acesso.naEquipe
+            ? 'Seu acesso está desativado em Equipe & Senhas. Fale com o administrador.'
+            : `O e-mail ${emailLimpo} não está cadastrado em Equipe & Senhas. Peça ao administrador para cadastrá-lo (com este mesmo e-mail).`,
+        },
+        { status: 403 }
+      );
+    }
+
     // Papel vem do cadastro da equipe (nunca do texto do e-mail)
-    const userRole = await obterPapelServidor(emailLimpo);
+    const userRole = acesso.papel;
     const userName = ROTULOS_PAPEL[userRole] || emailLimpo.split('@')[0];
 
     // 5. Geração de Token Criptografado HTTP-Only

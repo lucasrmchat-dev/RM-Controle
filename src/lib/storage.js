@@ -911,7 +911,7 @@ export async function iniciarSuporte({
     const localId = novoChamado.id;
     try {
       const { data: dbSaved, error } = await inserirChamadoNuvem({
-        empresa_id: isCloudId(empresa_id) ? empresa_id : null,
+        empresa_id: isCloudId(empresa_id) ? empresa_id : resolverEmpresaIdPorNome(empresa_nome),
         empresa_nome: empresa_nome || 'Empresa',
         tecnico_email: userEmail,
         atendente: getNomeTecnico(userEmail),
@@ -1051,7 +1051,7 @@ export async function adicionarChamadoFila({
       const localId = novoChamado.id;
       try {
         const { data: dbSaved, error } = await inserirChamadoNuvem({
-          empresa_id: isCloudId(empresa_id) ? empresa_id : null,
+          empresa_id: isCloudId(empresa_id) ? empresa_id : resolverEmpresaIdPorNome(empresa_nome),
           empresa_nome: empresa_nome || 'Empresa',
           tecnico_email: userEmail,
           atendente: getNomeTecnico(userEmail),
@@ -1159,7 +1159,7 @@ export async function adicionarChamadoFila({
     const localId = novoChamado.id;
     try {
       const { data: dbSaved, error } = await inserirChamadoNuvem({
-        empresa_id: isCloudId(empresa_id) ? empresa_id : null,
+        empresa_id: isCloudId(empresa_id) ? empresa_id : resolverEmpresaIdPorNome(empresa_nome),
         empresa_nome: empresa_nome || 'Empresa',
         // 'geral' marca a Fila Geral sem ambiguidade. Antes gravava o e-mail de quem criou, e os outros
         // colaboradores interpretavam como "atribuída a outra pessoa" e nunca recebiam o alerta sonoro.
@@ -1344,6 +1344,41 @@ export async function assumirSuporte({ chamado_id, userEmail = 'admin@rmcontrole
   return chamados[idx];
 }
 
+// Última leitura da fila na nuvem (para o diagnóstico de visibilidade)
+let ultimaLeituraNuvem = null;
+export function getUltimaLeituraFilaNuvem() {
+  return ultimaLeituraNuvem;
+}
+
+/**
+ * Compara o que o banco tem com o que este usuário recebeu. Retorna null quando está tudo certo,
+ * ou { ocultas, motivo } quando há demandas abertas que o banco não está entregando para ele.
+ */
+export async function diagnosticarVisibilidadeFila() {
+  if (typeof window === 'undefined' || !window.location || !isSupabaseConfigured) return null;
+  const leitura = ultimaLeituraNuvem;
+  if (!leitura) return null;
+  const res = await fetch('/api/fila/diagnostico', { cache: 'no-store' }).catch(() => null);
+  if (!res || !res.ok) return null;
+  const d = await res.json().catch(() => null);
+  if (!d?.ok) return null;
+  const ocultas = d.ativosNoBanco - leitura.quantidade;
+  if (ocultas <= 0) return null;
+
+  let motivo;
+  if (!d.proprietario && !d.naEquipe) {
+    motivo = `o e-mail ${d.email} não está cadastrado em Equipe & Senhas. O banco só mostra demandas para membros da equipe — peça ao administrador para cadastrar este e-mail exatamente igual.`;
+  } else if (d.naEquipe && !d.ativo) {
+    motivo = 'seu acesso está desativado em Equipe & Senhas.';
+  } else {
+    const { data } = supabase ? await supabase.auth.getSession() : { data: null };
+    motivo = data?.session
+      ? 'a regra de segurança do banco está bloqueando a leitura. Confirme que a migração migration_supabase_completa.sql foi executada.'
+      : 'sua conexão com o banco expirou. Saia e entre novamente.';
+  }
+  return { ocultas, total: d.ativosNoBanco, motivo };
+}
+
 export async function fetchChamadosFila() {
   if (isSupabaseConfigured && supabase) {
     try {
@@ -1370,6 +1405,8 @@ export async function fetchChamadosFila() {
       const idsMigrados = getLocalData('chamados_ids_migrados', {});
 
       if (!error && Array.isArray(data)) {
+        // Quantas demandas abertas a nuvem entregou para ESTE usuário (comparado no diagnóstico)
+        ultimaLeituraNuvem = { quantidade: data.length, em: Date.now(), erro: null };
         // Exclui estritamente chamados já finalizados, cancelados ou registrados no histórico
         const activeData = data.filter((d) => {
           if (!d || !d.id) return false;
@@ -1420,7 +1457,7 @@ export async function fetchChamadosFila() {
 
           return {
             id: d.id,
-            empresa_id: d.empresa_id,
+            empresa_id: d.empresa_id || resolverEmpresaIdPorNome(d.empresa_nome),
             empresa_nome: d.empresa_nome,
             solicitante_nome: d.colaborador_solicitante || 'Colaborador da Empresa',
             tecnico_email: d.tecnico_email === 'geral' ? '' : (d.tecnico_email || ''),
@@ -1521,7 +1558,7 @@ async function reenviarChamadosPendentes() {
   try {
     for (const c of pendentes) {
       const { data, error } = await inserirChamadoNuvem({
-        empresa_id: isCloudId(c.empresa_id) ? c.empresa_id : null,
+        empresa_id: isCloudId(c.empresa_id) ? c.empresa_id : resolverEmpresaIdPorNome(c.empresa_nome),
         empresa_nome: c.empresa_nome || 'Empresa',
         tecnico_email: c.tecnico_email || (c.is_fila_geral ? 'geral' : c.criador_email) || 'geral',
         atendente: c.tecnico_nome || getNomeTecnico(c.tecnico_email || c.criador_email),
@@ -1569,8 +1606,9 @@ export function sincronizarDadosCompartilhados() {
   return sincronizacaoEmAndamento;
 }
 
+// Mesma lista que a Fila exibe (o contador do menu mostrava itens que a fila escondia)
 export function getFilaChamados() {
-  return getChamadosSuporte();
+  return getChamadosSuporte().filter((c) => !isChamadoFeedback(c));
 }
 
 export function getChamadosResolvidosHoje() {
@@ -2073,7 +2111,7 @@ export async function fetchHistoricoChamados() {
 
           return {
             id: d.id,
-            empresa_id: d.empresa_id,
+            empresa_id: d.empresa_id || resolverEmpresaIdPorNome(d.empresa_nome),
             empresa_nome: d.empresa_nome,
             tecnico_email: d.tecnico_email,
             tecnico_nome: d.atendente || getNomeTecnico(d.tecnico_email),
@@ -2845,16 +2883,17 @@ export async function fetchEquipeUsuarios() {
         .from('equipe_usuarios')
         .select('id, nome, email, papel, ativo, departamentos, departamentos_bloqueados, primeiro_acesso_concluido, primeiro_acesso_data, created_at');
 
-      if (!error && data && data.length > 0) {
+      if (!error && Array.isArray(data)) {
+        // A equipe é EXATAMENTE o que está no banco. Antes a lista local (e uma lista fixa no código)
+        // era misturada aqui: a tela mostrava Maria, Pedro e Rayane como cadastrados, mas o banco
+        // não os conhecia — e por isso eles não viam nenhuma demanda.
         const local = getLocalData('equipe_usuarios', []);
+        const anteriores = new Map(local.filter((u) => u?.email).map((u) => [u.email.toLowerCase().trim(), u]));
         const map = new Map();
-        local.forEach((u) => {
-          if (u.email) map.set(u.email.toLowerCase().trim(), u);
-        });
         data.forEach((u) => {
           if (!u.email) return;
           const email = u.email.toLowerCase().trim();
-          const { senha: _descartada, ...prev } = map.get(email) || {};
+          const { senha: _descartada, ...prev } = anteriores.get(email) || {};
           map.set(email, {
             ...prev,
             id: u.id,
@@ -2871,6 +2910,7 @@ export async function fetchEquipeUsuarios() {
         });
         const merged = Array.from(map.values());
         setLocalData('equipe_usuarios', merged);
+        setLocalData('equipe_sincronizada_nuvem', true);
         return merged;
       }
     } catch (e) {
@@ -2892,8 +2932,11 @@ export const DEFAULT_EQUIPE_REAL = [
 export function getEquipeUsuarios() {
   let rawList = getLocalData('equipe_usuarios', DEFAULT_EQUIPE_REAL);
 
+  // Com o banco já sincronizado, a lista local é espelho dele: nada de completar com a lista fixa
+  const espelhoDoBanco = isSupabaseConfigured && getLocalData('equipe_sincronizada_nuvem', false);
+
   // Remove contas genéricas de mock se mock estiver desligado
-  if (!isMockDataEnabled()) {
+  if (!isMockDataEnabled() && !espelhoDoBanco) {
     rawList = rawList.filter((u) => {
       const nomeLower = (u.nome || '').toLowerCase().trim();
       const emailLower = (u.email || '').toLowerCase().trim();
@@ -5318,15 +5361,21 @@ export async function setServidoresConfig(config) {
     throw new Error(`As URLs não foram salvas: ${e.message}`);
   }
 }
-export function getHistoricoCompletoEmpresa(empresaId) {
+export function getHistoricoCompletoEmpresa(empresaId, empresaNome = '') {
   if (!empresaId) return [];
   const historico = getLocalData('historico_chamados', []) || [];
   const ativos = getLocalData('chamados_suporte', []) || [];
+  // O vínculo é pelo ID da empresa. Demandas antigas sem ID (criadas digitando o nome)
+  // entram pelo nome, desde que não estejam vinculadas a OUTRA empresa.
+  const nomeAlvo = normalizarNomeEmpresa(empresaNome);
+  const pertence = (c) => {
+    if (!c) return false;
+    const idDemanda = c.empresa_id || c.empresa?.id;
+    if (idDemanda) return idDemanda === empresaId;
+    return Boolean(nomeAlvo) && normalizarNomeEmpresa(c.empresa_nome) === nomeAlvo;
+  };
 
-  const filtrados = [
-    ...historico.filter((c) => c && (c.empresa_id === empresaId || (c.empresa && c.empresa.id === empresaId))),
-    ...ativos.filter((c) => c && (c.empresa_id === empresaId || (c.empresa && c.empresa.id === empresaId))),
-  ];
+  const filtrados = [...historico.filter(pertence), ...ativos.filter(pertence)];
 
   const mapa = new Map();
   filtrados.forEach((c) => {
@@ -5340,6 +5389,18 @@ export function getHistoricoCompletoEmpresa(empresaId) {
     const dataA = new Date(a.finalizado_em || a.iniciado_em || a.created_at || 0).getTime();
     return dataB - dataA;
   });
+}
+
+function normalizarNomeEmpresa(nome) {
+  return removerAcentos(String(nome || '')).toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+/** ID oficial da empresa pelo nome (para demandas abertas sem a empresa selecionada da lista). */
+export function resolverEmpresaIdPorNome(nome) {
+  const alvo = normalizarNomeEmpresa(nome);
+  if (!alvo) return null;
+  const empresa = (getLocalData('empresas_reais', []) || []).find((e) => isCloudId(e?.id) && normalizarNomeEmpresa(e.nome) === alvo);
+  return empresa?.id || null;
 }
 
 export async function reatribuirChamadoSuporte(chamadoId, novoTecnicoEmail, novoTecnicoNome = null, alteradoPor = 'admin@rmcontrole.com') {

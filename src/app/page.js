@@ -280,6 +280,14 @@ export default function Home() {
         // 1. Validação prioritária por Cookie HTTP-Only seguro (/api/auth/session)
         try {
           const res = await fetch('/api/auth/session', { cache: 'no-store' });
+          if (res.status === 403) {
+            // Fora da equipe: encerra também a sessão do Supabase e explica o motivo no login
+            const dataBloqueio = await res.json().catch(() => ({}));
+            await handleLogout();
+            setLoginError(dataBloqueio.motivo || 'Seu acesso não está liberado. Fale com o administrador.');
+            setAuthLoading(false);
+            return;
+          }
           if (res.ok) {
             const data = await res.json();
             if (data.authenticated && data.user?.email) {
