@@ -480,6 +480,12 @@ function substituirIdLocalChamado(localId, cloudId) {
   registrarIdMigrado(localId, cloudId);
   registrarMutacaoLocal();
   if (getChamadosEncerradosIds().has(localId)) registrarChamadoEncerrado(cloudId);
+  const silencios = getSilenciamentos();
+  if (silencios[localId]) {
+    silencios[cloudId] = silencios[localId];
+    delete silencios[localId];
+    setLocalData(CHAVE_SILENCIAMENTOS, silencios);
+  }
   const lista = getLocalData('chamados_suporte', []);
   const idx = lista.findIndex((c) => c && c.id === localId);
   if (idx === -1) return;
@@ -643,6 +649,61 @@ export function removeMotivoSuporte(id) {
     );
   }
   return true;
+}
+
+/**
+ * Renomeia um motivo SEM perder as métricas: as demandas já registradas com o nome antigo
+ * passam a usar o novo nome (as métricas agrupam pelo nome do motivo).
+ */
+export async function renomearMotivoSuporte(id, { nome, descricao }, userEmail = 'admin@rmcontrole.com') {
+  const novoNome = (nome || '').trim();
+  if (!novoNome) throw new Error('Informe o novo nome do motivo.');
+  const motivos = getLocalData('motivos_suporte', DEFAULT_MOTIVOS_SUPORTE);
+  const atual = motivos.find((m) => m.id === id);
+  if (!atual) throw new Error('Motivo não encontrado.');
+  const nomeAntigo = atual.nome;
+  if (motivos.some((m) => m.id !== id && m.nome.toLowerCase().trim() === novoNome.toLowerCase())) {
+    throw new Error(`Já existe um motivo chamado "${novoNome}".`);
+  }
+
+  if (podeUsarTabelas() && isCloudId(id)) {
+    const campos = { nome: novoNome };
+    if (descricao !== undefined) campos.descricao = descricao;
+    const { data, error } = await supabase.from('suporte_motivos').update(campos).eq('id', id).select('id');
+    if (error || !Array.isArray(data) || data.length === 0) {
+      throw new Error(`Não foi possível renomear o motivo: ${error?.message || 'apenas administradores podem editar o catálogo'}`);
+    }
+    if (nomeAntigo !== novoNome) {
+      const { error: erroDemandas } = await supabase.from('suporte_chamados').update({ motivo: novoNome }).eq('motivo', nomeAntigo).eq('status', 'finalizado');
+      if (erroDemandas) avisarFalhaSync(`Motivo renomeado, mas as demandas antigas não foram atualizadas: ${erroDemandas.message}`);
+    }
+  }
+
+  setLocalData('motivos_suporte', motivos.map((m) => (m.id === id ? { ...m, nome: novoNome, descricao: descricao ?? m.descricao } : m)));
+  if (nomeAntigo !== novoNome) {
+    const historico = getLocalData('historico_chamados', []);
+    setLocalData('historico_chamados', historico.map((c) => (c.motivo === nomeAntigo ? { ...c, motivo: novoNome } : c)));
+  }
+
+  await logAuditoria({
+    usuarioEmail: userEmail,
+    acao: 'renomeou_motivo_suporte',
+    detalhes: { de: nomeAntigo, para: novoNome, modulo: 'Motivos de Atendimento' },
+  });
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('motivos_updated'));
+  return true;
+}
+
+/** Motivos digitados ao concluir demandas que nunca entraram no catálogo (com a quantidade de usos). */
+export function getMotivosEmUsoForaDoCatalogo() {
+  const catalogo = new Set(getMotivosSuporte().map((m) => (m.nome || '').toLowerCase().trim()));
+  const contagem = new Map();
+  (getLocalData('historico_chamados', []) || []).forEach((c) => {
+    const nome = (c?.motivo || '').trim();
+    if (!nome || catalogo.has(nome.toLowerCase()) || nome === 'Atendimento Geral') return;
+    contagem.set(nome, (contagem.get(nome) || 0) + 1);
+  });
+  return Array.from(contagem, ([nome, usos]) => ({ nome, usos })).sort((a, b) => b.usos - a.usos);
 }
 
 /** Baixa o catálogo de motivos da equipe; na primeira vez, envia motivos que só existiam aqui. */
@@ -1231,42 +1292,65 @@ export async function atualizarEtiquetasChamado(chamadoId, novasEtiquetas, userE
   return chamados[idx];
 }
 
+// Silenciamentos de alerta são preferência de cada colaborador e ficam numa chave própria:
+// antes iam dentro da cópia local da demanda, que é reconstruída a cada sync e perdia o adiamento.
+// Formato: { [chamadoId]: { ate: ISO | null, sempre: boolean, por: email } }
+const CHAVE_SILENCIAMENTOS = 'alertas_silenciados';
+
+function getSilenciamentos() {
+  return getLocalData(CHAVE_SILENCIAMENTOS, {}) || {};
+}
+
+function silenciamentoDe(chamadoId) {
+  const mapa = getSilenciamentos();
+  if (mapa[chamadoId]) return mapa[chamadoId];
+  const migrado = getLocalData('chamados_ids_migrados', {})[chamadoId];
+  return migrado ? mapa[migrado] || null : null;
+}
+
+/** Aplica os silenciamentos do usuário na demanda (usado pela tela e pelo alerta sonoro). */
+function aplicarSilenciamento(chamado) {
+  const sil = silenciamentoDe(chamado.id);
+  if (!sil) return chamado;
+  return { ...chamado, adiado_ate: sil.sempre ? null : sil.ate, alerta_silenciado_sempre: Boolean(sil.sempre) };
+}
+
+/**
+ * Adia o alerta sonoro DESTA demanda. `minutos` = número de minutos, ou 'nunca' para nunca
+ * mais alertar sobre ela (vale só para quem silenciou; as outras demandas continuam alertando).
+ */
 export function adiarAlertaChamado(chamadoId, minutos = 15, userEmail = 'admin@rmcontrole.com') {
   if (!chamadoId) return null;
   const chamados = getLocalData('chamados_suporte', []);
-  const idx = chamados.findIndex((c) => c.id === chamadoId);
-  if (idx === -1) return null;
+  const idx = encontrarIndiceChamado(chamados, chamadoId);
+  const idReal = idx !== -1 ? chamados[idx].id : chamadoId;
+  const sempre = minutos === 'nunca';
 
-  const agora = Date.now();
-  const adiadoAte = new Date(agora + minutos * 60 * 1000).toISOString();
-
-  chamados[idx].adiado_ate = adiadoAte;
-  chamados[idx].adiado_por = userEmail;
-  chamados[idx].adiado_minutos = minutos;
-
-  setLocalData('chamados_suporte', chamados);
+  const mapa = getSilenciamentos();
+  mapa[idReal] = {
+    ate: sempre ? null : new Date(Date.now() + Number(minutos) * 60 * 1000).toISOString(),
+    sempre,
+    por: userEmail,
+  };
+  setLocalData(CHAVE_SILENCIAMENTOS, mapa);
 
   try {
     stopSupportNotificationLoop();
   } catch (e) {}
 
   window.dispatchEvent(new Event('suporte_updated'));
-  return chamados[idx];
+  return idx !== -1 ? aplicarSilenciamento(chamados[idx]) : null;
 }
 
 export function cancelarAdiarAlertaChamado(chamadoId, userEmail = 'admin@rmcontrole.com') {
   if (!chamadoId) return null;
-  const chamados = getLocalData('chamados_suporte', []);
-  const idx = chamados.findIndex((c) => c.id === chamadoId);
-  if (idx === -1) return null;
-
-  delete chamados[idx].adiado_ate;
-  delete chamados[idx].adiado_por;
-  delete chamados[idx].adiado_minutos;
-
-  setLocalData('chamados_suporte', chamados);
+  const mapa = getSilenciamentos();
+  const migrado = getLocalData('chamados_ids_migrados', {})[chamadoId];
+  delete mapa[chamadoId];
+  if (migrado) delete mapa[migrado];
+  setLocalData(CHAVE_SILENCIAMENTOS, mapa);
   window.dispatchEvent(new Event('suporte_updated'));
-  return chamados[idx];
+  return true;
 }
 
 export function marcarChamadoEscalonado(chamadoId) {
@@ -1940,6 +2024,42 @@ export async function addColaboradorEmpresa(empresaId, { nome, cargo = '', email
   return novoColaborador;
 }
 
+/**
+ * Garante o colaborador na empresa E o acesso dele em "Acessos e Senhas Técnicas"
+ * (nome obrigatório; e-mail e senha opcionais). Não duplica: se já existir pelo nome,
+ * só atualiza e-mail/senha quando informados e diferentes.
+ */
+export async function garantirColaboradorComAcesso(empresaId, { nome, email = '', telefone = '', senha = '', cargo = 'Solicitante' }, userEmail = 'admin@rmcontrole.com') {
+  const nomeLimpo = (nome || '').trim();
+  if (!empresaId || nomeLimpo.length < 2) return null;
+  const chave = nomeLimpo.toLowerCase();
+
+  let colaborador = getColaboradoresEmpresa(empresaId).find((c) => (c.nome || '').toLowerCase().trim() === chave);
+  if (!colaborador) {
+    colaborador = await addColaboradorEmpresa(empresaId, { nome: nomeLimpo, cargo, email, telefone }, userEmail);
+  }
+
+  const acesso = getEmpresaCredenciais(empresaId).find(
+    (c) => (c.nome_usuario || '').toLowerCase().trim() === chave || (c.rotulo || '').toLowerCase().trim() === `colaborador - ${chave}`
+  );
+  if (!acesso) {
+    await addEmpresaCredencial(empresaId, {
+      rotulo: `Colaborador - ${nomeLimpo}`,
+      nome_usuario: nomeLimpo,
+      usuario_email: email,
+      senha,
+      observacao: 'Colaborador solicitante (cadastrado pela Fila de Demandas)',
+      is_principal: false,
+    }, userEmail);
+  } else {
+    const mudancas = {};
+    if (email && email.trim() !== (acesso.usuario_email || '')) mudancas.usuario_email = email;
+    if (senha && senha.trim()) mudancas.senha = senha;
+    if (Object.keys(mudancas).length > 0) await updateEmpresaCredencial(empresaId, acesso.id, mudancas, userEmail);
+  }
+  return colaborador;
+}
+
 export function getColaboradoresEmpresa(empresaId) {
   if (!empresaId) return [];
   const mapa = getLocalData(CHAVE_COLABORADORES, {});
@@ -2348,7 +2468,7 @@ export function getChamadosSuporte({ empresa_id = null, status = 'todos' } = {})
   if (status && status !== 'todos') {
     chamados = chamados.filter((c) => c.status === status);
   }
-  return chamados;
+  return chamados.map(aplicarSilenciamento);
 }
 
 export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim = null, categoria = null } = {}) {
@@ -2642,7 +2762,7 @@ export function getEmpresaCredenciais(empresaId) {
   return emp.credenciais_lista || [];
 }
 
-export async function addEmpresaCredencial(empresaId, { rotulo, nome_usuario = '', usuario_email = '', senha = '', observacao = '' }, userEmail = 'admin@rmcontrole.com') {
+export async function addEmpresaCredencial(empresaId, { rotulo, nome_usuario = '', usuario_email = '', senha = '', observacao = '', is_principal = false }, userEmail = 'admin@rmcontrole.com') {
 
   let credId = 'cred_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
 
@@ -2655,8 +2775,13 @@ export async function addEmpresaCredencial(empresaId, { rotulo, nome_usuario = '
         .insert([
           {
             empresa_id: empresaId,
+            rotulo: (rotulo || 'Acesso Suporte').trim(),
+            nome_usuario: (nome_usuario || '').trim() || null,
             email_administrador: (usuario_email || '').trim() || null,
-            senha_suporte: senha.trim(),
+            usuario_email: (usuario_email || '').trim() || null,
+            senha_suporte: (senha || '').trim() || null,
+            observacao: (observacao || '').trim() || null,
+            is_principal: Boolean(is_principal),
             ultima_alteracao: new Date().toISOString(),
           }
         ])
@@ -2664,13 +2789,10 @@ export async function addEmpresaCredencial(empresaId, { rotulo, nome_usuario = '
         .select('id')
         .single();
 
-      if (!credErr && dbCred) {
-        credId = dbCred.id;
-      } else if (credErr) {
-        console.warn('Erro ao inserir credencial no Supabase:', credErr);
-      }
+      if (credErr) throw new Error(`Não foi possível salvar o acesso para a equipe: ${credErr.message}`);
+      credId = dbCred.id;
     } catch (e) {
-      console.warn('Erro ao inserir credencial no Supabase:', e);
+      throw e.message?.includes('Não foi possível') ? e : new Error(`Não foi possível salvar o acesso: ${e.message}`);
     }
   }
 
@@ -2754,17 +2876,26 @@ export async function addEmpresaCredencial(empresaId, { rotulo, nome_usuario = '
 }
 
 export async function updateEmpresaCredencial(empresaId, credId, dados, userEmail = 'admin@rmcontrole.com') {
-  if (isSupabaseConfigured && supabase && credId && credId.length === 36) {
-    try {
-      const updateData = {
-        ultima_alteracao: new Date().toISOString(),
-      };
-      if (dados.usuario_email !== undefined) updateData.email_administrador = dados.usuario_email.trim();
-      if (dados.senha !== undefined) updateData.senha_suporte = dados.senha.trim();
+  if (isSupabaseConfigured && supabase && isCloudId(credId)) {
+    const updateData = { ultima_alteracao: new Date().toISOString() };
+    if (dados.usuario_email !== undefined) {
+      updateData.email_administrador = dados.usuario_email.trim();
+      updateData.usuario_email = dados.usuario_email.trim();
+    }
+    // Senha vazia = manter a atual (o banco guarda cifrada)
+    if (dados.senha !== undefined && dados.senha.trim()) updateData.senha_suporte = dados.senha.trim();
+    if (dados.nome_usuario !== undefined) updateData.nome_usuario = dados.nome_usuario.trim();
+    if (dados.rotulo !== undefined) updateData.rotulo = dados.rotulo.trim();
+    if (dados.observacao !== undefined) updateData.observacao = dados.observacao.trim();
+    if (dados.is_principal !== undefined) updateData.is_principal = Boolean(dados.is_principal);
 
-      await supabase.from('empresa_credenciais').update(updateData).eq('id', credId);
-    } catch (e) {
-      console.warn('Erro ao atualizar credencial no Supabase:', e);
+    // Só um acesso principal por empresa
+    if (updateData.is_principal) {
+      await supabase.from('empresa_credenciais').update({ is_principal: false }).eq('empresa_id', empresaId).neq('id', credId);
+    }
+    const { data, error } = await supabase.from('empresa_credenciais').update(updateData).eq('id', credId).select('id');
+    if (error || !Array.isArray(data) || data.length === 0) {
+      throw new Error(`Não foi possível salvar a alteração para a equipe: ${error?.message || 'sem permissão (apenas administrador e suporte editam acessos)'}`);
     }
   }
 
@@ -3353,6 +3484,8 @@ export async function getEmpresas({
             credenciais_lista: empCreds.map((cr) => ({
               id: cr.id,
               rotulo: cr.rotulo || 'Acesso Principal',
+              nome_usuario: cr.nome_usuario || '',
+              is_principal: Boolean(cr.is_principal),
               usuario_email: cr.email_administrador || cr.usuario_email || '',
               email_administrador: cr.email_administrador || cr.usuario_email || '',
               senha: cr.senha_suporte || cr.senha || '',
@@ -4650,18 +4783,10 @@ export const CONFIG_SERVIDOR_PADRAO_GLOBAL = {
   recursos_minimos_vps: '4 vCPU, 8 GB RAM, 80 GB SSD NVMe, 1 Gbps Link.',
 };
 
-export const CHECKLIST_IMPLEMENTACAO_SERVIDOR_PADRAO = [
-  { id: 'chk_srv_1', titulo: 'Provisionamento da VPS & Atualização do SO', desc: 'Instalação do Ubuntu 22.04 LTS com pacotes base atualizados', obrigatorio: true },
-  { id: 'chk_srv_2', titulo: 'Hardening de Segurança (SSH 2222, UFW & Fail2ban)', desc: 'Porta SSH alterada, chave pública configurada e firewall ativo', obrigatorio: true },
-  { id: 'chk_srv_3', titulo: 'Apontamento de DNS & Emissão SSL Let\'s Encrypt', desc: 'Registros A e CNAME propagados com HTTPS ativo no domínio do cliente', obrigatorio: true },
-  { id: 'chk_srv_4', titulo: 'Instalação do Docker Engine & Docker Compose', desc: 'Runtime configurado com inicialização no boot do sistema operacional', obrigatorio: true },
-  { id: 'chk_srv_5', titulo: 'Subida dos Bancos de Dados (PostgreSQL + Redis)', desc: 'Volumes persistentes mapeados e senhas seguras configuradas', obrigatorio: true },
-  { id: 'chk_srv_6', titulo: 'Subida da Engine de Mensageria & Webhooks', desc: 'Instâncias prontas para pareamento de QR Code ou ativação da Meta API', obrigatorio: true },
-  { id: 'chk_srv_7', titulo: 'Validação de Envio e Recebimento de Mensagens', desc: 'Disparo de mensagem de teste com entrega validada e sem atrasos', obrigatorio: true },
-  { id: 'chk_srv_8', titulo: 'Ativação da Rotina de Backup Automático Diário', desc: 'Script cron validado com envio de dump seguro para storage externo', obrigatorio: true },
-  { id: 'chk_srv_9', titulo: 'Cadastro das Credenciais Técnicas no RM Controle', desc: 'Armazenamento da senha de suporte e acessos na aba de Credenciais', obrigatorio: true },
-  { id: 'chk_srv_10', titulo: 'Homologação Final com o Cliente & Entrega', desc: 'Validação operacional completa com os atendentes da empresa', obrigatorio: true },
-];
+// Sem itens pré-definidos: o checklist de implementação começa vazio e cada empresa recebe
+// só o que a equipe cadastrar. (Antes 10 itens padrão eram injetados sem terem sido pedidos.)
+export const CHECKLIST_IMPLEMENTACAO_SERVIDOR_PADRAO = [];
+const ehItemPadraoAntigo = (item) => typeof item?.id === 'string' && item.id.startsWith('chk_srv_');
 
 export function getServidorConfigPadrao() {
   return getLocalData('servidor_config_padrao', CONFIG_SERVIDOR_PADRAO_GLOBAL);
@@ -4680,7 +4805,7 @@ export function setServidorConfigPadrao(config) {
 export function getEmpresaServidorDetalhes(empresaId) {
   if (!empresaId) return null;
   const key = 'servidor_empresa_' + empresaId;
-  return getLocalData(key, {
+  const dados = getLocalData(key, {
     servidor_alocado: 'servidor_1',
     ip_personalizado: '',
     porta_ssh: '2222',
@@ -4694,6 +4819,8 @@ export function getEmpresaServidorDetalhes(empresaId) {
       responsavel: null,
     })),
   });
+  // Remove os itens padrão antigos que ficaram guardados neste navegador
+  return { ...dados, checklist_implementacao: (dados.checklist_implementacao || []).filter((i) => !ehItemPadraoAntigo(i)) };
 }
 
 const CAMPOS_SERVIDOR_EMPRESA = ['ip_personalizado', 'porta_ssh', 'observacoes_infra', 'peculiaridades', 'config_personalizada', 'checklist_implementacao'];
@@ -4719,9 +4846,10 @@ export async function fetchEmpresaServidorDetalhes(empresaId) {
     CAMPOS_SERVIDOR_EMPRESA.forEach((c) => {
       if (data[c] !== undefined && data[c] !== null) daNuvem[c] = data[c];
     });
-    if (!Array.isArray(daNuvem.checklist_implementacao) || daNuvem.checklist_implementacao.length === 0) {
-      daNuvem.checklist_implementacao = atual.checklist_implementacao;
-    }
+    // A nuvem é a fonte da verdade, inclusive quando o checklist está vazio
+    daNuvem.checklist_implementacao = (Array.isArray(data.checklist_implementacao) ? data.checklist_implementacao : []).filter(
+      (i) => !ehItemPadraoAntigo(i)
+    );
     setLocalData(key, { ...atual, ...daNuvem, atualizado_por: data.updated_by, atualizado_em: data.updated_at });
   } else if (typeof window !== 'undefined' && localStorage.getItem('rm_' + key)) {
     // Primeira vez: o que estava só neste navegador vira o registro da equipe

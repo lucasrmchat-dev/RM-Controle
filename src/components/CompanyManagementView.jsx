@@ -425,9 +425,11 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
     }
     setSalvandoTipoCliente(true);
     try {
-      await updateEmpresa(empresa.id, { tipo_cliente: tipoClienteEdit, cliente_desde: clienteDesdeEdit }, userEmail);
+      // Cliente novo: "desde" é sempre a data do cadastro (não editável)
+      const desde = tipoClienteEdit === 'existente' ? clienteDesdeEdit : (empresa.created_at || new Date().toISOString()).slice(0, 10);
+      await updateEmpresa(empresa.id, { tipo_cliente: tipoClienteEdit, cliente_desde: desde }, userEmail);
       empresa.tipo_cliente = tipoClienteEdit;
-      empresa.cliente_desde = clienteDesdeEdit;
+      empresa.cliente_desde = desde;
       // Cliente já existente: o setup já foi feito antes do RM Controle, então o checklist fica 100%
       if (tipoClienteEdit === 'existente') {
         const pendentes = (empresa.checklist || []).filter((c) => !c.concluido);
@@ -1031,22 +1033,31 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   </button>
                 ))}
               </div>
-              <label className="flex items-center justify-between gap-2">
-                <span className="text-slate-500 dark:text-zinc-400">{tipoClienteEdit === 'existente' ? 'Cliente desde' : 'Data de cadastro'}</span>
-                <input
-                  type="date"
-                  value={clienteDesdeEdit || ''}
-                  max={new Date().toISOString().slice(0, 10)}
-                  onChange={(e) => setClienteDesdeEdit(e.target.value)}
-                  className="px-2.5 py-1 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-[11px] font-mono"
-                />
-              </label>
+              {/* Data de cadastro é fixa (dia em que a empresa entrou no sistema) */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-500 dark:text-zinc-400">Cadastrada em</span>
+                <span className="font-mono text-[11px] text-[#1d1d1f] dark:text-white">
+                  {empresa.created_at ? new Date(empresa.created_at).toLocaleDateString('pt-BR') : '—'}
+                </span>
+              </div>
+              {tipoClienteEdit === 'existente' && (
+                <label className="flex items-center justify-between gap-2">
+                  <span className="text-slate-500 dark:text-zinc-400">Cliente desde</span>
+                  <input
+                    type="date"
+                    value={clienteDesdeEdit || ''}
+                    max={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => setClienteDesdeEdit(e.target.value)}
+                    className="px-2.5 py-1 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-[11px] font-mono"
+                  />
+                </label>
+              )}
               {tipoClienteEdit === 'existente' && empresa.tipo_cliente !== 'existente' && (
                 <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-snug">
                   Ao salvar, todos os itens do checklist de setup serão marcados como concluídos (100%).
                 </p>
               )}
-              {(tipoClienteEdit !== (empresa.tipo_cliente || '') || clienteDesdeEdit !== (empresa.cliente_desde || (empresa.created_at || '').slice(0, 10))) && (
+              {(tipoClienteEdit !== (empresa.tipo_cliente || '') || (tipoClienteEdit === 'existente' && clienteDesdeEdit !== (empresa.cliente_desde || (empresa.created_at || '').slice(0, 10)))) && (
                 <button
                   type="button"
                   onClick={handleSalvarTipoCliente}

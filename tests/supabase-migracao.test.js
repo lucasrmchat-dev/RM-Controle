@@ -322,3 +322,71 @@ test('tela de equipe mostra exatamente quem está no banco (não completa com a 
   await storage.fetchEquipeUsuarios();
   assert.deepEqual(storage.getEquipeUsuarios().map((u) => u.email), ['teste@rmchat.com']);
 });
+
+// ---------------------------------------------------------------- pedidos: alerta, motivos, acessos, checklist
+test('"nunca mais alertar" vale só para aquela demanda e sobrevive à sincronização', async () => {
+  const a = await storage.adicionarChamadoFila({ empresa_nome: 'Empresa A', userEmail: 'outra@rmchat.com' });
+  const b = await storage.adicionarChamadoFila({ empresa_nome: 'Empresa B', userEmail: 'outra@rmchat.com' });
+  storage.adiarAlertaChamado(a.id, 'nunca', ADMIN);
+  await storage.fetchChamadosFila(); // sync reconstrói a lista: o silêncio não pode se perder
+  const lista = storage.getChamadosSuporte();
+  assert.equal(lista.find((c) => c.id === a.id).alerta_silenciado_sempre, true);
+  assert.equal(Boolean(lista.find((c) => c.id === b.id).alerta_silenciado_sempre), false);
+  storage.cancelarAdiarAlertaChamado(a.id, ADMIN);
+  assert.equal(Boolean(storage.getChamadosSuporte().find((c) => c.id === a.id).alerta_silenciado_sempre), false);
+});
+
+test('adiar por minutos também sobrevive à sincronização', async () => {
+  const a = await storage.adicionarChamadoFila({ empresa_nome: 'Empresa C', userEmail: 'outra@rmchat.com' });
+  storage.adiarAlertaChamado(a.id, 30, ADMIN);
+  await storage.fetchChamadosFila();
+  assert.ok(new Date(storage.getChamadosSuporte()[0].adiado_ate).getTime() > Date.now());
+});
+
+test('renomear motivo mantém as métricas: demandas antigas passam a usar o novo nome', async () => {
+  db.tables.suporte_motivos = [{ id: 'dddddddd-0000-4000-8000-000000000001', nome: 'Queda de Instância', ativo: true }];
+  db.tables.suporte_chamados = [{ id: 'eeeeeeee-0000-4000-8000-000000000001', motivo: 'Queda de Instância', status: 'finalizado' }];
+  localStorage.setItem('rm_historico_chamados', JSON.stringify([{ id: 'eeeeeeee-0000-4000-8000-000000000001', motivo: 'Queda de Instância', status: 'concluido' }]));
+  await storage.fetchMotivosSuporte();
+  await storage.renomearMotivoSuporte('dddddddd-0000-4000-8000-000000000001', { nome: 'Instabilidade de Conexão' }, ADMIN);
+  assert.equal(db.tables.suporte_motivos[0].nome, 'Instabilidade de Conexão');
+  assert.equal(db.tables.suporte_chamados[0].motivo, 'Instabilidade de Conexão');
+  assert.equal(JSON.parse(localStorage.getItem('rm_historico_chamados'))[0].motivo, 'Instabilidade de Conexão');
+});
+
+test('motivos digitados ao concluir demandas aparecem como "fora do catálogo" com a quantidade de usos', async () => {
+  localStorage.setItem('rm_motivos_suporte', JSON.stringify([{ id: 'm1', nome: 'Catalogado' }]));
+  localStorage.setItem('rm_historico_chamados', JSON.stringify([
+    { id: 'h1', motivo: 'Digitado na hora' }, { id: 'h2', motivo: 'Digitado na hora' }, { id: 'h3', motivo: 'Catalogado' },
+  ]));
+  assert.deepEqual(storage.getMotivosEmUsoForaDoCatalogo(), [{ nome: 'Digitado na hora', usos: 2 }]);
+});
+
+test('alterar e-mail e senha de um acesso chega ao banco para toda a equipe (e falha avisa)', async () => {
+  db.tables.empresa_credenciais = [{ id: 'cccccccc-0000-4000-8000-000000000002', empresa_id: EMPRESA, rotulo: 'Painel', email_administrador: 'velho@x.com' }];
+  await storage.updateEmpresaCredencial(EMPRESA, 'cccccccc-0000-4000-8000-000000000002', { usuario_email: 'novo@x.com', senha: 'NovaSenha#1', nome_usuario: 'Bia' }, ADMIN);
+  const linha = db.tables.empresa_credenciais[0];
+  assert.equal(linha.email_administrador, 'novo@x.com');
+  assert.equal(linha.nome_usuario, 'Bia');
+  assert.equal(linha.senha_suporte, 'NovaSenha#1');
+  db.rls.updateAllowed = false;
+  await assert.rejects(() => storage.updateEmpresaCredencial(EMPRESA, 'cccccccc-0000-4000-8000-000000000002', { usuario_email: 'x@x.com' }, ADMIN), /Não foi possível salvar/);
+});
+
+test('solicitante vira colaborador + acesso da empresa, sem duplicar a cada demanda; e-mail e senha opcionais', async () => {
+  localStorage.setItem('rm_empresas_reais', JSON.stringify([{ id: EMPRESA, nome: 'Rocha e Vargas', credenciais_lista: [] }]));
+  await storage.garantirColaboradorComAcesso(EMPRESA, { nome: 'Joana Lima' }, ADMIN);
+  await storage.garantirColaboradorComAcesso(EMPRESA, { nome: 'joana lima' }, ADMIN);
+  assert.equal(db.tables.empresa_colaboradores.length, 1);
+  assert.equal(db.tables.empresa_credenciais.length, 1);
+  assert.equal(db.tables.empresa_credenciais[0].nome_usuario, 'Joana Lima');
+  assert.equal(db.tables.empresa_credenciais[0].senha_suporte, null, 'senha é opcional');
+});
+
+test('checklist de implementação do servidor não traz mais os 10 itens padrão', () => {
+  assert.equal(storage.CHECKLIST_IMPLEMENTACAO_SERVIDOR_PADRAO.length, 0);
+  localStorage.setItem(`rm_servidor_empresa_${EMPRESA}`, JSON.stringify({
+    checklist_implementacao: [{ id: 'chk_srv_8', titulo: 'Ativação da Rotina de Backup Automático Diário' }, { id: 'chk_custom_1', titulo: 'Meu item' }],
+  }));
+  assert.deepEqual(storage.getEmpresaServidorDetalhes(EMPRESA).checklist_implementacao.map((i) => i.titulo), ['Meu item']);
+});

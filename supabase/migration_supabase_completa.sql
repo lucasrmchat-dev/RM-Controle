@@ -148,6 +148,25 @@ CREATE TABLE IF NOT EXISTS public.empresa_servidor (
   updated_by TEXT
 );
 
+-- Garante todas as colunas mesmo se a tabela já existia com outro formato
+ALTER TABLE public.empresa_servidor ADD COLUMN IF NOT EXISTS ip_personalizado TEXT DEFAULT '';
+ALTER TABLE public.empresa_servidor ADD COLUMN IF NOT EXISTS porta_ssh TEXT DEFAULT '2222';
+ALTER TABLE public.empresa_servidor ADD COLUMN IF NOT EXISTS observacoes_infra TEXT DEFAULT '';
+ALTER TABLE public.empresa_servidor ADD COLUMN IF NOT EXISTS peculiaridades TEXT DEFAULT '';
+ALTER TABLE public.empresa_servidor ADD COLUMN IF NOT EXISTS config_personalizada TEXT DEFAULT '';
+ALTER TABLE public.empresa_servidor ADD COLUMN IF NOT EXISTS checklist_implementacao JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE public.empresa_servidor ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE public.empresa_servidor ADD COLUMN IF NOT EXISTS updated_by TEXT;
+
+-- Remove os 10 itens padrão que eram injetados sem terem sido pedidos (ids chk_srv_*);
+-- itens cadastrados pela equipe são mantidos
+UPDATE public.empresa_servidor
+   SET checklist_implementacao = coalesce((
+         SELECT jsonb_agg(item) FROM jsonb_array_elements(checklist_implementacao) item
+          WHERE coalesce(item ->> 'id', '') NOT LIKE 'chk_srv_%'
+       ), '[]'::jsonb)
+ WHERE checklist_implementacao::text LIKE '%chk_srv_%';
+
 -- Colaboradores (contatos) de cada empresa
 CREATE TABLE IF NOT EXISTS public.empresa_colaboradores (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

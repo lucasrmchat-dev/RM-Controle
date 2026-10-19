@@ -193,6 +193,9 @@ export function deveNotificarChamado(chamado, userEmail, config = getAudioConfig
   const isPendente = !chamado.status || chamado.status === 'aguardando_visualizacao' || chamado.status === 'pendente';
   if (!isPendente) return false;
 
+  // "Nunca mais alertar" desta demanda específica
+  if (chamado.alerta_silenciado_sempre) return false;
+
   // Adiado / pausado pelo usuário (Snooze): silencia até expirar o tempo
   if (chamado.adiado_ate && Date.now() < new Date(chamado.adiado_ate).getTime()) return false;
 

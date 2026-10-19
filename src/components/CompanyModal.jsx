@@ -158,7 +158,7 @@ Aqui está a lista de empresas bruta:
         nome: nomeLimpo,
         servidor_alocado: servidor,
         tipo_cliente: tipoCliente,
-        cliente_desde: dataCliente,
+        cliente_desde: tipoCliente === 'existente' ? dataCliente : new Date().toISOString().slice(0, 10),
         email_administrador: adminEmail.trim(),
         senha_suporte: senhaSuporte.trim() || getSenhaPadraoRedefinicao(),
       });
@@ -204,7 +204,7 @@ Aqui está a lista de empresas bruta:
         empresas: empresasDetectadas,
         servidor_alocado: servidor,
         tipo_cliente: tipoCliente,
-        cliente_desde: dataCliente,
+        cliente_desde: tipoCliente === 'existente' ? dataCliente : new Date().toISOString().slice(0, 10),
       });
       onClose();
     } catch (err) {
@@ -603,9 +603,15 @@ function CamposTipoCliente({ tipo, onTipo, data, onData }) {
           </button>
         ))}
       </div>
+      {tipo === 'novo' && (
+        <p className="text-[11px] text-slate-500 dark:text-zinc-400 pl-1">
+          Data de cadastro: hoje ({new Date().toLocaleDateString('pt-BR')}). Ela não pode ser alterada depois.
+        </p>
+      )}
+      {tipo === 'existente' && (
       <label className="flex items-center justify-between gap-3 pl-1">
         <span className="text-xs font-medium text-slate-600 dark:text-zinc-400">
-          {tipo === 'existente' ? 'Cliente desde' : 'Data de cadastro'}
+          Cliente desde
         </span>
         <input
           type="date"
@@ -615,6 +621,7 @@ function CamposTipoCliente({ tipo, onTipo, data, onData }) {
           className="px-3 py-2 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono text-[#1d1d1f] dark:text-white"
         />
       </label>
+      )}
     </div>
   );
 }

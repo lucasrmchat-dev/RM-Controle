@@ -24,6 +24,10 @@ import {
   getMotivosSuporte,
   addMotivoSuporte,
   removeMotivoSuporte,
+  renomearMotivoSuporte,
+  fetchMotivosSuporte,
+  getMotivosEmUsoForaDoCatalogo,
+  fetchHistoricoChamados,
   updateEquipeUsuario,
   getCategoriasDemandas,
   getEmpresas
@@ -83,6 +87,9 @@ export default function ServerConfigView() {
   const [motivosList, setMotivosList] = useState([]);
   const [novoMotivoNome, setNovoMotivoNome] = useState('');
   const [novoMotivoDesc, setNovoMotivoDesc] = useState('');
+  const [motivoEditando, setMotivoEditando] = useState(null); // { id, nome, descricao }
+  const [salvandoMotivo, setSalvandoMotivo] = useState(false);
+  const [motivosForaCatalogo, setMotivosForaCatalogo] = useState([]);
 
   // Configurações Gerais: Senha Padrão & Regras de Suporte
   const [senhaPadrao, setSenhaPadrao] = useState('');
@@ -104,6 +111,11 @@ export default function ServerConfigView() {
     setSenhaPadrao(getSenhaPadraoRedefinicao());
     setConfigSuporte(getConfiguracoesSuporte());
     setMotivosList(getMotivosSuporte());
+    // Catálogo da equipe (Supabase) + motivos digitados nas demandas que nunca entraram nele
+    Promise.allSettled([fetchMotivosSuporte(), fetchHistoricoChamados()]).then(() => {
+      setMotivosList(getMotivosSuporte());
+      setMotivosForaCatalogo(getMotivosEmUsoForaDoCatalogo());
+    });
     try {
       const resEmp = await getEmpresas({ pageSize: 1000 });
       setEmpresasLista(Array.isArray(resEmp) ? resEmp : (resEmp?.items || []));
@@ -255,15 +267,46 @@ export default function ServerConfigView() {
     }
   };
 
+  const handleSalvarEdicaoMotivo = async () => {
+    if (!motivoEditando?.nome?.trim()) {
+      showToast('Informe o nome do motivo.', 'error');
+      return;
+    }
+    setSalvandoMotivo(true);
+    try {
+      await renomearMotivoSuporte(motivoEditando.id, { nome: motivoEditando.nome, descricao: motivoEditando.descricao }, userEmail);
+      setMotivosList(getMotivosSuporte());
+      setMotivosForaCatalogo(getMotivosEmUsoForaDoCatalogo());
+      setMotivoEditando(null);
+      showToast('Motivo atualizado. As demandas antigas foram ajustadas para o novo nome.', 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setSalvandoMotivo(false);
+    }
+  };
+
+  const handleAdicionarAoCatalogo = (nome) => {
+    try {
+      addMotivoSuporte({ nome });
+      setMotivosList(getMotivosSuporte());
+      setMotivosForaCatalogo(getMotivosEmUsoForaDoCatalogo());
+      showToast(`"${nome}" agora está no catálogo de motivos.`, 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
   const handleRemoverMotivo = (id) => {
     setConfirmDialog({
       title: 'Remover Motivo do Catálogo?',
-      message: 'Deseja desativar este motivo do catálogo de suporte?',
+      message: 'O motivo sai da lista de seleção ao concluir demandas. As demandas antigas mantêm o nome e continuam nas métricas.',
       confirmText: 'Remover Motivo',
       variant: 'danger',
       onConfirm: () => {
         removeMotivoSuporte(id);
         setMotivosList(getMotivosSuporte());
+        setMotivosForaCatalogo(getMotivosEmUsoForaDoCatalogo());
         showToast('Motivo removido do catálogo.', 'info');
         setConfirmDialog(null);
       },
@@ -989,30 +1032,98 @@ export default function ServerConfigView() {
             <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
               {motivosList.map((m) => (
                 <div key={m.id} className="p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors">
-                  <div>
-                    <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white">
-                      {m.nome}
-                    </h4>
-                    {m.descricao && (
-                      <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                        {m.descricao}
-                      </p>
-                    )}
-                  </div>
-
-                  {!['mot_1', 'mot_2', 'mot_3', 'mot_4'].includes(m.id) && (
-                    <button
-                      onClick={() => handleRemoverMotivo(m.id)}
-                      className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer"
-                      title="Remover motivo"
+                  {motivoEditando?.id === m.id ? (
+                    <form
+                      className="flex-1 grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-center"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleSalvarEdicaoMotivo();
+                      }}
                     >
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
+                      <input
+                        autoFocus
+                        aria-label="Nome do motivo"
+                        value={motivoEditando.nome}
+                        onChange={(e) => setMotivoEditando({ ...motivoEditando, nome: e.target.value })}
+                        className="px-3 py-2 rounded-xl border border-black/[0.1] dark:border-white/[0.12] bg-white dark:bg-[#1a1a20] text-xs"
+                      />
+                      <input
+                        aria-label="Descrição do motivo"
+                        placeholder="Descrição (opcional)"
+                        value={motivoEditando.descricao || ''}
+                        onChange={(e) => setMotivoEditando({ ...motivoEditando, descricao: e.target.value })}
+                        className="px-3 py-2 rounded-xl border border-black/[0.1] dark:border-white/[0.12] bg-white dark:bg-[#1a1a20] text-xs"
+                      />
+                      <div className="flex gap-1.5">
+                        <button type="submit" disabled={salvandoMotivo} className="px-3 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold disabled:opacity-50 cursor-pointer">
+                          {salvandoMotivo ? 'Salvando…' : 'Salvar'}
+                        </button>
+                        <button type="button" onClick={() => setMotivoEditando(null)} className="px-3 py-2 rounded-xl text-xs font-semibold hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer">
+                          Cancelar
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <div>
+                        <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white">{m.nome}</h4>
+                        {m.descricao && <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">{m.descricao}</p>}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setMotivoEditando({ id: m.id, nome: m.nome, descricao: m.descricao || '' })}
+                          className="px-3 py-1.5 rounded-full text-xs font-semibold text-slate-600 dark:text-zinc-300 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
+                          aria-label={`Editar motivo ${m.nome}`}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoverMotivo(m.id)}
+                          className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer"
+                          aria-label={`Excluir motivo ${m.nome}`}
+                          title="Excluir motivo"
+                        >
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </>
                   )}
                 </div>
               ))}
             </div>
           </div>
+
+          {/* Motivos digitados ao concluir demandas que nunca entraram no catálogo */}
+          {motivosForaCatalogo.length > 0 && (
+            <div className="rounded-3xl border border-amber-500/25 bg-amber-500/[0.06] overflow-hidden">
+              <div className="p-5 border-b border-amber-500/20 text-xs">
+                <span className="font-semibold text-amber-900 dark:text-amber-200">
+                  Motivos usados em demandas, mas fora do catálogo ({motivosForaCatalogo.length})
+                </span>
+                <p className="text-amber-800/80 dark:text-amber-200/70 mt-0.5">
+                  Foram digitados ao concluir demandas e nunca cadastrados. Adicione ao catálogo para poder selecioná-los e editá-los.
+                </p>
+              </div>
+              <div className="divide-y divide-amber-500/15">
+                {motivosForaCatalogo.map((m) => (
+                  <div key={m.nome} className="p-4 flex items-center justify-between gap-3 text-xs">
+                    <span className="font-semibold text-[#1d1d1f] dark:text-white">
+                      {m.nome} <span className="font-normal text-slate-500">· {m.usos} {m.usos === 1 ? 'demanda' : 'demandas'}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleAdicionarAoCatalogo(m.nome)}
+                      className="px-3 py-1.5 rounded-full bg-amber-900/10 dark:bg-amber-200/10 hover:bg-amber-900/20 font-semibold cursor-pointer whitespace-nowrap"
+                    >
+                      + Adicionar ao catálogo
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
         </div>
       )}

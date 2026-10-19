@@ -35,6 +35,7 @@ import {
   sanitizarCategoriasDemanda,
   getCurrentUserRole,
   diagnosticarVisibilidadeFila,
+  garantirColaboradorComAcesso,
 } from '@/lib/storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { stopSupportNotificationLoop, playNotificationTone } from '@/lib/audioNotifications';
@@ -217,6 +218,7 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
   const [novoColabCargo, setNovoColabCargo] = useState('');
   const [novoColabEmail, setNovoColabEmail] = useState('');
   const [novoColabTelefone, setNovoColabTelefone] = useState('');
+  const [novoColabSenha, setNovoColabSenha] = useState('');
 
   // Atribuição de Atendente
   const [tecnicoAtribuido, setTecnicoAtribuido] = useState(userEmail || 'admin@rmcontrole.com');
@@ -1138,11 +1140,13 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
     if (!empresaSelecionada) return;
 
     try {
-      const novo = await addColaboradorEmpresa(empresaSelecionada.id, {
+      // Colaborador + acesso em "Acessos e Senhas Técnicas" (e-mail e senha opcionais), sem duplicar
+      const novo = await garantirColaboradorComAcesso(empresaSelecionada.id, {
         nome: novoColabNome.trim(),
-        cargo: novoColabCargo.trim(),
+        cargo: novoColabCargo.trim() || 'Solicitante',
         email: novoColabEmail.trim(),
         telefone: novoColabTelefone.trim(),
+        senha: novoColabSenha.trim(),
       }, userEmail);
 
       setSolicitanteSelecionado(novo);
@@ -1151,7 +1155,8 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       setNovoColabCargo('');
       setNovoColabEmail('');
       setNovoColabTelefone('');
-      showFeedbackMsg(`Colaborador ${novo.nome} adicionado à empresa com sucesso.`);
+      setNovoColabSenha('');
+      showFeedbackMsg(`Colaborador ${novo.nome} adicionado à empresa e aos Acessos e Senhas Técnicas.`);
     } catch (e) {
       showToast(e.message, 'error');
     }
@@ -1251,23 +1256,14 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
       // Registra o colaborador solicitante na empresa e nos Acessos e Senhas Técnicas apenas se houver nome real
       if (empresaIdFinal && solicitanteFinal && solicitanteFinal !== 'Colaborador da Empresa' && solicitanteFinal.length > 1) {
         try {
-          await addColaboradorEmpresa(empresaIdFinal, {
+          // Antes cadastrava o colaborador e o acesso de novo a cada demanda (duplicatas)
+          await garantirColaboradorComAcesso(empresaIdFinal, {
             nome: solicitanteFinal,
             email: solicitanteSelecionado?.email || '',
             telefone: solicitanteSelecionado?.telefone || '',
-            cargo: 'Solicitante'
-          }, userEmail || 'admin@rmcontrole.com');
-
-          await addEmpresaCredencial(empresaIdFinal, {
-            rotulo: `Colaborador - ${solicitanteFinal}`,
-            nome_usuario: solicitanteFinal,
-            usuario_email: solicitanteSelecionado?.email || '',
-            senha: '',
-            observacao: 'Cadastrado automaticamente via Fila de Demandas',
-            is_principal: false
           }, userEmail || 'admin@rmcontrole.com');
         } catch (eColab) {
-          console.warn('Aviso ao registrar colaborador:', eColab);
+          showToast(`Demanda aberta, mas o solicitante não foi salvo nos acessos da empresa: ${eColab.message}`, 'warning');
         }
       }
 
@@ -2095,6 +2091,25 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                       </div>
                     </div>
 
+                    {/* Alerta silenciado para sempre (só esta demanda, só para mim) */}
+                    {ch.alerta_silenciado_sempre && (
+                      <div className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-500/10 border border-slate-500/25 text-slate-700 dark:text-zinc-300 text-xs font-semibold">
+                        <BellOffIcon className="w-3.5 h-3.5" />
+                        <span>Alertas desativados para esta demanda</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            cancelarAdiarAlertaChamado(ch.id, userEmail);
+                            carregarDados();
+                            showToast('Alerta sonoro reativado para esta demanda.', 'info');
+                          }}
+                          className="underline cursor-pointer ml-1"
+                        >
+                          Reativar
+                        </button>
+                      </div>
+                    )}
+
                     {/* Indicador de Alerta Adiado (Snooze Ativo) no Card */}
                     {ch.adiado_ate && Date.now() < new Date(ch.adiado_ate).getTime() && (
                       <div className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/25 text-purple-800 dark:text-purple-300 text-xs font-semibold shadow-2xs">
@@ -2164,6 +2179,18 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                 <span className="text-[10px] text-slate-400 font-mono">+{item.mins}m</span>
                               </button>
                             ))}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                adiarAlertaChamado(ch.id, 'nunca', userEmail);
+                                setSnoozePopoverChamadoId(null);
+                                carregarDados();
+                                showToast(`🔕 Você não será mais alertado sobre a demanda de ${ch.empresa_nome}. As demais continuam alertando.`, 'info');
+                              }}
+                              className="w-full text-left mt-1 pt-1.5 px-2 py-1.5 rounded-lg border-t border-black/[0.05] dark:border-white/[0.06] hover:bg-red-500/10 text-red-600 dark:text-red-400 font-semibold transition-colors cursor-pointer text-xs"
+                            >
+                              Nunca mais alertar (só esta demanda)
+                            </button>
                           </div>
                         )}
                       </div>
@@ -3216,6 +3243,23 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                     )}
 
                                     {/* Indicador de Alerta Adiado (Snooze Ativo) */}
+                                    {ch.alerta_silenciado_sempre && (
+                                      <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-500/10 border border-slate-500/25 text-slate-700 dark:text-zinc-300 text-xs font-semibold">
+                                        <BellOffIcon className="w-3.5 h-3.5" />
+                                        <span>Alertas desativados para esta demanda</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            cancelarAdiarAlertaChamado(ch.id, userEmail);
+                                            carregarDados();
+                                            showToast('Alerta sonoro reativado para esta demanda.', 'info');
+                                          }}
+                                          className="underline cursor-pointer ml-1"
+                                        >
+                                          Reativar
+                                        </button>
+                                      </div>
+                                    )}
                                     {ch.adiado_ate && Date.now() < new Date(ch.adiado_ate).getTime() && (
                                       <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/25 text-purple-800 dark:text-purple-300 text-xs font-semibold shadow-2xs">
                                         <BellOffIcon className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
@@ -3416,6 +3460,18 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                               <span className="text-[10px] text-slate-400 font-mono">+{item.mins}m</span>
                                             </button>
                                           ))}
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              adiarAlertaChamado(ch.id, 'nunca', userEmail);
+                                              setSnoozePopoverChamadoId(null);
+                                              carregarDados();
+                                              showToast(`🔕 Você não será mais alertado sobre a demanda de ${ch.empresa_nome}. As demais continuam alertando.`, 'info');
+                                            }}
+                                            className="w-full text-left mt-1 pt-1.5 px-2 py-1.5 rounded-lg border-t border-black/[0.05] dark:border-white/[0.06] hover:bg-red-500/10 text-red-600 dark:text-red-400 font-semibold transition-colors cursor-pointer text-xs"
+                                          >
+                                            Nunca mais alertar (só esta demanda)
+                                          </button>
                                         </div>
                                       )}
                                     </div>
@@ -3881,6 +3937,28 @@ export default function SupportQueueView({ onSelectEmpresa, userEmail }) {
                                 className="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-800 border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none"
                               />
                             </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <input
+                                type="email"
+                                value={novoColabEmail}
+                                onChange={(e) => setNovoColabEmail(e.target.value)}
+                                placeholder="E-mail de acesso (opcional)"
+                                aria-label="E-mail de acesso do colaborador (opcional)"
+                                className="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-800 border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none"
+                              />
+                              <input
+                                type="text"
+                                value={novoColabSenha}
+                                onChange={(e) => setNovoColabSenha(e.target.value)}
+                                placeholder="Senha de acesso (opcional)"
+                                aria-label="Senha de acesso do colaborador (opcional)"
+                                autoComplete="off"
+                                className="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-800 border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none"
+                              />
+                            </div>
+                            <p className="text-[10px] text-slate-500 dark:text-zinc-400">
+                              O colaborador fica em “Acessos e Senhas Técnicas” da empresa. E-mail e senha podem ficar em branco.
+                            </p>
                             <button
                               type="button"
                               onClick={handleCadastrarNovoColaboradorInline}

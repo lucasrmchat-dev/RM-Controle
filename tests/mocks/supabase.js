@@ -46,6 +46,7 @@ class Query {
     return this;
   }
   eq(col, val) { this.filters.push((r) => r[col] === val); return this; }
+  neq(col, val) { this.filters.push((r) => r[col] !== val); return this; }
   in(col, vals) { this.filters.push((r) => vals.includes(r[col])); return this; }
   ilike(col, val) { this.filters.push((r) => String(r[col] ?? '').toLowerCase() === String(val).toLowerCase()); return this; }
   is(col, val) { this.filters.push((r) => (r[col] ?? null) === val); return this; }
