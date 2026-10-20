@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAuditoriaLogs } from '@/lib/storage';
 import { CalendarIcon, RefreshIcon, ShieldCheckIcon, UserIcon } from './Icons';
+import { ListSkeleton } from './SkeletonLoaders';
 
 // Função para extrair data no formato local YYYY-MM-DD
 function extrairDataLocal(val) {
@@ -33,7 +34,7 @@ function formatarDataHora(val) {
 
 export default function AuditLogsView() {
   const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [filtroTexto, setFiltroTexto] = useState('');
   
   // Linha do Tempo Lúdica & Filtro de Data
@@ -409,7 +410,9 @@ export default function AuditLogsView() {
         </div>
 
         <div className="divide-y divide-black/5 dark:divide-white/6">
-          {logsPaginados.length === 0 ? (
+          {loading && logs.length === 0 ? (
+            <ListSkeleton linhas={6} className="p-5" />
+          ) : logsPaginados.length === 0 ? (
             <div className="p-12 text-center text-xs text-slate-400">
               Nenhum evento localizado para o filtro aplicado.
             </div>

@@ -1272,7 +1272,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                 </div>
                 <input
                   type="url"
-                  placeholder="https://app1.rmcontrole.com.br"
+                  placeholder="https://acesso.suaempresa.com.br"
                   value={servidoresConfig.servidor_1_url || ''}
                   onChange={(e) => setServidoresConfigState({ ...servidoresConfig, servidor_1_url: e.target.value })}
                   className="w-full px-3.5 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none"
@@ -1287,7 +1287,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                 </div>
                 <input
                   type="url"
-                  placeholder="https://app2.rmcontrole.com.br"
+                  placeholder="https://acesso2.suaempresa.com.br"
                   value={servidoresConfig.servidor_2_url || ''}
                   onChange={(e) => setServidoresConfigState({ ...servidoresConfig, servidor_2_url: e.target.value })}
                   className="w-full px-3.5 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none"

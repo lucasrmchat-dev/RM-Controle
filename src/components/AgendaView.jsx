@@ -19,6 +19,7 @@ import {
 } from '@/lib/storage';
 import { playMeetingAlertTone } from '@/lib/audioNotifications';
 import { showToast } from './ToastNotification';
+import { ListSkeleton } from './SkeletonLoaders';
 import ConfirmModal from './ConfirmModal';
 import { 
   CalendarIcon, 
@@ -33,6 +34,8 @@ import {
 
 export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfig }) {
   const [eventos, setEventos] = useState([]);
+  // Esqueleto até a agenda da equipe chegar do servidor (quando ainda não há nada em memória)
+  const [carregado, setCarregado] = useState(false);
   const [equipe, setEquipe] = useState([]);
   const [empresas, setEmpresas] = useState([]);
   const [config, setConfig] = useState(getAgendaConfig());
@@ -108,8 +111,14 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
 
   useEffect(() => {
     carregarDados();
+    if ((getAgendaEventos() || []).length > 0) setCarregado(true);
     // Agenda da equipe vem do Supabase (eventos importados do Google pessoal continuam locais)
-    fetchAgendaEventos().catch(() => {});
+    fetchAgendaEventos()
+      .catch(() => {})
+      .finally(() => {
+        carregarDados();
+        setCarregado(true);
+      });
     const handleEventsUpdate = () => setEventos(getAgendaEventos());
     const handleConfigUpdate = () => setConfig(getAgendaConfig());
     window.addEventListener('agenda_eventos_updated', handleEventsUpdate);
@@ -751,7 +760,9 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
         /* VISÃO LISTA / CRONOGRAMA */
         <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/85 backdrop-blur-xl shadow-xs overflow-hidden">
           <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
-            {eventosFiltrados.length === 0 ? (
+            {!carregado && eventosFiltrados.length === 0 ? (
+              <ListSkeleton linhas={4} className="p-5" />
+            ) : eventosFiltrados.length === 0 ? (
               <div className="p-12 text-center text-slate-400">
                 <CalendarIcon className="w-10 h-10 mx-auto text-slate-300 dark:text-zinc-600 mb-2" />
                 <p className="text-sm font-semibold">Nenhuma reunião encontrada para este filtro ou período.</p>

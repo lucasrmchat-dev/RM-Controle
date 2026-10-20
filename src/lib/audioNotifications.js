@@ -190,7 +190,8 @@ let loopIniciadoEm = 0;
  */
 export function deveNotificarChamado(chamado, userEmail, config = getAudioConfig(), criadoPorMim = false) {
   if (!chamado || !config.habilitado) return false;
-  const isPendente = !chamado.status || chamado.status === 'aguardando_visualizacao' || chamado.status === 'pendente';
+  // 'pendente' = aguardando retorno do cliente: já tem responsável, não alerta a equipe
+  const isPendente = !chamado.status || chamado.status === 'aguardando_visualizacao';
   if (!isPendente) return false;
 
   // Adiado / pausado pelo usuário (Snooze): silencia até expirar o tempo

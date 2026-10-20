@@ -10,9 +10,9 @@ export const dynamic = 'force-dynamic';
  */
 const SERVIDORES_PADRAO = {
   servidor_1_nome: 'Servidor 1',
-  servidor_1_url: 'https://app1.rmcontrole.com.br',
+  servidor_1_url: '',
   servidor_2_nome: 'Servidor 2',
-  servidor_2_url: 'https://app2.rmcontrole.com.br',
+  servidor_2_url: '',
 };
 
 function urlValida(valor) {
@@ -32,8 +32,10 @@ const CHAVES = {
     validar(valor) {
       const config = { ...SERVIDORES_PADRAO };
       for (const n of [1, 2]) {
-        const url = urlValida(valor?.[`servidor_${n}_url`] ?? config[`servidor_${n}_url`]);
-        if (!url) throw new Error(`A URL do Servidor ${n} é inválida. Use o formato https://exemplo.com.br`);
+        // Vazio = ainda não configurado (antes um endereço fictício entrava no lugar)
+        const bruto = String(valor?.[`servidor_${n}_url`] ?? '').trim();
+        const url = bruto ? urlValida(bruto) : '';
+        if (bruto && !url) throw new Error(`A URL do Servidor ${n} é inválida. Use o formato https://exemplo.com.br`);
         config[`servidor_${n}_url`] = url;
         config[`servidor_${n}_nome`] = String(valor?.[`servidor_${n}_nome`] ?? config[`servidor_${n}_nome`]).trim().slice(0, 40) || `Servidor ${n}`;
       }

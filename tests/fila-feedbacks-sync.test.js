@@ -242,6 +242,23 @@ test('dois colaboradores assumem a mesma demanda: o segundo é avisado', async (
   await assert.rejects(() => assumirSuporte({ chamado_id: ch.id, userEmail: 'ana@rmcontrole.com' }), /Não foi possível assumir/);
 });
 
+test('sem sessão no banco: assumir explica o motivo e não muda nada localmente', async () => {
+  const ch = await adicionarChamadoFila({ empresa_nome: 'Empresa S', userEmail: USER });
+  db.semSessao = true;
+  await assert.rejects(() => assumirSuporte({ chamado_id: ch.id, userEmail: 'ana@rmcontrole.com' }), /conexão com o banco expirou/);
+  const local = JSON.parse(localStorage.getItem('rm_chamados_suporte')).find((c) => c.id === ch.id);
+  assert.equal(local.status, 'aguardando_visualizacao', 'a demanda volta ao estado anterior');
+  assert.equal(db.tables.suporte_chamados[0].status, 'aguardando_visualizacao');
+});
+
+test('assumir uma demanda já assumida por outra pessoa diz quem pegou', async () => {
+  const ch = await adicionarChamadoFila({ empresa_nome: 'Empresa T', userEmail: USER });
+  await assumirSuporte({ chamado_id: ch.id, userEmail: 'joao@rmcontrole.com' });
+  db.tables.suporte_chamados[0].status = 'finalizado';
+  localStorage.setItem('rm_chamados_suporte', JSON.stringify([{ ...ch, status: 'aguardando_visualizacao' }]));
+  await assert.rejects(() => assumirSuporte({ chamado_id: ch.id, userEmail: 'ana@rmcontrole.com' }), /já foi concluída ou cancelada/);
+});
+
 test('demanda antiga que só existia num navegador é enviada para todos verem', async () => {
   localStorage.setItem('rm_chamados_suporte', JSON.stringify([{
     id: 'chamado_legado_1', empresa_nome: 'Empresa Legada', status: 'aguardando_visualizacao',

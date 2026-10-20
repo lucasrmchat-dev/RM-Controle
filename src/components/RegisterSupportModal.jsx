@@ -1,389 +1,294 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  getMotivosSuporte, 
-  getEquipeUsuarios, 
-  getEmpresaCredenciais, 
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  getMotivosSuporte,
+  getEquipeUsuarios,
+  getEmpresaCredenciais,
   getNomeTecnico,
   registrarSuporteRetroativo,
   getEmpresas,
-  getCategoriasDemandas
+  getCategoriasDemandas,
 } from '@/lib/storage';
-import { XMarkIcon, CheckIcon, BuildingIcon, UserIcon, ClockIcon } from './Icons';
+import { classeCampo, classeRotulo } from './NovaEmpresaCampos';
+import {
+  ModalEtapas,
+  Etapa,
+  Combobox,
+  Escolhido,
+  Pilulas,
+  ErroRodape,
+  Spinner,
+  normalizarBusca,
+  classeBotaoPrimario,
+  classeBotaoTexto,
+} from './FormularioEtapas';
+import { BuildingIcon, CheckIcon, UserIcon } from './Icons';
 import { showToast } from './ToastNotification';
 
-export default function RegisterSupportModal({
-  isOpen,
-  onClose,
-  empresaPreSelecionada = null,
-  userEmail = 'admin@rmcontrole.com',
-  onRegistered
-}) {
+const agoraLocal = () => {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+};
+
+/**
+ * Registro de atendimento já concluído (sem passar pela fila), no mesmo formato em etapas da Nova demanda.
+ */
+export default function RegisterSupportModal({ isOpen, onClose, empresaPreSelecionada = null, userEmail = 'admin@rmcontrole.com', onRegistered }) {
   const [empresas, setEmpresas] = useState([]);
-  const [empresaId, setEmpresaId] = useState('');
-  const [empresaNome, setEmpresaNome] = useState('');
-  const [departamentos, setDepartamentos] = useState([]);
-  const [departamento, setDepartamento] = useState('Suporte');
-  const [motivos, setMotivos] = useState([]);
-  const [motivo, setMotivo] = useState('');
+  const [empresa, setEmpresa] = useState(null);
   const [equipe, setEquipe] = useState([]);
-  const [atendente, setAtendente] = useState('');
-  const [solicitanteNome, setSolicitanteNome] = useState('');
-  const [colaboradoresSugeridos, setColaboradoresSugeridos] = useState([]);
-  const [observacoes, setObservacoes] = useState('');
+  const [tecnico, setTecnico] = useState(null);
+  const [departamentos, setDepartamentos] = useState([]);
+  const [departamento, setDepartamento] = useState('');
+  const [categorias, setCategorias] = useState([]);
+  const [categoria, setCategoria] = useState('');
   const [dataAtendimento, setDataAtendimento] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [solicitante, setSolicitante] = useState(null);
+  const [resumo, setResumo] = useState('');
+  const [erro, setErro] = useState('');
+  const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
-
-    // Inicializa departamentos da demanda
     const deps = getCategoriasDemandas();
     setDepartamentos(deps);
-    if (deps.length > 0) setDepartamento(deps[0]);
+    setDepartamento(deps.includes('Suporte') ? 'Suporte' : deps[0] || 'Suporte');
+    setCategorias(getMotivosSuporte().map((m) => m.nome).filter(Boolean));
+    setCategoria('');
 
-    // Inicializa motivos diagnosticados
-    const motList = getMotivosSuporte();
-    setMotivos(motList);
-    if (motList.length > 0) setMotivo(motList[0].nome);
-
-    // Inicializa equipe
-    const eq = getEquipeUsuarios();
-    setEquipe(eq);
+    const eq = getEquipeUsuarios() || [];
     const meuNome = getNomeTecnico(userEmail);
-    setAtendente(meuNome);
+    const lista = eq.map((u) => ({ id: u.id || u.email, nome: u.nome, email: u.email, papel: u.papel }));
+    if (!lista.some((u) => normalizarBusca(u.nome) === normalizarBusca(meuNome))) lista.unshift({ id: 'eu', nome: meuNome, email: userEmail });
+    setEquipe(lista);
+    setTecnico(lista.find((u) => normalizarBusca(u.nome) === normalizarBusca(meuNome)) || { nome: meuNome, email: userEmail });
 
-    // Inicializa data atual (formato YYYY-MM-DDTHH:mm)
-    const agora = new Date();
-    agora.setMinutes(agora.getMinutes() - agora.getTimezoneOffset());
-    setDataAtendimento(agora.toISOString().slice(0, 16));
+    setDataAtendimento(agoraLocal());
+    setSolicitante(null);
+    setResumo('');
+    setErro('');
+    setEnviando(false);
 
-    // Carrega empresas caso não venha pré-selecionada
     if (empresaPreSelecionada) {
-      setEmpresaId(empresaPreSelecionada.id);
-      setEmpresaNome(empresaPreSelecionada.nome);
-      carregarContatosEmpresa(empresaPreSelecionada.id, empresaPreSelecionada);
+      setEmpresa(empresaPreSelecionada);
     } else {
+      setEmpresa(null);
       getEmpresas({ pageSize: 1000 }).then((res) => {
-        const items = Array.isArray(res) ? res : (res?.items || []);
-        const ordenadas = [...items].sort((a, b) =>
-          (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' })
-        );
-        setEmpresas(ordenadas);
-        if (ordenadas.length > 0) {
-          setEmpresaId(ordenadas[0].id);
-          setEmpresaNome(ordenadas[0].nome);
-          carregarContatosEmpresa(ordenadas[0].id, ordenadas[0]);
-        }
+        const items = Array.isArray(res) ? res : res?.items || [];
+        setEmpresas([...items].sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' })));
       });
     }
-
-    setObservacoes('');
-    setSolicitanteNome('');
-    setErrorMsg('');
   }, [isOpen, empresaPreSelecionada, userEmail]);
 
-  const carregarContatosEmpresa = (id, empObj = null) => {
-    const creds = getEmpresaCredenciais(id) || [];
-    let contatos = creds.map((c) => c.rotulo || c.email_administrador || c.usuario_email).filter(Boolean);
-    if (empObj?.colaboradores) {
-      const extras = empObj.colaboradores.map((col) => col.nome).filter(Boolean);
-      contatos = [...extras, ...contatos];
-    }
-    setColaboradoresSugeridos(Array.from(new Set(contatos)));
-  };
+  // Contatos da empresa escolhida, para sugerir quem pediu
+  const contatos = useMemo(() => {
+    if (!empresa?.id) return [];
+    const vistos = new Set();
+    const lista = [];
+    const add = (nome, detalhe) => {
+      const n = (nome || '').trim();
+      if (!n || vistos.has(normalizarBusca(n))) return;
+      vistos.add(normalizarBusca(n));
+      lista.push({ id: n, nome: n, detalhe });
+    };
+    (empresa.colaboradores || []).forEach((c) => add(c.nome, c.cargo || 'Colaborador'));
+    (getEmpresaCredenciais(empresa.id) || []).forEach((c) => add(c.nome_usuario || c.rotulo, c.usuario_email || 'Acesso cadastrado'));
+    return lista;
+  }, [empresa]);
 
-  const handleEmpresaChange = (e) => {
-    const id = e.target.value;
-    setEmpresaId(id);
-    const emp = empresas.find((item) => item.id === id);
-    if (emp) {
-      setEmpresaNome(emp.nome);
-      carregarContatosEmpresa(id, emp);
-    }
-  };
+  const etapa1Ok = Boolean(empresa);
+  const etapa2Ok = Boolean(departamento && categoria);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setErrorMsg('');
-
-    const alvoId = empresaId || (empresas.length > 0 ? empresas[0].id : null);
-    const alvoNome = empresaNome || (empresas.length > 0 ? empresas[0].nome : 'Empresa');
-
-    if (!alvoId) {
-      const msg = 'Selecione a empresa atendida.';
-      setErrorMsg(msg);
-      showToast(msg, 'error');
-      return;
-    }
-    if (!motivo) {
-      const msg = 'Selecione o motivo do suporte.';
-      setErrorMsg(msg);
-      showToast(msg, 'error');
-      return;
-    }
-
+  const salvar = async () => {
+    if (enviando) return;
+    if (!empresa) return setErro('Escolha a empresa atendida.');
+    if (!categoria) return setErro('Escolha a categoria do suporte.');
+    setErro('');
+    setEnviando(true);
     try {
-      setSubmitting(true);
       await registrarSuporteRetroativo({
-        empresa_id: alvoId,
-        empresa_nome: alvoNome,
-        motivo,
+        empresa_id: empresa.id,
+        empresa_nome: empresa.nome,
+        motivo: categoria,
         categorias: [departamento || 'Suporte'],
-        observacoes,
-        solicitante_nome: solicitanteNome,
-        atendente,
+        observacoes: resumo.trim(),
+        solicitante_nome: solicitante?.nome || '',
+        atendente: tecnico?.nome || getNomeTecnico(userEmail),
         userEmail,
         data_atendimento: dataAtendimento ? new Date(dataAtendimento).toISOString() : null,
       });
-
-      showToast(`Atendimento de ${alvoNome} registrado com sucesso!`, 'success');
-      if (onRegistered) onRegistered();
+      showToast(`Atendimento de ${empresa.nome} registrado.`, 'success');
+      onRegistered?.();
       onClose();
-    } catch (err) {
-      const msg = err.message || 'Erro ao registrar atendimento.';
-      setErrorMsg(msg);
-      showToast(msg, 'error');
+    } catch (e) {
+      setErro(e?.message || 'Não foi possível registrar o atendimento.');
     } finally {
-      setSubmitting(false);
+      setEnviando(false);
     }
   };
 
-  if (!isOpen) return null;
+  const rodape = (
+    <>
+      <ErroRodape erro={erro} />
+      <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-2.5">
+        <p className="hidden md:block text-xs text-slate-500 dark:text-zinc-400 mr-auto max-w-sm">
+          Entra no histórico da empresa, nos resolvidos e nos gráficos de categoria, sem alterar o tempo médio.
+        </p>
+        <button type="button" onClick={onClose} disabled={enviando} className={classeBotaoTexto}>
+          Cancelar
+        </button>
+        <button type="button" onClick={salvar} disabled={enviando} className={classeBotaoPrimario}>
+          {enviando ? <Spinner /> : <CheckIcon className="w-4 h-4 stroke-[2.5]" />}
+          Salvar atendimento
+        </button>
+      </div>
+    </>
+  );
 
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 w-screen h-screen z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 15 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full max-w-xl rounded-[32px] border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-[#16161a] backdrop-blur-2xl p-6 sm:p-8 shadow-2xl space-y-6 text-[#1d1d1f] dark:text-[#f5f5f7] my-auto"
-        >
-          {/* Cabeçalho */}
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
-                  Registro Direto / Retroativo
+    <ModalEtapas
+      aberto={isOpen}
+      onFechar={onClose}
+      bloqueado={enviando}
+      idTitulo="retroativo-titulo"
+      titulo="Registrar atendimento já feito"
+      subtitulo="Para suportes resolvidos fora da fila, sem cronômetro."
+      contexto={
+        <span className="inline-flex items-center h-6 px-2.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 text-[11px] font-semibold">
+          Suporte retroativo
+        </span>
+      }
+      rodape={rodape}
+    >
+      <div className="grid grid-cols-1 lg:grid-cols-2 lg:gap-x-12">
+        <div>
+          <Etapa numero={1} titulo="Empresa e técnico" descricao="Quem foi atendido e quem atendeu." estado={etapa1Ok ? 'concluida' : 'ativa'}>
+            <div className="space-y-4">
+              <div>
+                <span className={classeRotulo}>
+                  Empresa <span className="text-red-600 dark:text-red-400">*</span>
                 </span>
-                {empresaPreSelecionada && (
-                  <span className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
-                    {empresaPreSelecionada.nome}
-                  </span>
+                {empresa ? (
+                  <Escolhido
+                    icone={<BuildingIcon className="w-4 h-4" />}
+                    titulo={empresa.nome}
+                    detalhe={empresa.servidor_alocado === 'servidor_2' ? 'Servidor 2' : empresa.servidor_alocado ? 'Servidor 1' : null}
+                    onTrocar={empresaPreSelecionada ? null : () => {
+                      setEmpresa(null);
+                      setSolicitante(null);
+                    }}
+                  />
+                ) : (
+                  <Combobox
+                    id="rt-empresa"
+                    autoFocus
+                    placeholder="Digite o nome da empresa"
+                    opcoes={empresas}
+                    onEscolher={setEmpresa}
+                    renderOpcao={(e) => (
+                      <span className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-medium truncate">{e.nome}</span>
+                        {e.servidor_alocado && (
+                          <span className="text-[11px] text-slate-500 dark:text-zinc-400 flex-shrink-0">{e.servidor_alocado === 'servidor_2' ? 'Servidor 2' : 'Servidor 1'}</span>
+                        )}
+                      </span>
+                    )}
+                  />
                 )}
               </div>
-              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1d1d1f] dark:text-white">
-                Registrar Atendimento Concluído
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                Utilize este formulário para lançar suportes já finalizados sem necessidade de iniciar cronômetro em tempo real.
-              </p>
-            </div>
 
-            <button
-              onClick={onClose}
-              className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-2 rounded-full hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-all cursor-pointer flex-shrink-0"
-              title="Fechar"
-            >
-              <XMarkIcon className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Feedback de Erro */}
-          {errorMsg && (
-            <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs font-medium">
-              {errorMsg}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Empresa */}
-            {empresaPreSelecionada ? (
-              <div className="p-3.5 rounded-2xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-mono block">Empresa Atendida</span>
-                  <span className="text-sm font-bold text-[#1d1d1f] dark:text-white">{empresaNome || empresaPreSelecionada.nome}</span>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                  Empresa Atendida <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={empresaId}
-                  onChange={handleEmpresaChange}
-                  required
-                  className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 cursor-pointer"
-                >
-                  {empresas.map((emp) => (
-                    <option key={emp.id} value={emp.id} className="dark:bg-zinc-900 text-black dark:text-white">
-                      {emp.nome}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* 1. Departamento / Setor da Demanda */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                Departamento / Setor da Demanda <span className="text-red-500">*</span>
-              </label>
-              <div className="flex flex-wrap gap-1.5 pt-0.5">
-                {departamentos.map((dep) => {
-                  const isSel = departamento === dep;
-                  return (
-                    <button
-                      key={dep}
-                      type="button"
-                      onClick={() => setDepartamento(dep)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                        isSel
-                          ? 'bg-[#09090b] dark:bg-white text-white dark:text-black shadow-xs font-bold'
-                          : 'bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-slate-600 dark:text-zinc-400 hover:border-black/[0.15]'
-                      }`}
-                    >
-                      {isSel && <CheckIcon className="w-3 h-3 stroke-[2.5]" />}
-                      <span>{dep}</span>
-                    </button>
-                  );
-                })}
+              <div>
+                <span className={classeRotulo}>Técnico</span>
+                {tecnico ? (
+                  <Escolhido
+                    icone={<UserIcon className="w-4 h-4" />}
+                    titulo={tecnico.nome}
+                    detalhe={normalizarBusca(tecnico.nome) === normalizarBusca(getNomeTecnico(userEmail)) ? 'Você' : tecnico.papel || null}
+                    onTrocar={() => setTecnico(null)}
+                  />
+                ) : (
+                  <Combobox
+                    id="rt-tecnico"
+                    placeholder="Buscar pessoa da equipe"
+                    opcoes={equipe}
+                    onEscolher={setTecnico}
+                    renderOpcao={(u) => (
+                      <span className="block min-w-0">
+                        <span className="block text-sm font-medium truncate">{u.nome}</span>
+                        {u.email && <span className="block text-xs text-slate-500 dark:text-zinc-400 truncate">{u.email}</span>}
+                      </span>
+                    )}
+                  />
+                )}
               </div>
             </div>
+          </Etapa>
 
-            {/* 2. Motivo Diagnosticado da Resolução */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                Motivo Diagnosticado da Resolução <span className="text-red-500">*</span>
-              </label>
-              <div className="flex flex-wrap gap-1.5 pt-0.5">
-                {motivos.map((m) => {
-                  const isSel = motivo === m.nome;
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => setMotivo(m.nome)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                        isSel
-                          ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 shadow-xs'
-                          : 'bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-slate-600 dark:text-zinc-400 hover:border-black/[0.15]'
-                      }`}
-                    >
-                      {isSel && <CheckIcon className="w-3 h-3 stroke-[2.5]" />}
-                      <span>{m.nome}</span>
-                    </button>
-                  );
-                })}
+          <Etapa numero={2} titulo="Classificação" descricao="Para os relatórios e o histórico da empresa." estado={!etapa1Ok ? 'travada' : etapa2Ok ? 'concluida' : 'ativa'} fimDeColuna>
+            <div className="space-y-5">
+              <div>
+                <span id="rt-dep" className={classeRotulo}>Departamento</span>
+                <Pilulas rotuloId="rt-dep" opcoes={departamentos} selecionadas={[departamento]} onAlternar={setDepartamento} />
+              </div>
+              <div>
+                <span id="rt-cat" className={classeRotulo}>
+                  Categoria do suporte <span className="text-red-600 dark:text-red-400">*</span>
+                </span>
+                <Pilulas rotuloId="rt-cat" opcoes={categorias} selecionadas={[categoria]} onAlternar={setCategoria} cor="marca" />
               </div>
             </div>
+          </Etapa>
+        </div>
 
-            {/* Técnico & Solicitante */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                  Técnico / Atendente
-                </label>
-                <select
-                  value={atendente}
-                  onChange={(e) => setAtendente(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 cursor-pointer"
-                >
-                  {equipe.map((u) => (
-                    <option key={u.id} value={u.nome} className="dark:bg-zinc-900 text-black dark:text-white">
-                      {u.nome} ({u.papel})
-                    </option>
-                  ))}
-                  <option value={getNomeTecnico(userEmail)} className="dark:bg-zinc-900 text-black dark:text-white">
-                    {getNomeTecnico(userEmail)} (Atual)
-                  </option>
-                </select>
+        <div className="lg:pl-12 lg:border-l border-black/[0.06] dark:border-white/[0.08]">
+          <Etapa numero={3} titulo="Detalhes" descricao="Quando aconteceu e o que foi feito." estado={!etapa2Ok ? 'travada' : resumo.trim() ? 'concluida' : 'ativa'} ultima>
+            <div className="space-y-5">
+              <div>
+                <label htmlFor="rt-data" className={classeRotulo}>Data e hora do atendimento</label>
+                <input id="rt-data" type="datetime-local" value={dataAtendimento} onChange={(e) => setDataAtendimento(e.target.value)} className={`${classeCampo} font-mono text-[13px]`} />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                  Solicitante da Empresa
-                </label>
-                <input
-                  type="text"
-                  value={solicitanteNome}
-                  onChange={(e) => setSolicitanteNome(e.target.value)}
-                  placeholder="Ex: Dra. Camila / Carlos"
-                  list="sugestoes-solicitantes"
-                  className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20"
+              <div>
+                <span className={classeRotulo}>
+                  Quem pediu <span className="font-normal text-slate-500 dark:text-zinc-400">(opcional)</span>
+                </span>
+                {solicitante ? (
+                  <Escolhido icone={<UserIcon className="w-4 h-4" />} titulo={solicitante.nome} detalhe={solicitante.detalhe} onTrocar={() => setSolicitante(null)} />
+                ) : (
+                  <Combobox
+                    id="rt-solicitante"
+                    placeholder="Buscar ou digitar um nome"
+                    opcoes={contatos}
+                    onEscolher={setSolicitante}
+                    onNova={(nome) => setSolicitante({ nome, detalhe: 'Informado neste registro' })}
+                    opcaoNova={(t) => `Usar “${t}”`}
+                    renderOpcao={(c) => (
+                      <span className="block min-w-0">
+                        <span className="block text-sm font-medium truncate">{c.nome}</span>
+                        {c.detalhe && <span className="block text-xs text-slate-500 dark:text-zinc-400 truncate">{c.detalhe}</span>}
+                      </span>
+                    )}
+                  />
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="rt-resumo" className={classeRotulo}>O que foi feito</label>
+                <textarea
+                  id="rt-resumo"
+                  rows={4}
+                  value={resumo}
+                  onChange={(e) => setResumo(e.target.value)}
+                  placeholder="Ex.: reescaneado o QR code da instância e ajustada a fila do comercial."
+                  className={`${classeCampo} h-auto py-3 leading-relaxed resize-none`}
                 />
-                {colaboradoresSugeridos.length > 0 && (
-                  <datalist id="sugestoes-solicitantes">
-                    {colaboradoresSugeridos.map((c, i) => (
-                      <option key={i} value={c} />
-                    ))}
-                  </datalist>
-                )}
               </div>
             </div>
-
-            {/* Data e Hora do Atendimento */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                Data e Horário em que foi Realizado
-              </label>
-              <input
-                type="datetime-local"
-                value={dataAtendimento}
-                onChange={(e) => setDataAtendimento(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 cursor-pointer"
-              />
-            </div>
-
-            {/* Resumo da Solução Aplicada */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200 pl-1">
-                Resumo da Resolução / Ações Executadas
-              </label>
-              <textarea
-                value={observacoes}
-                onChange={(e) => setObservacoes(e.target.value)}
-                rows={3}
-                placeholder="Descreva brevemente o que foi feito (ex: reescaneado QR code da instância, ajustada fila de triagem...)"
-                className="w-full p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 leading-relaxed font-sans resize-none"
-              />
-            </div>
-
-            {/* Nota de Esclarecimento sobre Métricas */}
-            <div className="p-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.06] text-[11px] text-slate-500 dark:text-zinc-400 flex items-center gap-2">
-              <span className="text-sm">ℹ️</span>
-              <span>
-                Este atendimento será contabilizado no <strong>total de chamados resolvidos</strong>, nos gráficos de <strong>motivos</strong> e no <strong>histórico da empresa</strong>, sem afetar o cálculo de tempo médio ativo.
-              </span>
-            </div>
-
-            {/* Ações do Rodapé */}
-            <div className="flex items-center justify-end gap-3 pt-3">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={submitting}
-                className="px-5 py-2.5 rounded-full border border-black/10 dark:border-white/10 text-xs font-semibold text-slate-600 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5 transition-all cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-6 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-              >
-                {submitting ? 'Salvando...' : 'Salvar Registro de Suporte'}
-              </button>
-            </div>
-          </form>
-        </motion.div>
+          </Etapa>
+        </div>
       </div>
-    </AnimatePresence>
+    </ModalEtapas>
   );
 }

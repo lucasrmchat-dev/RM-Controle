@@ -20,6 +20,7 @@ export const db = {
     this.atraso = { select: 0, insert: 0, update: 0 };
     this.rpcs = {};
     this.authUsers = [];
+    this.semSessao = false;
     this.tables = { suporte_chamados: [], feedbacks: [], sistema_config: [], empresas: [], auditoria_logs: [], equipe_usuarios: [] };
     this.columns = { suporte_chamados: null, feedbacks: null };
     this.rls = { deleteAllowed: true, updateAllowed: true };
@@ -130,6 +131,15 @@ export const supabase = {
     }
   },
   auth: {
+    // Sessão do navegador simulada (o app real só escreve no banco com sessão válida)
+    async getSession() {
+      if (db.semSessao) return { data: { session: null }, error: null };
+      return { data: { session: { expires_at: Math.floor(Date.now() / 1000) + 3600, user: { email: 'teste@rmchat.com' } } }, error: null };
+    },
+    async refreshSession() {
+      if (db.semSessao) return { data: { session: null }, error: { message: 'Refresh Token Not Found' } };
+      return this.getSession();
+    },
     admin: {
       async createUser({ email, password, user_metadata }) {
         if (db.authUsers.some((u) => u.email === email)) return { data: null, error: { message: 'A user with this email address has already been registered' } };

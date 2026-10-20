@@ -25,10 +25,13 @@ import {
   BugIcon
 } from './Icons';
 import { showToast } from './ToastNotification';
+import { ListSkeleton } from './SkeletonLoaders';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export default function FeedbacksView({ userEmail, onSelectEmpresa }) {
   const [feedbacks, setFeedbacks] = useState([]);
+  // Esqueleto até a primeira carga (antes mostrava "nenhum feedback" enquanto ainda buscava)
+  const [carregado, setCarregado] = useState(false);
   const [empresasLista, setEmpresasLista] = useState([]);
   const [modalAberto, setModalAberto] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -101,10 +104,18 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
       setFeedbacks(res);
     } catch (e) {
       setFeedbacks(getFeedbacks());
+    } finally {
+      setCarregado(true);
     }
   };
 
   const carregarDados = async () => {
+    // Mostra o que já está em memória enquanto sincroniza
+    const emCache = getFeedbacks() || [];
+    if (emCache.length > 0) {
+      setFeedbacks(emCache);
+      setCarregado(true);
+    }
     await atualizarFeedbacks();
 
     try {
@@ -551,6 +562,10 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
               );
             })}
           </div>
+        </div>
+      ) : !carregado ? (
+        <div className="p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a]">
+          <ListSkeleton linhas={5} />
         </div>
       ) : feedbacksFiltrados.length === 0 ? (
         <div className="p-12 text-center rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-2">

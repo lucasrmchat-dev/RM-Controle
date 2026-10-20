@@ -434,8 +434,31 @@ export function encontrarIndiceChamado(lista, id) {
  * Atualiza um chamado na nuvem e CONFIRMA que a linha foi alterada.
  * Colunas opcionais (de migrações) são removidas e a atualização é repetida se o schema não as tiver.
  */
+/**
+ * Garante que o navegador tem uma sessão válida no banco (as regras de segurança dependem dela).
+ * Sem isso, a escrita é recusada em silêncio pelo banco e a pessoa só vê "não foi possível".
+ */
+export async function garantirSessaoBanco() {
+  if (!isSupabaseConfigured || !supabase) return { ok: true };
+  try {
+    const { data } = await supabase.auth.getSession();
+    let sessao = data?.session || null;
+    const expiraEmMs = sessao?.expires_at ? sessao.expires_at * 1000 - Date.now() : 0;
+    if (!sessao || expiraEmMs < 60000) {
+      const { data: renovada, error } = await supabase.auth.refreshSession();
+      sessao = error ? null : renovada?.session || null;
+    }
+    if (!sessao) return { ok: false, erro: 'Sua conexão com o banco expirou. Saia e entre novamente para continuar.' };
+    return { ok: true, email: (sessao.user?.email || '').toLowerCase() };
+  } catch (e) {
+    return { ok: false, erro: 'Não foi possível confirmar sua conexão com o banco. Verifique a internet.' };
+  }
+}
+
 async function atualizarChamadoNuvem(id, campos, colunasOpcionais = [], statusPermitidos = null) {
   if (!isSupabaseConfigured || !supabase) return { ok: true, cloudId: id };
+  const sessao = await garantirSessaoBanco();
+  if (!sessao.ok) return { ok: false, cloudId: null, erro: sessao.erro };
   const cloudId = await resolverIdNuvem(id);
   if (!cloudId) return { ok: false, cloudId: null, erro: 'A demanda ainda não foi sincronizada com a nuvem.' };
   let payload = { ...campos };
@@ -449,10 +472,23 @@ async function atualizarChamadoNuvem(id, campos, colunasOpcionais = [], statusPe
       payload = Object.fromEntries(Object.entries(payload).filter(([k]) => !colunasOpcionais.includes(k)));
       continue;
     }
+    // Nenhuma linha alterada: descobre o motivo real para mostrar uma mensagem que ajude
+    if (!error && statusPermitidos) {
+      const { data: atual } = await supabase.from('suporte_chamados').select('status, atendente').eq('id', cloudId).maybeSingle();
+      if (!atual) return { ok: false, cloudId, erro: 'Esta demanda foi removida ou você não tem permissão para vê-la.' };
+      if (!statusPermitidos.includes(atual.status)) {
+        const quem = atual.atendente ? ` por ${atual.atendente}` : '';
+        return {
+          ok: false,
+          cloudId,
+          erro: atual.status === 'em_andamento' ? `Outra pessoa já assumiu esta demanda${quem}.` : 'Esta demanda já foi concluída ou cancelada.',
+        };
+      }
+    }
     return {
       ok: false,
       cloudId,
-      erro: error?.message || 'O servidor não confirmou a alteração (sem permissão ou demanda removida por outro colaborador).',
+      erro: error?.message || 'O banco recusou a alteração. Saia e entre novamente; se continuar, confirme seu acesso em Equipe & Senhas.',
     };
   }
   return { ok: false, cloudId, erro: 'Falha ao atualizar a demanda.' };
@@ -1281,6 +1317,56 @@ export function marcarChamadoEscalonado(chamadoId) {
   return chamados[idx];
 }
 
+/**
+ * "Sem resposta do cliente": a demanda NÃO é encerrada. Volta para a fila como "Aguardando cliente"
+ * (status 'pendente'), mantém o responsável e guarda o tempo de atendimento já gasto
+ * (duracao_segundos), que é somado quando o atendimento for retomado e concluído.
+ */
+export async function aguardarRetornoCliente({ chamado_id, tempo_ativo_segundos = 0, userEmail = 'admin@rmcontrole.com' }) {
+  const chamados = getLocalData('chamados_suporte', []);
+  const idx = encontrarIndiceChamado(chamados, chamado_id);
+  if (idx === -1) throw new Error('Demanda não encontrada.');
+  const chamadosAntes = chamados.map((c) => ({ ...c }));
+  const anterior = chamados[idx];
+  const agora = new Date().toISOString();
+  const acumulado = Math.max(0, Math.floor((anterior.duracao_acumulada_segundos || 0) + (tempo_ativo_segundos || 0)));
+
+  chamados[idx] = {
+    ...anterior,
+    status: 'pendente',
+    aguardando_cliente_desde: agora,
+    duracao_acumulada_segundos: acumulado,
+    iniciado_em: agora,
+    tempo_ativo_inicio: null,
+    tempo_ativo_segundos: 0,
+  };
+  registrarMutacaoLocal();
+  setLocalData('chamados_suporte', chamados);
+  window.dispatchEvent(new Event('suporte_updated'));
+
+  const res = await atualizarChamadoNuvem(
+    anterior.id,
+    { status: 'pendente', duracao_segundos: acumulado, iniciado_em: agora },
+    ['duracao_segundos'],
+    ['em_andamento']
+  );
+  if (!res.ok) {
+    registrarMutacaoLocal();
+    setLocalData('chamados_suporte', chamadosAntes);
+    window.dispatchEvent(new Event('suporte_updated'));
+    throw new Error(`Não foi possível colocar a demanda em espera: ${res.erro}`);
+  }
+
+  await logAuditoria({
+    empresaId: anterior.empresa_id,
+    usuarioEmail: userEmail,
+    acao: 'aguardando_retorno_cliente',
+    detalhes: { empresa_nome: anterior.empresa_nome, tempo_acumulado_segundos: acumulado, modulo: 'Fila de Suporte' },
+  });
+  window.dispatchEvent(new Event('suporte_updated'));
+  return chamados[idx];
+}
+
 export async function assumirSuporte({ chamado_id, userEmail = 'admin@rmcontrole.com' }) {
   const chamados = getLocalData('chamados_suporte', []);
   const idx = encontrarIndiceChamado(chamados, chamado_id);
@@ -1488,6 +1574,8 @@ export async function fetchChamadosFila() {
               : (d.tecnico_email === 'geral' || (localMatch?.is_fila_geral ?? false)),
             atribuido_por_email: localMatch?.atribuido_por_email || d.criador_email || '',
             motivo: d.motivo || '',
+            duracao_acumulada_segundos: d.status === 'pendente' || d.status === 'em_andamento' ? (d.duracao_segundos || localMatch?.duracao_acumulada_segundos || 0) : 0,
+            aguardando_cliente_desde: d.status === 'pendente' ? (d.iniciado_em || localMatch?.aguardando_cliente_desde || null) : null,
             atribuido_em: localMatch?.atribuido_em || dataCriacao,
             tempo_escalonamento_minutos: localMatch?.tempo_escalonamento_minutos || 15,
             escalonado_notificado: Boolean(localMatch?.escalonado_notificado),
@@ -2642,7 +2730,7 @@ export function getEmpresaCredenciais(empresaId) {
   return emp.credenciais_lista || [];
 }
 
-export async function addEmpresaCredencial(empresaId, { rotulo, nome_usuario = '', usuario_email = '', senha = '', observacao = '' }, userEmail = 'admin@rmcontrole.com') {
+export async function addEmpresaCredencial(empresaId, { rotulo, nome_usuario = '', usuario_email = '', senha = '', observacao = '', is_principal = false }, userEmail = 'admin@rmcontrole.com') {
 
   let credId = 'cred_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
 
@@ -2655,8 +2743,12 @@ export async function addEmpresaCredencial(empresaId, { rotulo, nome_usuario = '
         .insert([
           {
             empresa_id: empresaId,
+            rotulo: (rotulo || '').trim() || null,
+            nome_usuario: (nome_usuario || '').trim() || null,
+            observacao: (observacao || '').trim() || null,
+            is_principal: Boolean(is_principal),
             email_administrador: (usuario_email || '').trim() || null,
-            senha_suporte: senha.trim(),
+            senha_suporte: (senha || '').trim(),
             ultima_alteracao: new Date().toISOString(),
           }
         ])
@@ -2759,8 +2851,12 @@ export async function updateEmpresaCredencial(empresaId, credId, dados, userEmai
       const updateData = {
         ultima_alteracao: new Date().toISOString(),
       };
-      if (dados.usuario_email !== undefined) updateData.email_administrador = dados.usuario_email.trim();
+      if (dados.usuario_email !== undefined) updateData.email_administrador = dados.usuario_email.trim() || null;
       if (dados.senha !== undefined) updateData.senha_suporte = dados.senha.trim();
+      if (dados.rotulo !== undefined) updateData.rotulo = dados.rotulo.trim() || null;
+      if (dados.nome_usuario !== undefined) updateData.nome_usuario = dados.nome_usuario.trim() || null;
+      if (dados.observacao !== undefined) updateData.observacao = dados.observacao.trim() || null;
+      if (dados.is_principal !== undefined) updateData.is_principal = Boolean(dados.is_principal);
 
       await supabase.from('empresa_credenciais').update(updateData).eq('id', credId);
     } catch (e) {
@@ -3357,7 +3453,9 @@ export async function getEmpresas({
             observacoes: empObs.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)),
             credenciais_lista: empCreds.map((cr) => ({
               id: cr.id,
-              rotulo: cr.rotulo || 'Acesso Principal',
+              rotulo: cr.rotulo || cr.nome_usuario || 'Acesso',
+              nome_usuario: cr.nome_usuario || '',
+              is_principal: Boolean(cr.is_principal),
               usuario_email: cr.email_administrador || cr.usuario_email || '',
               email_administrador: cr.email_administrador || cr.usuario_email || '',
               senha: cr.senha_suporte || cr.senha || '',
@@ -3558,13 +3656,23 @@ export async function createEmpresa({
     createdDbEmpresa = dbEmp;
     empresaId = dbEmp.id;
 
-    // Credencial inicial (o banco cifra a senha)
-    const emailAdm = (email_administrador || '').trim() || `admin@${trimmedNome.toLowerCase().replace(/[^a-z0-9]/g, '')}.com.br`;
-    const senhaSup = (senha_suporte || '').trim() || getSenhaPadraoRedefinicao();
-    const { error: erroCred } = await supabase.from('empresa_credenciais').insert([
-      { empresa_id: empresaId, email_administrador: emailAdm, senha_suporte: senhaSup, ultima_alteracao: new Date().toISOString() },
-    ]);
-    if (erroCred) avisos.push(`credencial inicial não salva (${erroCred.message})`);
+    // Acesso do administrador: só o que a pessoa informou (nada de e-mail ou senha inventados).
+    // O banco cifra a senha.
+    const emailAdm = (email_administrador || '').trim();
+    const senhaSup = (senha_suporte || '').trim();
+    if (emailAdm || senhaSup) {
+      const { error: erroCred } = await supabase.from('empresa_credenciais').insert([
+        {
+          empresa_id: empresaId,
+          rotulo: 'Acesso do Administrador',
+          email_administrador: emailAdm || null,
+          senha_suporte: senhaSup,
+          is_principal: true,
+          ultima_alteracao: new Date().toISOString(),
+        },
+      ]);
+      if (erroCred) avisos.push(`acesso do administrador não salvo (${erroCred.message})`);
+    }
 
     // Checklist de setup (0% para cliente novo, 100% para já existente)
     if (templateChecklist && templateChecklist.length > 0) {
@@ -3606,16 +3714,19 @@ export async function createEmpresa({
     created_at: createdDbEmpresa?.created_at || new Date().toISOString(),
     canais: canaisIniciais,
     observacoes: [],
-    credenciais_lista: [
-      {
-        id: 'cred_' + Date.now(),
-        rotulo: 'Acesso Principal do Administrador',
-        usuario_email: email_administrador || `admin@${trimmedNome.toLowerCase().replace(/[^a-z0-9]/g, '')}.com.br`,
-        senha: senha_suporte || getSenhaPadraoRedefinicao(),
-        observacao: 'Acesso inicial configurado no cadastro',
-        ultima_alteracao: new Date().toISOString(),
-      }
-    ],
+    credenciais_lista: ((email_administrador || '').trim() || (senha_suporte || '').trim())
+      ? [
+          {
+            id: 'cred_' + Date.now(),
+            rotulo: 'Acesso do Administrador',
+            usuario_email: (email_administrador || '').trim(),
+            senha: (senha_suporte || '').trim(),
+            is_principal: true,
+            observacao: '',
+            ultima_alteracao: new Date().toISOString(),
+          },
+        ]
+      : [],
     checklist: templateChecklist.map((item) => ({
       id: 'chk_inst_' + Math.random().toString(36).substr(2, 7),
       titulo: item.titulo,
@@ -3696,18 +3807,22 @@ export async function createEmpresasEmMassa(items, { formato_atendimento = 'cola
         for (let i = 0; i < dbEmpresas.length; i++) {
           const emp = dbEmpresas[i];
           const infoOriginal = empresasNormalizadas[i] || {};
-          const emailAdm = infoOriginal.email_administrador || `admin@${emp.nome.toLowerCase().replace(/[^a-z0-9]/g, '')}.com.br`;
-          const senhaSup = infoOriginal.senha_suporte || getSenhaPadraoRedefinicao();
+          const emailAdm = (infoOriginal.email_administrador || '').trim();
+          const senhaSup = (infoOriginal.senha_suporte || '').trim();
 
           try {
-            await supabase.from('empresa_credenciais').insert([
-              {
-                empresa_id: emp.id,
-                email_administrador: emailAdm,
-                senha_suporte: senhaSup,
-                ultima_alteracao: new Date().toISOString(),
-              }
-            ]);
+            if (emailAdm || senhaSup) {
+              await supabase.from('empresa_credenciais').insert([
+                {
+                  empresa_id: emp.id,
+                  rotulo: 'Acesso do Administrador',
+                  email_administrador: emailAdm || null,
+                  senha_suporte: senhaSup,
+                  is_principal: true,
+                  ultima_alteracao: new Date().toISOString(),
+                }
+              ]);
+            }
             if (templateChecklist.length > 0) {
               const chkInserts = itensChecklistIniciais(templateChecklist, tipoCliente).map((item) => ({
                 empresa_id: emp.id,
@@ -3771,8 +3886,8 @@ export async function createEmpresasEmMassa(items, { formato_atendimento = 'cola
   }
 
   for (const empItem of empresasNormalizadas) {
-    const emailAdm = empItem.email_administrador || `admin@${empItem.nome.toLowerCase().replace(/[^a-z0-9]/g, '')}.com.br`;
-    const senhaSup = empItem.senha_suporte || getSenhaPadraoRedefinicao();
+    const emailAdm = (empItem.email_administrador || '').trim();
+    const senhaSup = (empItem.senha_suporte || '').trim();
 
     const nova = {
       id: 'emp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
@@ -3786,16 +3901,19 @@ export async function createEmpresasEmMassa(items, { formato_atendimento = 'cola
       created_at: new Date().toISOString(),
       canais: [],
       observacoes: [],
-      credenciais_lista: [
-        {
-          id: 'cred_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-          rotulo: 'Acesso Principal do Administrador',
-          usuario_email: emailAdm,
-          senha: senhaSup,
-          observacao: 'Importação em lote',
-          ultima_alteracao: new Date().toISOString(),
-        }
-      ],
+      credenciais_lista: (emailAdm || senhaSup)
+        ? [
+            {
+              id: 'cred_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+              rotulo: 'Acesso do Administrador',
+              usuario_email: emailAdm,
+              senha: senhaSup,
+              is_principal: true,
+              observacao: '',
+              ultima_alteracao: new Date().toISOString(),
+            },
+          ]
+        : [],
       checklist: templateChecklist.map((item) => ({
         id: 'chk_inst_' + Math.random().toString(36).substr(2, 7),
         titulo: item.titulo,
@@ -4655,18 +4773,6 @@ export const CONFIG_SERVIDOR_PADRAO_GLOBAL = {
   recursos_minimos_vps: '4 vCPU, 8 GB RAM, 80 GB SSD NVMe, 1 Gbps Link.',
 };
 
-export const CHECKLIST_IMPLEMENTACAO_SERVIDOR_PADRAO = [
-  { id: 'chk_srv_1', titulo: 'Provisionamento da VPS & Atualização do SO', desc: 'Instalação do Ubuntu 22.04 LTS com pacotes base atualizados', obrigatorio: true },
-  { id: 'chk_srv_2', titulo: 'Hardening de Segurança (SSH 2222, UFW & Fail2ban)', desc: 'Porta SSH alterada, chave pública configurada e firewall ativo', obrigatorio: true },
-  { id: 'chk_srv_3', titulo: 'Apontamento de DNS & Emissão SSL Let\'s Encrypt', desc: 'Registros A e CNAME propagados com HTTPS ativo no domínio do cliente', obrigatorio: true },
-  { id: 'chk_srv_4', titulo: 'Instalação do Docker Engine & Docker Compose', desc: 'Runtime configurado com inicialização no boot do sistema operacional', obrigatorio: true },
-  { id: 'chk_srv_5', titulo: 'Subida dos Bancos de Dados (PostgreSQL + Redis)', desc: 'Volumes persistentes mapeados e senhas seguras configuradas', obrigatorio: true },
-  { id: 'chk_srv_6', titulo: 'Subida da Engine de Mensageria & Webhooks', desc: 'Instâncias prontas para pareamento de QR Code ou ativação da Meta API', obrigatorio: true },
-  { id: 'chk_srv_7', titulo: 'Validação de Envio e Recebimento de Mensagens', desc: 'Disparo de mensagem de teste com entrega validada e sem atrasos', obrigatorio: true },
-  { id: 'chk_srv_8', titulo: 'Ativação da Rotina de Backup Automático Diário', desc: 'Script cron validado com envio de dump seguro para storage externo', obrigatorio: true },
-  { id: 'chk_srv_9', titulo: 'Cadastro das Credenciais Técnicas no RM Controle', desc: 'Armazenamento da senha de suporte e acessos na aba de Credenciais', obrigatorio: true },
-  { id: 'chk_srv_10', titulo: 'Homologação Final com o Cliente & Entrega', desc: 'Validação operacional completa com os atendentes da empresa', obrigatorio: true },
-];
 
 export function getServidorConfigPadrao() {
   return getLocalData('servidor_config_padrao', CONFIG_SERVIDOR_PADRAO_GLOBAL);
@@ -4682,23 +4788,39 @@ export function setServidorConfigPadrao(config) {
   });
 }
 
+// Itens fixos que versões antigas colocavam em todo servidor (nunca cadastrados pela equipe)
+const ID_CHECKLIST_SERVIDOR_LEGADO = /^chk_srv_\d+$/;
+function semItensLegados(lista) {
+  return (Array.isArray(lista) ? lista : []).filter((i) => i && !ID_CHECKLIST_SERVIDOR_LEGADO.test(String(i.id || '')));
+}
+
+// Checklist inicial do servidor: só o que a equipe cadastrou no modelo (Configurações › Servidores)
+function checklistServidorInicial() {
+  const modelo = isMockDataEnabled() ? getServerChecklistTemplate() : getLocalData('server_checklist_template', []);
+  return (modelo || []).map((item) => ({
+    id: item.id,
+    titulo: item.titulo,
+    desc: item.descricao || item.desc || '',
+    obrigatorio: item.obrigatorio !== false,
+    concluido: false,
+    concluido_em: null,
+    responsavel: null,
+  }));
+}
+
 export function getEmpresaServidorDetalhes(empresaId) {
   if (!empresaId) return null;
   const key = 'servidor_empresa_' + empresaId;
-  return getLocalData(key, {
+  const dados = getLocalData(key, {
     servidor_alocado: 'servidor_1',
     ip_personalizado: '',
     porta_ssh: '2222',
     observacoes_infra: '',
     peculiaridades: '',
     config_personalizada: '',
-    checklist_implementacao: CHECKLIST_IMPLEMENTACAO_SERVIDOR_PADRAO.map((item) => ({
-      ...item,
-      concluido: false,
-      concluido_em: null,
-      responsavel: null,
-    })),
+    checklist_implementacao: checklistServidorInicial(),
   });
+  return { ...dados, checklist_implementacao: semItensLegados(dados.checklist_implementacao) };
 }
 
 const CAMPOS_SERVIDOR_EMPRESA = ['ip_personalizado', 'porta_ssh', 'observacoes_infra', 'peculiaridades', 'config_personalizada', 'checklist_implementacao'];
@@ -4724,9 +4846,11 @@ export async function fetchEmpresaServidorDetalhes(empresaId) {
     CAMPOS_SERVIDOR_EMPRESA.forEach((c) => {
       if (data[c] !== undefined && data[c] !== null) daNuvem[c] = data[c];
     });
-    if (!Array.isArray(daNuvem.checklist_implementacao) || daNuvem.checklist_implementacao.length === 0) {
+    // Lista vazia vinda do banco é válida (a equipe removeu tudo); só usa a local se o banco não tiver o campo
+    if (!Array.isArray(daNuvem.checklist_implementacao)) {
       daNuvem.checklist_implementacao = atual.checklist_implementacao;
     }
+    daNuvem.checklist_implementacao = semItensLegados(daNuvem.checklist_implementacao);
     setLocalData(key, { ...atual, ...daNuvem, atualizado_por: data.updated_by, atualizado_em: data.updated_at });
   } else if (typeof window !== 'undefined' && localStorage.getItem('rm_' + key)) {
     // Primeira vez: o que estava só neste navegador vira o registro da equipe
@@ -5324,13 +5448,20 @@ export function parseIcalEvents(icsContent) {
 // Configuração Global de URLs de Acesso aos Servidores (Servidor 1 e Servidor 2)
 export const DEFAULT_SERVIDORES_CONFIG = {
   servidor_1_nome: 'Servidor 1',
-  servidor_1_url: 'https://app1.rmcontrole.com.br',
+  servidor_1_url: '',
   servidor_2_nome: 'Servidor 2',
-  servidor_2_url: 'https://app2.rmcontrole.com.br',
+  servidor_2_url: '',
 };
 
+// Endereços fictícios que versões antigas gravavam como padrão: nunca devem ser abertos
+const URLS_SERVIDOR_FICTICIAS = new Set(['https://app1.rmcontrole.com.br', 'https://app2.rmcontrole.com.br']);
+
 export function getServidoresConfig() {
-  return getLocalData('rm_servidores_config', DEFAULT_SERVIDORES_CONFIG);
+  const salvo = { ...DEFAULT_SERVIDORES_CONFIG, ...getLocalData('rm_servidores_config', DEFAULT_SERVIDORES_CONFIG) };
+  for (const n of [1, 2]) {
+    if (URLS_SERVIDOR_FICTICIAS.has(String(salvo[`servidor_${n}_url`] || '').replace(/\/$/, ''))) salvo[`servidor_${n}_url`] = '';
+  }
+  return salvo;
 }
 
 function aplicarServidoresConfigLocal(config) {

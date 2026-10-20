@@ -1,1035 +1,509 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  getMotivosSuporte, 
+import React, { useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  getMotivosSuporte,
   addMotivoSuporte,
-  getEmpresaCredenciais, 
+  getEmpresaCredenciais,
   getConfiguracoesSuporte,
   finalizarSuporte,
+  aguardarRetornoCliente,
   getNomeTecnico,
-  getEmpresaById,
   addColaboradorEmpresa,
   getColaboradoresEmpresa,
-  deleteColaboradorEmpresa,
-  removerAcentos,
-  addSolucaoSuporte
+  addSolucaoSuporte,
 } from '@/lib/storage';
-import { XMarkIcon, CheckIcon, SparklesIcon, HourglassIcon, TrashIcon, ClockIcon, CheckCircleIcon, ClockPauseIcon, AlertCircleIcon } from './Icons';
+import { classeCampo, classeRotulo } from './NovaEmpresaCampos';
+import {
+  ModalEtapas,
+  Etapa,
+  Combobox,
+  Escolhido,
+  SeloNovo,
+  Expandir,
+  ErroRodape,
+  Spinner,
+  EASE,
+  normalizarBusca,
+  classeBotaoPrimario,
+  classeBotaoSecundario,
+  classeBotaoTexto,
+} from './FormularioEtapas';
+import { CheckIcon, ClockIcon, HourglassIcon, TagIcon, UserIcon } from './Icons';
 import { showToast } from './ToastNotification';
 
-export default function SupportCompletionModal({
-  isOpen,
-  chamado,
-  onClose,
-  onFinalizado,
-  userEmail,
-}) {
-  const [mounted, setMounted] = useState(false);
-  const [motivos, setMotivos] = useState([]);
-  const [colaboradores, setColaboradores] = useState([]);
-  const [config, setConfig] = useState({
-    motivo_obrigatorio: true,
-    solucao_obrigatoria: false,
-    colaborador_obrigatorio: false,
-    atendente_obrigatorio: false,
-  });
+const DESFECHOS = [
+  { id: 'resolvido', titulo: 'Resolvido', desc: 'O problema foi solucionado. A demanda é encerrada.', cor: 'emerald' },
+  { id: 'nao_resolvido', titulo: 'Não resolvido', desc: 'Não foi possível resolver. A demanda é encerrada.', cor: 'rose' },
+  { id: 'sem_resposta', titulo: 'Sem resposta', desc: 'O cliente não respondeu. Volta para a fila como "Aguardando cliente", com você como responsável.', cor: 'amber' },
+];
 
-  // Motivo do suporte - INICIA TOTALMENTE LIMPO / SEM NENHUM PRÉ-DEFINIDO
-  const [motivo, setMotivo] = useState('');
-  const [buscaMotivo, setBuscaMotivo] = useState('');
-  const [dropdownMotivoAberto, setDropdownMotivoAberto] = useState(false);
-  const [highlightedMotivoIdx, setHighlightedMotivoIdx] = useState(0);
-  const motivoRef = useRef(null);
+const CORES_DESFECHO = {
+  emerald: 'border-emerald-600 dark:border-emerald-400 bg-emerald-500/[0.07] ring-1 ring-emerald-600/25 dark:ring-emerald-400/30',
+  rose: 'border-rose-600 dark:border-rose-400 bg-rose-500/[0.06] ring-1 ring-rose-600/25 dark:ring-rose-400/30',
+  amber: 'border-amber-600 dark:border-amber-400 bg-amber-500/[0.07] ring-1 ring-amber-600/25 dark:ring-amber-400/30',
+};
+const PONTO_DESFECHO = { emerald: 'bg-emerald-600 dark:bg-emerald-400', rose: 'bg-rose-600 dark:bg-rose-400', amber: 'bg-amber-600 dark:bg-amber-400' };
 
-  // Colaborador solicitante - INICIA TOTALMENTE LIMPO / SEM NENHUM PRÉ-DEFINIDO
-  const [colaboradorSelecionado, setColaboradorSelecionado] = useState(null);
-  const [buscaColab, setBuscaColab] = useState('');
-  const [dropdownColabAberto, setDropdownColabAberto] = useState(false);
-  const [highlightedColabIdx, setHighlightedColabIdx] = useState(0);
-  const colabRef = useRef(null);
+const paraInputLocal = (data) => {
+  const d = data ? new Date(data) : new Date();
+  if (isNaN(d.getTime())) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
 
-  const [atendente, setAtendente] = useState('');
-  const [observacoes, setObservacoes] = useState('');
+const formatarTempo = (seg) => {
+  const s = Math.max(0, Math.floor(seg || 0));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const r = s % 60;
+  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}min`;
+  if (m > 0) return `${m}min ${String(r).padStart(2, '0')}s`;
+  return `${r}s`;
+};
+
+export default function SupportCompletionModal({ isOpen, chamado, onClose, onFinalizado, userEmail }) {
+  const [config, setConfig] = useState({ motivo_obrigatorio: true, solucao_obrigatoria: false, colaborador_obrigatorio: false });
+  const [desfecho, setDesfecho] = useState('resolvido');
+  const [categorias, setCategorias] = useState([]);
+  const [categoria, setCategoria] = useState(null); // { nome, nova }
+  const [contatos, setContatos] = useState([]);
+  const [solicitante, setSolicitante] = useState(null); // { nome, novo }
+  const [tempoEspera, setTempoEspera] = useState(0);
+  const [tempoSessao, setTempoSessao] = useState(0);
+  const [acumulado, setAcumulado] = useState(0);
+  const [ajustarTempo, setAjustarTempo] = useState(false);
+  const [inicio, setInicio] = useState('');
+  const [fim, setFim] = useState('');
+  const [explicar, setExplicar] = useState(false);
   const [tituloProblema, setTituloProblema] = useState('');
-  const [codigoErroSolucao, setCodigoErroSolucao] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-  const [statusResolucao, setStatusResolucao] = useState('resolvido'); // 'resolvido' | 'sem_resposta' | 'nao_resolvido'
-
-  // Cronômetros calculados no momento de abertura
-  const [tempoEsperaSegundos, setTempoEsperaSegundos] = useState(0);
-  const [tempoAtivoSegundos, setTempoAtivoSegundos] = useState(0);
-
-  // Edição manual de horários / tempo ativo
-  const [editandoTempo, setEditandoTempo] = useState(false);
-  const [horarioInicio, setHorarioInicio] = useState('');
-  const [horarioFim, setHorarioFim] = useState('');
+  const [codigoErro, setCodigoErro] = useState('');
+  const [passos, setPassos] = useState('');
+  const [erro, setErro] = useState('');
+  const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    if (!isOpen || !chamado) return;
+    const cfg = getConfiguracoesSuporte();
+    setConfig(cfg);
+    setDesfecho('resolvido');
+    setCategorias(getMotivosSuporte().map((m) => ({ id: m.id, nome: m.nome })).filter((m) => m.nome));
+    setCategoria(null);
 
-  const toLocalDatetimeInput = (dateObj) => {
-    const d = dateObj ? new Date(dateObj) : new Date();
-    if (isNaN(d.getTime())) return '';
-    const pad = (n) => n.toString().padStart(2, '0');
-    const year = d.getFullYear();
-    const month = pad(d.getMonth() + 1);
-    const day = pad(d.getDate());
-    const hours = pad(d.getHours());
-    const minutes = pad(d.getMinutes());
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
-  };
-
-  // Fecha dropdowns ao clicar fora
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (colabRef.current && !colabRef.current.contains(e.target)) {
-        setDropdownColabAberto(false);
-      }
-      if (motivoRef.current && !motivoRef.current.contains(e.target)) {
-        setDropdownMotivoAberto(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const carregarColaboradores = () => {
-    if (!chamado?.empresa_id) return;
-    const creds = getEmpresaCredenciais(chamado.empresa_id) || [];
-    const colabsDiretos = getColaboradoresEmpresa(chamado.empresa_id) || [];
-
-    const lista = [];
+    // Contatos da empresa (colaboradores + acessos), sem nada pré-selecionado
     const vistos = new Set();
+    const lista = [];
+    const add = (nome, detalhe) => {
+      const n = (nome || '').trim();
+      if (!n || vistos.has(normalizarBusca(n)) || normalizarBusca(n) === 'painel admin') return;
+      vistos.add(normalizarBusca(n));
+      lista.push({ id: n, nome: n, detalhe });
+    };
+    if (chamado.empresa_id) {
+      (getColaboradoresEmpresa(chamado.empresa_id) || []).forEach((c) => add(c.nome, c.cargo || 'Colaborador'));
+      (getEmpresaCredenciais(chamado.empresa_id) || []).forEach((c) => add(c.nome_usuario || c.rotulo, c.usuario_email || 'Acesso cadastrado'));
+    }
+    setContatos(lista);
+    // Quem abriu a demanda já informou o solicitante: vem preenchido
+    const jaInformado = (chamado.solicitante_nome || '').trim();
+    setSolicitante(jaInformado && jaInformado !== 'Colaborador da Empresa' ? { nome: jaInformado, detalhe: 'Informado na abertura', novo: false } : null);
 
-    // 1. Colaboradores diretos cadastrados na empresa
-    for (const c of colabsDiretos) {
-      const nomeLimpo = (c?.nome || '').trim();
-      if (nomeLimpo && !vistos.has(nomeLimpo.toLowerCase())) {
-        vistos.add(nomeLimpo.toLowerCase());
-        lista.push({
-          id: c.id || ('col_' + Math.random()),
-          nome: nomeLimpo,
-          email: c.email || '',
-          cargo: c.cargo || 'Colaborador da Empresa',
-          is_colaborador: true,
-        });
+    // Tempos
+    const agora = Date.now();
+    const inicioEspera = new Date(chamado.tempo_espera_inicio || chamado.created_at || agora).getTime();
+    const fimEspera = chamado.tempo_espera_fim
+      ? new Date(chamado.tempo_espera_fim).getTime()
+      : chamado.tempo_ativo_inicio || chamado.iniciado_em
+        ? new Date(chamado.tempo_ativo_inicio || chamado.iniciado_em).getTime()
+        : agora;
+    setTempoEspera(chamado.tempo_espera_segundos || Math.max(0, Math.floor((fimEspera - inicioEspera) / 1000)));
+    // Aguardando cliente: o cronômetro estava pausado, então a sessão atual não conta tempo
+    const pausado = chamado.status === 'pendente';
+    const inicioAtivo = pausado ? new Date(agora) : new Date(chamado.tempo_ativo_inicio || chamado.iniciado_em || agora);
+    setTempoSessao(pausado ? 0 : Math.max(1, Math.floor((agora - inicioAtivo.getTime()) / 1000)));
+    setAcumulado(chamado.duracao_acumulada_segundos || 0);
+    setInicio(paraInputLocal(inicioAtivo));
+    setFim(paraInputLocal(new Date(agora)));
+    setAjustarTempo(false);
+
+    setExplicar(Boolean(cfg.solucao_obrigatoria));
+    setTituloProblema('');
+    setCodigoErro('');
+    setPassos('');
+    setErro('');
+    setEnviando(false);
+  }, [isOpen, chamado?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const tempoTotal = acumulado + tempoSessao;
+  const semResposta = desfecho === 'sem_resposta';
+  const desfechoAtual = DESFECHOS.find((d) => d.id === desfecho);
+
+  const recalcular = (ini, fi) => {
+    const a = new Date(ini).getTime();
+    const b = new Date(fi).getTime();
+    if (!isNaN(a) && !isNaN(b) && b >= a) setTempoSessao(Math.max(0, Math.floor((b - a) / 1000)));
+  };
+  const ajusteRapido = (min) => {
+    const f = fim ? new Date(fim) : new Date();
+    const i = new Date(f.getTime() - min * 60000);
+    setInicio(paraInputLocal(i));
+    setFim(paraInputLocal(f));
+    setTempoSessao(min * 60);
+  };
+
+  const etapa2Ok = semResposta || !config.motivo_obrigatorio || Boolean(categoria);
+
+  const concluir = async () => {
+    if (enviando || !chamado) return;
+    setErro('');
+
+    // Sem resposta: não encerra — volta para a fila aguardando o cliente
+    if (semResposta) {
+      setEnviando(true);
+      try {
+        await aguardarRetornoCliente({ chamado_id: chamado.id, tempo_ativo_segundos: tempoSessao, userEmail });
+        showToast(`${chamado.empresa_nome}: aguardando retorno do cliente. A demanda continua na fila com você.`, 'info');
+        onFinalizado?.();
+        onClose();
+      } catch (e) {
+        setErro(e?.message || 'Não foi possível colocar a demanda em espera.');
+      } finally {
+        setEnviando(false);
       }
+      return;
     }
 
-    // 2. Colaboradores e usuários registrados via Credenciais de Acesso
-    for (const cr of creds) {
-      const nomeCred = (cr.nome_usuario || cr.rotulo || '').trim();
-      if (nomeCred && !vistos.has(nomeCred.toLowerCase()) && nomeCred.toLowerCase() !== 'painel admin') {
-        vistos.add(nomeCred.toLowerCase());
-        lista.push({
-          id: cr.id,
-          nome: nomeCred,
-          email: cr.usuario_email || '',
-          cargo: cr.rotulo || 'Acesso / Colaborador',
-          is_credencial: true,
-        });
-      }
+    const nomeCategoria = (categoria?.nome || '').trim();
+    if (config.motivo_obrigatorio && !nomeCategoria) return setErro('Escolha a categoria do suporte.');
+    if (config.colaborador_obrigatorio && !solicitante?.nome) return setErro('Informe quem pediu o atendimento.');
+    if (config.solucao_obrigatoria && !passos.trim()) {
+      setExplicar(true);
+      return setErro('Explique como o problema foi resolvido.');
     }
 
-    setColaboradores(lista);
-
-    // O usuário especificou: NÃO quer que tenha colaborador nem motivo pré-definido!
-    setColaboradorSelecionado(null);
-    setBuscaColab('');
-    setHighlightedColabIdx(0);
-  };
-
-  useEffect(() => {
-    if (isOpen && chamado) {
-      const mot = getMotivosSuporte();
-      setMotivos(mot);
-
-      // O usuário especificou: NÃO quer que tenha motivo pré-definido!
-      setMotivo('');
-      setBuscaMotivo('');
-      setHighlightedMotivoIdx(0);
-
-      const cfg = getConfiguracoesSuporte();
-      setConfig(cfg);
-
-      carregarColaboradores();
-
-      const nomeOperador = getNomeTecnico(userEmail || chamado.tecnico_email);
-      setAtendente(nomeOperador);
-
-      setObservacoes('');
-      setTituloProblema('');
-      setCodigoErroSolucao('');
-
-      // Calcula tempo em espera real e preciso
-      const agora = Date.now();
-      let espera = chamado.tempo_espera_segundos || 0;
-      const dataCriacao = chamado.created_at || chamado.tempo_espera_inicio;
-      const inicioEspera = new Date(chamado.tempo_espera_inicio || dataCriacao || agora).getTime();
-      if (!espera) {
-        const fimEspera = chamado.tempo_espera_fim 
-          ? new Date(chamado.tempo_espera_fim).getTime() 
-          : (chamado.tempo_ativo_inicio || chamado.iniciado_em ? new Date(chamado.tempo_ativo_inicio || chamado.iniciado_em).getTime() : agora);
-        espera = Math.max(0, Math.floor((fimEspera - inicioEspera) / 1000));
-      }
-      setTempoEsperaSegundos(espera);
-
-      // Calcula tempo ativo inicial
-      const inicioAtivo = new Date(chamado.tempo_ativo_inicio || chamado.iniciado_em || agora);
-      const ativo = Math.max(1, Math.floor((agora - inicioAtivo.getTime()) / 1000));
-      setTempoAtivoSegundos(ativo);
-
-      setHorarioInicio(toLocalDatetimeInput(inicioAtivo));
-      setHorarioFim(toLocalDatetimeInput(new Date(agora)));
-      setEditandoTempo(false);
-      setErrorMsg('');
-    }
-  }, [isOpen, chamado?.id]);
-
-  if (!mounted || !isOpen || !chamado) return null;
-
-  const formatarTempo = (totalSegundos) => {
-    const horas = Math.floor(totalSegundos / 3600);
-    const minutos = Math.floor((totalSegundos % 3600) / 60);
-    const segundos = totalSegundos % 60;
-    if (horas > 0) {
-      return `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}:${segundos.toString().padStart(2, '0')}`;
-    }
-    return `${minutos.toString().padStart(2, '0')}:${segundos.toString().padStart(2, '0')}`;
-  };
-
-  const handleRecalcularTempo = (novoInicio, novoFim) => {
-    const inMs = new Date(novoInicio).getTime();
-    const fimMs = new Date(novoFim).getTime();
-    if (!isNaN(inMs) && !isNaN(fimMs) && fimMs >= inMs) {
-      const diffSegs = Math.max(1, Math.floor((fimMs - inMs) / 1000));
-      setTempoAtivoSegundos(diffSegs);
-    }
-  };
-
-  const handleAjustarMinutosRapidos = (minutos) => {
-    const agora = new Date();
-    const fim = horarioFim ? new Date(horarioFim) : agora;
-    const inicio = new Date(fim.getTime() - minutos * 60 * 1000);
-    const inStr = toLocalDatetimeInput(inicio);
-    const fimStr = toLocalDatetimeInput(fim);
-    setHorarioInicio(inStr);
-    setHorarioFim(fimStr);
-    setTempoAtivoSegundos(minutos * 60);
-  };
-
-  // Colaboradores filtrados
-  const colaboradoresFiltrados = colaboradores.filter((c) => {
-    if (!buscaColab.trim()) return true;
-    const q = removerAcentos(buscaColab);
-    return removerAcentos(c.nome).includes(q) || removerAcentos(c.email || '').includes(q);
-  });
-
-  const handleCadastrarRapidoColaborador = async (nomeDigitado) => {
-    const nomeLimpo = (nomeDigitado || buscaColab).trim();
-    if (!nomeLimpo) return;
-
+    setEnviando(true);
     try {
-      const novo = await addColaboradorEmpresa(chamado.empresa_id, {
-        nome: nomeLimpo,
-        cargo: 'Colaborador',
-      }, userEmail);
-
-      const novoItem = {
-        id: novo.id,
-        nome: novo.nome,
-        email: '',
-        cargo: 'Colaborador',
-        is_colaborador: true,
-      };
-
-      setColaboradores((prev) => [novoItem, ...prev]);
-      setColaboradorSelecionado(novoItem);
-      setBuscaColab('');
-      setDropdownColabAberto(false);
-      showToast(`Colaborador "${novoItem.nome}" cadastrado e selecionado!`, 'success');
-    } catch (err) {
-      showToast(err.message || 'Erro ao cadastrar colaborador.', 'error');
-    }
-  };
-
-  const handleExcluirColaborador = async (e, colab) => {
-    e.stopPropagation();
-    try {
-      await deleteColaboradorEmpresa(chamado.empresa_id, colab.id, userEmail);
-      setColaboradores((prev) => prev.filter((c) => c.id !== colab.id));
-      if (colaboradorSelecionado?.id === colab.id) {
-        setColaboradorSelecionado(null);
-        setBuscaColab('');
+      if (categoria?.nova) {
+        try {
+          addMotivoSuporte({ nome: nomeCategoria });
+        } catch (e) {}
       }
-      showToast(`Colaborador "${colab.nome}" removido.`, 'info');
-    } catch (err) {
-      showToast(err.message || 'Erro ao remover colaborador.', 'error');
-    }
-  };
-
-  // Motivos filtrados
-  const motivosFiltrados = motivos.filter((m) => {
-    if (!buscaMotivo.trim()) return true;
-    return removerAcentos(m.nome).includes(removerAcentos(buscaMotivo));
-  });
-
-  const handleCadastrarRapidoMotivo = (nomeDigitado) => {
-    const nomeLimpo = (nomeDigitado || buscaMotivo).trim();
-    if (!nomeLimpo) return;
-    try {
-      const novo = addMotivoSuporte({ nome: nomeLimpo });
-      setMotivos((prev) => [novo, ...prev]);
-      setMotivo(novo.nome);
-      setBuscaMotivo('');
-      setDropdownMotivoAberto(false);
-      showToast(`Motivo "${novo.nome}" cadastrado com sucesso!`, 'success');
-    } catch (err) {
-      showToast(err.message || 'Erro ao cadastrar motivo.', 'error');
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    // Evita concluir duas vezes com Enter/clique repetido enquanto o servidor responde
-    if (submitting) return;
-    setErrorMsg('');
-
-    const solicitanteFinal = (buscaColab.trim() || colaboradorSelecionado?.nome || 'Colaborador da Empresa').trim();
-    let motivoFinal = (buscaMotivo.trim() || motivo || '').trim();
-
-    if (statusResolucao === 'sem_resposta') {
-      motivoFinal = motivoFinal || 'Sem resposta do cliente';
-    } else {
-      // Resolvido ou Não Resolvido: exige motivo se configurado como obrigatório
-      if (config.motivo_obrigatorio && !motivoFinal) {
-        setErrorMsg('Por favor, selecione ou digite o motivo do suporte.');
-        return;
+      if (solicitante?.novo && chamado.empresa_id) {
+        try {
+          await addColaboradorEmpresa(chamado.empresa_id, { nome: solicitante.nome, cargo: 'Colaborador' }, userEmail);
+        } catch (e) {}
       }
-      if (config.solucao_obrigatoria && !observacoes.trim()) {
-        setErrorMsg('Por favor, descreva o procedimento adotado para solucionar o problema.');
-        return;
-      }
-      if (config.colaborador_obrigatorio && !solicitanteFinal) {
-        setErrorMsg('Por favor, identifique o colaborador solicitante na empresa.');
-        return;
-      }
-    }
 
-    try {
-      setSubmitting(true);
+      const atendente = getNomeTecnico(userEmail || chamado.tecnico_email);
       await finalizarSuporte({
         chamado_id: chamado.id,
-        motivo: motivoFinal,
+        motivo: nomeCategoria || 'Atendimento Geral',
         categorias: chamado?.categorias || [],
-        // Nunca injeta texto automático em observações! Fica rigorosamente o que o usuário digitou (ou vazio)
-        observacoes: observacoes.trim(),
-        colaborador_solicitante: solicitanteFinal,
+        observacoes: passos.trim(),
+        colaborador_solicitante: solicitante?.nome || '',
         atendente,
         userEmail,
-        tempo_ativo_segundos: tempoAtivoSegundos,
-        tempo_ativo_inicio: horarioInicio ? new Date(horarioInicio).toISOString() : null,
-        finalizado_em: horarioFim ? new Date(horarioFim).toISOString() : null,
-        status_resolucao: statusResolucao,
-        // A solução é catalogada logo abaixo com o título e o código informados aqui
+        tempo_ativo_segundos: tempoTotal,
+        tempo_ativo_inicio: inicio ? new Date(inicio).toISOString() : null,
+        finalizado_em: fim ? new Date(fim).toISOString() : null,
+        status_resolucao: desfecho,
         catalogarSolucao: false,
       });
 
-      if (observacoes.trim()) {
+      // Explicação preenchida vira referência na base de soluções da equipe
+      if (passos.trim()) {
         try {
-          const tituloFinal = tituloProblema.trim() || `${motivoFinal} (${chamado.empresa_nome || 'Empresa'})`;
           await addSolucaoSuporte({
             empresa_id: chamado.empresa_id || null,
             empresa_nome: chamado.empresa_nome || 'Global',
-            titulo: tituloFinal,
-            erro_codigo: codigoErroSolucao.trim().toUpperCase(),
+            titulo: tituloProblema.trim() || `${nomeCategoria || 'Atendimento'} (${chamado.empresa_nome || 'Empresa'})`,
+            erro_codigo: codigoErro.trim().toUpperCase(),
             contexto: `Solução aplicada por ${atendente || 'atendente'} em atendimento.`,
-            tipo_erro: motivoFinal,
-            solucao_passos: observacoes.trim(),
-            tags: [motivoFinal, chamado.empresa_nome, 'suporte_finalizado'],
+            tipo_erro: nomeCategoria,
+            solucao_passos: passos.trim(),
+            tags: [nomeCategoria, chamado.empresa_nome, 'suporte_finalizado'].filter(Boolean),
             userEmail,
           });
         } catch (e) {
-          console.warn('Erro ao salvar solucao na base:', e);
+          console.warn('Erro ao salvar solução na base:', e);
         }
       }
 
-      showToast(`Atendimento de ${chamado.empresa_nome} concluído com sucesso!`, 'success');
-      if (onFinalizado) onFinalizado();
+      showToast(`Atendimento de ${chamado.empresa_nome} concluído.`, 'success');
+      onFinalizado?.();
       onClose();
-    } catch (err) {
-      setErrorMsg(err.message || 'Erro ao finalizar atendimento.');
+    } catch (e) {
+      setErro(e?.message || 'Não foi possível concluir o atendimento.');
     } finally {
-      setSubmitting(false);
+      setEnviando(false);
     }
   };
 
-  const modalContent = (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96, y: 12 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.96, y: 12 }}
-          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full max-w-5xl rounded-[32px] bg-white dark:bg-[#16161a] border border-black/10 dark:border-white/15 p-6 sm:p-8 shadow-2xl text-[#1d1d1f] dark:text-[#f5f5f7] relative overflow-hidden my-auto max-h-[94vh] flex flex-col"
-        >
-          {/* Header do Modal */}
-          <div className="flex items-start justify-between gap-4 border-b border-black/[0.06] dark:border-white/[0.08] pb-4 flex-shrink-0">
-            <div>
-              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#4d7c0f]/15 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] border border-[#4d7c0f]/20">
-                  Conclusão do Chamado
+  const contexto = useMemo(
+    () =>
+      chamado && (
+        <span className="inline-flex flex-wrap items-center gap-2 text-[12px]">
+          <span className="inline-flex items-center h-6 px-2.5 rounded-full bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold">
+            {chamado.empresa_nome}
+          </span>
+          {(chamado.categorias || []).slice(0, 2).map((c) => (
+            <span key={c} className="inline-flex items-center h-6 px-2.5 rounded-full bg-black/[0.05] dark:bg-white/[0.08] text-slate-600 dark:text-zinc-300">
+              {c}
+            </span>
+          ))}
+        </span>
+      ),
+    [chamado]
+  );
+
+  if (!chamado) return null;
+
+  const rodape = (
+    <>
+      <ErroRodape erro={erro} />
+      <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-2.5">
+        <button type="button" onClick={onClose} disabled={enviando} className={`${classeBotaoTexto} sm:mr-auto`}>
+          Voltar
+        </button>
+        {!semResposta && (
+          <button type="button" onClick={() => setExplicar((v) => !v)} aria-expanded={explicar} className={classeBotaoSecundario}>
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 18h6" /><path d="M10 22h4" /><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" />
+            </svg>
+            {explicar ? 'Ocultar explicação' : 'Explicar como resolver'}
+          </button>
+        )}
+        <button type="button" onClick={concluir} disabled={enviando} className={classeBotaoPrimario}>
+          {enviando ? <Spinner /> : semResposta ? <HourglassIcon className="w-4 h-4" /> : <CheckIcon className="w-4 h-4 stroke-[2.5]" />}
+          {semResposta ? 'Aguardar cliente' : desfecho === 'nao_resolvido' ? 'Encerrar sem solução' : 'Concluir atendimento'}
+        </button>
+      </div>
+    </>
+  );
+
+  return (
+    <ModalEtapas
+      aberto={isOpen}
+      onFechar={onClose}
+      bloqueado={enviando}
+      idTitulo="concluir-titulo"
+      titulo="Finalizar atendimento"
+      subtitulo="Como terminou, como classificar e quanto tempo levou."
+      contexto={contexto}
+      rodape={rodape}
+    >
+      <div className="grid grid-cols-1 lg:grid-cols-2 lg:gap-x-12">
+        <div>
+          {/* 1. DESFECHO */}
+          <Etapa numero={1} titulo="Como terminou" estado="concluida">
+            <div role="radiogroup" aria-label="Desfecho do atendimento" className="grid grid-cols-3 gap-2">
+              {DESFECHOS.map((d) => {
+                const ativo = desfecho === d.id;
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={ativo}
+                    onClick={() => setDesfecho(d.id)}
+                    className={`h-12 px-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      ativo ? CORES_DESFECHO[d.cor] : 'border-black/[0.12] dark:border-white/[0.14] bg-white dark:bg-white/[0.03] hover:border-black/25 dark:hover:border-white/25'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${PONTO_DESFECHO[d.cor]}`} />
+                      <span className="text-[13px] sm:text-sm font-semibold leading-tight">{d.titulo}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.p
+                key={desfecho}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.2, ease: EASE }}
+                className="mt-3 text-[13px] text-slate-600 dark:text-zinc-300"
+              >
+                {desfechoAtual?.desc}
+              </motion.p>
+            </AnimatePresence>
+          </Etapa>
+
+          {/* 2. CLASSIFICAÇÃO */}
+          <Etapa
+            numero={2}
+            titulo="Classificação"
+            descricao={semResposta ? 'Não é necessária para aguardar o cliente.' : 'Categoria do suporte e quem pediu.'}
+            estado={semResposta ? 'travada' : etapa2Ok ? 'concluida' : 'ativa'}
+            fimDeColuna
+          >
+            <div className="space-y-4">
+              <div>
+                <span className={classeRotulo}>
+                  Categoria do suporte {config.motivo_obrigatorio && <span className="text-red-600 dark:text-red-400">*</span>}
                 </span>
-                <span className="text-xs font-bold text-slate-800 dark:text-zinc-200">
-                  {chamado.empresa_nome}
-                </span>
-                {atendente && (
-                  <span className="text-[11px] text-slate-500 dark:text-zinc-400">
-                    • Atendente: <strong className="text-slate-700 dark:text-zinc-200">{atendente}</strong>
-                  </span>
+                {categoria ? (
+                  <Escolhido icone={<TagIcon className="w-4 h-4" />} titulo={categoria.nome} selo={categoria.nova && <SeloNovo>Nova</SeloNovo>} onTrocar={() => setCategoria(null)} />
+                ) : (
+                  <Combobox
+                    id="cf-categoria"
+                    placeholder="Ex.: Redefinição de senha, Instância desconectada…"
+                    opcoes={categorias}
+                    onEscolher={(c) => setCategoria({ nome: c.nome })}
+                    onNova={(nome) => setCategoria({ nome, nova: true })}
+                    opcaoNova={(t) => `Criar categoria “${t}”`}
+                    renderOpcao={(c) => <span className="text-sm font-medium">{c.nome}</span>}
+                  />
                 )}
               </div>
-              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1d1d1f] dark:text-white">
-                Finalizar Atendimento Técnico
-              </h2>
+
+              <div>
+                <span className={classeRotulo}>
+                  Quem pediu {!config.colaborador_obrigatorio && <span className="font-normal text-slate-500 dark:text-zinc-400">(opcional)</span>}
+                </span>
+                {solicitante ? (
+                  <Escolhido
+                    icone={<UserIcon className="w-4 h-4" />}
+                    titulo={solicitante.nome}
+                    detalhe={solicitante.novo ? 'Será cadastrado na empresa' : solicitante.detalhe}
+                    selo={solicitante.novo && <SeloNovo />}
+                    onTrocar={() => setSolicitante(null)}
+                  />
+                ) : (
+                  <Combobox
+                    id="cf-solicitante"
+                    placeholder="Buscar ou digitar um nome"
+                    opcoes={contatos}
+                    onEscolher={(c) => setSolicitante({ ...c, novo: false })}
+                    onNova={(nome) => setSolicitante({ nome, novo: true })}
+                    opcaoNova={(t) => `Cadastrar “${t}” na empresa`}
+                    renderOpcao={(c) => (
+                      <span className="block min-w-0">
+                        <span className="block text-sm font-medium truncate">{c.nome}</span>
+                        {c.detalhe && <span className="block text-xs text-slate-500 dark:text-zinc-400 truncate">{c.detalhe}</span>}
+                      </span>
+                    )}
+                  />
+                )}
+              </div>
+            </div>
+          </Etapa>
+        </div>
+
+        <div className="lg:pl-12 lg:border-l border-black/[0.06] dark:border-white/[0.08]">
+          {/* 3. TEMPO */}
+          <Etapa numero={3} titulo="Tempo" descricao="Calculado pelo cronômetro. Ajuste se algo ficou aberto sem querer." estado="concluida" ultima={!explicar || semResposta}>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="p-4 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-white/[0.03]">
+                <span className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-zinc-400">
+                  <ClockIcon className="w-3.5 h-3.5" /> Esperou
+                </span>
+                <span className="block mt-1 text-lg font-semibold tabular-nums">{formatarTempo(tempoEspera)}</span>
+              </div>
+              <div className="p-4 rounded-xl border border-[#4d7c0f]/30 dark:border-[#84cc16]/30 bg-[#4d7c0f]/[0.05] dark:bg-[#84cc16]/[0.06]">
+                <span className="flex items-center gap-1.5 text-xs text-[#4d7c0f] dark:text-[#84cc16]">
+                  <HourglassIcon className="w-3.5 h-3.5" /> Atendimento
+                </span>
+                <span className="block mt-1 text-lg font-semibold tabular-nums">{formatarTempo(semResposta ? tempoSessao : tempoTotal)}</span>
+                {acumulado > 0 && !semResposta && (
+                  <span className="block text-[11px] text-slate-500 dark:text-zinc-400">inclui {formatarTempo(acumulado)} de antes</span>
+                )}
+              </div>
             </div>
 
             <button
-              onClick={onClose}
-              className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-2 rounded-full hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-all cursor-pointer"
-              title="Fechar"
+              type="button"
+              aria-expanded={ajustarTempo}
+              onClick={() => setAjustarTempo((v) => !v)}
+              className="mt-3 text-[13px] font-semibold text-[#4d7c0f] dark:text-[#84cc16] hover:underline cursor-pointer"
             >
-              <XMarkIcon className="w-4 h-4" />
+              {ajustarTempo ? 'Fechar ajuste' : 'Ajustar horários'}
             </button>
-          </div>
-
-          {/* Feedback de Validação */}
-          {errorMsg && (
-            <div className="p-3.5 rounded-2xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-700 dark:text-red-400 text-xs font-medium flex-shrink-0">
-              {errorMsg}
-            </div>
-          )}
-
-          {/* Formulário com Layout Horizontal 2 Colunas */}
-          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto pr-1 space-y-5 pt-2">
-            {/* Seletor Rápido de Desfecho / Resolução */}
-            <div className="p-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.08] space-y-2">
-              <label className="block text-xs font-bold text-slate-800 dark:text-zinc-200">
-                Desfecho do Atendimento
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStatusResolucao('resolvido');
-                    if (motivo === 'Sem resposta do cliente' || motivo === 'Impedimento técnico / Não resolvido') {
-                      setMotivo('');
-                      setBuscaMotivo('');
-                    }
-                  }}
-                  className={`p-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
-                    statusResolucao === 'resolvido'
-                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-800 dark:text-emerald-300 font-bold shadow-xs'
-                      : 'border-transparent text-slate-600 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5'
-                  }`}
-                >
-                  <CheckCircleIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
-                  <span>Resolvido</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStatusResolucao('sem_resposta');
-                    // Não polui o motivo nem insere texto automático em observações
-                    if (motivo === 'Impedimento técnico / Não resolvido') {
-                      setMotivo('');
-                      setBuscaMotivo('');
-                    }
-                  }}
-                  className={`p-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
-                    statusResolucao === 'sem_resposta'
-                      ? 'bg-amber-500/15 border-amber-500/40 text-amber-800 dark:text-amber-300 font-bold shadow-xs'
-                      : 'border-transparent text-slate-600 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5'
-                  }`}
-                >
-                  <ClockPauseIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-                  <span>Sem Resposta</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStatusResolucao('nao_resolvido');
-                    if (motivo === 'Sem resposta do cliente') {
-                      setMotivo('');
-                      setBuscaMotivo('');
-                    }
-                  }}
-                  className={`p-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
-                    statusResolucao === 'nao_resolvido'
-                      ? 'bg-red-500/15 border-red-500/40 text-red-800 dark:text-red-300 font-bold shadow-xs'
-                      : 'border-transparent text-slate-600 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5'
-                  }`}
-                >
-                  <AlertCircleIcon className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />
-                  <span>Não Resolvido</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-              
-              {/* ================================================================= */}
-              {/* COLUNA ESQUERDA: CRONÔMETROS, SOLICITANTE E MOTIVO               */}
-              {/* ================================================================= */}
-              <div className="space-y-4">
-                
-                {/* Painel de Tempos & Edição de Horário */}
-                <div className="space-y-2.5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {/* Card 1: Tempo em Espera */}
-                    <div className="p-3.5 rounded-2xl bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center font-bold text-xs">
-                          <HourglassIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                        </div>
-                        <div>
-                          <span className="text-[9px] font-semibold text-amber-800 dark:text-amber-300 uppercase tracking-wider block">
-                            Espera (Triagem)
-                          </span>
-                          <span className="text-base font-bold font-mono text-amber-900 dark:text-amber-200 tabular-nums">
-                            {formatarTempo(tempoEsperaSegundos)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Card 2: Tempo Ativo com Botão de Ajuste */}
-                    <div className="p-3.5 rounded-2xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-bold text-xs">
-                          <ClockIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                        </div>
-                        <div>
-                          <span className="text-[9px] font-semibold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider block">
-                            Atendimento Ativo
-                          </span>
-                          <span className="text-base font-bold font-mono text-emerald-900 dark:text-emerald-200 tabular-nums">
-                            {formatarTempo(tempoAtivoSegundos)}
-                          </span>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setEditandoTempo(!editandoTempo)}
-                        className="px-2.5 py-1 rounded-xl border border-emerald-500/30 bg-white dark:bg-zinc-900 text-[10px] font-semibold text-emerald-800 dark:text-emerald-300 hover:bg-emerald-500/10 transition-all cursor-pointer shadow-2xs"
-                        title="Alterar horários de início e término"
-                      >
-                        <span>{editandoTempo ? 'Fechar' : 'Ajustar'}</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Painel Expansível de Edição de Horário */}
-                  {editandoTempo && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-emerald-500/30 space-y-2.5"
-                    >
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        <div>
-                          <label className="block text-[10px] font-semibold text-slate-700 dark:text-zinc-300 mb-1">
-                            Início do Atendimento
-                          </label>
-                          <input
-                            type="datetime-local"
-                            value={horarioInicio}
-                            onChange={(e) => {
-                              setHorarioInicio(e.target.value);
-                              handleRecalcularTempo(e.target.value, horarioFim);
-                            }}
-                            className="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[10px] font-semibold text-slate-700 dark:text-zinc-300 mb-1">
-                            Término do Atendimento
-                          </label>
-                          <input
-                            type="datetime-local"
-                            value={horarioFim}
-                            onChange={(e) => {
-                              setHorarioFim(e.target.value);
-                              handleRecalcularTempo(horarioInicio, e.target.value);
-                            }}
-                            className="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 flex-wrap pt-1 text-[11px]">
-                        <span className="text-slate-400 text-[10px] uppercase font-mono mr-1">Atalhos rápidos:</span>
-                        {[5, 10, 15, 30, 45, 60].map((mins) => (
-                          <button
-                            key={mins}
-                            type="button"
-                            onClick={() => handleAjustarMinutosRapidos(mins)}
-                            className="px-2 py-0.5 rounded-lg bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] text-slate-700 dark:text-zinc-300 font-mono text-[10px] transition-colors cursor-pointer"
-                          >
-                            {mins} min
-                          </button>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </div>
-
-                {/* Seção 1: Colaborador Solicitante - SEM NENHUM PRÉ-DEFINIDO (CAMPO LIMPO) */}
-                <div ref={colabRef} className="space-y-1.5 relative">
-                  <div className="flex items-center justify-between pl-1">
-                    <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
-                      <span>Colaborador Solicitante na Empresa</span>
-                      {config.colaborador_obrigatorio ? (
-                        <span className="text-red-500 text-[10px]">* (Obrigatório)</span>
-                      ) : (
-                        <span className="text-slate-400 text-[10px] font-normal">(Opcional)</span>
-                      )}
-                    </label>
-                  </div>
-
-                  <div className="relative">
+            <Expandir aberto={ajustarTempo}>
+              <div className="pt-3 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <label className="block">
+                    <span className={classeRotulo}>Início</span>
                     <input
-                      type="text"
-                      value={buscaColab}
+                      type="datetime-local"
+                      value={inicio}
                       onChange={(e) => {
-                        setBuscaColab(e.target.value);
-                        setDropdownColabAberto(true);
-                        setHighlightedColabIdx(0);
+                        setInicio(e.target.value);
+                        recalcular(e.target.value, fim);
                       }}
-                      onFocus={() => {
-                        setDropdownColabAberto(true);
-                        setHighlightedColabIdx(0);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'ArrowDown') {
-                          e.preventDefault();
-                          setHighlightedColabIdx((prev) => Math.min(prev + 1, Math.max(0, colaboradoresFiltrados.length - 1)));
-                        } else if (e.key === 'ArrowUp') {
-                          e.preventDefault();
-                          setHighlightedColabIdx((prev) => Math.max(prev - 1, 0));
-                        } else if (e.key === 'Enter') {
-                          e.preventDefault();
-                          // Prioridade absoluta: seleciona a primeira opção já cadastrada correspondente
-                          if (colaboradoresFiltrados.length > 0) {
-                            const sel = colaboradoresFiltrados[highlightedColabIdx] || colaboradoresFiltrados[0];
-                            setColaboradorSelecionado(sel);
-                            setBuscaColab('');
-                            setDropdownColabAberto(false);
-                          } else if (buscaColab.trim()) {
-                            // Apenas cadastra novo se realmente não existir nenhuma opção correspondente
-                            handleCadastrarRapidoColaborador(buscaColab.trim());
-                          }
-                        }
-                      }}
-                      placeholder="Digite ou selecione o colaborador solicitante..."
-                      className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 font-medium text-[#1d1d1f] dark:text-white"
+                      className={`${classeCampo} font-mono text-[13px]`}
                     />
-                    <div className="absolute right-3 inset-y-0 flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setDropdownColabAberto(!dropdownColabAberto)}
-                        className="text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 cursor-pointer"
-                      >
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <polyline points="6 9 12 15 18 9" />
-                        </svg>
-                      </button>
-                    </div>
-
-                    {/* Dropdown de Autocomplete do Colaborador: OPÇÕES CADASTRADAS EM PRIMEIRO LUGAR */}
-                    {dropdownColabAberto && (
-                      <div className="absolute top-full mt-1 left-0 w-full z-30 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/10 dark:border-white/15 shadow-xl p-2 space-y-1 max-h-56 overflow-y-auto">
-                        {colaboradoresFiltrados.length > 0 ? (
-                          <>
-                            {colaboradoresFiltrados.map((c, idx) => {
-                              const isHighlighted = idx === highlightedColabIdx;
-                              const isSelected = colaboradorSelecionado?.id === c.id;
-                              return (
-                                <div
-                                  key={c.id}
-                                  onClick={() => {
-                                    setColaboradorSelecionado(c);
-                                    setBuscaColab('');
-                                    setDropdownColabAberto(false);
-                                  }}
-                                  onMouseEnter={() => setHighlightedColabIdx(idx)}
-                                  className={`w-full px-3 py-2 rounded-xl text-xs flex items-center justify-between transition-all cursor-pointer group ${
-                                    isHighlighted
-                                      ? 'bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-900 dark:text-emerald-200 font-bold border border-emerald-500/30'
-                                      : isSelected
-                                      ? 'bg-black/5 dark:bg-white/10 font-bold'
-                                      : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05]'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
-                                      {c.nome.charAt(0).toUpperCase()}
-                                    </span>
-                                    <div className="truncate">
-                                      <span className="text-[#1d1d1f] dark:text-white block truncate">{c.nome}</span>
-                                      {c.email && (
-                                        <span className="text-[10px] text-slate-400 block truncate font-mono">{c.email}</span>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <div className="flex items-center gap-2 flex-shrink-0">
-                                    {isHighlighted && (
-                                      <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-mono font-normal">
-                                        Enter ↵
-                                      </span>
-                                    )}
-                                    {c.is_colaborador && (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => handleExcluirColaborador(e, c)}
-                                        className="p-1 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-500/10 opacity-70 group-hover:opacity-100 transition-all cursor-pointer"
-                                        title="Excluir Colaborador"
-                                      >
-                                        <TrashIcon className="w-3.5 h-3.5" />
-                                      </button>
-                                    )}
-                                    {isSelected && (
-                                      <CheckIcon className="w-3.5 h-3.5 text-emerald-600" />
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-
-                            {/* Opção secundária de cadastrar novo ao final se não houver match exato */}
-                            {buscaColab.trim() && !colaboradores.some((c) => removerAcentos(c.nome) === removerAcentos(buscaColab)) && (
-                              <button
-                                type="button"
-                                onClick={() => handleCadastrarRapidoColaborador(buscaColab.trim())}
-                                className="w-full text-left px-3 py-1.5 mt-1 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] hover:bg-black/[0.06] text-slate-600 dark:text-zinc-400 text-[11px] font-semibold flex items-center justify-between transition-colors cursor-pointer border-t border-black/[0.05] dark:border-white/[0.05]"
-                              >
-                                <span>+ Cadastrar outro &ldquo;{buscaColab.trim()}&rdquo;</span>
-                              </button>
-                            )}
-                          </>
-                        ) : buscaColab.trim() ? (
-                          /* Se REALMENTE NÃO ENCONTRAR nenhuma opção cadastrada, aí sim oferece cadastrar */
-                          <button
-                            type="button"
-                            onClick={() => handleCadastrarRapidoColaborador(buscaColab.trim())}
-                            className="w-full text-left px-3 py-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-[#4d7c0f] dark:text-[#84cc16] text-xs font-semibold flex items-center justify-between transition-colors cursor-pointer"
-                          >
-                            <span>+ Cadastrar colaborador &ldquo;{buscaColab.trim()}&rdquo;</span>
-                            <span className="text-[10px] opacity-75 font-mono">Pressione Enter ↵</span>
-                          </button>
-                        ) : (
-                          <div className="p-3 text-center text-xs text-slate-400">
-                            Nenhum colaborador cadastrado para esta empresa.
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Badge de Colaborador Selecionado com Remoção Rápida */}
-                  {colaboradorSelecionado && !buscaColab && (
-                    <div className="flex items-center gap-2 pt-0.5">
-                      <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 font-semibold border border-emerald-500/20 flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                        <span>{colaboradorSelecionado.nome}</span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setColaboradorSelecionado(null);
-                          setBuscaColab('');
-                        }}
-                        className="text-xs text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
-                        title="Remover solicitante selecionado"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Seção 2: Motivo Diagnosticado - Exibido para Resolvido e Não Resolvido */}
-                {statusResolucao === 'sem_resposta' ? (
-                  <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-900 dark:text-amber-200 space-y-1 shadow-2xs">
-                    <div className="flex items-center gap-1.5 font-bold">
-                      <ClockPauseIcon className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                      <span>Encerramento por falta de retorno</span>
-                    </div>
-                    <p className="text-[11px] text-slate-600 dark:text-zinc-400 leading-relaxed">
-                      O chamado será concluído com o desfecho <strong>Sem resposta do cliente</strong>. O preenchimento de motivo técnico diagnosticado não se aplica a este desfecho.
-                    </p>
-                  </div>
-                ) : (
-                <div ref={motivoRef} className="space-y-1.5 relative">
-                  <div className="flex items-center justify-between pl-1">
-                    <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
-                      <span>Motivo Diagnosticado do Suporte</span>
-                      {config.motivo_obrigatorio && <span className="text-red-500 text-[10px]">* (Obrigatório)</span>}
-                    </label>
-                  </div>
-
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={buscaMotivo}
-                      onChange={(e) => {
-                        setBuscaMotivo(e.target.value);
-                        setDropdownMotivoAberto(true);
-                        setHighlightedMotivoIdx(0);
-                      }}
-                      onFocus={() => {
-                        setDropdownMotivoAberto(true);
-                        setHighlightedMotivoIdx(0);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'ArrowDown') {
-                          e.preventDefault();
-                          setHighlightedMotivoIdx((prev) => Math.min(prev + 1, Math.max(0, motivosFiltrados.length - 1)));
-                        } else if (e.key === 'ArrowUp') {
-                          e.preventDefault();
-                          setHighlightedMotivoIdx((prev) => Math.max(prev - 1, 0));
-                        } else if (e.key === 'Enter') {
-                          e.preventDefault();
-                          // Prioridade absoluta: seleciona a primeira opção já cadastrada correspondente
-                          if (motivosFiltrados.length > 0) {
-                            const sel = motivosFiltrados[highlightedMotivoIdx] || motivosFiltrados[0];
-                            setMotivo(sel.nome);
-                            setBuscaMotivo('');
-                            setDropdownMotivoAberto(false);
-                          } else if (buscaMotivo.trim()) {
-                            // Apenas cadastra novo se realmente não existir nenhuma opção correspondente
-                            handleCadastrarRapidoMotivo(buscaMotivo.trim());
-                          }
-                        }
-                      }}
-                      placeholder="Pesquise ou selecione o motivo do suporte..."
-                      className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 font-medium text-[#1d1d1f] dark:text-white"
-                    />
-                    <div className="absolute right-3 inset-y-0 flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setDropdownMotivoAberto(!dropdownMotivoAberto)}
-                        className="text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 cursor-pointer"
-                      >
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <polyline points="6 9 12 15 18 9" />
-                        </svg>
-                      </button>
-                    </div>
-
-                    {/* Dropdown de Autocomplete de Motivos: OPÇÕES CADASTRADAS EM PRIMEIRO LUGAR */}
-                    {dropdownMotivoAberto && (
-                      <div className="absolute top-full mt-1 left-0 w-full z-30 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/10 dark:border-white/15 shadow-xl p-2 space-y-1 max-h-56 overflow-y-auto">
-                        {motivosFiltrados.length > 0 ? (
-                          <>
-                            {motivosFiltrados.map((m, idx) => {
-                              const isHighlighted = idx === highlightedMotivoIdx;
-                              const isSelected = motivo === m.nome;
-                              return (
-                                <div
-                                  key={m.id}
-                                  onClick={() => {
-                                    setMotivo(m.nome);
-                                    setBuscaMotivo('');
-                                    setDropdownMotivoAberto(false);
-                                  }}
-                                  onMouseEnter={() => setHighlightedMotivoIdx(idx)}
-                                  className={`w-full px-3 py-2 rounded-xl text-xs flex items-center justify-between transition-all cursor-pointer ${
-                                    isHighlighted
-                                      ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold border border-[#4d7c0f]/30'
-                                      : isSelected
-                                      ? 'bg-black/5 dark:bg-white/10 font-bold'
-                                      : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05]'
-                                  }`}
-                                >
-                                  <span className="text-[#1d1d1f] dark:text-white truncate">{m.nome}</span>
-                                  <div className="flex items-center gap-2">
-                                    {isHighlighted && (
-                                      <span className="text-[10px] text-[#4d7c0f] dark:text-[#84cc16] font-mono font-normal">
-                                        Enter ↵
-                                      </span>
-                                    )}
-                                    {isSelected && (
-                                      <CheckIcon className="w-3.5 h-3.5 text-emerald-600" />
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-
-                            {/* Opção secundária de cadastrar novo ao final se não houver match exato */}
-                            {buscaMotivo.trim() && !motivos.some((m) => removerAcentos(m.nome) === removerAcentos(buscaMotivo)) && (
-                              <button
-                                type="button"
-                                onClick={() => handleCadastrarRapidoMotivo(buscaMotivo.trim())}
-                                className="w-full text-left px-3 py-1.5 mt-1 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] hover:bg-black/[0.06] text-slate-600 dark:text-zinc-400 text-[11px] font-semibold flex items-center justify-between transition-colors cursor-pointer border-t border-black/[0.05] dark:border-white/[0.05]"
-                              >
-                                <span>+ Cadastrar novo motivo &ldquo;{buscaMotivo.trim()}&rdquo;</span>
-                              </button>
-                            )}
-                          </>
-                        ) : buscaMotivo.trim() ? (
-                          /* Se REALMENTE NÃO ENCONTRAR nenhuma opção cadastrada, aí sim oferece cadastrar */
-                          <button
-                            type="button"
-                            onClick={() => handleCadastrarRapidoMotivo(buscaMotivo.trim())}
-                            className="w-full text-left px-3 py-2.5 rounded-xl bg-[#4d7c0f]/10 hover:bg-[#4d7c0f]/20 text-[#4d7c0f] dark:text-[#84cc16] text-xs font-semibold flex items-center justify-between transition-colors cursor-pointer"
-                          >
-                            <span>+ Cadastrar motivo &ldquo;{buscaMotivo.trim()}&rdquo;</span>
-                            <span className="text-[10px] opacity-75 font-mono">Pressione Enter ↵</span>
-                          </button>
-                        ) : (
-                          <div className="p-3 text-center text-xs text-slate-400">
-                            Nenhum motivo catalogado.
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Badge de Motivo Selecionado com Remoção Rápida */}
-                  {motivo && !buscaMotivo && (
-                    <div className="flex items-center gap-2 pt-0.5">
-                      <span className="text-[11px] px-2.5 py-1 rounded-full bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold border border-[#4d7c0f]/20 flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16]"></span>
-                        <span>{motivo}</span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMotivo('');
-                          setBuscaMotivo('');
-                        }}
-                        className="text-xs text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
-                        title="Remover motivo selecionado"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              </div>
-
-              {/* ================================================================= */}
-              {/* COLUNA DIREITA: PROCEDIMENTO ADOTADO + MOTION ORQUESTRADO         */}
-              {/* ================================================================= */}
-              <div className="space-y-3 bg-black/[0.015] dark:bg-white/[0.02] p-4 sm:p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08]">
-                <div className="flex items-center justify-between pl-1">
-                  <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
-                    <span>Descreva o Procedimento Adotado</span>
-                    {config.solucao_obrigatoria && <span className="text-red-500">*</span>}
                   </label>
-                  <span className="text-[10px] text-slate-400">
-                    Resolução técnica
-                  </span>
+                  <label className="block">
+                    <span className={classeRotulo}>Fim</span>
+                    <input
+                      type="datetime-local"
+                      value={fim}
+                      onChange={(e) => {
+                        setFim(e.target.value);
+                        recalcular(inicio, e.target.value);
+                      }}
+                      className={`${classeCampo} font-mono text-[13px]`}
+                    />
+                  </label>
                 </div>
-
-                <textarea
-                  rows={observacoes.trim().length > 0 ? 5 : 7}
-                  value={observacoes}
-                  onChange={(e) => setObservacoes(e.target.value)}
-                  placeholder="Descreva o procedimento adotado para solucionar o problema..."
-                  className="w-full p-4 rounded-2xl bg-white dark:bg-[#121215] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 resize-none leading-relaxed shadow-2xs"
-                />
-
-                {/* EXPANSÃO ORQUESTRADA COM MOTION DESIGN: TÍTULO E CÓDIGO DE ERRO */}
-                <AnimatePresence>
-                  {observacoes.trim().length > 0 && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0, y: -8 }}
-                      animate={{ opacity: 1, height: 'auto', y: 0 }}
-                      exit={{ opacity: 0, height: 0, y: -8 }}
-                      transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-                      className="space-y-3 pt-1 overflow-hidden"
+                <div className="flex flex-wrap gap-1.5">
+                  {[5, 10, 15, 30, 45, 60].map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => ajusteRapido(m)}
+                      className="h-8 px-3 rounded-full border border-black/[0.12] dark:border-white/[0.14] text-xs font-medium hover:bg-black/[0.04] dark:hover:bg-white/[0.06] cursor-pointer"
                     >
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-slate-700 dark:text-zinc-300">
-                          Título do Problema Resolvido
-                        </label>
-                        <input
-                          type="text"
-                          value={tituloProblema}
-                          onChange={(e) => setTituloProblema(e.target.value)}
-                          placeholder="Ex: Falha de conexão ao emitir NFe"
-                          className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-[#121215] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-slate-700 dark:text-zinc-300">
-                          Código de Erro / Identificador (Opcional)
-                        </label>
-                        <input
-                          type="text"
-                          value={codigoErroSolucao}
-                          onChange={(e) => setCodigoErroSolucao(e.target.value)}
-                          placeholder="Ex: 131026, 401, SSL, ORA-01017, ERR_AUTH..."
-                          className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-[#121215] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20"
-                        />
-                      </div>
-
-                      <div className="p-3 rounded-2xl bg-[#4d7c0f]/10 dark:bg-[#84cc16]/10 border border-[#4d7c0f]/20 dark:border-[#84cc16]/20 flex items-start gap-2.5">
-                        <SparklesIcon className="w-4 h-4 text-[#4d7c0f] dark:text-[#84cc16] mt-0.5 flex-shrink-0" />
-                        <p className="text-[11px] text-[#4d7c0f] dark:text-[#84cc16] leading-snug">
-                          Esta solução será automaticamente catalogada no <strong>Banco de Soluções Geral</strong> para acelerar futuros atendimentos.
-                        </p>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
+                      {m < 60 ? `${m} min` : '1 h'}
+                    </button>
+                  ))}
+                </div>
               </div>
+            </Expandir>
+          </Etapa>
 
+          {/* 4. EXPLICAÇÃO (opcional, só quando a pessoa quer registrar) */}
+          <Expandir aberto={explicar && !semResposta}>
+            <div className="pt-8">
+              <Etapa numero={4} titulo="Como foi resolvido" descricao="Vira referência na base de soluções para a próxima demanda parecida." estado={passos.trim() ? 'concluida' : 'ativa'} ultima>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <input
+                      type="text"
+                      aria-label="Título do problema"
+                      value={tituloProblema}
+                      onChange={(e) => setTituloProblema(e.target.value)}
+                      placeholder="Título (ex.: falha ao emitir NFe)"
+                      className={classeCampo}
+                    />
+                    <input
+                      type="text"
+                      aria-label="Código do erro"
+                      value={codigoErro}
+                      onChange={(e) => setCodigoErro(e.target.value)}
+                      placeholder="Código do erro (opcional)"
+                      className={`${classeCampo} font-mono`}
+                    />
+                  </div>
+                  <textarea
+                    aria-label="Passos da solução"
+                    rows={5}
+                    value={passos}
+                    onChange={(e) => setPassos(e.target.value)}
+                    placeholder="Passo a passo do que resolveu."
+                    className={`${classeCampo} h-auto py-3 leading-relaxed resize-none`}
+                  />
+                </div>
+              </Etapa>
             </div>
-
-            {/* Ações do Rodapé */}
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-black/[0.06] dark:border-white/[0.08]">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-5 py-2.5 rounded-full border border-black/10 dark:border-white/10 text-xs font-semibold hover:bg-black/5 dark:hover:bg-white/5 transition-all cursor-pointer"
-              >
-                Voltar
-              </button>
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-6 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                <CheckIcon className="w-3.5 h-3.5" />
-                <span>{submitting ? 'Finalizando...' : 'Concluir Chamado'}</span>
-              </button>
-            </div>
-
-          </form>
-
-        </motion.div>
+          </Expandir>
+        </div>
       </div>
-    </AnimatePresence>
+    </ModalEtapas>
   );
-
-  return createPortal(modalContent, document.body);
 }

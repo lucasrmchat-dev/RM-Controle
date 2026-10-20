@@ -9,7 +9,7 @@ import {
   removerAcentos,
   getEmpresas, 
   createEmpresa, 
-  createEmpresasEmMassa, 
+  garantirSessaoBanco,
   isMockDataEnabled, 
   setMockDataEnabled,
   getChamadoAtivo,
@@ -43,6 +43,7 @@ import ServerConfigView from '@/components/ServerConfigView';
 import DashboardView from '@/components/DashboardView';
 import GeneralSettingsView from '@/components/GeneralSettingsView';
 import RegisterSupportModal from '@/components/RegisterSupportModal';
+import { CompanyCardSkeleton, CompanyTableRowSkeleton } from '@/components/SkeletonLoaders';
 import ConfirmModal from '@/components/ConfirmModal';
 import ToastContainer, { showToast } from '@/components/ToastNotification';
 import LoginView from '@/components/LoginView';
@@ -131,7 +132,8 @@ export default function Home() {
   const [showMockData, setShowMockData] = useState(false);
 
   // Navegação Principal por Abas
-  const [activeTab, setActiveTab] = useState('empresas');
+  // Empresas virou subpágina da Fila de Demandas: a Fila é a tela inicial
+  const [activeTab, setActiveTab] = useState('fila');
   const [settingsSubTab, setSettingsSubTab] = useState('audio');
   const [isRegistrarModalGlobalOpen, setIsRegistrarModalGlobalOpen] = useState(false);
   const [empresaParaRegistrar, setEmpresaParaRegistrar] = useState(null);
@@ -150,7 +152,8 @@ export default function Home() {
   const [filtroCanal, setFiltroCanal] = useState('todos');
   const [filtroFormato, setFiltroFormato] = useState('todos');
   const [filtroServidor, setFiltroServidor] = useState('todos'); // 'todos' | 'servidor_1' | 'servidor_2'
-  const [loadingEmpresas, setLoadingEmpresas] = useState(false);
+  // Começa carregando: evita mostrar "nenhuma empresa" antes da primeira busca terminar
+  const [loadingEmpresas, setLoadingEmpresas] = useState(true);
 
   // Modais e Menu de Ação Rápida da Empresa
   const [isModalCreateOpen, setIsModalCreateOpen] = useState(false);
@@ -291,6 +294,21 @@ export default function Home() {
           if (res.ok) {
             const data = await res.json();
             if (data.authenticated && data.user?.email) {
+              // O cookie sozinho não basta: sem sessão válida do banco (ou com a sessão de outra conta
+              // neste navegador) a tela abria, mas toda gravação era recusada ("não foi possível assumir").
+              if (isSupabaseConfigured && supabase) {
+                const banco = await garantirSessaoBanco();
+                if (!banco.ok || (banco.email && banco.email !== data.user.email.toLowerCase())) {
+                  await handleLogout();
+                  setLoginError(
+                    banco.ok
+                      ? 'Este navegador estava conectado com outra conta. Entre novamente.'
+                      : 'Sua sessão expirou. Entre novamente para continuar.'
+                  );
+                  setAuthLoading(false);
+                  return;
+                }
+              }
               setIsAuthenticated(true);
               setUserEmail(data.user.email);
               const role = data.user.role || resolveUserRole(data.user.email);
@@ -372,7 +390,7 @@ export default function Home() {
     const checkRoleAndTab = () => {
       const permitidas = getAbasPermitidas(getCurrentUserRole());
       if (!permitidas.includes(activeTab)) {
-        setActiveTab('empresas');
+        setActiveTab('fila');
       }
     };
     // Papel alterado em Equipe & Senhas: pergunta ao servidor e aplica
@@ -480,9 +498,8 @@ Solicitante: ${item.colaborador_solicitante || 'Colaborador'} • Categoria: ${m
                 }
               } else if (payload.eventType === 'UPDATE' && payload.new) {
                 // Se o chamado foi assumido ou finalizado, interrompe o loop sonoro se não houver outros pendentes
-                const hasPending = novosChamados.some(
-                  (c) => c.status === 'aguardando_visualizacao' || c.status === 'pendente'
-                );
+                // "Aguardando cliente" (pendente) não toca alerta: já tem responsável
+                const hasPending = novosChamados.some((c) => c.status === 'aguardando_visualizacao');
                 if (!hasPending) {
                   stopSupportNotificationLoop();
                 }
@@ -504,7 +521,7 @@ Solicitante: ${item.colaborador_solicitante || 'Colaborador'} • Categoria: ${m
 
         // Verifica se há chamados recém-chegados que não estavam na lista local
         const novosEncontrados = atualizados.filter(
-          (c) => (c.status === 'aguardando_visualizacao' || c.status === 'pendente') && !antesIds.has(c.id)
+          (c) => c.status === 'aguardando_visualizacao' && !antesIds.has(c.id)
         );
 
         if (novosEncontrados.length > 0) {
@@ -626,8 +643,8 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
     }
 
     if (target) {
+      // Não troca de aba: ao voltar, a pessoa retorna exatamente para onde estava (Fila, Dashboard, Agenda…)
       setSelectedEmpresa(target);
-      setActiveTab('empresas');
     }
   };
 
@@ -811,16 +828,6 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
         } else {
           showToast(`Empresa "${payload.nome}" cadastrada com sucesso!`, 'success');
         }
-      } else if (payload.tipo === 'massa') {
-        const total = (payload.empresas || payload.nomes || []).length;
-        await createEmpresasEmMassa(payload.empresas || payload.nomes, {
-          formato_atendimento: 'colaborativo',
-          servidor_alocado: payload.servidor_alocado,
-          tipo_cliente: payload.tipo_cliente,
-          cliente_desde: payload.cliente_desde,
-          userEmail,
-        });
-        showToast(`${total} empresas cadastradas com sucesso!`, 'success');
       }
       setIsModalCreateOpen(false);
       setSearchTerm('');
@@ -901,7 +908,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
       
       {/* Navbar Flutuante Estilo macOS / Dynamic Island */}
       <Navbar
-        activeTab={selectedEmpresa ? 'empresas' : activeTab}
+        activeTab={activeTab === 'empresas' ? 'fila' : activeTab}
         setActiveTab={(tab) => {
           setSelectedEmpresa(null);
           setActiveTab(tab);
@@ -934,6 +941,15 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
               }}
               onUpdated={carregarEmpresas}
               userEmail={userEmail}
+              voltarRotulo={
+                {
+                  empresas: 'Voltar para Empresas',
+                  fila: 'Voltar para a Fila de Demandas',
+                  dashboard: 'Voltar para o Dashboard',
+                  feedbacks: 'Voltar para Feedbacks',
+                  agenda: 'Voltar para a Agenda',
+                }[activeTab] || 'Voltar'
+              }
             />
           </div>
         ) : (
@@ -945,12 +961,21 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                   {/* Barra de Ações Superior Estilo Apple Padronizada */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-zinc-400 font-mono">
-                          Catálogo de Clientes & Infraestrutura
-                        </span>
-                      </div>
+                      {/* Subpágina da Fila de Demandas */}
+                      <nav aria-label="Navegação" className="flex items-center gap-1.5 mb-2 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('fila')}
+                          className="inline-flex items-center gap-1 -ml-1.5 px-1.5 py-1 rounded-lg font-semibold text-slate-500 dark:text-zinc-400 hover:text-[#1d1d1f] dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors cursor-pointer"
+                        >
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="m15 18-6-6 6-6" />
+                          </svg>
+                          Fila de Demandas
+                        </button>
+                        <span className="text-slate-300 dark:text-zinc-600">/</span>
+                        <span className="font-semibold text-[#1d1d1f] dark:text-white">Empresas</span>
+                      </nav>
                       <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white">
                         Empresas
                       </h1>
@@ -1151,11 +1176,18 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                   </div>
 
                   {/* Visualização de Empresas (Cards vs Lista) */}
-                  {loadingEmpresas ? (
-                    <div className="p-16 text-center text-xs text-slate-400 flex flex-col items-center gap-3">
-                      <div className="w-7 h-7 border-2 border-[#4d7c0f] dark:border-[#84cc16] border-t-transparent rounded-full animate-spin"></div>
-                      <span>Carregando empresas...</span>
-                    </div>
+                  {loadingEmpresas && empresas.length === 0 ? (
+                    empresasViewMode === 'grid' ? (
+                      <div role="status" aria-busy="true" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        <span className="sr-only">Carregando empresas…</span>
+                        {Array.from({ length: 6 }).map((_, i) => <CompanyCardSkeleton key={i} />)}
+                      </div>
+                    ) : (
+                      <div role="status" aria-busy="true" className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden">
+                        <span className="sr-only">Carregando empresas…</span>
+                        {Array.from({ length: 6 }).map((_, i) => <CompanyTableRowSkeleton key={i} />)}
+                      </div>
+                    )
                   ) : empresas.length === 0 ? (
                     /* Estado Vazio Total Estilo Apple */
                     <div className="rounded-3xl p-12 border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/85 backdrop-blur-xl text-center space-y-4 shadow-sm">
@@ -1547,6 +1579,15 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
               {activeTab === 'fila' && (
                 <SupportQueueView
                   onSelectEmpresa={handleSelectEmpresaGlobal}
+                  onVerEmpresas={(termo = '') => {
+                    setPage(1);
+                    setSearchTerm(termo);
+                    setActiveTab('empresas');
+                  }}
+                  onRegistrarRetroativo={() => {
+                    setEmpresaParaRegistrar(null);
+                    setIsRegistrarModalGlobalOpen(true);
+                  }}
                   userEmail={userEmail}
                 />
               )}
@@ -1763,6 +1804,8 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
         userEmail={userEmail}
         onRegistered={() => {
           carregarEmpresas();
+          // Atualiza também a Fila de Demandas (contador de resolvidos hoje)
+          window.dispatchEvent(new Event('suporte_updated'));
           showToast('Atendimento retroativo registrado com sucesso!', 'success');
         }}
       />

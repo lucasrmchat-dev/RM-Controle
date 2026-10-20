@@ -73,7 +73,7 @@ import {
 } from '@/lib/storage';
 import RegisterSupportModal from './RegisterSupportModal';
 
-export default function CompanyManagementView({ empresa, onBack, onUpdated, userEmail }) {
+export default function CompanyManagementView({ empresa, onBack, onUpdated, userEmail, voltarRotulo = 'Voltar para a lista de empresas' }) {
   const [activeTab, setActiveTab] = useState('cockpit'); // 'como_resolver' | 'canais' | 'credenciais' | 'servidor' | 'observacoes' | 'chamados'
   const [catalogoCanais, setCatalogoCanais] = useState([]);
   const [servidoresConfig, setServidoresConfigState] = useState(getServidoresConfig() || {});
@@ -365,8 +365,8 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
     const atual = getServidoresConfig() || {};
     const novo = {
       ...atual,
-      servidor_1_url: servidor1UrlInput.trim() || 'https://app1.rmcontrole.com.br',
-      servidor_2_url: servidor2UrlInput.trim() || 'https://app2.rmcontrole.com.br',
+      servidor_1_url: servidor1UrlInput.trim(),
+      servidor_2_url: servidor2UrlInput.trim(),
     };
     try {
       const salvo = await setServidoresConfig(novo);
@@ -434,6 +434,22 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
         for (const item of pendentes) {
           await toggleChecklistItem(empresa.id, item.id, { concluido: true }, userEmail);
           item.concluido = true;
+        }
+        // Checklist de implementação do servidor: também já foi feito antes do RM Controle
+        const atual = await fetchEmpresaServidorDetalhes(empresa.id);
+        const itens = atual?.checklist_implementacao || [];
+        if (itens.some((i) => !i.concluido)) {
+          const agora = new Date().toISOString();
+          const salvo = await updateEmpresaServidorDetalhes(
+            empresa.id,
+            {
+              checklist_implementacao: itens.map((i) =>
+                i.concluido ? i : { ...i, concluido: true, concluido_em: agora, responsavel: 'Cliente já existente' }
+              ),
+            },
+            userEmail
+          );
+          setServidorDetalhes(salvo);
         }
       }
       showToast(`${TIPOS_CLIENTE[tipoClienteEdit]} salvo para ${empresa.nome}.`, 'success');
@@ -718,9 +734,11 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
 
   const handleEditarCredencial = (c) => {
     setEditandoCredId(c.id);
-    setCredRotulo(c.rotulo);
-    setCredUsuario(c.usuario_email);
-    setCredSenha(c.senha);
+    setCredRotulo(c.rotulo || '');
+    // Antes o nome não era carregado e ao salvar a edição ele era apagado
+    setCredNomeUsuario(c.nome_usuario || '');
+    setCredUsuario(c.usuario_email || '');
+    setCredSenha(c.senha || '');
     setCredObs(c.observacao || '');
     setIsAddCredOpen(true);
   };
@@ -790,7 +808,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
               <line x1="19" y1="12" x2="5" y2="12"/>
               <polyline points="12 19 5 12 12 5"/>
             </svg>
-            <span>Voltar para a lista de empresas</span>
+            <span>{voltarRotulo}</span>
           </button>
 
           {/* Abas Apple Minimalistas na Mesma Linha de Voltar */}
@@ -937,70 +955,55 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
               </div>
             </div>
 
-            {/* Servidor Alocado com Link Direto para Abrir em Nova Aba */}
-            <div className="pt-4 border-t border-black/8 dark:border-white/10 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-700 dark:text-zinc-300">Servidor Alocado:</span>
+            {/* Servidor e tipo de cliente: só leitura aqui; a edição fica em Configurações do Servidor */}
+            <div className="pt-4 border-t border-black/8 dark:border-white/10 space-y-3 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-slate-700 dark:text-zinc-300">Servidor alocado</span>
                 <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-slate-600 dark:text-zinc-300">
                   {(empresa.servidor_alocado || 'servidor_1') === 'servidor_2' ? (servidoresConfig?.servidor_2_nome || 'Servidor 2') : (servidoresConfig?.servidor_1_nome || 'Servidor 1')}
                 </span>
               </div>
 
-              {/* Botão de Link Direto com target="_blank" */}
               {(() => {
                 const isS2 = (empresa.servidor_alocado || 'servidor_1') === 'servidor_2';
-                const sUrl = isS2 ? (servidoresConfig?.servidor_2_url || 'https://app2.rmcontrole.com.br') : (servidoresConfig?.servidor_1_url || 'https://app1.rmcontrole.com.br');
+                const sUrl = isS2 ? servidoresConfig?.servidor_2_url : servidoresConfig?.servidor_1_url;
                 const sNome = isS2 ? (servidoresConfig?.servidor_2_nome || 'Servidor 2') : (servidoresConfig?.servidor_1_nome || 'Servidor 1');
-
-                return (
-                  <div className="space-y-1.5">
-                    <a
-                      href={sUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full px-3.5 py-2.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 font-bold text-xs flex items-center justify-between transition-all shadow-2xs group cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span>Acessar {sNome}</span>
-                      </div>
-                      <ExternalLinkIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                    </a>
-
-                    {/* Troca de servidor: antes só era possível no cadastro */}
-                    <div role="radiogroup" aria-label="Servidor alocado" className="grid grid-cols-2 gap-1 p-1 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06]">
-                      {['servidor_1', 'servidor_2'].map((srv) => {
-                        const ativo = (empresa.servidor_alocado || 'servidor_1') === srv;
-                        return (
-                          <button
-                            key={srv}
-                            type="button"
-                            role="radio"
-                            aria-checked={ativo}
-                            disabled={trocandoServidor}
-                            onClick={() => handleTrocarAlocacaoServidor(srv)}
-                            className={`py-1.5 rounded-xl text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-60 ${
-                              ativo
-                                ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-sm'
-                                : 'text-slate-500 dark:text-zinc-400 hover:text-black dark:hover:text-white'
-                            }`}
-                          >
-                            {srv === 'servidor_2' ? (servidoresConfig?.servidor_2_nome || 'Servidor 2') : (servidoresConfig?.servidor_1_nome || 'Servidor 1')}
-                          </button>
-                        );
-                      })}
+                if (!sUrl) {
+                  return (
+                    <div className="px-3.5 py-2.5 rounded-2xl border border-dashed border-amber-500/40 bg-amber-500/[0.06] text-amber-800 dark:text-amber-300 text-[11px] leading-snug">
+                      Link do {sNome} ainda não configurado. Um administrador pode definir em Configurações Gerais › Servidores.
                     </div>
-                  </div>
+                  );
+                }
+                return (
+                  <a
+                    href={sUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={async (e) => {
+                      // Busca o link oficial da equipe na hora do clique: nunca abre uma cópia antiga deste navegador
+                      e.preventDefault();
+                      // A aba abre ainda no clique (sem bloqueio de pop-up) e só depois recebe o endereço
+                      const janela = window.open('about:blank', '_blank');
+                      if (janela) janela.opener = null;
+                      const atual = await fetchServidoresConfig().catch(() => null);
+                      const urlFinal = (isS2 ? atual?.servidor_2_url : atual?.servidor_1_url) || sUrl;
+                      if (janela) janela.location.href = urlFinal;
+                      else window.open(urlFinal, '_blank', 'noopener,noreferrer');
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 font-bold text-xs flex items-center justify-between transition-all shadow-2xs group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                      <span>Acessar {sNome}</span>
+                    </div>
+                    <ExternalLinkIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                  </a>
                 );
               })()}
-            </div>
 
-
-
-            {/* Tipo de cliente: novo (implantação do zero) ou já existente (setup já concluído) */}
-            <div className="pt-4 border-t border-black/8 dark:border-white/10 space-y-2.5 text-xs">
               <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold text-slate-700 dark:text-zinc-300">Tipo de cliente:</span>
+                <span className="font-semibold text-slate-700 dark:text-zinc-300">Tipo de cliente</span>
                 {empresa.tipo_cliente ? (
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                     empresa.tipo_cliente === 'existente'
@@ -1013,49 +1016,13 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   <span className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold">Não informado</span>
                 )}
               </div>
-              <div role="radiogroup" aria-label="Tipo de cliente" className="grid grid-cols-2 gap-1 p-1 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06]">
-                {[['novo', 'Novo'], ['existente', 'Já existente']].map(([valor, rotulo]) => (
-                  <button
-                    key={valor}
-                    type="button"
-                    role="radio"
-                    aria-checked={tipoClienteEdit === valor}
-                    onClick={() => setTipoClienteEdit(valor)}
-                    className={`py-1.5 rounded-xl text-[11px] font-semibold transition-colors cursor-pointer ${
-                      tipoClienteEdit === valor
-                        ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-sm'
-                        : 'text-slate-500 dark:text-zinc-400 hover:text-black dark:hover:text-white'
-                    }`}
-                  >
-                    {rotulo}
-                  </button>
-                ))}
-              </div>
-              <label className="flex items-center justify-between gap-2">
-                <span className="text-slate-500 dark:text-zinc-400">{tipoClienteEdit === 'existente' ? 'Cliente desde' : 'Data de cadastro'}</span>
-                <input
-                  type="date"
-                  value={clienteDesdeEdit || ''}
-                  max={new Date().toISOString().slice(0, 10)}
-                  onChange={(e) => setClienteDesdeEdit(e.target.value)}
-                  className="px-2.5 py-1 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-[11px] font-mono"
-                />
-              </label>
-              {tipoClienteEdit === 'existente' && empresa.tipo_cliente !== 'existente' && (
-                <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-snug">
-                  Ao salvar, todos os itens do checklist de setup serão marcados como concluídos (100%).
-                </p>
-              )}
-              {(tipoClienteEdit !== (empresa.tipo_cliente || '') || clienteDesdeEdit !== (empresa.cliente_desde || (empresa.created_at || '').slice(0, 10))) && (
-                <button
-                  type="button"
-                  onClick={handleSalvarTipoCliente}
-                  disabled={salvandoTipoCliente}
-                  className="w-full py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-[11px] font-bold disabled:opacity-60 cursor-pointer"
-                >
-                  {salvandoTipoCliente ? 'Salvando…' : 'Salvar tipo de cliente'}
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setActiveTab('servidor')}
+                className="text-[11px] font-semibold text-[#4d7c0f] dark:text-[#84cc16] hover:underline cursor-pointer"
+              >
+                Alterar servidor ou tipo de cliente →
+              </button>
             </div>
 
             {/* Indicadores Rápidos da Empresa */}
@@ -1814,6 +1781,111 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
           {/* ============================================================================== */}
           {activeTab === 'servidor' && (
             <div className="space-y-6">
+
+              {/* 1. PERFIL: EM QUAL SERVIDOR ESTÁ E SE É CLIENTE NOVO OU JÁ EXISTENTE */}
+              <div className="rounded-3xl p-6 sm:p-7 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] shadow-sm">
+                <div className="mb-5">
+                  <h3 className="text-base sm:text-lg font-bold text-[#0a0a0c] dark:text-white">Servidor e tipo de cliente</h3>
+                  <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                    Define onde este cliente roda e se a implantação começa agora ou já foi feita antes do RM Controle.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <span id="perfil-servidor" className="block text-xs font-semibold text-slate-700 dark:text-zinc-300">Servidor alocado</span>
+                    <div role="radiogroup" aria-labelledby="perfil-servidor" className="grid grid-cols-2 gap-1 p-1 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06]">
+                      {['servidor_1', 'servidor_2'].map((srv) => {
+                        const ativo = (empresa.servidor_alocado || 'servidor_1') === srv;
+                        return (
+                          <button
+                            key={srv}
+                            type="button"
+                            role="radio"
+                            aria-checked={ativo}
+                            disabled={trocandoServidor}
+                            onClick={() => handleTrocarAlocacaoServidor(srv)}
+                            className={`py-2.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60 ${
+                              ativo
+                                ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-sm'
+                                : 'text-slate-500 dark:text-zinc-400 hover:text-black dark:hover:text-white'
+                            }`}
+                          >
+                            {srv === 'servidor_2' ? (servidoresConfig?.servidor_2_nome || 'Servidor 2') : (servidoresConfig?.servidor_1_nome || 'Servidor 1')}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] text-slate-400">A troca é salva na hora para toda a equipe.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span id="perfil-tipo" className="text-xs font-semibold text-slate-700 dark:text-zinc-300">Tipo de cliente</span>
+                      {!empresa.tipo_cliente && (
+                        <span className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold">Não informado</span>
+                      )}
+                    </div>
+                    <div role="radiogroup" aria-labelledby="perfil-tipo" className="grid grid-cols-2 gap-1 p-1 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06]">
+                      {[['novo', 'Cliente novo'], ['existente', 'Já existente']].map(([valor, rotulo]) => (
+                        <button
+                          key={valor}
+                          type="button"
+                          role="radio"
+                          aria-checked={tipoClienteEdit === valor}
+                          onClick={() => setTipoClienteEdit(valor)}
+                          className={`py-2.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                            tipoClienteEdit === valor
+                              ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-sm'
+                              : 'text-slate-500 dark:text-zinc-400 hover:text-black dark:hover:text-white'
+                          }`}
+                        >
+                          {rotulo}
+                        </button>
+                      ))}
+                    </div>
+
+                    <AnimatePresence initial={false}>
+                      {tipoClienteEdit === 'novo' && (
+                        <motion.label
+                          key="data-cadastro"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="flex items-center justify-between gap-2 overflow-hidden pt-1"
+                        >
+                          <span className="text-xs text-slate-500 dark:text-zinc-400">Data de cadastro</span>
+                          <input
+                            type="date"
+                            value={clienteDesdeEdit || ''}
+                            max={new Date().toISOString().slice(0, 10)}
+                            onChange={(e) => setClienteDesdeEdit(e.target.value)}
+                            className="px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-xs font-mono text-[#1d1d1f] dark:text-white"
+                          />
+                        </motion.label>
+                      )}
+                    </AnimatePresence>
+
+                    {tipoClienteEdit === 'existente' && empresa.tipo_cliente !== 'existente' && (
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-snug">
+                        Ao salvar, os checklists de setup e de implementação do servidor ficam 100% concluídos.
+                      </p>
+                    )}
+
+                    {(tipoClienteEdit !== (empresa.tipo_cliente || '') || (tipoClienteEdit === 'novo' && clienteDesdeEdit !== (empresa.cliente_desde || (empresa.created_at || '').slice(0, 10)))) && (
+                      <button
+                        type="button"
+                        onClick={handleSalvarTipoCliente}
+                        disabled={salvandoTipoCliente}
+                        className="w-full py-2.5 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold disabled:opacity-60 cursor-pointer"
+                      >
+                        {salvandoTipoCliente ? 'Salvando…' : 'Salvar tipo de cliente'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               
               {/* 2. CHECKLIST OBRIGATÓRIO DE IMPLEMENTAÇÃO DE SERVIDOR NOVO (100% DINÂMICO & CUSTOMIZÁVEL) */}
               <div className="rounded-3xl p-6 sm:p-7 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] space-y-5 shadow-sm">
@@ -2462,7 +2534,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 </label>
                 <input
                   type="url"
-                  placeholder="https://app1.rmcontrole.com.br"
+                  placeholder="https://acesso.suaempresa.com.br"
                   value={servidor1UrlInput}
                   onChange={(e) => setServidor1UrlInput(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-[#1a1a20] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]"
@@ -2477,7 +2549,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 </label>
                 <input
                   type="url"
-                  placeholder="https://app2.rmcontrole.com.br"
+                  placeholder="https://acesso2.suaempresa.com.br"
                   value={servidor2UrlInput}
                   onChange={(e) => setServidor2UrlInput(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-[#1a1a20] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]"

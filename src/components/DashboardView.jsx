@@ -19,6 +19,7 @@ import {
 import SupportCompletionModal from './SupportCompletionModal';
 import ConfirmModal from './ConfirmModal';
 import { showToast } from './ToastNotification';
+import { ListSkeleton, SkeletonPulse } from './SkeletonLoaders';
 import { 
   ViewGridIcon, 
   ViewListIcon, 
@@ -40,6 +41,8 @@ import {
 } from './Icons';
 
 export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }) {
+  // Até a primeira sincronização terminar, mostra esqueleto em vez de "nenhum registro"
+  const [carregado, setCarregado] = useState(false);
   const [metricas, setMetricas] = useState({
     totalChamados: 0,
     finalizadosCount: 0,
@@ -142,6 +145,13 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
   const [, setTick] = useState(0);
 
   const carregarDados = async () => {
+    // Mostra na hora o que já está em memória (ao voltar para a aba) e atualiza ao sincronizar
+    const histCache = getHistoricoChamados();
+    if (histCache.length > 0) {
+      setMetricas(getMetricasSuporte({ periodo, dataInicio, dataFim, categoria: filtroCategoria }));
+      setChamadosRecentes(histCache);
+      setCarregado(true);
+    }
     try {
       await Promise.all([fetchChamadosFila(), fetchHistoricoChamados()]);
     } catch (e) {
@@ -151,6 +161,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
     setMetricas(met);
     const hist = getHistoricoChamados();
     setChamadosRecentes(hist);
+    setCarregado(true);
     const emp = await getEmpresas({ pageSize: 1000 });
     const listaEmpresas = Array.isArray(emp) ? emp : (emp?.items || []);
     setEmpresasLista(listaEmpresas);
@@ -297,7 +308,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
             <span className="text-[10px] font-semibold uppercase tracking-wider font-mono">Total</span>
             <ChartBarIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16]" />
           </div>
-          <span className="text-xl font-bold font-mono text-[#1d1d1f] dark:text-white tabular-nums leading-none block">{metricas.totalChamados}</span>
+          <span className="text-xl font-bold font-mono text-[#1d1d1f] dark:text-white tabular-nums leading-none block">{carregado ? metricas.totalChamados : '–'}</span>
         </div>
 
         <div className="p-3.5 rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.06] dark:bg-emerald-500/[0.1] shadow-xs">
@@ -306,8 +317,8 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
             <CheckIcon className="w-3.5 h-3.5" />
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-xl font-bold font-mono text-emerald-900 dark:text-emerald-200 tabular-nums leading-none block">{metricas.finalizadosCount}</span>
-            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 font-mono">{taxaResolucaoGeral}%</span>
+            <span className="text-xl font-bold font-mono text-emerald-900 dark:text-emerald-200 tabular-nums leading-none block">{carregado ? metricas.finalizadosCount : '–'}</span>
+            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 font-mono">{carregado ? `${taxaResolucaoGeral}%` : ''}</span>
           </div>
         </div>
 
@@ -320,7 +331,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-xl font-bold font-mono text-amber-900 dark:text-amber-200 tabular-nums leading-none block">{metricas.emAndamentoCount}</span>
+            <span className="text-xl font-bold font-mono text-amber-900 dark:text-amber-200 tabular-nums leading-none block">{carregado ? metricas.emAndamentoCount : '–'}</span>
             <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">fila →</span>
           </div>
         </div>
@@ -330,7 +341,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
             <span className="text-[10px] font-semibold uppercase tracking-wider font-mono">TMA</span>
             <ClockIcon className="w-3.5 h-3.5 text-slate-400" />
           </div>
-          <span className="text-xl font-bold font-mono text-[#1d1d1f] dark:text-white tabular-nums leading-none block">{metricas.tempoMedioMinutos}m</span>
+          <span className="text-xl font-bold font-mono text-[#1d1d1f] dark:text-white tabular-nums leading-none block">{carregado ? metricas.tempoMedioMinutos : '–'}m</span>
         </div>
       </div>
 
@@ -377,7 +388,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
               >
                 <ChartBarIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16] mb-1" />
                 <span className="text-base font-bold font-mono tracking-tight text-[#1d1d1f] dark:text-white tabular-nums leading-none">
-                  {metricas.totalChamados}
+                  {carregado ? metricas.totalChamados : '–'}
                 </span>
                 <span className="text-[9px] uppercase font-bold tracking-wider text-slate-400 font-mono mt-1">
                   Total
@@ -391,10 +402,10 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
               >
                 <CheckIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 mb-1" />
                 <span className="text-base font-bold font-mono tracking-tight text-emerald-900 dark:text-emerald-200 tabular-nums leading-none">
-                  {metricas.finalizadosCount}
+                  {carregado ? metricas.finalizadosCount : '–'}
                 </span>
                 <span className="text-[9px] uppercase font-bold tracking-wider text-emerald-700/90 dark:text-emerald-400 font-mono mt-1">
-                  {taxaResolucaoGeral}%
+                  {carregado ? `${taxaResolucaoGeral}%` : ''}
                 </span>
               </div>
 
@@ -406,7 +417,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
               >
                 <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse mb-1"></span>
                 <span className="text-base font-bold font-mono tracking-tight text-amber-900 dark:text-amber-200 tabular-nums leading-none">
-                  {metricas.emAndamentoCount}
+                  {carregado ? metricas.emAndamentoCount : '–'}
                 </span>
                 <span className="text-[9px] uppercase font-bold tracking-wider text-amber-700/90 dark:text-amber-400 font-mono mt-1">
                   Ativo
@@ -420,7 +431,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
               >
                 <ClockIcon className="w-3.5 h-3.5 text-slate-400 mb-1" />
                 <span className="text-base font-bold font-mono tracking-tight text-[#1d1d1f] dark:text-white tabular-nums leading-none">
-                  {metricas.tempoMedioMinutos}
+                  {carregado ? metricas.tempoMedioMinutos : '–'}
                 </span>
                 <span className="text-[9px] uppercase font-bold tracking-wider text-slate-400 font-mono mt-1">
                   TMA
@@ -473,7 +484,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                   </div>
                   <div className="flex items-baseline gap-2">
                     <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
-                      {metricas.totalChamados}
+                      {carregado ? metricas.totalChamados : '–'}
                     </span>
                     <span className="text-[11px] text-slate-400">no período</span>
                   </div>
@@ -494,10 +505,10 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                   </div>
                   <div className="flex items-baseline justify-between">
                     <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
-                      {metricas.finalizadosCount}
+                      {carregado ? metricas.finalizadosCount : '–'}
                     </span>
                     <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-                      {taxaResolucaoGeral}% resolvidos
+                      {carregado ? `${taxaResolucaoGeral}%` : ''} resolvidos
                     </span>
                   </div>
                 </motion.div>
@@ -519,7 +530,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                   </div>
                   <div className="flex items-baseline gap-2">
                     <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
-                      {metricas.emAndamentoCount}
+                      {carregado ? metricas.emAndamentoCount : '–'}
                     </span>
                     {metricas.emAndamentoCount > 0 && (
                       <span className="flex items-center gap-1.5 text-[11px] font-bold text-amber-700 dark:text-amber-400">
@@ -545,7 +556,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                   </div>
                   <div className="flex items-baseline gap-2">
                     <span className="text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white font-mono tabular-nums">
-                      {metricas.tempoMedioMinutos}
+                      {carregado ? metricas.tempoMedioMinutos : '–'}
                     </span>
                     <span className="text-xs text-slate-400 font-medium">minutos / chamado</span>
                   </div>
@@ -678,7 +689,9 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
           </div>
         </div>
 
-        {metricas.metricasColaboradores.length === 0 ? (
+        {!carregado ? (
+          <ListSkeleton linhas={4} className="py-2" />
+        ) : metricas.metricasColaboradores.length === 0 ? (
           <p className="text-xs text-slate-400 italic py-6 text-center">
             Nenhum membro com chamados registrados no período selecionado.
           </p>
@@ -899,7 +912,9 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
           </span>
         </div>
 
-        {metricas.metricasEmpresas.length === 0 ? (
+        {!carregado ? (
+          <ListSkeleton linhas={5} className="py-2" />
+        ) : metricas.metricasEmpresas.length === 0 ? (
           <p className="text-xs text-slate-400 italic py-6 text-center">
             Nenhuma empresa com registros de suporte no período selecionado.
           </p>
@@ -1112,7 +1127,17 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
             </span>
           </div>
 
-          {metricas.topMotivos.length === 0 ? (
+          {!carregado ? (
+            <div role="status" aria-busy="true" className="h-48 flex items-center justify-center gap-6">
+              <span className="sr-only">Carregando…</span>
+              <SkeletonPulse className="w-36 h-36 rounded-full" />
+              <div className="space-y-2 w-32">
+                <SkeletonPulse className="h-3" />
+                <SkeletonPulse className="h-3 w-3/4" />
+                <SkeletonPulse className="h-3 w-1/2" />
+              </div>
+            </div>
+          ) : metricas.topMotivos.length === 0 ? (
             <div className="h-48 flex items-center justify-center text-xs text-slate-400 italic">
               Nenhum chamado finalizado para gerar gráfico de motivos.
             </div>
@@ -1149,7 +1174,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
 
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
                   <span className="text-2xl font-bold font-mono text-[#1d1d1f] dark:text-white leading-none tabular-nums">
-                    {metricas.finalizadosCount}
+                    {carregado ? metricas.finalizadosCount : '–'}
                   </span>
                   <span className="text-[9px] uppercase font-bold text-slate-400 mt-1">
                     Chamados
@@ -1230,7 +1255,9 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
           </div>
         </div>
 
-        {chamadosRecentes.length === 0 ? (
+        {!carregado ? (
+          <ListSkeleton linhas={5} className="p-4" />
+        ) : chamadosRecentes.length === 0 ? (
           <div className="p-10 text-center text-xs text-slate-400">
             Nenhum suporte realizado ainda.
           </div>

@@ -121,17 +121,6 @@ export default function Navbar({
 
   const todasAsAbas = [
     { 
-      id: 'empresas', 
-      label: 'Empresas', 
-      shortLabel: 'Empresas',
-      icon: (
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-          <rect width="16" height="20" x="4" y="2" rx="2" ry="2"/>
-          <path d="M9 22v-4h6v4"/>
-        </svg>
-      ) 
-    },
-    { 
       id: 'fila', 
       label: 'Fila de Demandas', 
       shortLabel: 'Fila',
