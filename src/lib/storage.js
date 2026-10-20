@@ -3116,6 +3116,19 @@ export async function concluirPrimeiroAcesso(userEmail, {
   const emailNorm = userEmail.toLowerCase().trim();
   const agora = new Date().toISOString();
 
+  // 0. Nova senha: só o servidor grava, e sempre na conta da sessão atual (nunca por e-mail vindo do navegador)
+  if (isSupabaseConfigured && novaSenha && novaSenha.trim()) {
+    const res = await fetch('/api/auth/senha', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ novaSenha: novaSenha.trim() }),
+    }).catch(() => null);
+    const dados = res ? await res.json().catch(() => ({})) : {};
+    if (!res || !res.ok || !dados.ok) {
+      throw new Error(dados.mensagem || 'Não foi possível salvar a nova senha. Verifique sua conexão.');
+    }
+  }
+
   // 1. Salva flags no localStorage
   localStorage.setItem(`rm_primeiro_acesso_concluido_${emailNorm}`, 'true');
   localStorage.setItem(`rm_primeiro_acesso_data_${emailNorm}`, agora);
@@ -3146,7 +3159,6 @@ export async function concluirPrimeiroAcesso(userEmail, {
       ...equipe[idx],
       primeiro_acesso_concluido: true,
       primeiro_acesso_data: agora,
-      ...(novaSenha ? { senha: novaSenha.trim() } : {}),
     };
   } else {
     equipe.push({
@@ -3154,7 +3166,6 @@ export async function concluirPrimeiroAcesso(userEmail, {
       nome: getNomeTecnico(userEmail),
       email: emailNorm,
       papel: resolverPapel(emailNorm, []),
-      senha: novaSenha ? novaSenha.trim() : '',
       primeiro_acesso_concluido: true,
       primeiro_acesso_data: agora,
       criado_em: agora,
@@ -3171,9 +3182,6 @@ export async function concluirPrimeiroAcesso(userEmail, {
           primeiro_acesso_data: agora,
         },
       };
-      if (novaSenha && novaSenha.trim()) {
-        authUpdates.password = novaSenha.trim();
-      }
       try {
         await supabase.auth.updateUser(authUpdates);
       } catch (authErr) {
@@ -3184,9 +3192,6 @@ export async function concluirPrimeiroAcesso(userEmail, {
         primeiro_acesso_concluido: true,
         primeiro_acesso_data: agora,
       };
-      if (novaSenha && novaSenha.trim()) {
-        updateDb.senha = novaSenha.trim();
-      }
       await supabase
         .from('equipe_usuarios')
         .update(updateDb)

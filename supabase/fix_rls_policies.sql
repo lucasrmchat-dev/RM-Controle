@@ -1,4 +1,12 @@
 -- ==============================================================================
+-- ATENÇÃO: NÃO EXECUTE ESTE ARQUIVO NO BANCO DE PRODUÇÃO.
+-- É um script antigo: ele troca as regras de acesso atuais por regras mais abertas
+-- (USING (true)), que podem expor ou permitir alterar dados de outras pessoas.
+-- Mantido só como histórico.
+-- O script vigente é supabase/migration_supabase_completa.sql.
+-- ==============================================================================
+
+-- ==============================================================================
 -- RM CONTROLE - CONFIGURAÇÃO DEFINITIVA DE SEGURANÇA, RLS & LGPD
 -- ==============================================================================
 -- 1. Mantém o RLS (Row Level Security) 100% ATIVADO em TODAS as 12 tabelas.

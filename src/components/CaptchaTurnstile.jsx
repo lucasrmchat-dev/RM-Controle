@@ -20,7 +20,7 @@ function carregarScript() {
       script.onload = () => resolve(window.turnstile);
       script.onerror = () => {
         carregamento = null;
-        reject(new Error('Não foi possível carregar a verificação anti-robô.'));
+        reject(new Error('Não foi possível carregar a verificação. Verifique sua conexão.'));
       };
       document.head.appendChild(script);
     });
@@ -33,6 +33,8 @@ export const captchaAtivo = Boolean(SITE_KEY);
 export default function CaptchaTurnstile({ onToken, theme = 'light' }) {
   const alvoRef = useRef(null);
   const widgetRef = useRef(null);
+  const onTokenRef = useRef(onToken);
+  onTokenRef.current = onToken;
   const [erro, setErro] = useState('');
 
   useEffect(() => {
@@ -43,13 +45,18 @@ export default function CaptchaTurnstile({ onToken, theme = 'light' }) {
         if (cancelado || !alvoRef.current) return;
         widgetRef.current = turnstile.render(alvoRef.current, {
           sitekey: SITE_KEY,
+          action: 'login',
           theme: theme === 'dark' ? 'dark' : 'light',
+          size: 'flexible',
           language: 'pt-br',
-          callback: (token) => onToken?.(token),
-          'expired-callback': () => onToken?.(''),
+          callback: (token) => {
+            setErro('');
+            onTokenRef.current?.(token);
+          },
+          'expired-callback': () => onTokenRef.current?.(''),
           'error-callback': () => {
-            onToken?.('');
-            setErro('Falha na verificação anti-robô. Recarregue a página.');
+            onTokenRef.current?.('');
+            setErro('Não foi possível confirmar a verificação. Recarregue a página e tente novamente.');
           },
         });
       })
@@ -57,6 +64,7 @@ export default function CaptchaTurnstile({ onToken, theme = 'light' }) {
 
     // Depois de uma tentativa recusada o token já foi usado: gera um novo
     const reiniciar = () => {
+      onTokenRef.current?.('');
       if (window.turnstile && widgetRef.current !== null) window.turnstile.reset(widgetRef.current);
     };
     window.addEventListener('rm_captcha_reset', reiniciar);
@@ -64,15 +72,17 @@ export default function CaptchaTurnstile({ onToken, theme = 'light' }) {
       cancelado = true;
       window.removeEventListener('rm_captcha_reset', reiniciar);
       if (window.turnstile && widgetRef.current !== null) window.turnstile.remove(widgetRef.current);
+      widgetRef.current = null;
+      onTokenRef.current?.('');
     };
   }, [theme]);
 
   if (!SITE_KEY) return null;
   return (
-    <div className="space-y-1">
-      <div ref={alvoRef} className="min-h-[65px]" aria-label="Verificação anti-robô" />
+    <div className="space-y-1.5">
+      <div ref={alvoRef} className="min-h-[65px] w-full [&_iframe]:!w-full rounded-xl overflow-hidden" aria-label="Verificação de segurança" />
       {erro && (
-        <p role="alert" className="text-[11px] text-red-600 dark:text-red-400">
+        <p role="alert" className="text-[12.5px] text-[#912018] dark:text-[#fda29b]">
           {erro}
         </p>
       )}

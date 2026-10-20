@@ -3,6 +3,7 @@
 import { getAudioConfig, setAudioConfig, playNotificationTone } from '@/lib/audioNotifications';
 import React, { useState, useEffect, useRef } from 'react';
 import ConfirmModal from './ConfirmModal';
+import { BrandMark } from './BrandMark';
 import { showToast } from './ToastNotification';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -210,10 +211,7 @@ export default function Navbar({
           
           {/* Lado Esquerdo: Logo Monograma RM de Alto Padrão */}
           <div className="flex items-center gap-3 pl-1 flex-shrink-0">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#020617] via-[#0f172a] to-[#1e293b] dark:from-[#18181b] dark:via-[#27272a] dark:to-[#3f3f46] text-white flex items-center justify-center font-bold text-xs border border-white/20 shadow-sm relative group">
-              <span>RM</span>
-              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white dark:border-[#0c0c0e] animate-pulse" title="Sistema Online"></span>
-            </div>
+            <BrandMark size={32} className="flex-shrink-0" />
 
             <div className="hidden xl:flex flex-col">
               <div className="flex items-center gap-1.5">
@@ -410,10 +408,7 @@ export default function Navbar({
       {/* ============================================================================== */}
       <header className="md:hidden fixed top-0 left-0 right-0 z-40 backdrop-blur-2xl bg-white/85 dark:bg-[#09090b]/90 border-b border-black/[0.06] dark:border-white/[0.08] px-4 py-2.5 flex items-center justify-between transition-all">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[#020617] to-[#1e293b] dark:from-[#18181b] dark:to-[#3f3f46] text-white flex items-center justify-center font-bold text-[11px] border border-white/20 shadow-xs relative">
-            <span>RM</span>
-            <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full border-2 border-white dark:border-[#09090b]"></span>
-          </div>
+          <BrandMark size={28} className="flex-shrink-0" />
           <div>
             <span className="font-bold text-xs text-[#0a0a0c] dark:text-white block leading-tight">RM Controle</span>
             <span className="text-[9px] text-[#4d7c0f] dark:text-[#84cc16] font-semibold flex items-center gap-1 font-mono">

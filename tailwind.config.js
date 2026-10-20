@@ -7,6 +7,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
+        display: ['"Instrument Serif"', 'Georgia', '"Times New Roman"', 'serif'],
         sans: [
           '-apple-system',
           'BlinkMacSystemFont',

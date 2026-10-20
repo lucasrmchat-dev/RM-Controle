@@ -1,4 +1,12 @@
 -- ==============================================================================
+-- ATENÇÃO: NÃO EXECUTE ESTE ARQUIVO NO BANCO DE PRODUÇÃO.
+-- É um script antigo: ele troca as regras de acesso atuais por regras mais abertas
+-- (USING (true)), que podem expor ou permitir alterar dados de outras pessoas.
+-- Mantido só como histórico.
+-- O script vigente é supabase/migration_supabase_completa.sql.
+-- ==============================================================================
+
+-- ==============================================================================
 -- 11. Tabela: suporte_chamados (Métricas e Atendimentos em Tempo Real)
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.suporte_chamados (

@@ -15,6 +15,7 @@ import { __definirSupabaseAnon } from '../src/lib/server/acesso.js';
 import { createSessionToken, verifySessionToken, SESSION_COOKIE_NAME } from '../src/lib/session.js';
 import { POST as login } from '../src/app/api/auth/login/route.js';
 import { GET as sessao } from '../src/app/api/auth/session/route.js';
+import { POST as trocarSenha } from '../src/app/api/auth/senha/route.js';
 import { GET as lerConfigIntegracao } from '../src/app/api/integracoes/suporte/config/route.js';
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ||= 'http://mock';
@@ -148,4 +149,50 @@ test('rebaixar um administrador em Equipe & Senhas vale na próxima requisição
   assert.equal((await lerConfigIntegracao(requisicao('/c', { method: 'GET', cookie }))).status, 200);
   db.tables.equipe_usuarios.find((u) => u.email === 'gestora@rmchat.com').papel = 'suporte';
   assert.equal((await lerConfigIntegracao(requisicao('/c', { method: 'GET', cookie }))).status, 403);
+});
+
+// ---------------------------------------------------------------- injeção e troca de senha
+test('login: e-mails e senhas com caracteres de injeção são recusados antes de chegar ao banco', async () => {
+  const ataques = [
+    { email: "admin@rmchat.com' OR '1'='1", password: 'x' },
+    { email: '%@rmchat.com', password: 'x' },
+    { email: '*', password: 'x' },
+    { email: 'lucas@rmchat.com#', password: 'x' },
+    { email: 'lucas@rmchat.com?papel=administrador', password: 'x' },
+    { email: 'lucas@rmchat.com/../admin', password: 'x' },
+    { email: { $ne: '' }, password: 'x' },
+    { email: 'lucas@rmchat.com', password: { $ne: '' } },
+    { email: 'lucas@rmchat.com', password: ['SenhaDoLucas#1'] },
+    { email: 'lucas@rmchat.com', password: 'SenhaDoLucas#1\u0000' },
+    { email: 'lucas@rmchat.com', password: 'a'.repeat(500) },
+  ];
+  for (const corpo of ataques) {
+    const r = await login(requisicao('/api/auth/login', { body: corpo }));
+    assert.equal(r.status, 400, `deveria recusar ${JSON.stringify(corpo).slice(0, 60)}`);
+  }
+  // Símbolos dentro da senha são legítimos: só não podem virar operador de consulta
+  const ok = await login(requisicao('/api/auth/login', { body: { email: 'lucas@rmchat.com', password: 'SenhaDoLucas#1' } }));
+  assert.equal(ok.status, 200);
+});
+
+test('troca de senha: só altera a conta da sessão, mesmo que o corpo aponte para outro usuário', async () => {
+  db.tables.equipe_usuarios.forEach((u, i) => { u.id = `00000000-0000-4000-8000-00000000000${i}`; });
+  const cookieMaria = await cookieDe('maria@rmchat.com', 'suporte');
+  const r = await trocarSenha(requisicao('/api/auth/senha', {
+    cookie: cookieMaria,
+    body: { novaSenha: 'NovaSenha#2026', email: 'gestora@rmchat.com', id: '00000000-0000-4000-8000-000000000003' },
+  }));
+  assert.equal(r.status, 200);
+  const porEmail = Object.fromEntries(db.tables.equipe_usuarios.map((u) => [u.email, u.senha]));
+  assert.equal(porEmail['maria@rmchat.com'], 'NovaSenha#2026');
+  assert.equal(porEmail['gestora@rmchat.com'], 'gestora123', 'a senha da administradora não muda');
+  assert.equal(porEmail['pedro@rmchat.com'], 'pedro123');
+
+  // Depois do primeiro acesso, exige a senha atual
+  db.tables.equipe_usuarios.find((u) => u.email === 'maria@rmchat.com').primeiro_acesso_concluido = true;
+  const semAtual = await trocarSenha(requisicao('/api/auth/senha', { cookie: cookieMaria, body: { novaSenha: 'OutraSenha#2026' } }));
+  assert.equal(semAtual.status, 403);
+
+  const semSessao = await trocarSenha(requisicao('/api/auth/senha', { body: { novaSenha: 'OutraSenha#2026' } }));
+  assert.equal(semSessao.status, 401);
 });

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { sanitizeEmail, sanitizeString } from '@/lib/sanitize';
+import { sanitizeEmail, validarSenhaEntrada } from '@/lib/sanitize';
 import { consumirLimite, verificarCaptcha, ipDaRequisicao } from '@/lib/server/protecao';
 import { createSessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
 import { verificarCredenciais, obterAcessoServidor } from '@/lib/server/acesso';
@@ -18,7 +18,15 @@ export async function POST(request) {
       );
     }
 
-    const body = await request.json().catch(() => ({}));
+    // Corpo pequeno e em JSON: nada de payloads gigantes ou formatos inesperados
+    const tamanho = Number(request.headers.get('content-length') || 0);
+    if (tamanho > 8 * 1024) {
+      return NextResponse.json({ error: 'Requisição inválida.' }, { status: 413 });
+    }
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'Requisição inválida.' }, { status: 400 });
+    }
     const { email, password, honeypot, captchaToken } = body;
 
     // 3. Mecanismo Anti-bot Honeypot: Se o campo oculto estiver preenchido, é um bot automatizado
@@ -30,14 +38,18 @@ export async function POST(request) {
       );
     }
 
+    // Formato estrito: só texto, e-mail sem caracteres especiais, senha sem caracteres de controle
     const emailLimpo = sanitizeEmail(email);
-    const senhaLimpa = typeof password === 'string' ? password.trim() : '';
+    const senhaLimpa = validarSenhaEntrada(password);
 
     if (!emailLimpo || !senhaLimpa) {
       return NextResponse.json(
-        { error: 'E-mail corporativo e senha são obrigatórios.' },
+        { error: 'Informe um e-mail válido e a sua senha.' },
         { status: 400 }
       );
+    }
+    if (captchaToken !== undefined && (typeof captchaToken !== 'string' || captchaToken.length > 4096)) {
+      return NextResponse.json({ error: 'Requisição inválida.' }, { status: 400 });
     }
 
     // 3.1 Captcha (Cloudflare Turnstile), quando configurado
@@ -45,8 +57,8 @@ export async function POST(request) {
     if (!captcha.ok) {
       return NextResponse.json(
         { error: captcha.motivo === 'captcha_indisponivel'
-            ? 'Verificação anti-robô indisponível no momento. Tente novamente.'
-            : 'Confirme a verificação anti-robô antes de entrar.' },
+            ? 'Não foi possível confirmar a verificação de segurança. Tente novamente.'
+            : 'Conclua a verificação de segurança antes de entrar.' },
         { status: 400 }
       );
     }
@@ -62,12 +74,14 @@ export async function POST(request) {
     // 4. Validação real das credenciais (Supabase Auth ou senha de Equipe & Senhas)
     const credenciais = await verificarCredenciais(emailLimpo, senhaLimpa);
     if (!credenciais.ok) {
+      // O detalhe técnico fica só no log do servidor; a pessoa recebe uma mensagem simples
+      if (credenciais.motivo === 'servidor_nao_configurado') console.error('[login]', credenciais.detalhe);
       return NextResponse.json(
         {
           error: credenciais.motivo === 'usuario_inativo'
             ? 'Este usuário está desativado. Fale com o administrador.'
             : credenciais.motivo === 'servidor_nao_configurado'
-              ? `Autenticação indisponível: ${credenciais.detalhe || 'servidor sem configuração do banco'}.`
+              ? 'O acesso está temporariamente indisponível. Tente novamente em alguns minutos.'
               : 'E-mail ou senha incorretos.',
         },
         { status: credenciais.motivo === 'servidor_nao_configurado' ? 503 : 401 }
@@ -122,7 +136,7 @@ export async function POST(request) {
   } catch (err) {
     // Nunca expõe stack traces detalhados ou erros internos em produção
     return NextResponse.json(
-      { error: 'Falha interna ao processar autenticação segura.' },
+      { error: 'Não foi possível entrar agora. Tente novamente em instantes.' },
       { status: 500 }
     );
   }

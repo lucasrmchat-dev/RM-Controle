@@ -2,6 +2,7 @@ import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
 import { obterPapelServidor, garantirContaAuth, removerContaAuth } from '@/lib/server/acesso';
 import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
 import { PAPEIS_VALIDOS, normalizarEmail } from '@/lib/roles';
+import { sanitizeEmail, isValidUUID, SENHA_MAX } from '@/lib/sanitize';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,9 +25,23 @@ async function exigirAdmin(request) {
   return { sessao, db };
 }
 
+// Localiza UM membro por id (uuid) ou e-mail exato; qualquer outro formato é recusado
+async function buscarMembroAlvo(db, body, colunas) {
+  if (body.id !== undefined && body.id !== null && body.id !== '') {
+    if (!isValidUUID(body.id)) return null;
+    return (await db.from('equipe_usuarios').select(colunas).eq('id', body.id).maybeSingle()).data;
+  }
+  const email = sanitizeEmail(body.email);
+  if (!email) return null;
+  return (await db.from('equipe_usuarios').select(colunas).eq('email', email).maybeSingle()).data;
+}
+
 function validarSenha(senha) {
   if (!senha) return null;
-  if (String(senha).length < 8) return 'A senha precisa ter pelo menos 8 caracteres.';
+  if (typeof senha !== 'string') return 'Senha inválida.';
+  if (senha.length < 8) return 'A senha precisa ter pelo menos 8 caracteres.';
+  if (senha.length > SENHA_MAX) return `A senha pode ter no máximo ${SENHA_MAX} caracteres.`;
+  if (/[\u0000-\u001F\u007F]/.test(senha)) return 'A senha não pode conter quebras de linha ou caracteres invisíveis.';
   return null;
 }
 
@@ -54,9 +69,9 @@ export async function GET(request) {
 export async function POST(request) {
   const { erro, db } = await exigirAdmin(request);
   if (erro) return erro;
-  const body = await request.json().catch(() => ({}));
-  const email = normalizarEmail(body.email);
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ ok: false, mensagem: 'Informe um e-mail válido.' }, 400);
+  const body = (await request.json().catch(() => null)) || {};
+  const email = sanitizeEmail(body.email);
+  if (!email) return json({ ok: false, mensagem: 'Informe um e-mail válido (apenas letras, números e . _ + -).' }, 400);
   const erroSenha = !body.senha ? 'Informe a senha inicial.' : validarSenha(body.senha);
   if (erroSenha) return json({ ok: false, mensagem: erroSenha }, 400);
   const { campos, erro: erroCampos } = camposEditaveis({ papel: 'suporte', ...body });
@@ -80,8 +95,8 @@ export async function POST(request) {
 export async function PATCH(request) {
   const { erro, db } = await exigirAdmin(request);
   if (erro) return erro;
-  const body = await request.json().catch(() => ({}));
-  const { data: atual } = await db.from('equipe_usuarios').select('id, email, nome, papel').eq(body.id ? 'id' : 'email', body.id || normalizarEmail(body.email)).maybeSingle();
+  const body = (await request.json().catch(() => null)) || {};
+  const atual = await buscarMembroAlvo(db, body, 'id, email, nome, papel');
   if (!atual) return json({ ok: false, mensagem: 'Membro não encontrado.' }, 404);
 
   const { campos, erro: erroCampos } = camposEditaveis(body);
@@ -102,8 +117,8 @@ export async function PATCH(request) {
 export async function DELETE(request) {
   const { erro, db, sessao } = await exigirAdmin(request);
   if (erro) return erro;
-  const body = await request.json().catch(() => ({}));
-  const { data: atual } = await db.from('equipe_usuarios').select('id, email').eq(body.id ? 'id' : 'email', body.id || normalizarEmail(body.email)).maybeSingle();
+  const body = (await request.json().catch(() => null)) || {};
+  const atual = await buscarMembroAlvo(db, body, 'id, email');
   if (!atual) return json({ ok: false, mensagem: 'Membro não encontrado.' }, 404);
   if (normalizarEmail(atual.email) === normalizarEmail(sessao.sub)) {
     return json({ ok: false, mensagem: 'Você não pode remover o próprio acesso.' }, 400);
