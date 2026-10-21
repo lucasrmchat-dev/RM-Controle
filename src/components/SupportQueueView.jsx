@@ -44,10 +44,7 @@ import InternalDemandsKanbanModal from './InternalDemandsKanbanModal';
 import { showToast } from './ToastNotification';
 import QueueCommandBar from './QueueCommandBar';
 import NovaDemandaModal from './NovaDemandaModal';
-import { ListaDemandas, CardsDemandas, KanbanDemandas, PainelDemanda } from './FilaDemandasVisoes';
-
-// Mola do "split": a fila cede espaço e o painel entra como uma nova área de trabalho do Mac
-const MOLA_SPLIT = { type: 'spring', stiffness: 260, damping: 32, mass: 0.95 };
+import { ListaDemandas, CardsDemandas, KanbanDemandas } from './FilaDemandasVisoes';
 import { SupportQueueSkeleton } from './SkeletonLoaders';
 import { 
   ViewGridIcon,
@@ -1349,18 +1346,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
   const [detalheId, setDetalheId] = useState(null);
   const chamadoDetalhe = detalheId ? chamados.find((c) => c.id === detalheId) || null : null;
 
-  // Largura da tela: decide entre "dividir a tela" (desktop) e "empurrar" (celular)
-  const [larguraJanela, setLarguraJanela] = useState(1440);
-  useEffect(() => {
-    const medir = () => setLarguraJanela(window.innerWidth);
-    medir();
-    window.addEventListener('resize', medir);
-    return () => window.removeEventListener('resize', medir);
-  }, []);
-  const telaLarga = larguraJanela >= 1024;
-  const larguraPainel = Math.round(Math.min(500, Math.max(380, larguraJanela * 0.34)));
-
-  // Esc fecha o painel
+  // Esc fecha os detalhes abertos
   useEffect(() => {
     if (!chamadoDetalhe) return undefined;
     const esc = (e) => e.key === 'Escape' && setDetalheId(null);
@@ -1432,13 +1418,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
 
   return (
     <div className="text-[#1d1d1f] dark:text-[#f5f5f7]">
-      <div className="lg:flex lg:items-start">
-      {/* Conteúdo da fila: no desktop encolhe para dar lugar ao painel; no celular desliza para a esquerda */}
-      <motion.div
-        className="flex-1 min-w-0 space-y-6"
-        animate={!telaLarga && chamadoDetalhe ? { x: '-22%', opacity: 0.5 } : { x: 0, opacity: 1 }}
-        transition={MOLA_SPLIT}
-      >
+      <div className="space-y-6">
       
       {/* ============================================================================== */}
       {/* CABEÇALHO: TÍTULO + AÇÕES PRINCIPAIS                                           */}
@@ -1515,11 +1495,11 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
         <div className="min-w-0 w-full space-y-4">
 
           {/* BARRA DE STATUS, VISUALIZAÇÃO E FILTROS */}
-          <div className="relative z-30 rounded-2xl p-2.5 sm:p-3 border border-black/[0.06] dark:border-white/[0.08] bg-white/90 dark:bg-[#16161a]/90 backdrop-blur-xl shadow-sm space-y-3">
-            <div className={`flex flex-col gap-3 ${telaLarga && chamadoDetalhe ? '' : 'xl:flex-row xl:items-center'}`}>
+          <div className="relative z-30 rounded-2xl p-2.5 sm:p-3 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-sm space-y-3">
+            <div className="flex flex-col xl:flex-row xl:items-center gap-3">
 
               {/* Status com contagem (substitui o antigo painel lateral de métricas) */}
-              <div className={`flex gap-1.5 flex-1 min-w-0 overflow-x-auto -mx-1 px-1 pb-0.5 ${telaLarga && chamadoDetalhe ? '' : 'lg:grid lg:grid-cols-5 lg:overflow-visible lg:mx-0 lg:px-0'}`}>
+              <div className="flex gap-1.5 flex-1 min-w-0 overflow-x-auto -mx-1 px-1 pb-0.5 lg:grid lg:grid-cols-5 lg:overflow-visible lg:mx-0 lg:px-0">
                 {[
                   { id: 'ativos', label: 'Todos ativos', count: emAndamento.length + emEspera.length + aguardandoCliente.length, dot: 'bg-slate-400' },
                   { id: 'espera', label: 'Aguardando atendente', count: emEspera.length, dot: 'bg-amber-500', ping: emEspera.length > 0 },
@@ -1977,57 +1957,14 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
               selecionadaId={detalheId}
             />
           ) : filaViewMode === 'cards' ? (
-            <CardsDemandas chamados={chamadosFiltrados} ctx={ctxDemandas} acoes={acoesDemanda} tempos={temposDemanda} assumindoId={assumindoId} selecionadaId={detalheId} compacta={telaLarga && Boolean(chamadoDetalhe)} />
+            <CardsDemandas chamados={chamadosFiltrados} ctx={ctxDemandas} acoes={acoesDemanda} tempos={temposDemanda} assumindoId={assumindoId} selecionadaId={detalheId} />
           ) : (
-            <ListaDemandas chamados={chamadosFiltrados} ctx={ctxDemandas} acoes={acoesDemanda} tempos={temposDemanda} assumindoId={assumindoId} selecionadaId={detalheId} compacta={telaLarga && Boolean(chamadoDetalhe)} />
+            <ListaDemandas chamados={chamadosFiltrados} ctx={ctxDemandas} acoes={acoesDemanda} tempos={temposDemanda} assumindoId={assumindoId} selecionadaId={detalheId} />
           )}
 
         </div>
       </div>
-      </motion.div>
-
-      {/* Painel da demanda: entra pela direita e divide a tela com a fila (desktop) */}
-      <AnimatePresence initial={false}>
-        {telaLarga && chamadoDetalhe && (
-          <motion.aside
-            key="painel-demanda"
-            aria-label="Detalhes da demanda"
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: larguraPainel + 24, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={MOLA_SPLIT}
-            className="hidden lg:block flex-shrink-0 self-stretch overflow-hidden"
-          >
-            <motion.div
-              initial={{ x: 80 }}
-              animate={{ x: 0 }}
-              exit={{ x: 80 }}
-              transition={MOLA_SPLIT}
-              style={{ width: larguraPainel }}
-              className="ml-6 sticky top-24 h-[calc(100dvh-7.5rem)]"
-            >
-              <PainelDemanda chamado={chamadoDetalhe} onFechar={() => setDetalheId(null)} ctx={ctxDemandas} acoes={acoesDemanda} tempos={temposDemanda} assumindoId={assumindoId} />
-            </motion.div>
-          </motion.aside>
-        )}
-      </AnimatePresence>
       </div>
-
-      {/* Celular: o painel cobre a tela vindo da direita, como uma navegação do iPhone */}
-      <AnimatePresence>
-        {!telaLarga && chamadoDetalhe && (
-          <motion.div
-            key="painel-demanda-celular"
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={MOLA_SPLIT}
-            className="fixed inset-0 z-[9990] p-2 pt-[max(0.5rem,env(safe-area-inset-top))] bg-[#f5f5f7] dark:bg-black"
-          >
-            <PainelDemanda chamado={chamadoDetalhe} onFechar={() => setDetalheId(null)} ctx={ctxDemandas} acoes={acoesDemanda} tempos={temposDemanda} assumindoId={assumindoId} />
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Formulário de nova demanda (3 etapas) */}
       <NovaDemandaModal

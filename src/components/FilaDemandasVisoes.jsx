@@ -13,34 +13,49 @@ export const ESTADOS = {
     rotulo: 'Aguardando atendente',
     curto: 'Aguardando',
     ponto: 'bg-amber-500',
-    pilula: 'bg-amber-500/10 text-amber-800 dark:text-amber-300 ring-1 ring-inset ring-amber-500/20',
+    faixa: 'bg-amber-400',
+    pilula: 'text-slate-600 dark:text-zinc-300',
+    fundo: 'bg-white dark:bg-[#1c1c1e]',
+    borda: 'ring-black/[0.07] dark:ring-white/[0.09]',
+    linhaAberta: 'bg-black/[0.018] dark:bg-white/[0.03]',
     dica: 'Ninguém assumiu ainda',
   },
   atendimento: {
     rotulo: 'Em atendimento',
     curto: 'Em atendimento',
     ponto: 'bg-emerald-500',
-    pilula: 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 ring-1 ring-inset ring-emerald-500/20',
+    faixa: 'bg-emerald-500',
+    pilula: 'text-slate-600 dark:text-zinc-300',
+    fundo: 'bg-white dark:bg-[#1c1c1e]',
+    borda: 'ring-black/[0.07] dark:ring-white/[0.09]',
+    linhaAberta: 'bg-black/[0.018] dark:bg-white/[0.03]',
     dica: 'Sendo atendidas agora',
   },
   cliente: {
     rotulo: 'Aguardando cliente',
     curto: 'Aguardando cliente',
     ponto: 'bg-violet-500',
-    pilula: 'bg-violet-500/10 text-violet-800 dark:text-violet-300 ring-1 ring-inset ring-violet-500/20',
+    faixa: 'bg-violet-500',
+    pilula: 'text-slate-600 dark:text-zinc-300',
+    fundo: 'bg-white dark:bg-[#1c1c1e]',
+    borda: 'ring-black/[0.07] dark:ring-white/[0.09]',
+    linhaAberta: 'bg-black/[0.018] dark:bg-white/[0.03]',
     dica: 'Esperando o cliente responder',
   },
   concluida: {
     rotulo: 'Concluída',
     curto: 'Concluída',
     ponto: 'bg-slate-400',
-    pilula: 'bg-slate-500/10 text-slate-700 dark:text-zinc-300 ring-1 ring-inset ring-slate-500/20',
+    faixa: 'bg-slate-300',
+    pilula: 'text-slate-600 dark:text-zinc-300',
+    fundo: 'bg-white dark:bg-[#1c1c1e]',
+    borda: 'ring-black/[0.07] dark:ring-white/[0.09]',
+    linhaAberta: 'bg-slate-50 dark:bg-white/[0.03]',
     dica: '',
   },
 };
 
 const ORDEM_GRUPOS = ['espera', 'atendimento', 'cliente', 'concluida'];
-const MOLA = { type: 'spring', stiffness: 380, damping: 36, mass: 0.9 };
 
 const minutosDesde = (iso) => {
   const t = new Date(iso || 0).getTime();
@@ -57,16 +72,7 @@ const iniciais = (nome) =>
     .join('') || '?';
 
 // Cor estável por empresa: dá identidade visual sem depender de logo
-const PALETA = [
-  'bg-sky-500/12 text-sky-700 dark:text-sky-300',
-  'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300',
-  'bg-amber-500/14 text-amber-700 dark:text-amber-300',
-  'bg-rose-500/12 text-rose-700 dark:text-rose-300',
-  'bg-violet-500/12 text-violet-700 dark:text-violet-300',
-  'bg-teal-500/12 text-teal-700 dark:text-teal-300',
-  'bg-orange-500/12 text-orange-700 dark:text-orange-300',
-  'bg-indigo-500/12 text-indigo-700 dark:text-indigo-300',
-];
+const PALETA = ['bg-[#f2f2f4] text-[#3a3a3c] dark:bg-white/[0.08] dark:text-zinc-200']
 const corDaEmpresa = (nome) => {
   let h = 0;
   for (const c of String(nome || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0;
@@ -153,10 +159,8 @@ function Avatar({ nome, destaque = false, tamanho = 'w-6 h-6 text-[10px]' }) {
 
 function PilulaEstado({ info, grande = false }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full font-medium whitespace-nowrap ${grande ? 'h-7 px-3 text-[13px]' : 'h-[22px] px-2 text-[11px]'} ${info.visual.pilula}`}>
-      <span className={`relative w-1.5 h-1.5 rounded-full ${info.visual.ponto}`}>
-        {info.estado === 'espera' && info.prioridade === 'critica' && <span className={`absolute inset-0 rounded-full ${info.visual.ponto} animate-ping`} />}
-      </span>
+    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap ${grande ? 'text-[13px]' : 'text-[12px]'} ${info.visual.pilula}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${info.visual.ponto}`} />
       {grande ? info.visual.rotulo : info.visual.curto}
     </span>
   );
@@ -164,13 +168,13 @@ function PilulaEstado({ info, grande = false }) {
 
 function Selos({ ch, info }) {
   const itens = [];
-  if (info.prioridade === 'critica') itens.push(['Urgente', 'bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-rose-500/20']);
-  if (info.prazoVencido) itens.push(['Prazo vencido', 'bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-rose-500/20']);
-  if (ch.is_lembrete) itens.push(['Lembrete', 'bg-violet-500/10 text-violet-700 dark:text-violet-300 ring-violet-500/20']);
-  if (ch.sync_estado === 'pendente') itens.push(['Não sincronizada', 'bg-amber-500/10 text-amber-700 dark:text-amber-300 ring-amber-500/20']);
-  if (ch.adiado_ate && Date.now() < new Date(ch.adiado_ate).getTime()) itens.push(['Alerta pausado', 'bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-300 ring-black/[0.06]']);
+  if (info.prioridade === 'critica') itens.push(['Urgente', 'text-rose-600 dark:text-rose-400']);
+  if (info.prazoVencido) itens.push(['Prazo vencido', 'text-rose-600 dark:text-rose-400']);
+  if (ch.is_lembrete) itens.push(['Lembrete', 'text-slate-500 dark:text-zinc-400']);
+  if (ch.sync_estado === 'pendente') itens.push(['Não sincronizada', 'text-amber-600 dark:text-amber-400']);
+  if (ch.adiado_ate && Date.now() < new Date(ch.adiado_ate).getTime()) itens.push(['Alerta pausado', 'text-slate-500 dark:text-zinc-400']);
   return itens.map(([t, c]) => (
-    <span key={t} className={`inline-flex items-center h-[20px] px-1.5 rounded-md text-[10.5px] font-semibold ring-1 ring-inset ${c}`}>
+    <span key={t} className={`text-[12px] font-medium ${c}`}>
       {t}
     </span>
   ));
@@ -294,31 +298,208 @@ function useGruposRecolhidos() {
 }
 
 // Sai da lista recolhendo a altura (sem "fantasma" sobrepondo a linha de baixo)
-const SAIDA_ITEM = { opacity: 0, height: 0, transition: { duration: 0.22, ease: [0.4, 0, 0.2, 1] } };
+const SAIDA_ITEM = { opacity: 0, height: 0, transition: { duration: 0.16, ease: [0.4, 0, 0.2, 1] } };
+const ABRIR = { duration: 0.24, ease: [0.2, 0, 0, 1] };
+
+/** Tempo dentro de um chip colorido pela urgência: dá para bater o olho e saber o que está atrasado. */
+const COR_CHIP_TEMPO = {
+  critica: 'text-rose-600 dark:text-rose-400',
+  atencao: 'text-amber-600 dark:text-amber-400',
+  normal: 'text-[#1d1d1f] dark:text-white',
+};
+function ChipTempo({ ch, info, tempos, tamanho = 'normal' }) {
+  return (
+    <span className="inline-flex flex-col items-end">
+      <span className={`font-semibold tabular-nums tracking-tight whitespace-nowrap ${tamanho === 'pequeno' ? 'text-[13px]' : 'text-[15px]'} ${COR_CHIP_TEMPO[info.prioridade]}`}>
+        {tempoCurto(ch, info, tempos)}
+      </span>
+      <span className="mt-0.5 text-[11px] text-slate-400 dark:text-zinc-500">{rotuloTempo(info)}</span>
+    </span>
+  );
+}
+
+// ==============================================================================
+// DETALHES DENTRO DO PRÓPRIO ITEM (sem painel lateral; nada muda de lugar na tela)
+// ==============================================================================
+
+const acaoTexto = 'h-8 px-2.5 rounded-lg text-[13px] font-medium inline-flex items-center gap-1.5 cursor-pointer text-slate-600 dark:text-zinc-300 hover:text-[#1d1d1f] dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.07] transition-colors disabled:opacity-50';
+
+function EditorEtiquetas({ chamado, acoes }) {
+  const [nova, setNova] = useState('');
+  const etiquetas = chamado.etiquetas || [];
+  const adicionar = () => {
+    const limpa = nova.trim().replace(/^#/, '');
+    if (limpa && !etiquetas.includes(limpa)) acoes.etiquetas(chamado, [...etiquetas, limpa]);
+    setNova('');
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+      {etiquetas.map((t) => (
+        <span key={t} className="inline-flex items-center gap-0.5 h-7 pl-2.5 pr-1 rounded-full bg-white dark:bg-white/[0.08] ring-1 ring-black/[0.06] dark:ring-white/[0.08] text-[12.5px]">
+          {t}
+          <button type="button" aria-label={`Remover ${t}`} onClick={() => acoes.etiquetas(chamado, etiquetas.filter((x) => x !== t))} className="w-5 h-5 rounded-full flex items-center justify-center text-slate-400 hover:text-rose-600 cursor-pointer">
+            <XMarkIcon className="w-3 h-3" />
+          </button>
+        </span>
+      ))}
+      <input
+        type="text"
+        value={nova}
+        onChange={(e) => setNova(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            adicionar();
+          }
+        }}
+        placeholder="+ Etiqueta"
+        aria-label="Nova etiqueta"
+        className="h-7 w-24 px-2.5 rounded-full bg-transparent border border-dashed border-black/[0.15] dark:border-white/[0.2] text-[12.5px] placeholder:text-slate-400 focus:outline-none focus:border-solid focus:border-[#4d7c0f] dark:focus:border-[#84cc16]"
+      />
+    </div>
+  );
+}
+
+function AcoesSecundarias({ chamado, info, acoes, assumindoId, compacta = false }) {
+  const [menuAdiar, setMenuAdiar] = useState(false);
+  const parar = (fn) => (e) => {
+    e.stopPropagation();
+    fn();
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
+      {info.estado === 'espera' && !compacta && (
+        <button type="button" onClick={parar(() => acoes.assumir(chamado))} disabled={Boolean(assumindoId)} className={acaoTexto} title="Só assumir" aria-label="Só assumir">
+          <PlayIcon className="w-2.5 h-2.5 fill-current" /> {compacta ? null : 'Só assumir'}
+        </button>
+      )}
+      {!info.interna && (
+        <button type="button" onClick={parar(() => acoes.abrirEmpresa(chamado))} className={acaoTexto} title="Abrir empresa" aria-label="Abrir empresa">
+          <BuildingIcon className="w-3.5 h-3.5" /> {!compacta && 'Empresa'}
+        </button>
+      )}
+      {info.interna && info.estado !== 'espera' && (
+        <button type="button" onClick={parar(() => acoes.abrirPipeline())} className={acaoTexto}>
+          <KanbanIcon className="w-3.5 h-3.5" /> {!compacta && 'Pipeline'}
+        </button>
+      )}
+      {info.estado !== 'concluida' && (
+        <button type="button" onClick={parar(() => acoes.repassar(chamado))} className={acaoTexto} title="Repassar" aria-label="Repassar">
+          <UsersIcon className="w-3.5 h-3.5" /> {!compacta && 'Repassar'}
+        </button>
+      )}
+      {info.estado === 'espera' && (
+        <span className="relative">
+          <button type="button" onClick={parar(() => setMenuAdiar((v) => !v))} aria-expanded={menuAdiar} className={acaoTexto} title="Adiar alerta" aria-label="Adiar alerta">
+            <BellOffIcon className="w-3.5 h-3.5" /> {!compacta && 'Adiar'}
+          </button>
+          {menuAdiar && (
+            <div className="absolute bottom-full mb-1.5 left-0 z-20 p-1 rounded-xl ring-1 ring-black/[0.08] dark:ring-white/[0.12] bg-white dark:bg-[#1c1c20] shadow-lg flex" onClick={(e) => e.stopPropagation()}>
+              {[10, 15, 30, 60, 120].map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => {
+                    acoes.adiar(chamado, m);
+                    setMenuAdiar(false);
+                  }}
+                  className="h-8 px-2.5 rounded-lg text-[13px] font-medium hover:bg-black/[0.05] dark:hover:bg-white/[0.08] cursor-pointer whitespace-nowrap"
+                >
+                  {m < 60 ? `${m} min` : `${m / 60} h`}
+                </button>
+              ))}
+            </div>
+          )}
+        </span>
+      )}
+      {!compacta && chamado.adiado_ate && Date.now() < new Date(chamado.adiado_ate).getTime() && (
+        <button type="button" onClick={parar(() => acoes.reativarAlerta(chamado))} className={acaoTexto}>
+          <BellOffIcon className="w-3.5 h-3.5" /> Reativar alerta
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={parar(() => acoes.cancelar(chamado))}
+        title={info.estado === 'concluida' ? 'Excluir' : 'Cancelar demanda'}
+        aria-label={info.estado === 'concluida' ? 'Excluir' : 'Cancelar demanda'}
+        className={`${acaoTexto} !text-rose-600 dark:!text-rose-400 ${compacta ? 'ml-auto' : ''}`}
+      >
+        {compacta ? <XMarkIcon className="w-4 h-4" /> : info.estado === 'concluida' ? 'Excluir' : 'Cancelar'}
+      </button>
+    </div>
+  );
+}
+
+/** Detalhes que se abrem embaixo da linha da lista: aproveita a largura toda, em três colunas. */
+function DetalhesLinha({ ch, info, acoes, assumindoId }) {
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] gap-x-10 gap-y-6 px-4 sm:px-5 pb-5 pt-1 sm:pl-[76px]" onClick={(e) => e.stopPropagation()}>
+      <div className="min-w-0 space-y-4">
+        <div>
+          <h4 className="text-[12px] font-medium text-slate-500 dark:text-zinc-400 mb-1.5">Pedido</h4>
+          <p className="text-[14px] leading-relaxed text-slate-800 dark:text-zinc-200 whitespace-pre-wrap">{info.descricao || <span className="text-slate-400">Sem descrição.</span>}</p>
+        </div>
+        <div>
+          <h4 className="text-[12px] font-medium text-slate-500 dark:text-zinc-400 mb-1.5">Etiquetas</h4>
+          <EditorEtiquetas chamado={ch} acoes={acoes} />
+        </div>
+      </div>
+      <div className="min-w-0 space-y-4">
+        <dl className="grid grid-cols-[104px_1fr] gap-y-1.5 text-[13px]">
+          <dt className="text-slate-500 dark:text-zinc-400">Responsável</dt>
+          <dd className="truncate">{info.responsavel ? (info.meu ? 'Você' : info.responsavel) : <span className="text-slate-400">Fila geral</span>}</dd>
+          <dt className="text-slate-500 dark:text-zinc-400">Departamento</dt>
+          <dd className="truncate">{info.departamentos.join(', ')}</dd>
+          {info.solicitante && (
+            <>
+              <dt className="text-slate-500 dark:text-zinc-400">Pedido por</dt>
+              <dd className="truncate">{info.solicitante}</dd>
+            </>
+          )}
+          {ch.prazo_limite && (
+            <>
+              <dt className="text-slate-500 dark:text-zinc-400">Prazo</dt>
+              <dd className={info.prazoVencido ? 'text-rose-600 dark:text-rose-400 font-medium' : ''}>{formatarHora(ch.prazo_limite)}</dd>
+            </>
+          )}
+        </dl>
+        <LinhaDoTempo ch={ch} info={info} />
+        <div className="pt-1 -ml-2.5">
+          <AcoesSecundarias chamado={ch} info={info} acoes={acoes} assumindoId={assumindoId} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ==============================================================================
 // LISTA
 // ==============================================================================
 
-function LinhaDemanda({ ch, ctx, acoes, tempos, assumindoId, selecionada, compacta }) {
+function LinhaDemanda({ ch, ctx, acoes, tempos, assumindoId, aberta }) {
   const info = infoDemanda(ch, ctx);
   return (
     <motion.li
-      layout="position"
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       exit={SAIDA_ITEM}
-      transition={MOLA}
-      onClick={() => acoes.abrirDetalhe(ch)}
-      aria-current={selecionada ? 'true' : undefined}
-      className={`group relative overflow-hidden cursor-pointer transition-colors duration-200 ${
-        selecionada ? 'bg-[#4d7c0f]/[0.05] dark:bg-[#84cc16]/[0.06]' : 'hover:bg-black/[0.018] dark:hover:bg-white/[0.025]'
-      }`}
+      transition={{ duration: 0.16 }}
+      className={`group relative overflow-hidden transition-colors duration-200 ${aberta ? info.visual.linhaAberta : 'hover:bg-black/[0.015] dark:hover:bg-white/[0.025]'}`}
     >
-      {selecionada && <motion.span layoutId="linha-selecionada" className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#4d7c0f] dark:bg-[#84cc16]" transition={MOLA} />}
-      <div className="flex items-center gap-4 px-4 sm:px-5 py-4">
+      <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={aberta}
+        onClick={() => acoes.abrirDetalhe(ch)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            acoes.abrirDetalhe(ch);
+          }
+        }}
+        className="flex items-center gap-4 px-4 sm:px-5 py-4 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#4d7c0f]"
+      >
         <Monograma nome={ch.empresa_nome} />
-
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-white truncate">{ch.empresa_nome}</span>
@@ -326,51 +507,37 @@ function LinhaDemanda({ ch, ctx, acoes, tempos, assumindoId, selecionada, compac
               <Selos ch={ch} info={info} />
             </span>
           </div>
-          <p className="mt-0.5 text-[13px] text-slate-500 dark:text-zinc-400 truncate">{info.descricao || 'Sem descrição'}</p>
-          <p className="mt-1 text-[12px] text-slate-400 dark:text-zinc-500 truncate">
-            {info.departamentos.join(' · ')}
-            {info.solicitante && <> · {info.solicitante}</>}
+          <p className={`mt-0.5 text-[13px] text-slate-500 dark:text-zinc-400 ${aberta ? 'hidden' : 'truncate'}`}>{info.descricao || 'Sem descrição'}</p>
+          <p className="mt-1 flex items-center gap-1.5 text-[12px] text-slate-400 dark:text-zinc-500 min-w-0">
+            <PilulaEstado info={info} />
+            <span className="truncate">
+              {info.departamentos.join(' · ')}
+              {info.responsavel && <> · {info.meu ? 'você' : info.responsavel}</>}
+            </span>
           </p>
         </div>
-
-        {/* Responsável */}
-        {!compacta && (
-          <div className="hidden xl:flex items-center gap-2.5 w-44 flex-shrink-0">
-            {info.responsavel ? (
-              <>
-                <Avatar nome={info.responsavel} destaque={info.meu} tamanho="w-7 h-7 text-[10.5px]" />
-                <span className="text-[13px] text-slate-700 dark:text-zinc-200 truncate">{info.meu ? 'Você' : info.responsavel}</span>
-              </>
-            ) : (
-              <span className="text-[13px] text-slate-400 dark:text-zinc-500">Ninguém ainda</span>
-            )}
-          </div>
-        )}
-
-        {/* Tempo */}
-        <div className="hidden sm:block w-28 text-right flex-shrink-0">
-          <span className={`block text-[15px] font-semibold tabular-nums tracking-tight whitespace-nowrap ${COR_TEMPO[info.prioridade]}`}>{tempoCurto(ch, info, tempos)}</span>
-          <span className="block text-[11px] text-slate-400 dark:text-zinc-500">{rotuloTempo(info)}</span>
+        <div className="hidden sm:block flex-shrink-0">
+          <ChipTempo ch={ch} info={info} tempos={tempos} />
         </div>
-
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           <AcaoPrincipal ch={ch} info={info} acoes={acoes} assumindoId={assumindoId} />
-          <svg className="hidden md:block w-4 h-4 text-slate-300 dark:text-zinc-600 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg className={`hidden md:block w-4 h-4 text-slate-400 transition-transform duration-200 ${aberta ? 'rotate-90' : 'group-hover:translate-x-0.5'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m9 18 6-6-6-6" />
           </svg>
         </div>
       </div>
-      {/* Celular: tempo e responsável numa linha própria */}
-      <div className="sm:hidden flex items-center gap-2 px-4 pb-3.5 -mt-2 pl-[72px] text-[12px]">
-        <span className={`font-semibold tabular-nums ${COR_TEMPO[info.prioridade]}`}>{tempoCurto(ch, info, tempos)}</span>
-        <span className="text-slate-400">{rotuloTempo(info)}</span>
-        {info.responsavel && <span className="text-slate-500 truncate">· {info.meu ? 'Você' : info.responsavel}</span>}
-      </div>
+      <AnimatePresence initial={false}>
+        {aberta && (
+          <motion.div key="detalhes" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={ABRIR} className="overflow-hidden">
+            <DetalhesLinha ch={ch} info={info} acoes={acoes} assumindoId={assumindoId} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.li>
   );
 }
 
-export function ListaDemandas({ chamados, ctx, acoes, tempos, assumindoId, selecionadaId = null, compacta = false }) {
+export function ListaDemandas({ chamados, ctx, acoes, tempos, assumindoId, selecionadaId = null }) {
   const grupos = useMemo(() => agrupar(chamados, ctx), [chamados, ctx]);
   const [recolhidos, alternar] = useGruposRecolhidos();
   return (
@@ -385,12 +552,12 @@ export function ListaDemandas({ chamados, ctx, acoes, tempos, assumindoId, selec
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                className="rounded-[20px] bg-white dark:bg-[#16161a] ring-1 ring-black/[0.05] dark:ring-white/[0.07] shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.08)] overflow-hidden divide-y divide-black/[0.045] dark:divide-white/[0.06]"
+                transition={ABRIR}
+                className="rounded-2xl bg-white dark:bg-[#1c1c1e] ring-1 ring-black/[0.07] dark:ring-white/[0.09] overflow-hidden divide-y divide-black/[0.06] dark:divide-white/[0.07]"
               >
                 <AnimatePresence initial={false}>
                   {g.itens.map((ch) => (
-                    <LinhaDemanda key={ch.id} ch={ch} ctx={ctx} acoes={acoes} tempos={tempos} assumindoId={assumindoId} selecionada={selecionadaId === ch.id} compacta={compacta} />
+                    <LinhaDemanda key={ch.id} ch={ch} ctx={ctx} acoes={acoes} tempos={tempos} assumindoId={assumindoId} aberta={selecionadaId === ch.id} />
                   ))}
                 </AnimatePresence>
               </motion.ul>
@@ -403,58 +570,90 @@ export function ListaDemandas({ chamados, ctx, acoes, tempos, assumindoId, selec
 }
 
 // ==============================================================================
-// CARDS
+// CARDS: ao clicar, o card mostra os detalhes no próprio espaço (mesma altura, nada se mexe)
 // ==============================================================================
 
-function CartaoDemanda({ ch, ctx, acoes, tempos, assumindoId, selecionada = false, kanban = false }) {
+function CartaoDemanda({ ch, ctx, acoes, tempos, assumindoId, aberto = false, kanban = false }) {
   const info = infoDemanda(ch, ctx);
+  const altura = kanban ? 'min-h-[200px]' : 'h-[236px]';
+  const pad = kanban ? 'p-4' : 'p-5';
   return (
     <motion.article
-      layout="position"
-      initial={{ opacity: 0, y: 10, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.18 } }}
-      whileHover={{ y: -3 }}
-      transition={MOLA}
-      draggable={kanban}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, transition: { duration: 0.12 } }}
+      transition={{ duration: 0.16 }}
+      draggable={kanban && !aberto}
       onDragStart={kanban ? (e) => e.dataTransfer.setData('text/plain', ch.id) : undefined}
       onClick={() => acoes.abrirDetalhe(ch)}
-      className={`group relative flex flex-col rounded-[20px] bg-white dark:bg-[#16161a] cursor-pointer overflow-hidden transition-shadow duration-300 ${
-        selecionada
-          ? 'ring-2 ring-[#4d7c0f] dark:ring-[#84cc16] shadow-lg'
-          : 'ring-1 ring-black/[0.06] dark:ring-white/[0.08] shadow-[0_1px_2px_rgba(0,0,0,0.04),0_10px_30px_-18px_rgba(0,0,0,0.18)] hover:shadow-[0_2px_4px_rgba(0,0,0,0.04),0_18px_40px_-18px_rgba(0,0,0,0.25)]'
-      }`}
+      className={`group relative flex flex-col ${altura} rounded-2xl ${info.visual.fundo} ring-1 ${aberto ? 'ring-[#1d1d1f]/30 dark:ring-white/30' : info.visual.borda} cursor-pointer overflow-hidden transition-shadow duration-200 ease-out ${aberto ? 'shadow-[0_8px_24px_-12px_rgba(0,0,0,0.18)]' : 'hover:shadow-[0_6px_20px_-10px_rgba(0,0,0,0.16)]'}`}
     >
-      <div className={kanban ? 'p-4' : 'p-5'}>
-        <div className="flex items-start gap-3">
-          <Monograma nome={ch.empresa_nome} tamanho={kanban ? 'w-9 h-9 text-[12px] rounded-xl' : 'w-11 h-11 text-[14px] rounded-[14px]'} />
-          <div className="min-w-0 flex-1">
-            <h4 className={`font-semibold tracking-tight text-[#1d1d1f] dark:text-white truncate ${kanban ? 'text-[14px]' : 'text-[15px]'}`}>{ch.empresa_nome}</h4>
-            <div className="mt-1 flex flex-wrap items-center gap-1.5">
-              <PilulaEstado info={info} />
-              {!kanban && <Selos ch={ch} info={info} />}
-            </div>
+
+      {/* Cabeçalho fixo (igual nas duas faces) */}
+      <div className={`${pad} pb-0 flex items-start gap-3`}>
+        <Monograma nome={ch.empresa_nome} tamanho={kanban ? 'w-9 h-9 text-[12px] rounded-xl' : 'w-11 h-11 text-[14px] rounded-[14px]'} />
+        <div className="min-w-0 flex-1">
+          <h4 className={`font-semibold tracking-tight text-[#1d1d1f] dark:text-white truncate ${kanban ? 'text-[14px]' : 'text-[15px]'}`}>{ch.empresa_nome}</h4>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <PilulaEstado info={info} />
+            {!kanban && !aberto && <Selos ch={ch} info={info} />}
           </div>
         </div>
-        <p className={`mt-3.5 text-[13.5px] leading-relaxed text-slate-600 dark:text-zinc-300 ${kanban ? 'line-clamp-2' : 'line-clamp-3 min-h-[3.9em]'}`}>
-          {info.descricao || <span className="text-slate-400">Sem descrição</span>}
-        </p>
+        {aberto && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              acoes.abrirDetalhe(ch);
+            }}
+            aria-label="Fechar detalhes"
+            className="w-8 h-8 -mr-1.5 -mt-1 rounded-full flex items-center justify-center text-slate-400 hover:text-[#1d1d1f] dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.08] cursor-pointer flex-shrink-0"
+          >
+            <XMarkIcon className="w-4 h-4" />
+          </button>
+        )}
       </div>
-      <div className={`mt-auto flex items-center gap-3 border-t border-black/[0.05] dark:border-white/[0.06] bg-black/[0.012] dark:bg-white/[0.015] ${kanban ? 'px-4 py-2.5' : 'px-5 py-3.5'}`}>
-        <div className="min-w-0 flex-1">
-          <span className={`block font-semibold tabular-nums tracking-tight ${COR_TEMPO[info.prioridade]} ${kanban ? 'text-[13px]' : 'text-[15px]'}`}>{tempoCurto(ch, info, tempos)}</span>
-          <span className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-zinc-500 truncate">
-            {rotuloTempo(info)}
-            {info.responsavel && <> · {info.meu ? 'você' : info.responsavel}</>}
-          </span>
-        </div>
-        <AcaoPrincipal ch={ch} info={info} acoes={acoes} assumindoId={assumindoId} />
+
+      {/* Corpo: resumo ↔ detalhes, trocando no mesmo espaço */}
+      <div className="relative flex-1 min-h-0">
+        <AnimatePresence initial={false} mode="popLayout">
+          {!aberto ? (
+            <motion.div key="frente" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }} className={`absolute inset-0 ${pad} pt-3.5 flex flex-col`}>
+              <p className={`text-[13.5px] leading-relaxed text-slate-600 dark:text-zinc-300 ${kanban ? 'line-clamp-2' : 'line-clamp-3'}`}>{info.descricao || <span className="text-slate-400">Sem descrição</span>}</p>
+              <div className="mt-auto pt-3 flex items-end justify-between gap-3">
+                <div className="min-w-0 [&>span]:items-start">
+                  <ChipTempo ch={ch} info={info} tempos={tempos} tamanho={kanban ? 'pequeno' : 'normal'} />
+                </div>
+                <AcaoPrincipal ch={ch} info={info} acoes={acoes} assumindoId={assumindoId} />
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div key="verso" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }} transition={{ duration: 0.18 }} className="absolute inset-0 flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className={`flex-1 min-h-0 overflow-y-auto ${pad} pt-3 space-y-2.5`}>
+                <p className="text-[13px] leading-relaxed text-slate-700 dark:text-zinc-200 whitespace-pre-wrap">{info.descricao || <span className="text-slate-400">Sem descrição.</span>}</p>
+                <p className="text-[12px] text-slate-500 dark:text-zinc-400">
+                  {info.departamentos.join(', ')}
+                  {info.solicitante && <> · pedido por {info.solicitante}</>}
+                  {info.responsavel && <> · {info.meu ? 'com você' : `com ${info.responsavel}`}</>}
+                  {' · '}aberta {formatarHora(ch.created_at || ch.tempo_espera_inicio)}
+                </p>
+                {!kanban && <EditorEtiquetas chamado={ch} acoes={acoes} />}
+              </div>
+              <div className={`${kanban ? 'px-3 py-2' : 'px-3.5 py-2.5'} flex items-center gap-1.5 border-t border-black/[0.06] dark:border-white/[0.08]`}>
+                <AcaoPrincipal ch={ch} info={info} acoes={acoes} assumindoId={assumindoId} cheia />
+                <div className="flex-1 min-w-0 [&>div]:flex-nowrap [&>div]:justify-end">
+                  <AcoesSecundarias chamado={ch} info={info} acoes={acoes} assumindoId={assumindoId} compacta />
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </motion.article>
   );
 }
 
-export function CardsDemandas({ chamados, ctx, acoes, tempos, assumindoId, selecionadaId = null, compacta = false }) {
+export function CardsDemandas({ chamados, ctx, acoes, tempos, assumindoId, selecionadaId = null }) {
   const grupos = useMemo(() => agrupar(chamados, ctx), [chamados, ctx]);
   const [recolhidos, alternar] = useGruposRecolhidos();
   return (
@@ -469,12 +668,12 @@ export function CardsDemandas({ chamados, ctx, acoes, tempos, assumindoId, selec
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                className={`grid gap-4 p-1 -m-1 overflow-hidden ${compacta ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'}`}
+                transition={ABRIR}
+                className="grid gap-4 p-1 -m-1 overflow-hidden grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
               >
                 <AnimatePresence initial={false}>
                   {g.itens.map((ch) => (
-                    <CartaoDemanda key={ch.id} ch={ch} ctx={ctx} acoes={acoes} tempos={tempos} assumindoId={assumindoId} selecionada={selecionadaId === ch.id} />
+                    <CartaoDemanda key={ch.id} ch={ch} ctx={ctx} acoes={acoes} tempos={tempos} assumindoId={assumindoId} aberto={selecionadaId === ch.id} />
                   ))}
                 </AnimatePresence>
               </motion.div>
@@ -511,7 +710,7 @@ function ColunaKanban({ titulo, subtitulo, cabecalho, itens, vazio, destaque, on
         sobre
           ? 'ring-2 ring-[#4d7c0f] dark:ring-[#84cc16] bg-[#4d7c0f]/[0.05] dark:bg-[#84cc16]/[0.06]'
           : destaque
-            ? 'ring-1 ring-amber-500/25 bg-amber-500/[0.04]'
+            ? 'ring-1 ring-black/[0.06] dark:ring-white/[0.08] bg-black/[0.02] dark:bg-white/[0.025]'
             : 'ring-1 ring-black/[0.05] dark:ring-white/[0.07] bg-black/[0.018] dark:bg-white/[0.02]'
       }`}
     >
@@ -545,7 +744,7 @@ export function KanbanDemandas({ chamados, ctx, acoes, tempos, assumindoId, tecn
         <ColunaKanban titulo="Aguardando atendente" subtitulo="Arraste para alguém da equipe" itens={espera} vazio="Nenhuma demanda esperando." destaque cabecalho={<span className="w-2.5 h-2.5 rounded-full bg-amber-500" />}>
           <AnimatePresence initial={false}>
             {espera.map((ch) => (
-              <CartaoDemanda key={ch.id} ch={ch} ctx={ctx} acoes={acoes} tempos={tempos} assumindoId={assumindoId} kanban selecionada={selecionadaId === ch.id} />
+              <CartaoDemanda key={ch.id} ch={ch} ctx={ctx} acoes={acoes} tempos={tempos} assumindoId={assumindoId} kanban aberto={selecionadaId === ch.id} />
             ))}
           </AnimatePresence>
         </ColunaKanban>
@@ -566,7 +765,7 @@ export function KanbanDemandas({ chamados, ctx, acoes, tempos, assumindoId, tecn
             >
               <AnimatePresence initial={false}>
                 {itens.map((ch) => (
-                  <CartaoDemanda key={ch.id} ch={ch} ctx={ctx} acoes={acoes} tempos={tempos} assumindoId={assumindoId} kanban selecionada={selecionadaId === ch.id} />
+                  <CartaoDemanda key={ch.id} ch={ch} ctx={ctx} acoes={acoes} tempos={tempos} assumindoId={assumindoId} kanban aberto={selecionadaId === ch.id} />
                 ))}
               </AnimatePresence>
             </ColunaKanban>
@@ -578,7 +777,7 @@ export function KanbanDemandas({ chamados, ctx, acoes, tempos, assumindoId, tecn
 }
 
 // ==============================================================================
-// PAINEL DA DEMANDA (abre ao lado, dividindo a tela)
+// LINHA DO TEMPO
 // ==============================================================================
 
 const formatarHora = (iso) => {
@@ -628,220 +827,3 @@ function LinhaDoTempo({ ch, info }) {
   );
 }
 
-const SUGESTOES_ETIQUETA = ['urgente', 'financeiro', 'duvida', 'configuracao', 'bloqueado', 'reaberto'];
-
-const botaoSecundario = 'h-10 px-3.5 rounded-xl text-[13px] font-medium inline-flex items-center justify-center gap-2 cursor-pointer transition-colors text-slate-700 dark:text-zinc-200 bg-black/[0.035] dark:bg-white/[0.06] hover:bg-black/[0.07] dark:hover:bg-white/[0.1]';
-
-export function PainelDemanda({ chamado, onFechar, ctx, acoes, tempos, assumindoId }) {
-  const [novaTag, setNovaTag] = useState('');
-  const [menuAdiar, setMenuAdiar] = useState(false);
-  useEffect(() => {
-    setNovaTag('');
-    setMenuAdiar(false);
-  }, [chamado?.id]);
-
-  if (!chamado) return null;
-  const info = infoDemanda(chamado, ctx);
-  const etiquetas = chamado.etiquetas || [];
-  const adiado = chamado.adiado_ate && Date.now() < new Date(chamado.adiado_ate).getTime();
-  const adicionarTag = (t) => {
-    const limpa = String(t || '').trim().replace(/^#/, '');
-    if (!limpa || etiquetas.includes(limpa)) return;
-    acoes.etiquetas(chamado, [...etiquetas, limpa]);
-    setNovaTag('');
-  };
-
-  return (
-    <div className="h-full flex flex-col rounded-[24px] bg-white dark:bg-[#16161a] ring-1 ring-black/[0.06] dark:ring-white/[0.08] shadow-[0_2px_6px_rgba(0,0,0,0.04),0_24px_60px_-24px_rgba(0,0,0,0.25)] overflow-hidden text-[#1d1d1f] dark:text-white">
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={chamado.id}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          className="flex-1 min-h-0 flex flex-col"
-        >
-          {/* Cabeçalho com identidade da empresa */}
-          <header className="px-6 pt-6 pb-5">
-            <div className="flex items-start justify-between gap-3">
-              <Monograma nome={chamado.empresa_nome} tamanho="w-12 h-12 text-[15px] rounded-[15px]" />
-              <button
-                type="button"
-                onClick={onFechar}
-                aria-label="Fechar detalhes"
-                className="w-9 h-9 -mr-2 -mt-1 rounded-full flex items-center justify-center text-slate-400 hover:text-[#1d1d1f] dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.08] cursor-pointer transition-colors"
-              >
-                <XMarkIcon className="w-5 h-5" />
-              </button>
-            </div>
-            <h2 className="mt-4 text-[22px] font-bold tracking-tight leading-tight">{chamado.empresa_nome}</h2>
-            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-              <PilulaEstado info={info} grande />
-              <Selos ch={chamado} info={info} />
-            </div>
-          </header>
-
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 space-y-6">
-            {/* Tempo em destaque */}
-            <div className="grid grid-cols-2 rounded-2xl bg-black/[0.025] dark:bg-white/[0.04] divide-x divide-black/[0.06] dark:divide-white/[0.08]">
-              <div className="p-4">
-                <span className="block text-[12px] text-slate-500 dark:text-zinc-400">{rotuloTempo(info) === 'esperando' ? 'Esperando há' : rotuloTempo(info) === 'sem resposta' ? 'Sem resposta há' : 'Em atendimento há'}</span>
-                <span className={`block mt-1 text-[19px] font-semibold tabular-nums tracking-tight whitespace-nowrap ${COR_TEMPO[info.prioridade]}`}>{tempoPrincipal(chamado, info, tempos)}</span>
-              </div>
-              <div className="p-4">
-                <span className="block text-[12px] text-slate-500 dark:text-zinc-400">Responsável</span>
-                <span className="mt-1.5 flex items-center gap-2 min-w-0">
-                  {info.responsavel ? (
-                    <>
-                      <Avatar nome={info.responsavel} destaque={info.meu} tamanho="w-7 h-7 text-[10.5px]" />
-                      <span className="text-[14px] font-medium truncate">{info.meu ? 'Você' : info.responsavel}</span>
-                    </>
-                  ) : (
-                    <span className="text-[14px] text-slate-500">Fila geral</span>
-                  )}
-                </span>
-              </div>
-            </div>
-
-            {/* Pedido */}
-            <section>
-              <h3 className="text-[12px] font-semibold uppercase tracking-[0.06em] text-slate-400 dark:text-zinc-500 mb-2">O que precisa ser feito</h3>
-              <p className="text-[14.5px] leading-relaxed text-slate-800 dark:text-zinc-200 whitespace-pre-wrap">{info.descricao || <span className="text-slate-400">Sem descrição.</span>}</p>
-              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[12.5px] text-slate-500 dark:text-zinc-400">
-                <span>{info.departamentos.join(', ')}</span>
-                {info.solicitante && <span>Pedido por {info.solicitante}</span>}
-                {chamado.prazo_limite && (
-                  <span className={info.prazoVencido ? 'text-rose-600 dark:text-rose-400 font-medium' : ''}>Prazo {formatarHora(chamado.prazo_limite)}</span>
-                )}
-              </div>
-            </section>
-
-            {/* Linha do tempo */}
-            <section>
-              <h3 className="text-[12px] font-semibold uppercase tracking-[0.06em] text-slate-400 dark:text-zinc-500 mb-3">Andamento</h3>
-              <LinhaDoTempo ch={chamado} info={info} />
-            </section>
-
-            {/* Etiquetas */}
-            <section>
-              <h3 className="text-[12px] font-semibold uppercase tracking-[0.06em] text-slate-400 dark:text-zinc-500 mb-2.5">Etiquetas</h3>
-              <div className="flex flex-wrap gap-1.5">
-                {etiquetas.map((t) => (
-                  <span key={t} className="inline-flex items-center gap-1 h-7 pl-2.5 pr-1 rounded-full bg-black/[0.05] dark:bg-white/[0.08] text-[13px]">
-                    #{t}
-                    <button
-                      type="button"
-                      aria-label={`Remover ${t}`}
-                      onClick={() => acoes.etiquetas(chamado, etiquetas.filter((x) => x !== t))}
-                      className="w-5 h-5 rounded-full flex items-center justify-center text-slate-500 hover:text-rose-600 hover:bg-rose-500/10 cursor-pointer"
-                    >
-                      <XMarkIcon className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
-                <input
-                  type="text"
-                  value={novaTag}
-                  onChange={(e) => setNovaTag(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      adicionarTag(novaTag);
-                    }
-                  }}
-                  placeholder="Adicionar…"
-                  aria-label="Nova etiqueta"
-                  className="h-7 w-28 px-2.5 rounded-full bg-transparent ring-1 ring-inset ring-black/[0.1] dark:ring-white/[0.15] text-[13px] focus:outline-none focus:ring-[#4d7c0f] dark:focus:ring-[#84cc16]"
-                />
-              </div>
-              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-                {SUGESTOES_ETIQUETA.filter((s) => !etiquetas.includes(s)).map((s) => (
-                  <button key={s} type="button" onClick={() => adicionarTag(s)} className="text-[12px] text-slate-400 hover:text-[#1d1d1f] dark:hover:text-white cursor-pointer">
-                    +{s}
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            {adiado && (
-              <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] text-[13px]">
-                <span className="flex items-center gap-2">
-                  <BellOffIcon className="w-4 h-4 text-slate-500" />
-                  Alerta pausado até {new Date(chamado.adiado_ate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                </span>
-                <button type="button" onClick={() => acoes.reativarAlerta(chamado)} className="font-semibold text-[#4d7c0f] dark:text-[#84cc16] hover:underline cursor-pointer">
-                  Reativar
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Ações por importância */}
-          <footer className="px-6 py-5 border-t border-black/[0.05] dark:border-white/[0.07] space-y-2.5 bg-black/[0.012] dark:bg-white/[0.015]">
-            <div className="[&>button]:w-full [&>button]:h-11 [&>button]:rounded-xl [&>button]:text-[14px]">
-              <AcaoPrincipal ch={chamado} info={info} acoes={acoes} assumindoId={assumindoId} rotuloLongo cheia />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {info.estado === 'espera' && (
-                <button type="button" onClick={() => acoes.assumir(chamado)} disabled={Boolean(assumindoId)} className={botaoSecundario}>
-                  <PlayIcon className="w-2.5 h-2.5 fill-current" /> Só assumir
-                </button>
-              )}
-              {!info.interna && info.estado !== 'espera' && (
-                <button type="button" onClick={() => acoes.abrirEmpresa(chamado)} className={botaoSecundario}>
-                  <BuildingIcon className="w-3.5 h-3.5" /> Abrir empresa
-                </button>
-              )}
-              {info.interna && info.estado !== 'espera' && (
-                <button type="button" onClick={() => acoes.abrirPipeline()} className={botaoSecundario}>
-                  <KanbanIcon className="w-3.5 h-3.5" /> Pipeline
-                </button>
-              )}
-              {info.estado !== 'concluida' && (
-                <button type="button" onClick={() => acoes.repassar(chamado)} className={botaoSecundario}>
-                  <UsersIcon className="w-3.5 h-3.5" /> Repassar
-                </button>
-              )}
-              {info.estado === 'espera' && (
-                <span className="relative col-span-2">
-                  <button type="button" onClick={() => setMenuAdiar((v) => !v)} aria-expanded={menuAdiar} className={`${botaoSecundario} w-full`}>
-                    <BellOffIcon className="w-3.5 h-3.5" /> Adiar alerta
-                  </button>
-                  <AnimatePresence>
-                    {menuAdiar && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 6, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 6, scale: 0.98 }}
-                        transition={{ duration: 0.16 }}
-                        className="absolute bottom-full mb-2 left-0 right-0 z-10 p-1.5 rounded-xl ring-1 ring-black/[0.08] dark:ring-white/[0.12] bg-white dark:bg-[#1c1c20] shadow-xl grid grid-cols-5 gap-1"
-                      >
-                        {[10, 15, 30, 60, 120].map((m) => (
-                          <button
-                            key={m}
-                            type="button"
-                            onClick={() => {
-                              acoes.adiar(chamado, m);
-                              setMenuAdiar(false);
-                            }}
-                            className="h-9 rounded-lg text-[13px] font-medium hover:bg-black/[0.05] dark:hover:bg-white/[0.08] cursor-pointer"
-                          >
-                            {m < 60 ? `${m}m` : `${m / 60}h`}
-                          </button>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </span>
-              )}
-            </div>
-            <button type="button" onClick={() => acoes.cancelar(chamado)} className="w-full h-9 text-[13px] font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/[0.06] rounded-xl cursor-pointer transition-colors">
-              {info.estado === 'concluida' ? 'Excluir do histórico' : 'Cancelar demanda'}
-            </button>
-          </footer>
-        </motion.div>
-      </AnimatePresence>
-    </div>
-  );
-}
