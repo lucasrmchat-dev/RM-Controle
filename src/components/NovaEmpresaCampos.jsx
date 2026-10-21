@@ -20,7 +20,7 @@ export function dadosNovaEmpresaIniciais() {
 // Campo de texto legível (contraste AA nos dois temas) — compartilhado pelos formulários de cadastro
 export const classeCampo =
   'w-full h-11 px-3.5 rounded-xl text-sm text-[#1d1d1f] dark:text-white bg-white dark:bg-white/[0.06] ' +
-  'border border-black/[0.14] dark:border-white/[0.16] placeholder:text-slate-400 dark:placeholder:text-zinc-500 ' +
+  'border border-black/[0.14] dark:border-white/[0.16] placeholder:text-slate-400 dark:placeholder:text-zinc-400 ' +
   'transition-[border-color,box-shadow] hover:border-black/25 dark:hover:border-white/25 ' +
   'focus:outline-none focus:border-[#4d7c0f] dark:focus:border-[#84cc16] focus:ring-4 focus:ring-[#4d7c0f]/10 dark:focus:ring-[#84cc16]/10';
 

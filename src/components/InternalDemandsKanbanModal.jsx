@@ -116,10 +116,10 @@ export default function InternalDemandsKanbanModal({ isOpen, onClose, userEmail 
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 12 }}
         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-7xl h-[92vh] rounded-[32px] bg-white dark:bg-[#16161a] border border-black/10 dark:border-white/15 p-5 sm:p-7 shadow-2xl flex flex-col justify-between text-[#1d1d1f] dark:text-[#f5f5f7] relative overflow-hidden"
+        className="w-full max-w-7xl h-[92vh] rounded-[32px] bg-white dark:bg-[#1e1e21] border border-black/10 dark:border-white/15 p-5 sm:p-7 shadow-2xl flex flex-col justify-between text-[#1d1d1f] dark:text-[#f5f5f7] relative overflow-hidden"
       >
         {/* Header do Kanban */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-black/[0.06] dark:border-white/[0.08] pb-4 flex-shrink-0">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-black/[0.06] dark:border-white/[0.11] pb-4 flex-shrink-0">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="p-1 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
@@ -139,7 +139,7 @@ export default function InternalDemandsKanbanModal({ isOpen, onClose, userEmail 
 
           <div className="flex items-center gap-2.5 self-start sm:self-center flex-wrap">
             {/* Filtro Rápido */}
-            <div className="flex items-center gap-1 p-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.06] text-xs">
+            <div className="flex items-center gap-1 p-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.09] text-xs">
               <button
                 type="button"
                 onClick={() => setFiltroTipo('todos')}
@@ -215,11 +215,11 @@ export default function InternalDemandsKanbanModal({ isOpen, onClose, userEmail 
                   className={`rounded-3xl p-3.5 border flex flex-col h-full shadow-2xs transition-all ${
                     colunaArrastando === col.id
                       ? 'border-[#4d7c0f] dark:border-[#84cc16] ring-2 ring-[#4d7c0f]/30 bg-[#4d7c0f]/[0.04]'
-                      : 'bg-black/[0.015] dark:bg-white/[0.02] border-black/[0.05] dark:border-white/[0.06]'
+                      : 'bg-black/[0.015] dark:bg-white/[0.02] border-black/[0.05] dark:border-white/[0.09]'
                   }`}
                 >
                   {/* Cabeçalho da Coluna */}
-                  <div className="flex items-center justify-between pb-3 px-1 border-b border-black/[0.04] dark:border-white/[0.05] mb-3 flex-shrink-0">
+                  <div className="flex items-center justify-between pb-3 px-1 border-b border-black/[0.04] dark:border-white/[0.09] mb-3 flex-shrink-0">
                     <div className="flex items-center gap-2">
                       <span className={`w-2 h-2 rounded-full ${col.dotCor}`}></span>
                       <h3 className="text-xs font-bold text-[#1d1d1f] dark:text-white truncate">
@@ -249,7 +249,7 @@ export default function InternalDemandsKanbanModal({ isOpen, onClose, userEmail 
                               e.dataTransfer.setData('text/plain', fb.id);
                               e.dataTransfer.effectAllowed = 'move';
                             }}
-                            className="p-3.5 rounded-2xl bg-white dark:bg-[#1c1c22] border border-black/[0.06] dark:border-white/[0.08] space-y-2.5 shadow-2xs hover:shadow-sm transition-all cursor-grab active:cursor-grabbing hover:border-black/20 dark:hover:border-white/20 select-none"
+                            className="p-3.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.06] dark:border-white/[0.11] space-y-2.5 shadow-2xs hover:shadow-sm transition-all cursor-grab active:cursor-grabbing hover:border-black/20 dark:hover:border-white/20 select-none"
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex items-center gap-1.5 flex-wrap">
@@ -293,7 +293,7 @@ export default function InternalDemandsKanbanModal({ isOpen, onClose, userEmail 
                             )}
 
                             {/* Controles de Transição de Etapa */}
-                            <div className="pt-2.5 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between gap-1.5 text-[10px]">
+                            <div className="pt-2.5 border-t border-black/[0.05] dark:border-white/[0.09] flex items-center justify-between gap-1.5 text-[10px]">
                               <select
                                 value={fb.status || 'em_analise'}
                                 onChange={(e) => {
@@ -357,7 +357,7 @@ export default function InternalDemandsKanbanModal({ isOpen, onClose, userEmail 
         </div>
 
         {/* Rodapé Informativo */}
-        <div className="pt-3 border-t border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between text-xs text-slate-500 dark:text-zinc-400 flex-shrink-0">
+        <div className="pt-3 border-t border-black/[0.06] dark:border-white/[0.11] flex items-center justify-between text-xs text-slate-500 dark:text-zinc-400 flex-shrink-0">
           <span className="font-mono text-[11px]">
             Total de {feedbacksFiltrados.length} demandas internas no pipeline
           </span>

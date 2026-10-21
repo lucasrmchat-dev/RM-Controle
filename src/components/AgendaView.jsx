@@ -16,7 +16,9 @@ import {
   parseIcalEvents,
   saveAgendaEventos,
   fetchAgendaEventos,
-  partesLocaisPrazo
+  partesLocaisPrazo,
+  sincronizarGoogleAgenda,
+  statusGoogleAgenda
 } from '@/lib/storage';
 import { playMeetingAlertTone } from '@/lib/audioNotifications';
 import { showToast } from './ToastNotification';
@@ -48,6 +50,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
   const [busca, setBusca] = useState('');
   const [dataSelecionada, setDataSelecionada] = useState(new Date().toISOString().split('T')[0]);
   const [syncing, setSyncing] = useState(false);
+  const [googleSync, setGoogleSync] = useState(null); // situação da sincronização pelo servidor
   const [, setTick] = useState(0);
 
   // Modal de Agendamento
@@ -130,16 +133,47 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
     // Ticker a cada 30 segundos para atualizar cronômetros e proximidade de reuniões
     const interval = setInterval(() => setTick((t) => t + 1), 30000);
 
+    // Google Agenda: puxa as novidades ao abrir e relê o banco a cada minuto
+    // (o servidor recebe os avisos do Google em tempo real e grava no banco)
+    let ativo = true;
+    statusGoogleAgenda().then((st) => {
+      if (!ativo) return;
+      setGoogleSync(st?.configurado ? st : null);
+      if (st?.configurado) {
+        sincronizarGoogleAgenda().finally(() => ativo && carregarDados());
+      }
+    });
+    const releitura = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchAgendaEventos().then(() => ativo && carregarDados()).catch(() => {});
+    }, 60000);
+
     return () => {
       window.removeEventListener('agenda_eventos_updated', handleEventsUpdate);
       window.removeEventListener('rm_agenda_config_updated', handleConfigUpdate);
       window.removeEventListener('suporte_updated', carregarDados);
       clearInterval(interval);
+      clearInterval(releitura);
+      ativo = false;
     };
   }, []);
 
   // Sincronização manual com Google Calendar via rota segura de API ou fallback iCal
   const handleSincronizarGoogle = async () => {
+    // Sincronização bidirecional pelo servidor (Google Workspace)
+    if (googleSync?.configurado) {
+      setSyncing(true);
+      try {
+        const r = await sincronizarGoogleAgenda({ forcar: true });
+        carregarDados();
+        const falhas = Object.keys(r?.erros || {}).length;
+        if (!r?.ok) showToast(r?.mensagem || 'Não foi possível sincronizar com o Google Agenda.', 'error');
+        else if (falhas) showToast(`Sincronizado, mas ${falhas} agenda(s) falharam. Veja em Configurações › Agenda.`, 'warning');
+        else showToast('Agenda sincronizada com o Google.', 'success');
+      } finally {
+        setSyncing(false);
+      }
+      return;
+    }
     if (!config.urlIcal) {
       showToast('Configure a URL pública iCal (.ics) do Google Agenda em Configurações.', 'warning');
       return;
@@ -261,13 +295,9 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
 
     // Agenda compartilhada: o modal só fecha quando o Supabase confirma (o formulário é preservado em caso de erro)
     try {
-      if (editingEvent) {
-        await updateAgendaEvento(editingEvent.id, payload);
-        showToast(`Compromisso "${formTitulo}" atualizado!`, 'success');
-      } else {
-        await addAgendaEvento(payload);
-        showToast(`Reunião "${formTitulo}" agendada com sucesso!`, 'success');
-      }
+      const salvo = editingEvent ? await updateAgendaEvento(editingEvent.id, payload) : await addAgendaEvento(payload);
+      if (salvo?.aviso_google) showToast(salvo.aviso_google, 'warning');
+      else showToast(editingEvent ? `Compromisso "${formTitulo}" atualizado!` : `Reunião "${formTitulo}" agendada com sucesso!`, 'success');
       setModalOpen(false);
     } catch (err) {
       showToast(err.message, 'error');
@@ -333,7 +363,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
   const eventosFiltrados = useMemo(() => {
     const myEmail = (userEmail || '').toLowerCase().trim();
 
-    return eventos.filter((evt) => {
+    const filtrados = eventos.filter((evt) => {
       // 1. Filtro por responsável
       if (filtroResponsavel === 'meus') {
         const evEmail = (evt.responsavel_email || '').toLowerCase().trim();
@@ -356,7 +386,27 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
       }
 
       return true;
-    }).sort((a, b) => (a.hora_inicio || '').localeCompare(b.hora_inicio || ''));
+    });
+
+    // A mesma reunião com várias pessoas da equipe vem uma vez de cada agenda: em "Todas", mostra uma só
+    let lista = filtrados;
+    if (filtroResponsavel === 'todos') {
+      const porReuniao = new Map();
+      lista = [];
+      filtrados.forEach((evt) => {
+        if (!evt.google_ical_uid) return lista.push(evt);
+        const chave = `${evt.google_ical_uid}|${evt.data}|${evt.hora_inicio}`;
+        const ja = porReuniao.get(chave);
+        if (!ja) {
+          const copia = { ...evt };
+          porReuniao.set(chave, copia);
+          lista.push(copia);
+        } else if (evt.responsavel_nome && !(ja.responsavel_nome || '').includes(evt.responsavel_nome)) {
+          ja.responsavel_nome = `${ja.responsavel_nome}, ${evt.responsavel_nome}`;
+        }
+      });
+    }
+    return lista.sort((a, b) => (a.hora_inicio || '').localeCompare(b.hora_inicio || ''));
   }, [eventos, filtroResponsavel, busca, userEmail]);
 
   // Contagem de compromissos para hoje
@@ -405,7 +455,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
             type="button"
             onClick={handleSincronizarGoogle}
             disabled={syncing}
-            className="px-3.5 py-2 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-xs font-semibold text-slate-700 dark:text-zinc-200 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 shadow-xs"
+            className="px-3.5 py-2 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-xs font-semibold text-slate-700 dark:text-zinc-200 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 shadow-xs"
             title="Sincronizar reuniões da URL pública iCal do Google Agenda"
           >
             <RefreshIcon className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-blue-500' : 'text-slate-400'}`} />
@@ -442,12 +492,12 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
       {/* ============================================================================== */}
       {/* BARRA DE CONTROLE: NAVEGAÇÃO DE DATAS, SELETORES E VISÃO                      */}
       {/* ============================================================================== */}
-      <div className="p-3.5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/85 backdrop-blur-xl shadow-xs space-y-3">
+      <div className="p-3.5 rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white/80 dark:bg-[#1e1e21]/85 backdrop-blur-xl shadow-xs space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           
           {/* Navegação de Datas */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 p-1 bg-black/[0.03] dark:bg-white/[0.04] rounded-2xl border border-black/[0.04] dark:border-white/[0.06]">
+            <div className="flex items-center gap-1 p-1 bg-black/[0.03] dark:bg-white/[0.04] rounded-2xl border border-black/[0.04] dark:border-white/[0.09]">
               <button
                 type="button"
                 onClick={() => handleNavData(-7)}
@@ -479,7 +529,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
           </div>
 
           {/* Modos de Visualização (Semana, Lista e Embed Google Calendar) */}
-          <div className="flex items-center gap-1.5 p-1 bg-black/[0.03] dark:bg-white/[0.04] rounded-2xl border border-black/[0.04] dark:border-white/[0.06]">
+          <div className="flex items-center gap-1.5 p-1 bg-black/[0.03] dark:bg-white/[0.04] rounded-2xl border border-black/[0.04] dark:border-white/[0.09]">
             <button
               type="button"
               onClick={() => setViewMode('semana')}
@@ -523,7 +573,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar reunião ou cliente..."
-              className="w-full px-3.5 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] text-xs focus:outline-none focus:ring-1 focus:ring-black/20 dark:focus:ring-white/20 text-[#1d1d1f] dark:text-white placeholder:text-slate-400"
+              className="w-full px-3.5 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.11] text-xs focus:outline-none focus:ring-1 focus:ring-black/20 dark:focus:ring-white/20 text-[#1d1d1f] dark:text-white placeholder:text-slate-400"
             />
             {busca && (
               <button
@@ -537,7 +587,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
         </div>
 
         {/* Linha Inferior: Filtros de Responsabilidade (Meus vs Todos vs Colaborador) */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2.5 border-t border-black/[0.04] dark:border-white/[0.05] text-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2.5 border-t border-black/[0.04] dark:border-white/[0.09] text-xs">
           <div className="flex items-center gap-1.5 overflow-x-auto p-0.5 scrollbar-thin">
             <span className="text-slate-400 font-semibold px-1 text-[11px] uppercase tracking-wider font-mono flex-shrink-0">
               Responsável:
@@ -548,7 +598,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
               className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-all flex items-center gap-1 flex-shrink-0 ${
                 filtroResponsavel === 'todos'
                   ? 'bg-[#09090b] text-white dark:bg-white dark:text-black font-bold shadow-xs'
-                  : 'bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.05]'
+                  : 'bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.11] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.05]'
               }`}
             >
               <span>Todas as Reuniões</span>
@@ -561,7 +611,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
               className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-all flex items-center gap-1 flex-shrink-0 ${
                 filtroResponsavel === 'meus'
                   ? 'bg-blue-600 text-white font-bold shadow-xs'
-                  : 'bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.05]'
+                  : 'bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.11] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.05]'
               }`}
             >
               <span>Minhas Reuniões</span>
@@ -580,7 +630,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
                   className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-all flex items-center gap-1.5 flex-shrink-0 ${
                     isSel
                       ? 'bg-[#09090b] text-white dark:bg-white dark:text-black font-bold shadow-xs'
-                      : 'bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.05]'
+                      : 'bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.11] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.05]'
                   }`}
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -613,7 +663,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
       {/* ============================================================================== */}
       {viewMode === 'embed' ? (
         /* VISÃO EMBUTIDA AO VIVO DO GOOGLE CALENDAR */
-        <div className="w-full rounded-3xl overflow-hidden border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] shadow-xl p-2 sm:p-4 min-h-[750px] flex flex-col space-y-3">
+        <div className="w-full rounded-3xl overflow-hidden border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-xl p-2 sm:p-4 min-h-[750px] flex flex-col space-y-3">
           <div className="flex items-center justify-between px-2 text-xs text-slate-500 dark:text-zinc-400">
             <span className="font-semibold flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -629,7 +679,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
             </a>
           </div>
 
-          <div className="flex-1 w-full h-[720px] rounded-2xl overflow-hidden border border-black/[0.05] dark:border-white/[0.06]">
+          <div className="flex-1 w-full h-[720px] rounded-2xl overflow-hidden border border-black/[0.05] dark:border-white/[0.09]">
             <iframe
               src={config.urlEmbed || `https://calendar.google.com/calendar/embed?src=suporte%40rmchat.com.br&ctz=America%2FFortaleza`}
               style={{ border: 0 }}
@@ -655,11 +705,11 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
                   className={`rounded-3xl p-3.5 border transition-all flex flex-col min-h-[460px] ${
                     dia.isHoje
                       ? 'border-blue-500/40 bg-gradient-to-b from-blue-500/[0.04] to-transparent dark:from-blue-500/[0.08] shadow-apple-hover'
-                      : 'border-black/[0.06] dark:border-white/[0.08] bg-white/70 dark:bg-[#16161a]/70 backdrop-blur-xl'
+                      : 'border-black/[0.06] dark:border-white/[0.11] bg-white/70 dark:bg-[#1e1e21]/70 backdrop-blur-xl'
                   }`}
                 >
                   {/* Cabeçalho do Dia */}
-                  <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-black/[0.04] dark:border-white/[0.06]">
+                  <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-black/[0.04] dark:border-white/[0.09]">
                     <div>
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">
                         {dia.nomeSemana}
@@ -688,7 +738,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
                   <div className="space-y-2 flex-1 overflow-y-auto pr-0.5">
                     {eventosDoDia.length === 0 ? (
                       <div className="h-full flex items-center justify-center p-3 text-center">
-                        <span className="text-[11px] text-slate-300 dark:text-zinc-600 italic">
+                        <span className="text-[11px] text-slate-300 dark:text-zinc-500 italic">
                           Livre
                         </span>
                       </div>
@@ -708,7 +758,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
                                 ? 'opacity-40 border-black/[0.05] line-through'
                                 : isMinha
                                 ? 'border-blue-500/40 bg-blue-500/[0.08] dark:bg-blue-500/[0.12] text-blue-950 dark:text-blue-200'
-                                : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.01] dark:bg-white/[0.03] hover:border-black/20'
+                                : 'border-black/[0.06] dark:border-white/[0.11] bg-black/[0.01] dark:bg-white/[0.03] hover:border-black/20'
                             }`}
                           >
                             {/* Horário */}
@@ -760,13 +810,13 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
         </div>
       ) : (
         /* VISÃO LISTA / CRONOGRAMA */
-        <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/85 backdrop-blur-xl shadow-xs overflow-hidden">
-          <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
+        <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white/80 dark:bg-[#1e1e21]/85 backdrop-blur-xl shadow-xs overflow-hidden">
+          <div className="divide-y divide-black/[0.04] dark:divide-white/[0.09]">
             {!carregado && eventosFiltrados.length === 0 ? (
               <ListSkeleton linhas={4} className="p-5" />
             ) : eventosFiltrados.length === 0 ? (
               <div className="p-12 text-center text-slate-400">
-                <CalendarIcon className="w-10 h-10 mx-auto text-slate-300 dark:text-zinc-600 mb-2" />
+                <CalendarIcon className="w-10 h-10 mx-auto text-slate-300 dark:text-zinc-500 mb-2" />
                 <p className="text-sm font-semibold">Nenhuma reunião encontrada para este filtro ou período.</p>
                 <p className="text-xs text-slate-400 mt-1">Clique em "Agendar Reunião" ou sincronize com o Google Calendar.</p>
               </div>
@@ -782,7 +832,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
                   >
                     <div className="flex items-start gap-4 min-w-0">
                       {/* Box de Horário */}
-                      <div className="w-20 rounded-2xl p-2.5 bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.06] text-center flex-shrink-0">
+                      <div className="w-20 rounded-2xl p-2.5 bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.09] text-center flex-shrink-0">
                         <span className="text-[10px] font-mono text-slate-400 uppercase block font-bold">
                           {new Date(evt.data + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short' })}
                         </span>
@@ -910,9 +960,9 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="w-full max-w-lg rounded-3xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-[#16161a] p-6 sm:p-8 shadow-2xl space-y-5 text-[#1d1d1f] dark:text-[#f5f5f7] my-auto"
+              className="w-full max-w-lg rounded-3xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-[#1e1e21] p-6 sm:p-8 shadow-2xl space-y-5 text-[#1d1d1f] dark:text-[#f5f5f7] my-auto"
             >
-              <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-white/[0.08]">
+              <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-white/[0.11]">
                 <h3 className="text-xl font-bold tracking-tight text-[#1d1d1f] dark:text-white">
                   {editingEvent ? 'Editar Reunião / Compromisso' : 'Agendar Nova Reunião'}
                 </h3>
@@ -1005,10 +1055,10 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
                   <select
                     value={formResponsavelEmail}
                     onChange={(e) => setFormResponsavelEmail(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 cursor-pointer"
+                    className="w-full px-3.5 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 cursor-pointer"
                   >
                     {equipe.map((u) => (
-                      <option key={u.id} value={u.email} className="text-black dark:text-white dark:bg-zinc-900">
+                      <option key={u.id} value={u.email} className="text-black dark:text-white dark:bg-[#1e1e21]">
                         {u.nome} ({u.papel})
                       </option>
                     ))}

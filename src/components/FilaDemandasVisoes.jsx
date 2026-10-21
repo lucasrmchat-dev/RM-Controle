@@ -15,7 +15,7 @@ export const ESTADOS = {
     ponto: 'bg-amber-500',
     faixa: 'bg-amber-400',
     pilula: 'text-slate-600 dark:text-zinc-300',
-    fundo: 'bg-white dark:bg-[#1c1c1e]',
+    fundo: 'bg-white dark:bg-[#1e1e21]',
     borda: 'ring-black/[0.07] dark:ring-white/[0.09]',
     linhaAberta: 'bg-black/[0.018] dark:bg-white/[0.03]',
     dica: 'Ninguém assumiu ainda',
@@ -26,7 +26,7 @@ export const ESTADOS = {
     ponto: 'bg-emerald-500',
     faixa: 'bg-emerald-500',
     pilula: 'text-slate-600 dark:text-zinc-300',
-    fundo: 'bg-white dark:bg-[#1c1c1e]',
+    fundo: 'bg-white dark:bg-[#1e1e21]',
     borda: 'ring-black/[0.07] dark:ring-white/[0.09]',
     linhaAberta: 'bg-black/[0.018] dark:bg-white/[0.03]',
     dica: 'Sendo atendidas agora',
@@ -37,7 +37,7 @@ export const ESTADOS = {
     ponto: 'bg-violet-500',
     faixa: 'bg-violet-500',
     pilula: 'text-slate-600 dark:text-zinc-300',
-    fundo: 'bg-white dark:bg-[#1c1c1e]',
+    fundo: 'bg-white dark:bg-[#1e1e21]',
     borda: 'ring-black/[0.07] dark:ring-white/[0.09]',
     linhaAberta: 'bg-black/[0.018] dark:bg-white/[0.03]',
     dica: 'Esperando o cliente responder',
@@ -48,7 +48,7 @@ export const ESTADOS = {
     ponto: 'bg-slate-400',
     faixa: 'bg-slate-300',
     pilula: 'text-slate-600 dark:text-zinc-300',
-    fundo: 'bg-white dark:bg-[#1c1c1e]',
+    fundo: 'bg-white dark:bg-[#1e1e21]',
     borda: 'ring-black/[0.07] dark:ring-white/[0.09]',
     linhaAberta: 'bg-slate-50 dark:bg-white/[0.03]',
     dica: '',
@@ -147,7 +147,7 @@ function Monograma({ nome, tamanho = 'w-10 h-10 text-[13px] rounded-xl' }) {
 function Avatar({ nome, destaque = false, tamanho = 'w-6 h-6 text-[10px]' }) {
   return (
     <span
-      className={`${tamanho} rounded-full flex items-center justify-center font-semibold flex-shrink-0 ring-2 ring-white dark:ring-[#16161a] ${
+      className={`${tamanho} rounded-full flex items-center justify-center font-semibold flex-shrink-0 ring-2 ring-white dark:ring-[#1e1e21] ${
         destaque ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950' : 'bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-100'
       }`}
       aria-hidden="true"
@@ -283,7 +283,7 @@ function CabecalhoGrupo({ estado, total, aberto, onAlternar }) {
       <span className={`w-2 h-2 rounded-full ${v.ponto}`} />
       <span className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-white">{v.rotulo}</span>
       <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-black/[0.05] dark:bg-white/[0.08] text-[12px] font-semibold tabular-nums text-slate-600 dark:text-zinc-300 flex items-center justify-center">{total}</span>
-      <span className="hidden md:inline text-[13px] text-slate-400 dark:text-zinc-500">{v.dica}</span>
+      <span className="hidden md:inline text-[13px] text-slate-400 dark:text-zinc-400">{v.dica}</span>
       <span className="flex-1 h-px bg-black/[0.06] dark:bg-white/[0.08]" />
       <svg className={`w-4 h-4 text-slate-400 transition-transform duration-300 group-hover/cab:text-slate-600 ${aberto ? '' : '-rotate-90'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="m6 9 6 6 6-6" />
@@ -313,7 +313,7 @@ function ChipTempo({ ch, info, tempos, tamanho = 'normal' }) {
       <span className={`font-semibold tabular-nums tracking-tight whitespace-nowrap ${tamanho === 'pequeno' ? 'text-[13px]' : 'text-[15px]'} ${COR_CHIP_TEMPO[info.prioridade]}`}>
         {tempoCurto(ch, info, tempos)}
       </span>
-      <span className="mt-0.5 text-[11px] text-slate-400 dark:text-zinc-500">{rotuloTempo(info)}</span>
+      <span className="mt-0.5 text-[11px] text-slate-400 dark:text-zinc-400">{rotuloTempo(info)}</span>
     </span>
   );
 }
@@ -395,7 +395,7 @@ function AcoesSecundarias({ chamado, info, acoes, assumindoId, compacta = false 
             <BellOffIcon className="w-3.5 h-3.5" /> {!compacta && 'Adiar'}
           </button>
           {menuAdiar && (
-            <div className="absolute bottom-full mb-1.5 left-0 z-20 p-1 rounded-xl ring-1 ring-black/[0.08] dark:ring-white/[0.12] bg-white dark:bg-[#1c1c20] shadow-lg flex" onClick={(e) => e.stopPropagation()}>
+            <div className="absolute bottom-full mb-1.5 left-0 z-20 p-1 rounded-xl ring-1 ring-black/[0.08] dark:ring-white/[0.12] bg-white dark:bg-[#1e1e21] shadow-lg flex" onClick={(e) => e.stopPropagation()}>
               {[10, 15, 30, 60, 120].map((m) => (
                 <button
                   key={m}
@@ -620,7 +620,7 @@ function LinhaDemanda({ ch, ctx, acoes, tempos, assumindoId, aberta }) {
             </span>
           </div>
           <p className={`mt-0.5 text-[13px] text-slate-500 dark:text-zinc-400 ${aberta ? 'hidden' : 'truncate'}`}>{info.descricao || 'Sem descrição'}</p>
-          <p className="mt-1 flex items-center gap-1.5 text-[12px] text-slate-400 dark:text-zinc-500 min-w-0">
+          <p className="mt-1 flex items-center gap-1.5 text-[12px] text-slate-400 dark:text-zinc-400 min-w-0">
             <PilulaEstado info={info} />
             <span className="truncate">
               {info.departamentos.join(' · ')}
@@ -665,7 +665,7 @@ export function ListaDemandas({ chamados, ctx, acoes, tempos, assumindoId, selec
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={ABRIR}
-                className="rounded-2xl bg-white dark:bg-[#1c1c1e] ring-1 ring-black/[0.07] dark:ring-white/[0.09] overflow-hidden divide-y divide-black/[0.06] dark:divide-white/[0.07]"
+                className="rounded-2xl bg-white dark:bg-[#1e1e21] ring-1 ring-black/[0.07] dark:ring-white/[0.09] overflow-hidden divide-y divide-black/[0.06] dark:divide-white/[0.07]"
               >
                 <AnimatePresence initial={false}>
                   {g.itens.map((ch) => (
@@ -751,7 +751,7 @@ function CartaoDemanda({ ch, ctx, acoes, tempos, assumindoId, aberto = false, ka
                 </p>
                 {!kanban && <EditorEtiquetas chamado={ch} acoes={acoes} />}
               </div>
-              <div className={`${kanban ? 'px-3 py-2' : 'px-3.5 py-2.5'} flex items-center gap-1.5 border-t border-black/[0.06] dark:border-white/[0.08]`}>
+              <div className={`${kanban ? 'px-3 py-2' : 'px-3.5 py-2.5'} flex items-center gap-1.5 border-t border-black/[0.06] dark:border-white/[0.11]`}>
                 <AcaoPrincipal ch={ch} info={info} acoes={acoes} assumindoId={assumindoId} cheia />
                 <div className="flex-1 min-w-0 [&>div]:flex-nowrap [&>div]:justify-end">
                   <AcoesSecundarias chamado={ch} info={info} acoes={acoes} assumindoId={assumindoId} compacta />
@@ -835,7 +835,7 @@ function ColunaKanban({ titulo, subtitulo, cabecalho, itens, vazio, destaque, on
         <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-black/[0.05] dark:bg-white/[0.08] text-[12px] font-semibold tabular-nums text-slate-600 dark:text-zinc-300 flex items-center justify-center">{itens.length}</span>
       </div>
       <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-3">
-        {itens.length === 0 ? <p className="px-2 py-10 text-center text-xs text-slate-400 dark:text-zinc-500">{vazio}</p> : children}
+        {itens.length === 0 ? <p className="px-2 py-10 text-center text-xs text-slate-400 dark:text-zinc-400">{vazio}</p> : children}
       </div>
     </div>
   );

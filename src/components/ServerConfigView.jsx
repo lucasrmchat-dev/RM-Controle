@@ -302,7 +302,7 @@ export default function ServerConfigView() {
 
   if (userRole !== 'administrador') {
     return (
-      <div className="rounded-3xl p-12 border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/85 backdrop-blur-xl text-center space-y-3 shadow-sm">
+      <div className="rounded-3xl p-12 border border-black/[0.06] dark:border-white/[0.11] bg-white/80 dark:bg-[#1e1e21]/85 backdrop-blur-xl text-center space-y-3 shadow-sm">
         <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto">
           <ShieldCheckIcon className="w-6 h-6" />
         </div>
@@ -341,7 +341,7 @@ export default function ServerConfigView() {
       )}
 
       {/* Sub-Abas em Apple Segmented Bar */}
-      <div className="flex border-b border-black/[0.06] dark:border-white/[0.08] gap-1.5 overflow-x-auto pb-1">
+      <div className="flex border-b border-black/[0.06] dark:border-white/[0.11] gap-1.5 overflow-x-auto pb-1">
         {[
           { id: 'usuarios', label: 'Equipe & Senhas', count: equipe.length },
           { id: 'checklist', label: 'Checklist de Requisitos', count: checklistItems.length },
@@ -379,7 +379,7 @@ export default function ServerConfigView() {
       {subTab === 'checklist' && (
         <div className="space-y-6 animate-fade-in">
           
-          <div className="p-4 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.03] text-xs text-slate-600 dark:text-zinc-400 flex items-start justify-between gap-4">
+          <div className="p-4 rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-black/[0.02] dark:bg-white/[0.03] text-xs text-slate-600 dark:text-zinc-400 flex items-start justify-between gap-4">
             <div>
               <span className="font-semibold text-slate-900 dark:text-white block mb-0.5">
                 {mockAtivo ? 'Modo de Homologação (Mock Ativo)' : 'Modo de Produção Limpo'}
@@ -393,7 +393,7 @@ export default function ServerConfigView() {
           </div>
 
           {/* Formulário Estilo Apple para Cadastrar Novo Requisito */}
-          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
+          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
                 Cadastrar Novo Requisito para o Checklist de Servidores
@@ -429,7 +429,7 @@ export default function ServerConfigView() {
                     className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium cursor-pointer"
                   >
                     {categoriasChecklist.map((cat) => (
-                      <option key={cat} value={cat} className="dark:bg-zinc-900">{cat}</option>
+                      <option key={cat} value={cat} className="dark:bg-[#1e1e21]">{cat}</option>
                     ))}
                   </select>
                 </div>
@@ -476,7 +476,7 @@ export default function ServerConfigView() {
             </h3>
 
             {checklistItems.length === 0 ? (
-              <div className="rounded-3xl p-10 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] text-center text-xs text-slate-500">
+              <div className="rounded-3xl p-10 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] text-center text-xs text-slate-500">
                 Nenhum requisito cadastrado no checklist. Adicione o primeiro no formulário acima.
               </div>
             ) : (
@@ -484,7 +484,7 @@ export default function ServerConfigView() {
                 {checklistItems.map((item, idx) => (
                   <div
                     key={item.id}
-                    className="rounded-2xl p-4 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] flex items-center justify-between gap-3 shadow-xs hover:shadow-apple-hover transition-all"
+                    className="rounded-2xl p-4 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] flex items-center justify-between gap-3 shadow-xs hover:shadow-apple-hover transition-all"
                   >
                     <div className="flex items-start gap-3 min-w-0">
                       <span className="w-6 h-6 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] font-mono text-xs font-bold flex items-center justify-center text-slate-700 dark:text-zinc-300 mt-0.5 flex-shrink-0">
@@ -544,7 +544,7 @@ export default function ServerConfigView() {
         <div className="space-y-6 animate-fade-in">
           
           {/* Cadastro de Novo Usuário na Equipe */}
-          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
+          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
                 Cadastrar Novo Membro da Equipe com Senha
@@ -627,9 +627,9 @@ export default function ServerConfigView() {
                     onChange={(e) => setNovoUsuarioPapel(e.target.value)}
                     className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium cursor-pointer"
                   >
-                    <option value="suporte" className="dark:bg-zinc-900">Suporte Técnico (Acesso a Empresas, Atendimento & Dashboard)</option>
-                    <option value="vendas" className="dark:bg-zinc-900">Comercial & Vendas (Acesso a Empresas & Dashboard)</option>
-                    <option value="administrador" className="dark:bg-zinc-900">Administrador Geral (Acesso Total: Servidores, Equipe e Auditoria)</option>
+                    <option value="suporte" className="dark:bg-[#1e1e21]">Suporte Técnico (Acesso a Empresas, Atendimento & Dashboard)</option>
+                    <option value="vendas" className="dark:bg-[#1e1e21]">Comercial & Vendas (Acesso a Empresas & Dashboard)</option>
+                    <option value="administrador" className="dark:bg-[#1e1e21]">Administrador Geral (Acesso Total: Servidores, Equipe e Auditoria)</option>
                   </select>
                 </div>
               </div>
@@ -646,13 +646,13 @@ export default function ServerConfigView() {
           </div>
 
           {/* Lista de Membros da Equipe */}
-          <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-sm">
-            <div className="p-5 border-b border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-zinc-300">
+          <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] overflow-hidden shadow-sm">
+            <div className="p-5 border-b border-black/[0.05] dark:border-white/[0.09] flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-zinc-300">
               <span>Membros Cadastrados ({equipe.length})</span>
               <span className="text-[10px] text-slate-400 font-mono">Gestão de acessos, papéis e permissões da equipe</span>
             </div>
 
-            <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
+            <div className="divide-y divide-black/[0.04] dark:divide-white/[0.09]">
               {equipe.map((u) => {
                 return (
                   <div key={u.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors">
@@ -663,7 +663,7 @@ export default function ServerConfigView() {
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-[#1d1d1f] dark:text-white">{u.nome}</span>
-                          <span className="text-[10px] font-medium text-slate-500 dark:text-zinc-400 bg-black/[0.03] dark:bg-white/[0.05] px-2 py-0.5 rounded-md border border-black/[0.04] dark:border-white/[0.06] flex items-center gap-1">
+                          <span className="text-[10px] font-medium text-slate-500 dark:text-zinc-400 bg-black/[0.03] dark:bg-white/[0.05] px-2 py-0.5 rounded-md border border-black/[0.04] dark:border-white/[0.09] flex items-center gap-1">
                             🏢 {u.empresa_nome || 'Todas as Empresas'}
                           </span>
                           <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
@@ -724,10 +724,10 @@ export default function ServerConfigView() {
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 10 }}
                     transition={{ duration: 0.2 }}
-                    className="w-full max-w-lg rounded-3xl bg-white dark:bg-[#16161a] border border-black/[0.08] dark:border-white/[0.1] p-6 sm:p-7 shadow-2xl space-y-5 my-auto text-[#1d1d1f] dark:text-[#f5f5f7] relative max-h-[92vh] overflow-y-auto"
+                    className="w-full max-w-lg rounded-3xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] p-6 sm:p-7 shadow-2xl space-y-5 my-auto text-[#1d1d1f] dark:text-[#f5f5f7] relative max-h-[92vh] overflow-y-auto"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.08] pb-3.5">
+                    <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.11] pb-3.5">
                       <div>
                         <h3 className="text-base font-bold text-[#1d1d1f] dark:text-white">
                           Editar Perfil do Membro
@@ -779,7 +779,7 @@ export default function ServerConfigView() {
                         <select
                           value={editPapel}
                           onChange={(e) => setEditPapel(e.target.value)}
-                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white font-medium cursor-pointer"
+                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white font-medium cursor-pointer"
                         >
                           <option value="suporte">Suporte Técnico (Acesso a Empresas, Atendimento & Dashboard)</option>
                           <option value="vendas">Comercial & Vendas (Acesso a Empresas & Dashboard)</option>
@@ -788,7 +788,7 @@ export default function ServerConfigView() {
                       </div>
 
                       {/* Seção 1: Departamentos Atribuídos (Recebe alertas sonoros) */}
-                      <div className="space-y-2 pt-2 border-t border-black/[0.05] dark:border-white/[0.06]">
+                      <div className="space-y-2 pt-2 border-t border-black/[0.05] dark:border-white/[0.09]">
                         <div className="flex items-center justify-between">
                           <label className="text-xs font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
                             <span>Departamentos de Atuação</span>
@@ -831,7 +831,7 @@ export default function ServerConfigView() {
                       </div>
 
                       {/* Seção 2: Bloquear / Restringir Visibilidade de Departamentos */}
-                      <div className="space-y-2 pt-2 border-t border-black/[0.05] dark:border-white/[0.06]">
+                      <div className="space-y-2 pt-2 border-t border-black/[0.05] dark:border-white/[0.09]">
                         <div className="flex items-center justify-between">
                           <label className="text-xs font-bold text-red-600 dark:text-red-400 flex items-center gap-1.5">
                             <span>🔒 Restringir / Bloquear Visibilidade</span>
@@ -872,7 +872,7 @@ export default function ServerConfigView() {
                         </div>
                       </div>
 
-                      <div className="space-y-1 pt-2 border-t border-black/[0.05] dark:border-white/[0.06]">
+                      <div className="space-y-1 pt-2 border-t border-black/[0.05] dark:border-white/[0.09]">
                         <div className="flex items-center justify-between pl-1">
                           <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
                             Redefinir Senha de Acesso (Opcional)
@@ -895,7 +895,7 @@ export default function ServerConfigView() {
                         />
                       </div>
 
-                      <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-black/[0.06] dark:border-white/[0.08]">
+                      <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-black/[0.06] dark:border-white/[0.11]">
                         <button
                           type="button"
                           onClick={() => setUsuarioEditando(null)}
@@ -928,7 +928,7 @@ export default function ServerConfigView() {
         <div className="space-y-6 animate-fade-in">
           
           {/* Cadastro de Novo Motivo */}
-          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
+          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
                 Cadastrar Novo Motivo de Atendimento
@@ -980,13 +980,13 @@ export default function ServerConfigView() {
           </div>
 
           {/* Lista de Motivos Ativos */}
-          <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-sm">
-            <div className="p-5 border-b border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-zinc-300">
+          <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] overflow-hidden shadow-sm">
+            <div className="p-5 border-b border-black/[0.05] dark:border-white/[0.09] flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-zinc-300">
               <span>Motivos Ativos no Sistema ({motivosList.length})</span>
               <span className="text-[10px] text-slate-400 font-mono">Utilizados no encerramento de chamados</span>
             </div>
 
-            <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
+            <div className="divide-y divide-black/[0.04] dark:divide-white/[0.09]">
               {motivosList.map((m) => (
                 <div key={m.id} className="p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors">
                   <div>
@@ -1024,7 +1024,7 @@ export default function ServerConfigView() {
         <div className="space-y-6 animate-fade-in">
           
           {/* Senha Padrão de Contingência */}
-          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
+          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
                 Senha Padrão de Contingência
@@ -1064,7 +1064,7 @@ export default function ServerConfigView() {
           </div>
 
           {/* Regras Obrigatórias para Conclusão de Chamados */}
-          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
+          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
                 Regras de Encerramento de Chamado
@@ -1087,7 +1087,7 @@ export default function ServerConfigView() {
                   className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                     configSuporte[item.chave]
                       ? 'border-[#4d7c0f]/30 bg-[#4d7c0f]/5 dark:bg-[#84cc16]/5 shadow-xs'
-                      : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.01] dark:bg-white/[0.02] opacity-70'
+                      : 'border-black/[0.06] dark:border-white/[0.11] bg-black/[0.01] dark:bg-white/[0.02] opacity-70'
                   }`}
                 >
                   <div>

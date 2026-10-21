@@ -134,7 +134,7 @@ export default function QueueCommandBar({
   return (
     <div ref={caixaRef} className="relative z-40 w-full">
       <div
-        className={`flex items-center gap-3 h-12 px-4 rounded-2xl border bg-white dark:bg-[#16161a] transition-all ${
+        className={`flex items-center gap-3 h-12 px-4 rounded-2xl border bg-white dark:bg-[#1e1e21] transition-all ${
           mostrarPainel
             ? 'border-[#4d7c0f]/50 dark:border-[#84cc16]/50 ring-4 ring-[#4d7c0f]/10 dark:ring-[#84cc16]/10'
             : 'border-black/[0.08] dark:border-white/[0.1] hover:border-black/20 dark:hover:border-white/20 shadow-sm'
@@ -187,7 +187,7 @@ export default function QueueCommandBar({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.15 }}
-            className="absolute left-0 right-0 top-full mt-2 rounded-2xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-[#1c1c20] shadow-2xl overflow-hidden"
+            className="absolute left-0 right-0 top-full mt-2 rounded-2xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-[#1e1e21] shadow-2xl overflow-hidden"
           >
             {resultados.length === 0 && !podeCriar && (
               <p className="px-4 py-5 text-sm text-slate-500 dark:text-zinc-400 text-center">Nenhuma empresa encontrada.</p>
@@ -267,7 +267,7 @@ export default function QueueCommandBar({
                 type="button"
                 onMouseEnter={() => setDestaque(resultados.length)}
                 onClick={() => executar(onCriarEmpresa, termo.trim())}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-left border-t border-black/[0.06] dark:border-white/[0.08] cursor-pointer transition-colors ${
+                className={`w-full flex items-center gap-3 px-4 py-3 text-left border-t border-black/[0.06] dark:border-white/[0.11] cursor-pointer transition-colors ${
                   destaque === resultados.length ? 'bg-[#4d7c0f]/[0.06] dark:bg-[#84cc16]/[0.08]' : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.04]'
                 }`}
               >
@@ -283,7 +283,7 @@ export default function QueueCommandBar({
               </button>
             )}
 
-            <div className="flex items-center justify-between gap-4 px-4 py-2 border-t border-black/[0.05] dark:border-white/[0.06] text-[11px] text-slate-400">
+            <div className="flex items-center justify-between gap-4 px-4 py-2 border-t border-black/[0.05] dark:border-white/[0.09] text-[11px] text-slate-400">
               <div className="hidden sm:flex items-center gap-4">
                 <span><kbd className="font-sans">↑ ↓</kbd> navegar</span>
                 <span><kbd className="font-sans">Enter</kbd> atender</span>

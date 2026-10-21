@@ -235,7 +235,7 @@ export default function AuditLogsView() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setMostrarFiltroAvancado(!mostrarFiltroAvancado)}
-            className="px-4 py-2 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-[#16161a] hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-slate-700 dark:text-zinc-300 transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+            className="px-4 py-2 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-[#1e1e21] hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-slate-700 dark:text-zinc-300 transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
           >
             <CalendarIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16]" />
             <span>{mostrarFiltroAvancado ? 'Ocultar Filtro Avançado' : 'Filtro por Período'}</span>
@@ -255,7 +255,7 @@ export default function AuditLogsView() {
       {/* ============================================================================== */}
       {/* LINHA DO TEMPO LÚDICA COM DIAS PASSADOS, HOJE E DIAS FUTUROS SEMI-TRANSPARENTES */}
       {/* ============================================================================== */}
-      <div className="rounded-3xl p-4 sm:p-5 border border-black/8 dark:border-white/10 bg-white/80 dark:bg-[#16161a]/85 backdrop-blur-xl shadow-sm space-y-3">
+      <div className="rounded-3xl p-4 sm:p-5 border border-black/8 dark:border-white/10 bg-white/80 dark:bg-[#1e1e21]/85 backdrop-blur-xl shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
             Linha do Tempo de Atividades
@@ -282,7 +282,7 @@ export default function AuditLogsView() {
               return (
                 <div
                   key={d.iso}
-                  className="flex flex-col items-center justify-center p-3 rounded-2xl border border-black/5 dark:border-white/5 bg-black/[0.01] dark:bg-white/[0.01] opacity-30 cursor-not-allowed select-none min-w-[72px]"
+                  className="flex flex-col items-center justify-center p-3 rounded-2xl border border-black/5 dark:border-white/[0.09] bg-black/[0.01] dark:bg-white/[0.01] opacity-30 cursor-not-allowed select-none min-w-[72px]"
                   title="Data futura ainda não ocorrida"
                 >
                   <span className="text-[10px] font-semibold text-slate-400">{d.diaSemana}</span>
@@ -332,7 +332,7 @@ export default function AuditLogsView() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white/90 dark:bg-[#16161a]/90 backdrop-blur-xl shadow-sm space-y-3"
+            className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white/90 dark:bg-[#1e1e21]/90 backdrop-blur-xl shadow-sm space-y-3"
           >
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -384,7 +384,7 @@ export default function AuditLogsView() {
       </AnimatePresence>
 
       {/* Barra de Busca Rápida */}
-      <div className="rounded-2xl p-3 border border-black/8 dark:border-white/10 bg-white/80 dark:bg-[#16161a]/80 backdrop-blur-xl flex items-center gap-3 shadow-xs">
+      <div className="rounded-2xl p-3 border border-black/8 dark:border-white/10 bg-white/80 dark:bg-[#1e1e21]/80 backdrop-blur-xl flex items-center gap-3 shadow-xs">
         <input
           type="text"
           value={filtroTexto}
@@ -403,13 +403,13 @@ export default function AuditLogsView() {
       </div>
 
       {/* Tabela de Eventos Detalhados com Paginação */}
-      <div className="rounded-3xl border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] overflow-hidden shadow-sm">
-        <div className="p-5 border-b border-black/6 dark:border-white/8 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-zinc-300">
+      <div className="rounded-3xl border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] overflow-hidden shadow-sm">
+        <div className="p-5 border-b border-black/6 dark:border-white/[0.11] flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-zinc-300">
           <span>Rastro de Atividades ({logsFiltrados.length})</span>
           <span className="text-[10px] text-slate-400 font-mono">Imutável • Protegido por RLS</span>
         </div>
 
-        <div className="divide-y divide-black/5 dark:divide-white/6">
+        <div className="divide-y divide-black/5 dark:divide-white/[0.09]">
           {loading && logs.length === 0 ? (
             <ListSkeleton linhas={6} className="p-5" />
           ) : logsPaginados.length === 0 ? (
@@ -465,7 +465,7 @@ export default function AuditLogsView() {
         </div>
 
         {/* Controles de Paginação */}
-        <div className="p-4 border-t border-black/6 dark:border-white/8 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500">
+        <div className="p-4 border-t border-black/6 dark:border-white/[0.11] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500">
           <div className="flex items-center gap-2">
             <span>Itens por página:</span>
             {[10, 20, 50].map((tam) => (

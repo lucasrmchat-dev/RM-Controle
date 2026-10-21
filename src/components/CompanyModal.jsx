@@ -81,7 +81,7 @@ export default function CompanyModal({ isOpen, onClose, onCreated, initialNome =
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 12 }}
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-[32px] border border-black/[0.08] dark:border-white/[0.1] bg-white/95 dark:bg-[#16161a]/95 backdrop-blur-3xl p-6 sm:p-8 shadow-2xl relative text-[#1d1d1f] dark:text-[#f5f5f7]"
+          className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-[32px] border border-black/[0.08] dark:border-white/[0.1] bg-white/95 dark:bg-[#1e1e21]/95 backdrop-blur-3xl p-6 sm:p-8 shadow-2xl relative text-[#1d1d1f] dark:text-[#f5f5f7]"
         >
           <button
             type="button"
@@ -148,7 +148,7 @@ export default function CompanyModal({ isOpen, onClose, onCreated, initialNome =
               }}
             />
 
-            <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-black/[0.05] dark:border-white/[0.06]">
+            <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-black/[0.05] dark:border-white/[0.09]">
               <button
                 type="button"
                 onClick={onClose}

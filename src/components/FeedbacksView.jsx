@@ -297,7 +297,7 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
 
         <div className="flex items-center gap-2.5 flex-wrap">
           {/* Alternador de Modo de Visualização: Lista vs Kanban */}
-          <div className="flex items-center gap-1 p-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.06] text-xs">
+          <div className="flex items-center gap-1 p-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.09] text-xs">
             <button
               type="button"
               onClick={() => setViewMode('lista')}
@@ -338,7 +338,7 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
 
       {/* Cards de Métricas de Feedbacks */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-4 sm:p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-1">
+        <div className="p-4 sm:p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] shadow-xs space-y-1">
           <span className="text-xs text-slate-400 uppercase font-bold tracking-wider">Total de Relatos</span>
           <div className="flex items-baseline gap-2">
             <span className="text-3xl font-bold font-mono text-[#1d1d1f] dark:text-white">{feedbacks.length}</span>
@@ -346,7 +346,7 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
           </div>
         </div>
 
-        <div className="p-4 sm:p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-1">
+        <div className="p-4 sm:p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] shadow-xs space-y-1">
           <span className="text-xs text-amber-600 dark:text-amber-400 uppercase font-bold tracking-wider">Em Análise / Fila</span>
           <div className="flex items-baseline gap-2">
             <span className="text-3xl font-bold font-mono text-amber-600 dark:text-amber-400">{totalEmAnalise}</span>
@@ -354,7 +354,7 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
           </div>
         </div>
 
-        <div className="p-4 sm:p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-1">
+        <div className="p-4 sm:p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] shadow-xs space-y-1">
           <span className="text-xs text-emerald-600 dark:text-emerald-400 uppercase font-bold tracking-wider">Resolvidos</span>
           <div className="flex items-baseline gap-2">
             <span className="text-3xl font-bold font-mono text-emerald-600 dark:text-emerald-400">{totalResolvidos}</span>
@@ -364,7 +364,7 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
       </div>
 
       {/* Barra de Filtros e Segmentação por Categoria (Ideias vs Bugs) */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-3 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-3 rounded-2xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] shadow-xs">
         <div className="flex items-center gap-1.5 overflow-x-auto text-xs flex-wrap">
           <span className="text-slate-400 font-semibold px-2">Visão:</span>
           {[
@@ -387,7 +387,7 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
             </button>
           ))}
 
-          <span className="text-slate-300 dark:text-zinc-600 mx-1">|</span>
+          <span className="text-slate-300 dark:text-zinc-500 mx-1">|</span>
 
           <span className="text-slate-400 font-semibold px-2">Status:</span>
           {[
@@ -415,7 +415,7 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
           <select
             value={filtroTipo}
             onChange={(e) => setFiltroTipo(e.target.value)}
-            className="px-3 py-1.5 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white text-xs font-semibold focus:outline-none cursor-pointer"
+            className="px-3 py-1.5 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white text-xs font-semibold focus:outline-none cursor-pointer"
           >
             <option value="todos">Todos os Tipos</option>
             <option value="bug">Falha / Bug</option>
@@ -460,10 +460,10 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
                   className={`rounded-3xl p-3.5 border flex flex-col min-h-[500px] transition-all ${
                     colunaArrastando === col.id
                       ? 'border-[#4d7c0f] dark:border-[#84cc16] ring-2 ring-[#4d7c0f]/30 bg-[#4d7c0f]/[0.04]'
-                      : 'bg-black/[0.015] dark:bg-white/[0.02] border-black/[0.05] dark:border-white/[0.06]'
+                      : 'bg-black/[0.015] dark:bg-white/[0.02] border-black/[0.05] dark:border-white/[0.09]'
                   }`}
                 >
-                  <div className="flex items-center justify-between pb-3 px-1 border-b border-black/[0.04] dark:border-white/[0.05] mb-3">
+                  <div className="flex items-center justify-between pb-3 px-1 border-b border-black/[0.04] dark:border-white/[0.09] mb-3">
                     <div className="flex items-center gap-2">
                       <span className={`w-2 h-2 rounded-full ${col.dot}`}></span>
                       <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white">{col.titulo}</h4>
@@ -487,7 +487,7 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
                               e.dataTransfer.setData('text/plain', fb.id);
                               e.dataTransfer.effectAllowed = 'move';
                             }}
-                            className="p-3.5 rounded-2xl bg-white dark:bg-[#16161a] border border-black/[0.06] dark:border-white/[0.08] space-y-2.5 shadow-2xs hover:shadow-sm cursor-grab active:cursor-grabbing hover:border-black/20 dark:hover:border-white/20 select-none"
+                            className="p-3.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.06] dark:border-white/[0.11] space-y-2.5 shadow-2xs hover:shadow-sm cursor-grab active:cursor-grabbing hover:border-black/20 dark:hover:border-white/20 select-none"
                           >
                             <div className="flex items-center justify-between gap-1.5 flex-wrap">
                               <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
@@ -503,7 +503,7 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
                             <h5 className="text-xs font-bold text-[#1d1d1f] dark:text-white leading-snug">{fb.titulo}</h5>
                             <p className="text-[11px] text-slate-600 dark:text-zinc-400 line-clamp-3 leading-relaxed">{fb.descricao}</p>
 
-                            <div className="pt-2.5 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between gap-1 text-[10px]">
+                            <div className="pt-2.5 border-t border-black/[0.05] dark:border-white/[0.09] flex items-center justify-between gap-1 text-[10px]">
                               {/* Seletor direto de etapa */}
                               <select
                                 value={fb.status || 'em_analise'}
@@ -564,11 +564,11 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
           </div>
         </div>
       ) : !carregado ? (
-        <div className="p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a]">
+        <div className="p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21]">
           <ListSkeleton linhas={5} />
         </div>
       ) : feedbacksFiltrados.length === 0 ? (
-        <div className="p-12 text-center rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-2">
+        <div className="p-12 text-center rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-2">
           <SparklesIcon className="w-8 h-8 text-[#4d7c0f] dark:text-[#84cc16] mx-auto opacity-70" />
           <h3 className="text-sm font-bold text-[#1d1d1f] dark:text-white">Nenhum feedback encontrado</h3>
           <p className="text-xs text-slate-400 max-w-sm mx-auto">
@@ -589,10 +589,10 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
                 animate={{ opacity: 1, y: 0 }}
                 className={`p-5 rounded-3xl border transition-all shadow-xs flex flex-col justify-between space-y-4 ${
                   isResolvido
-                    ? 'border-emerald-500/30 bg-emerald-500/[0.02] dark:bg-[#16161a]'
+                    ? 'border-emerald-500/30 bg-emerald-500/[0.02] dark:bg-[#1e1e21]'
                     : isBug
-                    ? 'border-red-500/25 bg-red-500/[0.015] dark:bg-[#16161a]'
-                    : 'border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a]'
+                    ? 'border-red-500/25 bg-red-500/[0.015] dark:bg-[#1e1e21]'
+                    : 'border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21]'
                 }`}
               >
                 <div className="space-y-2.5">
@@ -626,7 +626,7 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
                     </span>
                   </div>
 
-                  <p className="text-xs text-slate-600 dark:text-zinc-400 leading-relaxed bg-black/[0.02] dark:bg-white/[0.03] p-3 rounded-2xl border border-black/[0.04] dark:border-white/[0.05] whitespace-pre-wrap">
+                  <p className="text-xs text-slate-600 dark:text-zinc-400 leading-relaxed bg-black/[0.02] dark:bg-white/[0.03] p-3 rounded-2xl border border-black/[0.04] dark:border-white/[0.09] whitespace-pre-wrap">
                     {fb.descricao}
                   </p>
 
@@ -651,7 +651,7 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
                   )}
                 </div>
 
-                <div className="pt-2.5 border-t border-black/[0.05] dark:border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-[11px]">
+                <div className="pt-2.5 border-t border-black/[0.05] dark:border-white/[0.09] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-[11px]">
                   <div className="flex items-center gap-2 flex-wrap">
                     {/* Status Changer Rápido */}
                     <select
@@ -747,10 +747,10 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96, y: 12 }}
                 transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                className="w-full max-w-4xl max-h-[92vh] rounded-[32px] bg-white dark:bg-[#16161a] border border-black/[0.08] dark:border-white/[0.1] p-6 sm:p-8 shadow-2xl flex flex-col text-[#1d1d1f] dark:text-[#f5f5f7] relative"
+                className="w-full max-w-4xl max-h-[92vh] rounded-[32px] bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] p-6 sm:p-8 shadow-2xl flex flex-col text-[#1d1d1f] dark:text-[#f5f5f7] relative"
                 onClick={(e) => e.stopPropagation()}
               >
-              <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-white/[0.08] flex-shrink-0">
+              <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-white/[0.11] flex-shrink-0">
                 <div>
                   <h3 className="text-lg font-bold text-[#1d1d1f] dark:text-white">
                     Reportar Falha ou Sugerir Melhoria
@@ -827,7 +827,7 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
                           <select
                             value={tipo}
                             onChange={(e) => setTipo(e.target.value)}
-                            className="w-full px-3 py-2 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white cursor-pointer"
+                            className="w-full px-3 py-2 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white cursor-pointer"
                           >
                             <option value="bug">Erro / Bug</option>
                             <option value="melhoria">Melhoria Visual / UX</option>
@@ -843,7 +843,7 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
                           <select
                             value={prioridade}
                             onChange={(e) => setPrioridade(e.target.value)}
-                            className="w-full px-3 py-2 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white cursor-pointer"
+                            className="w-full px-3 py-2 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white cursor-pointer"
                           >
                             <option value="normal">Normal</option>
                             <option value="alta">Alta</option>
@@ -925,7 +925,7 @@ ${fb.imagem_url ? '\nEvidência / Print Anexado: Sim (Visualizável no sistema)'
                 </div>
 
                 {/* Rodapé Fixo */}
-                <div className="flex items-center justify-end gap-3 pt-3 mt-3 border-t border-black/[0.06] dark:border-white/[0.08] flex-shrink-0">
+                <div className="flex items-center justify-end gap-3 pt-3 mt-3 border-t border-black/[0.06] dark:border-white/[0.11] flex-shrink-0">
                   <button
                     type="button"
                     onClick={() => setModalAberto(false)}

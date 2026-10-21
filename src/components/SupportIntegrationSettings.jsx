@@ -48,7 +48,7 @@ function BotaoCopiar({ texto, rotulo = 'Copiar' }) {
 
 function Cartao({ titulo, descricao, children, rotulo }) {
   return (
-    <section className="rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] shadow-sm space-y-4">
+    <section className="rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-sm space-y-4">
       <div>
         {rotulo && (
           <span className="text-[10px] font-bold uppercase tracking-wider text-[#4d7c0f] dark:text-[#84cc16]">{rotulo}</span>
@@ -159,7 +159,7 @@ export default function SupportIntegrationSettings() {
 
   if (estado === 'carregando') {
     return (
-      <div role="status" className="rounded-3xl p-8 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] text-xs text-slate-500 dark:text-zinc-400">
+      <div role="status" className="rounded-3xl p-8 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-xs text-slate-500 dark:text-zinc-400">
         Carregando configuração do suporte automático…
       </div>
     );
@@ -189,7 +189,7 @@ export default function SupportIntegrationSettings() {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="space-y-6">
       {/* Estado geral */}
-      <section className="rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <section className="rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
           <h3 className="text-lg font-bold text-[#1d1d1f] dark:text-white">Suporte Automático via API</h3>
           <p className="text-xs text-slate-500 dark:text-zinc-400 max-w-2xl leading-relaxed">
@@ -223,7 +223,7 @@ export default function SupportIntegrationSettings() {
             ].map(([rotulo, url]) => (
               <div key={url} className="space-y-1">
                 <span className="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">{rotulo}</span>
-                <div className="flex items-center gap-2 p-2 pl-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08]">
+                <div className="flex items-center gap-2 p-2 pl-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.11]">
                   <code className="text-[11px] font-mono break-all flex-1">{url}</code>
                   <BotaoCopiar texto={url} />
                 </div>
@@ -231,7 +231,7 @@ export default function SupportIntegrationSettings() {
             ))}
           </div>
 
-          <div className="pt-3 border-t border-black/[0.06] dark:border-white/[0.08] space-y-2">
+          <div className="pt-3 border-t border-black/[0.06] dark:border-white/[0.11] space-y-2">
             <span className="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Token (cabeçalho Authorization: Bearer …)</span>
             {tokenGerado ? (
               <div className="p-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 space-y-2" role="alert">
@@ -308,7 +308,7 @@ export default function SupportIntegrationSettings() {
           )}
 
           {/* Teste ao vivo dos limites */}
-          <form onSubmit={handleTestar} className="pt-3 border-t border-black/[0.06] dark:border-white/[0.08] space-y-2">
+          <form onSubmit={handleTestar} className="pt-3 border-t border-black/[0.06] dark:border-white/[0.11] space-y-2">
             <label htmlFor="nome_teste" className="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">
               Testar com um nome, como o cliente digitaria
             </label>
@@ -335,7 +335,7 @@ export default function SupportIntegrationSettings() {
                     {ROTULO_DECISAO[resultadoTeste.decisao].texto}
                   </span>
                   {resultadoTeste.sugestoes.length > 0 ? (
-                    <ul className="divide-y divide-black/[0.05] dark:divide-white/[0.06] rounded-2xl border border-black/[0.06] dark:border-white/[0.08]">
+                    <ul className="divide-y divide-black/[0.05] dark:divide-white/[0.09] rounded-2xl border border-black/[0.06] dark:border-white/[0.11]">
                       {resultadoTeste.sugestoes.map((s) => (
                         <li key={s.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
                           <span className="truncate">{s.nome}</span>
@@ -379,7 +379,7 @@ export default function SupportIntegrationSettings() {
                 className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-colors ${
                   form.quando_nao_encontrar === valor
                     ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10'
-                    : 'border-black/[0.06] dark:border-white/[0.08] hover:border-black/20'
+                    : 'border-black/[0.06] dark:border-white/[0.11] hover:border-black/20'
                 }`}
               >
                 <input
@@ -423,7 +423,7 @@ export default function SupportIntegrationSettings() {
             <li>Chame <strong>Abrir demanda</strong> com <code>empresa_id</code> (ou <code>empresa_nome</code>), <code>descricao</code> e <code>solicitante_nome</code> (nome do contato).</li>
           </ol>
 
-          <details className="group rounded-2xl border border-black/[0.06] dark:border-white/[0.08]">
+          <details className="group rounded-2xl border border-black/[0.06] dark:border-white/[0.11]">
             <summary className="px-4 py-2.5 text-xs font-semibold cursor-pointer select-none">Ver exemplos de requisição e resposta</summary>
             <div className="px-4 pb-4 space-y-3 text-[11px]">
               <p className="font-semibold pt-1">1. Identificar empresa</p>
@@ -460,7 +460,7 @@ Content-Type: application/json
       </div>
 
       {/* Barra de salvar */}
-      <div className="sticky bottom-4 p-4 rounded-3xl bg-white/95 dark:bg-[#16161a]/95 backdrop-blur border border-black/[0.08] dark:border-white/[0.1] shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="sticky bottom-4 p-4 rounded-3xl bg-white/95 dark:bg-[#1e1e21]/95 backdrop-blur border border-black/[0.08] dark:border-white/[0.1] shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <span className="text-xs text-slate-600 dark:text-zinc-300" aria-live="polite">
           {alterado ? 'Há alterações não salvas.' : 'Tudo salvo.'}
         </span>

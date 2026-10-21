@@ -127,7 +127,7 @@ export default function FirstAccessSetupView({
   };
 
   return (
-    <div className="min-h-screen w-full relative flex items-center justify-center p-4 sm:p-6 overflow-hidden bg-[#f4f4f6] dark:bg-[#000000] text-[#0a0a0c] dark:text-[#ffffff] transition-colors duration-300">
+    <div className="min-h-screen w-full relative flex items-center justify-center p-4 sm:p-6 overflow-hidden bg-[#f4f4f6] dark:bg-[#141416] text-[#0a0a0c] dark:text-[#ffffff] transition-colors duration-300">
       
       {/* Background Ambient Mesh Orbs com Movimento Orgânico Suave */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -159,7 +159,7 @@ export default function FirstAccessSetupView({
           <button
             type="button"
             onClick={onLogout}
-            className="px-3.5 py-2 rounded-full backdrop-blur-2xl bg-white/90 dark:bg-zinc-900/90 border border-black/10 dark:border-white/15 shadow-xs hover:scale-105 active:scale-95 transition-all text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:text-red-600 dark:hover:text-red-400 flex items-center gap-1.5 cursor-pointer"
+            className="px-3.5 py-2 rounded-full backdrop-blur-2xl bg-white/90 dark:bg-[#1e1e21]/90 border border-black/10 dark:border-white/15 shadow-xs hover:scale-105 active:scale-95 transition-all text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:text-red-600 dark:hover:text-red-400 flex items-center gap-1.5 cursor-pointer"
             title="Sair / Encerrar Sessão sem concluir o cadastro"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -174,7 +174,7 @@ export default function FirstAccessSetupView({
         {onToggleTheme && (
           <button
             onClick={() => onToggleTheme(theme === 'light' ? 'dark' : 'light')}
-            className="p-2.5 rounded-full backdrop-blur-2xl bg-white/90 dark:bg-zinc-900/90 border border-black/10 dark:border-white/15 shadow-xs hover:scale-105 active:scale-95 transition-all text-slate-800 dark:text-zinc-100 cursor-pointer"
+            className="p-2.5 rounded-full backdrop-blur-2xl bg-white/90 dark:bg-[#1e1e21]/90 border border-black/10 dark:border-white/15 shadow-xs hover:scale-105 active:scale-95 transition-all text-slate-800 dark:text-zinc-100 cursor-pointer"
             title="Alternar Tema Claro / Escuro"
           >
             {theme === 'light' ? (
@@ -213,7 +213,7 @@ export default function FirstAccessSetupView({
           })}
         </div>
 
-        <div className="rounded-[36px] p-7 sm:p-10 backdrop-blur-3xl bg-white/95 dark:bg-[#121216]/95 border border-black/12 dark:border-white/15 shadow-[0_30px_100px_-20px_rgba(0,0,0,0.12)] dark:shadow-[0_35px_110px_-25px_rgba(0,0,0,0.95)] overflow-hidden relative">
+        <div className="rounded-[36px] p-7 sm:p-10 backdrop-blur-3xl bg-white/95 dark:bg-[#1e1e21]/95 border border-black/12 dark:border-white/15 shadow-[0_30px_100px_-20px_rgba(0,0,0,0.12)] dark:shadow-[0_35px_110px_-25px_rgba(0,0,0,0.95)] overflow-hidden relative">
           <AnimatePresence mode="wait">
 
             {/* ============================================================================== */}
@@ -242,17 +242,17 @@ export default function FirstAccessSetupView({
 
                 {/* Destaques das Etapas com Micro-Cards */}
                 <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left pt-2">
-                  <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.08] space-y-1">
+                  <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.11] space-y-1">
                     <span className="text-lg">🔒</span>
                     <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white">Segurança</h4>
                     <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-snug">Crie sua senha pessoal com regras LGPD.</p>
                   </div>
-                  <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.08] space-y-1">
+                  <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.11] space-y-1">
                     <span className="text-lg">🔔</span>
                     <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white">Alertas Sonoros</h4>
                     <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-snug">Escolha o timbre e modo de repetição.</p>
                   </div>
-                  <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.08] space-y-1">
+                  <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.11] space-y-1">
                     <span className="text-lg">📱</span>
                     <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white">Visualização</h4>
                     <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-snug">Defina seu layout prioritário do sistema.</p>
@@ -363,7 +363,7 @@ export default function FirstAccessSetupView({
                 </motion.div>
 
                 {/* Checklist Interativo das Regras */}
-                <motion.div variants={itemVariants} className="p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.08] space-y-2">
+                <motion.div variants={itemVariants} className="p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.11] space-y-2">
                   <span className="text-[11px] font-bold text-slate-700 dark:text-zinc-300 block mb-1">
                     Requisitos Mínimos de Segurança:
                   </span>
@@ -445,7 +445,7 @@ export default function FirstAccessSetupView({
                 </motion.div>
 
                 {/* Habilitar / Desabilitar */}
-                <motion.div variants={itemVariants} className="p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between">
+                <motion.div variants={itemVariants} className="p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.11] flex items-center justify-between">
                   <div>
                     <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white">
                       Alertas Sonoros Ativos
@@ -487,7 +487,7 @@ export default function FirstAccessSetupView({
                               className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
                                 isSel
                                   ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 font-bold'
-                                  : 'border-black/[0.06] dark:border-white/[0.08] hover:border-black/20 bg-black/[0.01]'
+                                  : 'border-black/[0.06] dark:border-white/[0.11] hover:border-black/20 bg-black/[0.01]'
                               }`}
                             >
                               <span className="text-xs font-bold block text-[#1d1d1f] dark:text-white">{m.titulo}</span>
@@ -539,7 +539,7 @@ export default function FirstAccessSetupView({
                               className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
                                 isSel
                                   ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 shadow-xs font-bold'
-                                  : 'border-black/[0.06] dark:border-white/[0.08] hover:border-black/20 bg-black/[0.01]'
+                                  : 'border-black/[0.06] dark:border-white/[0.11] hover:border-black/20 bg-black/[0.01]'
                               }`}
                             >
                               <div className="flex items-center justify-between w-full mb-1">
@@ -734,18 +734,18 @@ export default function FirstAccessSetupView({
                 </motion.div>
 
                 {/* Resumo das Escolhas */}
-                <motion.div variants={itemVariants} className="p-4 sm:p-5 rounded-3xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.08] text-left space-y-2.5 text-xs">
-                  <div className="flex items-center justify-between border-b border-black/[0.04] dark:border-white/[0.05] pb-2">
+                <motion.div variants={itemVariants} className="p-4 sm:p-5 rounded-3xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.11] text-left space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between border-b border-black/[0.04] dark:border-white/[0.09] pb-2">
                     <span className="text-slate-500 dark:text-zinc-400">Usuário Autenticado:</span>
                     <strong className="text-[#1d1d1f] dark:text-white font-mono">{userEmail}</strong>
                   </div>
-                  <div className="flex items-center justify-between border-b border-black/[0.04] dark:border-white/[0.05] pb-2">
+                  <div className="flex items-center justify-between border-b border-black/[0.04] dark:border-white/[0.09] pb-2">
                     <span className="text-slate-500 dark:text-zinc-400">Senha Individual:</span>
                     <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
                       <span>✓</span> Redefinida com sucesso
                     </span>
                   </div>
-                  <div className="flex items-center justify-between border-b border-black/[0.04] dark:border-white/[0.05] pb-2">
+                  <div className="flex items-center justify-between border-b border-black/[0.04] dark:border-white/[0.09] pb-2">
                     <span className="text-slate-500 dark:text-zinc-400">Alertas Sonoros:</span>
                     <span className="text-slate-800 dark:text-zinc-200 font-medium">
                       {audioConfig.habilitado ? `Ativos (${audioConfig.modoRepeticao === 'intermitente' ? 'Intermitente' : audioConfig.modoRepeticao === 'intervalo' ? `${audioConfig.intervaloSegundos}s` : 'Uma vez'})` : 'Desativados'}

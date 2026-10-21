@@ -35,6 +35,7 @@ import {
 } from '@/lib/storage';
 import { triggerSupportNotification, stopSupportNotificationLoop, playMeetingAlertTone } from '@/lib/audioNotifications';
 import FirstAccessSetupView from '@/components/FirstAccessSetupView';
+import { lerPreferenciaTema, aplicarTema, salvarPreferenciaTema } from '@/lib/tema';
 import Navbar from '@/components/Navbar';
 import CompanyModal from '@/components/CompanyModal';
 import CompanyManagementView from '@/components/CompanyManagementView';
@@ -171,23 +172,23 @@ export default function Home() {
   // INICIALIZAÇÃO DE TEMA VISUAL (LIGHT COMO PADRÃO APPLE)
   // ==============================================================================
   useEffect(() => {
-    const savedTheme = localStorage.getItem('rm_theme') || 'light';
-    setTheme(savedTheme);
-    if (savedTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    const pref = lerPreferenciaTema();
+    setTheme(pref);
+    aplicarTema(pref);
   }, []);
+
+  // "Automático" acompanha a troca de aparência do sistema sem recarregar
+  useEffect(() => {
+    if (theme !== 'system' || !window.matchMedia) return undefined;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const mudar = () => aplicarTema('system');
+    mq.addEventListener('change', mudar);
+    return () => mq.removeEventListener('change', mudar);
+  }, [theme]);
 
   const handleToggleTheme = (newTheme) => {
     setTheme(newTheme);
-    localStorage.setItem('rm_theme', newTheme);
-    if (newTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    salvarPreferenciaTema(newTheme);
   };
 
   // ==============================================================================
@@ -844,7 +845,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
   // ==============================================================================
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f5f5f7] dark:bg-[#000000]">
+      <div className="min-h-screen flex items-center justify-center bg-[#f5f5f7] dark:bg-[#141416]">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-[#4d7c0f] dark:border-[#84cc16] border-t-transparent rounded-full animate-spin"></div>
           <span className="text-xs text-slate-500 dark:text-zinc-400 font-medium">Carregando RM Controle...</span>
@@ -904,7 +905,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
   // PAINEL PRINCIPAL COM APROVEITAMENTO TOTAL DA LARGURA (MAX-W-[1720PX])
   // ==============================================================================
   return (
-    <div className="min-h-screen bg-[#f5f5f7] dark:bg-[#000000] text-[#1d1d1f] dark:text-[#f5f5f7] flex flex-col transition-colors duration-300">
+    <div className="min-h-screen bg-[#f5f5f7] dark:bg-[#141416] text-[#1d1d1f] dark:text-[#f5f5f7] flex flex-col transition-colors duration-300">
       
       {/* Navbar Flutuante Estilo macOS / Dynamic Island */}
       <Navbar
@@ -923,10 +924,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
         inactivityTimeLeft={inactivityTimeLeft}
         showMockData={showMockData}
         setShowMockData={handleToggleMockData}
-        onOpenChamadoAtivo={(empresaId) => {
-          const emp = empresas.find((e) => e.id === empresaId);
-          if (emp) setSelectedEmpresa(emp);
-        }}
+        acoesFila={activeTab === 'fila' && !selectedEmpresa}
       />
 
       <main className="flex-1 w-full max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 xl:px-10 py-2 sm:py-4 pb-28 md:pb-16">
@@ -973,7 +971,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                           </svg>
                           Fila de Demandas
                         </button>
-                        <span className="text-slate-300 dark:text-zinc-600">/</span>
+                        <span className="text-slate-300 dark:text-zinc-500">/</span>
                         <span className="font-semibold text-[#1d1d1f] dark:text-white">Empresas</span>
                       </nav>
                       <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white">
@@ -1028,7 +1026,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                   )}
 
                   {/* Toolbar Unificada Estilo macOS (Busca e Filtros Expandidos) */}
-                  <div className="rounded-2xl p-3.5 border border-black/[0.06] dark:border-white/[0.08] backdrop-blur-xl bg-white/80 dark:bg-[#16161a]/85 shadow-sm space-y-3">
+                  <div className="rounded-2xl p-3.5 border border-black/[0.06] dark:border-white/[0.11] backdrop-blur-xl bg-white/80 dark:bg-[#1e1e21]/85 shadow-sm space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                       
                       {/* Campo de Busca Aprimorada com SVG minimalista */}
@@ -1060,7 +1058,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                             }, 350);
                           }}
                           placeholder="Buscar empresa, operador ou canal..."
-                          className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 text-[#1d1d1f] dark:text-white placeholder-slate-400 font-medium"
+                          className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.11] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 text-[#1d1d1f] dark:text-white placeholder-slate-400 font-medium"
                         />
                       </div>
 
@@ -1072,7 +1070,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                             setFiltroServidor(e.target.value);
                             setPage(1);
                           }}
-                          className="w-full px-3.5 py-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium"
+                          className="w-full px-3.5 py-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.11] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium"
                         >
                           <option value="todos">Todos os Servidores</option>
                           <option value="servidor_1">Servidor 1 (Principal)</option>
@@ -1088,7 +1086,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                             setFiltroCanal(e.target.value);
                             setPage(1);
                           }}
-                          className="w-full px-3.5 py-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium"
+                          className="w-full px-3.5 py-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.11] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium"
                         >
                           <option value="todos">Todos os Canais</option>
                           <option value="api">Canal Cloud API Oficial</option>
@@ -1105,7 +1103,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                             setFiltroFormato(e.target.value);
                             setPage(1);
                           }}
-                          className="w-full px-3.5 py-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium"
+                          className="w-full px-3.5 py-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.11] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium"
                         >
                           <option value="todos">Todos os Formatos</option>
                           <option value="colaborativo">Formato Colaborativo</option>
@@ -1116,7 +1114,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
 
                     {/* Controles de Paginação & Densidade */}
                     {/* Controles de Paginação & Densidade & Alternador de Visualização */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-black/[0.04] dark:border-white/[0.05] text-[11px] text-slate-500 dark:text-zinc-400">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-black/[0.04] dark:border-white/[0.09] text-[11px] text-slate-500 dark:text-zinc-400">
                       <div className="flex items-center gap-4 flex-wrap">
                         <div className="flex items-center gap-1.5">
                           <span className="font-medium">Itens por página:</span>
@@ -1139,7 +1137,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                         </div>
 
                         {/* Alternador de Visualização Cards / Lista */}
-                        <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.06]">
+                        <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.09]">
                           <button
                             type="button"
                             onClick={() => handleChangeViewMode('grid')}
@@ -1183,15 +1181,15 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                         {Array.from({ length: 6 }).map((_, i) => <CompanyCardSkeleton key={i} />)}
                       </div>
                     ) : (
-                      <div role="status" aria-busy="true" className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden">
+                      <div role="status" aria-busy="true" className="rounded-2xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] overflow-hidden">
                         <span className="sr-only">Carregando empresas…</span>
                         {Array.from({ length: 6 }).map((_, i) => <CompanyTableRowSkeleton key={i} />)}
                       </div>
                     )
                   ) : empresas.length === 0 ? (
                     /* Estado Vazio Total Estilo Apple */
-                    <div className="rounded-3xl p-12 border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/85 backdrop-blur-xl text-center space-y-4 shadow-sm">
-                      <div className="w-12 h-12 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] text-slate-400 dark:text-zinc-500 flex items-center justify-center mx-auto">
+                    <div className="rounded-3xl p-12 border border-black/[0.06] dark:border-white/[0.11] bg-white/80 dark:bg-[#1e1e21]/85 backdrop-blur-xl text-center space-y-4 shadow-sm">
+                      <div className="w-12 h-12 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] text-slate-400 dark:text-zinc-400 flex items-center justify-center mx-auto">
                         <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
                           <rect width="16" height="20" x="4" y="2" rx="2" ry="2"/>
                           <path d="M9 22v-4h6v4"/>
@@ -1263,7 +1261,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                             whileHover={{ y: -3 }}
                             transition={{ duration: 0.2 }}
                             onClick={() => setEmpresaAcaoModal(emp)}
-                            className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] hover:shadow-apple-hover transition-all cursor-pointer flex flex-col justify-between group relative overflow-hidden"
+                            className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] hover:shadow-apple-hover transition-all cursor-pointer flex flex-col justify-between group relative overflow-hidden"
                           >
                             {/* Topo do Card: Avatar, Nome e Badges */}
                             <div className="space-y-3">
@@ -1293,7 +1291,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
 
                               {/* Badges Apple (Servidor + Formato) */}
                               <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-700 dark:text-zinc-300 border border-black/[0.04] dark:border-white/[0.06]">
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-700 dark:text-zinc-300 border border-black/[0.04] dark:border-white/[0.09]">
                                   {emp.servidor_alocado === 'servidor_2' ? 'Servidor 2' : 'Servidor 1'}
                                 </span>
 
@@ -1314,7 +1312,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                             </div>
 
                             {/* Centro do Card: Canais Conectados com SVG Elegante */}
-                            <div className="py-3.5 my-3 border-y border-black/[0.04] dark:border-white/[0.05] space-y-2">
+                            <div className="py-3.5 my-3 border-y border-black/[0.04] dark:border-white/[0.09] space-y-2">
                               <div className="flex items-center justify-between text-[11px]">
                                 <span className="text-slate-500 dark:text-zinc-400">Canais vinculados:</span>
                                 <span className="font-semibold text-[#1d1d1f] dark:text-zinc-200">
@@ -1329,7 +1327,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                                   emp.canais.slice(0, 3).map((c, i) => (
                                     <span
                                       key={i}
-                                      className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/[0.03] dark:bg-white/[0.04] text-slate-700 dark:text-zinc-300 border border-black/[0.04] dark:border-white/[0.06] truncate max-w-[130px]"
+                                      className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/[0.03] dark:bg-white/[0.04] text-slate-700 dark:text-zinc-300 border border-black/[0.04] dark:border-white/[0.09] truncate max-w-[130px]"
                                     >
                                       <MessageChannelIcon className="w-3 h-3 text-[#4d7c0f] dark:text-[#84cc16] flex-shrink-0" />
                                       <span className="truncate">{c.nome}</span>
@@ -1376,10 +1374,10 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ duration: 0.2 }}
-                      className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-sm"
+                      className="rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] overflow-hidden shadow-sm"
                     >
                       {/* Cabeçalho da Tabela Apple com Ordenação */}
-                      <div className="hidden lg:grid grid-cols-12 gap-4 px-5 py-3.5 border-b border-black/[0.05] dark:border-white/[0.06] text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 bg-black/[0.01] dark:bg-white/[0.02]">
+                      <div className="hidden lg:grid grid-cols-12 gap-4 px-5 py-3.5 border-b border-black/[0.05] dark:border-white/[0.09] text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-400 bg-black/[0.01] dark:bg-white/[0.02]">
                         <div className="col-span-4 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => handleSortColumn('nome')}>
                           <span>Empresa / E-mail</span>
                           {sortColumn === 'nome' && <span>{sortDirection === 'asc' ? '▲' : '▼'}</span>}
@@ -1402,7 +1400,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                         </div>
                       </div>
 
-                      <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
+                      <div className="divide-y divide-black/[0.04] dark:divide-white/[0.09]">
                         {[...empresas].sort((a, b) => {
                           let valA = '';
                           let valB = '';
@@ -1510,7 +1508,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                               </div>
 
                               {/* Ações / Suporte */}
-                              <div className="lg:col-span-2 flex items-center justify-between lg:justify-end gap-2 w-full lg:w-auto pt-2 lg:pt-0 border-t lg:border-t-0 border-black/[0.04] dark:border-white/[0.05]">
+                              <div className="lg:col-span-2 flex items-center justify-between lg:justify-end gap-2 w-full lg:w-auto pt-2 lg:pt-0 border-t lg:border-t-0 border-black/[0.04] dark:border-white/[0.09]">
                                 {temSuporteAtivo ? (
                                   <span className="text-[10px] uppercase font-bold px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1.5">
                                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
@@ -1531,7 +1529,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
 
                   {/* Paginação */}
                   {totalPages > 1 && (
-                    <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/85 backdrop-blur-xl flex items-center justify-between text-xs">
+                    <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-white/[0.11] bg-white/80 dark:bg-[#1e1e21]/85 backdrop-blur-xl flex items-center justify-between text-xs">
                       <span className="text-slate-500 dark:text-zinc-400 text-[11px] font-mono tabular-nums">
                         Página {page} de {totalPages}
                       </span>
@@ -1638,9 +1636,9 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="w-full max-w-sm rounded-[28px] border border-black/[0.08] dark:border-white/[0.1] bg-white/95 dark:bg-[#16161a]/95 backdrop-blur-2xl p-6 shadow-2xl space-y-4 text-[#1d1d1f] dark:text-[#f5f5f7]"
+              className="w-full max-w-sm rounded-[28px] border border-black/[0.08] dark:border-white/[0.1] bg-white/95 dark:bg-[#1e1e21]/95 backdrop-blur-2xl p-6 shadow-2xl space-y-4 text-[#1d1d1f] dark:text-[#f5f5f7]"
             >
-              <div className="flex items-center justify-between border-b border-black/[0.05] dark:border-white/[0.06] pb-3">
+              <div className="flex items-center justify-between border-b border-black/[0.05] dark:border-white/[0.09] pb-3">
                 <div>
                   <h3 className="text-base font-semibold text-[#1d1d1f] dark:text-white">
                     {empresaAcaoModal.nome}

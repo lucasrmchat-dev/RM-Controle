@@ -63,9 +63,9 @@ export function ModalEtapas({ aberto, onFechar, bloqueado = false, titulo, subti
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reduzir ? { opacity: 0 } : { opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.32, ease: EASE }}
-            className={`w-full ${largura} max-h-[94dvh] sm:max-h-[90vh] flex flex-col rounded-t-[28px] sm:rounded-[28px] bg-[#fbfbfa] dark:bg-[#151517] border border-black/[0.08] dark:border-white/[0.1] shadow-2xl text-[#1d1d1f] dark:text-white`}
+            className={`w-full ${largura} max-h-[94dvh] sm:max-h-[90vh] flex flex-col rounded-t-[28px] sm:rounded-[28px] bg-[#fbfbfa] dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] shadow-2xl text-[#1d1d1f] dark:text-white`}
           >
-            <header className="flex items-start justify-between gap-4 px-6 sm:px-8 pt-6 sm:pt-7 pb-5 border-b border-black/[0.06] dark:border-white/[0.08]">
+            <header className="flex items-start justify-between gap-4 px-6 sm:px-8 pt-6 sm:pt-7 pb-5 border-b border-black/[0.06] dark:border-white/[0.11]">
               <div className="min-w-0">
                 {contexto && <div className="mb-2">{contexto}</div>}
                 <h2 id={idTitulo} className="text-xl sm:text-2xl font-bold tracking-tight">{titulo}</h2>
@@ -83,7 +83,7 @@ export function ModalEtapas({ aberto, onFechar, bloqueado = false, titulo, subti
             </header>
             <div className="flex-1 overflow-y-auto px-6 sm:px-8 py-6">{children}</div>
             {rodape && (
-              <footer className="px-6 sm:px-8 py-4 border-t border-black/[0.06] dark:border-white/[0.08] bg-white/60 dark:bg-white/[0.02] sm:rounded-b-[28px]">
+              <footer className="px-6 sm:px-8 py-4 border-t border-black/[0.06] dark:border-white/[0.11] bg-white/60 dark:bg-white/[0.02] sm:rounded-b-[28px]">
                 {rodape}
               </footer>
             )}
@@ -210,7 +210,7 @@ export function Combobox({ id, placeholder, opcoes, renderOpcao, onEscolher, opc
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.14 }}
-            className="absolute z-30 left-0 right-0 top-full mt-1.5 max-h-64 overflow-y-auto rounded-xl border border-black/[0.1] dark:border-white/[0.14] bg-white dark:bg-[#1c1c20] shadow-xl p-1.5"
+            className="absolute z-30 left-0 right-0 top-full mt-1.5 max-h-64 overflow-y-auto rounded-xl border border-black/[0.1] dark:border-white/[0.14] bg-white dark:bg-[#1e1e21] shadow-xl p-1.5"
           >
             {filtradas.map((o, i) => (
               <li
@@ -237,7 +237,7 @@ export function Combobox({ id, placeholder, opcoes, renderOpcao, onEscolher, opc
                   e.preventDefault();
                   escolher(filtradas.length);
                 }}
-                className={`mt-1 px-3 py-2.5 rounded-lg cursor-pointer border-t border-black/[0.06] dark:border-white/[0.08] flex items-center gap-2.5 text-sm font-semibold text-[#4d7c0f] dark:text-[#84cc16] ${
+                className={`mt-1 px-3 py-2.5 rounded-lg cursor-pointer border-t border-black/[0.06] dark:border-white/[0.11] flex items-center gap-2.5 text-sm font-semibold text-[#4d7c0f] dark:text-[#84cc16] ${
                   destaque === filtradas.length ? 'bg-[#4d7c0f]/[0.08] dark:bg-[#84cc16]/[0.1]' : ''
                 }`}
               >

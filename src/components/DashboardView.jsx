@@ -303,7 +303,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
 
       {/* Trilho de KPIs Mobile (Liquid Glass Apple) - Otimizado para iPhone e iPad */}
       <div className="lg:hidden grid grid-cols-2 sm:grid-cols-4 gap-2.5 w-full mb-2">
-        <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs">
+        <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] shadow-xs">
           <div className="flex items-center justify-between text-slate-400 mb-1">
             <span className="text-[10px] font-semibold uppercase tracking-wider font-mono">Total</span>
             <ChartBarIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16]" />
@@ -336,7 +336,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
           </div>
         </div>
 
-        <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs">
+        <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] shadow-xs">
           <div className="flex items-center justify-between text-slate-400 mb-1">
             <span className="text-[10px] font-semibold uppercase tracking-wider font-mono">TMA</span>
             <ClockIcon className="w-3.5 h-3.5 text-slate-400" />
@@ -367,10 +367,10 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-              className="space-y-2.5 rounded-3xl p-2 sm:p-2.5 border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/85 backdrop-blur-xl shadow-xs"
+              className="space-y-2.5 rounded-3xl p-2 sm:p-2.5 border border-black/[0.06] dark:border-white/[0.11] bg-white/80 dark:bg-[#1e1e21]/85 backdrop-blur-xl shadow-xs"
             >
               {/* Botão de Expansão Manual */}
-              <div className="flex justify-center pb-1 border-b border-black/[0.04] dark:border-white/[0.05]">
+              <div className="flex justify-center pb-1 border-b border-black/[0.04] dark:border-white/[0.09]">
                 <button
                   type="button"
                   onClick={() => setIndicadoresRecolhidos(false)}
@@ -383,7 +383,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
 
               {/* 1. Total Chamados */}
               <div
-                className="rounded-2xl p-2 border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.03] flex flex-col items-center justify-center text-center shadow-xs cursor-default group relative"
+                className="rounded-2xl p-2 border border-black/[0.06] dark:border-white/[0.11] bg-black/[0.02] dark:bg-white/[0.03] flex flex-col items-center justify-center text-center shadow-xs cursor-default group relative"
                 title={`Total de Chamados no período: ${metricas.totalChamados}`}
               >
                 <ChartBarIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16] mb-1" />
@@ -426,7 +426,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
 
               {/* 4. TMA */}
               <div
-                className="rounded-2xl p-2 border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.03] flex flex-col items-center justify-center text-center shadow-xs cursor-default group relative"
+                className="rounded-2xl p-2 border border-black/[0.06] dark:border-white/[0.11] bg-black/[0.02] dark:bg-white/[0.03] flex flex-col items-center justify-center text-center shadow-xs cursor-default group relative"
                 title={`Tempo Médio de Atendimento: ${metricas.tempoMedioMinutos} minutos`}
               >
                 <ClockIcon className="w-3.5 h-3.5 text-slate-400 mb-1" />
@@ -451,7 +451,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
               className="space-y-3.5"
             >
               <div className="flex items-center justify-between px-1">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500 font-mono">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-400 font-mono">
                   Indicadores Principais
                 </span>
                 <div className="flex items-center gap-1.5">
@@ -459,7 +459,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                   <button
                     type="button"
                     onClick={() => setIndicadoresRecolhidos(true)}
-                    className="p-1 rounded-lg border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.04] text-slate-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-xs cursor-pointer"
+                    className="p-1 rounded-lg border border-black/[0.06] dark:border-white/[0.11] bg-black/[0.02] dark:bg-white/[0.04] text-slate-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-xs cursor-pointer"
                     title="Recolher indicadores principais"
                   >
                     <span>⤡</span>
@@ -474,7 +474,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                   layoutId="shared-kpi-card-1"
                   whileHover={{ y: -2 }}
                   transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                  className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2"
+                  className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] shadow-xs space-y-2"
                 >
                   <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
                     <span className="text-xs font-semibold uppercase tracking-wider">Total de Chamados</span>
@@ -495,7 +495,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                   layoutId="shared-kpi-card-2"
                   whileHover={{ y: -2 }}
                   transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                  className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2"
+                  className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] shadow-xs space-y-2"
                 >
                   <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
                     <span className="text-xs font-semibold uppercase tracking-wider">Resolvidos</span>
@@ -519,7 +519,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                   whileHover={{ y: -2 }}
                   transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
                   onClick={() => onNavigate && onNavigate('fila')}
-                  className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2 cursor-pointer hover:border-amber-500/40 hover:shadow-md transition-all group"
+                  className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] shadow-xs space-y-2 cursor-pointer hover:border-amber-500/40 hover:shadow-md transition-all group"
                   title="Clique para abrir a Fila de Suporte"
                 >
                   <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
@@ -546,7 +546,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                   layoutId="shared-kpi-card-4"
                   whileHover={{ y: -2 }}
                   transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                  className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-xs space-y-2"
+                  className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] shadow-xs space-y-2"
                 >
                   <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
                     <span className="text-xs font-semibold uppercase tracking-wider">Tempo Médio (TMA)</span>
@@ -571,7 +571,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
         {/* -------------------------------------------------------------------------- */}
         <div className="flex-1 min-w-0 w-full space-y-6">
           {/* Barra de Filtros de Período Estilo Apple */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2.5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/80 backdrop-blur-xl shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2.5 rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white/80 dark:bg-[#1e1e21]/80 backdrop-blur-xl shadow-xs">
         <div className="flex items-center gap-1.5 overflow-x-auto p-0.5">
           <span className="text-xs font-semibold text-slate-500 dark:text-zinc-400 pl-2 pr-1">Período:</span>
           {[
@@ -618,12 +618,12 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
         )}
 
         {/* Filtro por Categoria de Demanda */}
-        <div className="flex items-center gap-2 px-2 border-t sm:border-t-0 sm:border-l border-black/[0.06] dark:border-white/[0.08] pt-2 sm:pt-0">
+        <div className="flex items-center gap-2 px-2 border-t sm:border-t-0 sm:border-l border-black/[0.06] dark:border-white/[0.11] pt-2 sm:pt-0">
           <span className="text-xs font-semibold text-slate-500 dark:text-zinc-400">Departamento:</span>
           <select
             value={filtroCategoria}
             onChange={(e) => setFiltroCategoria(e.target.value)}
-            className="px-3 py-1.5 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-xs font-semibold text-slate-700 dark:text-zinc-200 [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white focus:outline-none cursor-pointer shadow-xs"
+            className="px-3 py-1.5 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-xs font-semibold text-slate-700 dark:text-zinc-200 [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white focus:outline-none cursor-pointer shadow-xs"
           >
             <option value="todas">Todos os Departamentos</option>
             {categoriasLista.map((cat) => (
@@ -638,7 +638,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
           {/* ============================================================================== */}
       {/* SEÇÃO LÚDICA COM MOTION: DESEMPENHO E PRODUTIVIDADE DA EQUIPE */}
       {/* ============================================================================== */}
-      <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-5 shadow-sm">
+      <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <div className="flex items-center gap-2">
@@ -658,7 +658,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
             <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono hidden sm:inline">
               {metricas.metricasColaboradores.length} membros
             </span>
-            <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.06]">
+            <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.09]">
               <button
                 type="button"
                 onClick={() => setProdutividadeViewMode('cards')}
@@ -710,7 +710,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                   className={`rounded-3xl p-5 border transition-all relative overflow-hidden flex flex-col justify-between ${
                     isTopPerformer
                       ? 'border-[#4d7c0f]/40 dark:border-[#84cc16]/40 bg-gradient-to-b from-[#4d7c0f]/[0.05] to-transparent dark:from-[#84cc16]/[0.08] shadow-apple-hover'
-                      : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.01] dark:bg-white/[0.02] hover:bg-white dark:hover:bg-[#16161a] hover:shadow-apple-hover'
+                      : 'border-black/[0.06] dark:border-white/[0.11] bg-black/[0.01] dark:bg-white/[0.02] hover:bg-white dark:hover:bg-[#1e1e21] hover:shadow-apple-hover'
                   }`}
                 >
                   <div>
@@ -744,7 +744,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                     </div>
 
                     {/* Bloco de Suportes Resolvidos */}
-                    <div className="grid grid-cols-2 gap-2.5 p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-black/[0.04] dark:border-white/[0.06] mb-3">
+                    <div className="grid grid-cols-2 gap-2.5 p-3 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.04] dark:border-white/[0.09] mb-3">
                       <div>
                         <span className="text-[10px] font-medium text-slate-400 block">Resolvidos</span>
                         <div className="flex items-baseline gap-1.5 mt-0.5">
@@ -757,7 +757,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                         </div>
                       </div>
 
-                      <div className="border-l border-black/[0.04] dark:border-white/[0.06] pl-2.5">
+                      <div className="border-l border-black/[0.04] dark:border-white/[0.09] pl-2.5">
                         <span className="text-[10px] font-medium text-slate-400 block">Tempo Médio</span>
                         <div className="flex items-baseline gap-1 mt-0.5">
                           <span className="text-xl font-bold font-mono text-[#1d1d1f] dark:text-white tabular-nums">
@@ -784,7 +784,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                   </div>
 
                   {/* Rodapé do Card */}
-                  <div className="pt-3 mt-3 border-t border-black/[0.04] dark:border-white/[0.05] flex items-center justify-between text-[11px] text-slate-400">
+                  <div className="pt-3 mt-3 border-t border-black/[0.04] dark:border-white/[0.09] flex items-center justify-between text-[11px] text-slate-400">
                     <span className="capitalize">{col.papel}</span>
                     {col.em_andamento > 0 ? (
                       <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
@@ -800,8 +800,8 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
             })}
           </div>
         ) : (
-          <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-xs">
-            <div className="grid grid-cols-12 gap-3 px-4 py-2.5 border-b border-black/[0.05] dark:border-white/[0.06] text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 bg-black/[0.01] dark:bg-white/[0.02]">
+          <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] overflow-hidden shadow-xs">
+            <div className="grid grid-cols-12 gap-3 px-4 py-2.5 border-b border-black/[0.05] dark:border-white/[0.09] text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-400 bg-black/[0.01] dark:bg-white/[0.02]">
               <div className="col-span-4 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
                 if (sortProdCol === 'nome') setSortProdDir(d => d === 'asc' ? 'desc' : 'asc');
                 else { setSortProdCol('nome'); setSortProdDir('asc'); }
@@ -832,7 +832,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
               </div>
             </div>
 
-            <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
+            <div className="divide-y divide-black/[0.04] dark:divide-white/[0.09]">
               {[...metricas.metricasColaboradores].sort((a, b) => {
                 let vA = a[sortProdCol];
                 let vB = b[sortProdCol];
@@ -891,7 +891,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
       {/* ============================================================================== */}
       {/* SEÇÃO: EMPRESAS QUE MAIS DEMANDAM SUPORTE */}
       {/* ============================================================================== */}
-      <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-5 shadow-sm">
+      <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <div className="flex items-center gap-2">
@@ -931,7 +931,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
               return (
                 <div
                   key={emp.empresa_id}
-                  className="p-3.5 sm:p-4 rounded-2xl border border-black/[0.04] dark:border-white/[0.06] bg-black/[0.01] dark:bg-white/[0.02] hover:bg-white dark:hover:bg-zinc-900/60 hover:shadow-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  className="p-3.5 sm:p-4 rounded-2xl border border-black/[0.04] dark:border-white/[0.09] bg-black/[0.01] dark:bg-white/[0.02] hover:bg-white dark:hover:bg-[#1e1e21]/60 hover:shadow-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                 >
                   <div className="min-w-0 flex-1 space-y-2">
                     <div className="flex items-center gap-2.5 flex-wrap">
@@ -1002,7 +1002,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
         
         {/* GRÁFICO 1: EVOLUÇÃO DIÁRIA DE CHAMADOS */}
-        <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
+        <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
@@ -1114,7 +1114,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
         </div>
 
         {/* GRÁFICO 2: DISTRIBUIÇÃO DOS MOTIVOS DE SUPORTE (DONUT CHART) */}
-        <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
+        <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
@@ -1216,8 +1216,8 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
       {/* ============================================================================== */}
       {/* HISTÓRICO RECENTE DE ATENDIMENTOS */}
       {/* ============================================================================== */}
-      <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-sm">
-        <div className="p-5 border-b border-black/[0.05] dark:border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] overflow-hidden shadow-sm">
+        <div className="p-5 border-b border-black/[0.05] dark:border-white/[0.09] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
               Histórico Recente de Atendimentos ({chamadosRecentes.length})
@@ -1225,7 +1225,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
             <p className="text-[10px] text-slate-400 font-mono mt-0.5">Auditoria contínua de chamados finalizados</p>
           </div>
 
-          <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.06]">
+          <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.09]">
             <button
               type="button"
               onClick={() => setHistoricoViewMode('cards')}
@@ -1267,7 +1267,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
               const nomeTecnico = ch.tecnico_nome || getNomeTecnico(ch.tecnico_email, ch.atendente_nome || ch.atendente);
               const isConcluido = ch.status === 'finalizado' || ch.status === 'concluido';
               return (
-                <div key={ch.id} className="p-4 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.01] dark:bg-white/[0.02] flex flex-col justify-between gap-3 shadow-xs">
+                <div key={ch.id} className="p-4 rounded-2xl border border-black/[0.06] dark:border-white/[0.11] bg-black/[0.01] dark:bg-white/[0.02] flex flex-col justify-between gap-3 shadow-xs">
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-1.5">
                       <span className="text-xs font-bold text-[#1d1d1f] dark:text-white truncate">{ch.empresa_nome}</span>
@@ -1293,7 +1293,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center justify-between pt-2 border-t border-black/[0.04] dark:border-white/[0.05]">
+                  <div className="flex items-center justify-between pt-2 border-t border-black/[0.04] dark:border-white/[0.09]">
                     <span className="text-[10px] font-mono text-slate-500">
                       Duração: {isConcluido ? formatarDuracao(ch.duracao_segundos || ch.tempo_ativo_segundos) : calcularTempoDecorrido(ch.iniciado_em)}
                     </span>
@@ -1312,7 +1312,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <div className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-black/[0.05] dark:border-white/[0.06] text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 bg-black/[0.01] dark:bg-white/[0.02] min-w-[700px]">
+            <div className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-black/[0.05] dark:border-white/[0.09] text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-400 bg-black/[0.01] dark:bg-white/[0.02] min-w-[700px]">
               <div className="col-span-3 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
                 if (sortHistCol === 'empresa') setSortHistDir(d => d === 'asc' ? 'desc' : 'asc');
                 else { setSortHistCol('empresa'); setSortHistDir('asc'); }
@@ -1351,7 +1351,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
               <div className="col-span-1 text-right">Ação</div>
             </div>
 
-            <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05] min-w-[700px]">
+            <div className="divide-y divide-black/[0.04] dark:divide-white/[0.09] min-w-[700px]">
               {[...chamadosPaginados].sort((a, b) => {
                 if (sortHistCol === 'empresa') {
                   return sortHistDir === 'asc'
@@ -1423,7 +1423,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
 
         {/* Barra de Paginação Apple do Histórico Recente de Atendimentos */}
         {chamadosRecentes.length > 0 && (
-          <div className="px-5 py-3.5 border-t border-black/[0.05] dark:border-white/[0.06] bg-black/[0.015] dark:bg-white/[0.02] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="px-5 py-3.5 border-t border-black/[0.05] dark:border-white/[0.09] bg-black/[0.015] dark:bg-white/[0.02] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2 text-slate-500 dark:text-zinc-400">
               <span>
                 Mostrando <strong>{Math.min(chamadosRecentes.length, (paginaAtual - 1) * itensPorPagina + 1)}</strong> a <strong>{Math.min(chamadosRecentes.length, paginaAtual * itensPorPagina)}</strong> de <strong>{chamadosRecentes.length}</strong> atendimentos
@@ -1439,7 +1439,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                     setItensPorPagina(Number(e.target.value));
                     setPaginaAtual(1);
                   }}
-                  className="px-2.5 py-1 rounded-xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs font-semibold text-[#1d1d1f] dark:text-white cursor-pointer focus:outline-none"
+                  className="px-2.5 py-1 rounded-xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] text-xs font-semibold text-[#1d1d1f] dark:text-white cursor-pointer focus:outline-none"
                 >
                   <option value={5}>5 por página</option>
                   <option value={10}>10 por página</option>
@@ -1481,8 +1481,8 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
       {/* Modal de Detalhes da Demanda por Empresa (quando clicado no Dashboard) */}
       {empresaDetalhesDemandas && (
         <div className="fixed inset-0 w-screen h-screen z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-lg rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] p-6 shadow-2xl space-y-4 text-[#1d1d1f] dark:text-[#f5f5f7]">
-            <div className="flex items-center justify-between border-b border-black/[0.05] dark:border-white/[0.06] pb-3">
+          <div className="w-full max-w-lg rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] p-6 shadow-2xl space-y-4 text-[#1d1d1f] dark:text-[#f5f5f7]">
+            <div className="flex items-center justify-between border-b border-black/[0.05] dark:border-white/[0.09] pb-3">
               <div>
                 <h3 className="text-base font-bold text-[#1d1d1f] dark:text-white">
                   {empresaDetalhesDemandas.empresa_nome}
@@ -1509,7 +1509,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                 .map((ch) => (
                   <div
                     key={ch.id}
-                    className="p-3 rounded-2xl border border-black/[0.05] dark:border-white/[0.06] bg-black/[0.01] dark:bg-white/[0.02] flex items-center justify-between gap-3 text-xs"
+                    className="p-3 rounded-2xl border border-black/[0.05] dark:border-white/[0.09] bg-black/[0.01] dark:bg-white/[0.02] flex items-center justify-between gap-3 text-xs"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
@@ -1551,7 +1551,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                 ))}
             </div>
 
-            <div className="pt-2 flex items-center justify-between border-t border-black/[0.05] dark:border-white/[0.06]">
+            <div className="pt-2 flex items-center justify-between border-t border-black/[0.05] dark:border-white/[0.09]">
               <button
                 onClick={() => {
                   setConfirmDialog({

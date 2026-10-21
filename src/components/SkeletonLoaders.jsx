@@ -22,7 +22,7 @@ export function SkeletonPulse({ className = '', style }) {
  */
 export function CompanyCardSkeleton() {
   return (
-    <div className="p-5 rounded-2xl bg-white/60 dark:bg-zinc-900/40 border border-zinc-200/80 dark:border-zinc-800/80 backdrop-blur-md space-y-4">
+    <div className="p-5 rounded-2xl bg-white/60 dark:bg-[#1e1e21]/40 border border-zinc-200/80 dark:border-zinc-800/80 backdrop-blur-md space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <SkeletonPulse className="w-10 h-10 rounded-xl" />
@@ -79,7 +79,7 @@ export function DashboardMetricsSkeleton() {
       {[1, 2, 3, 4].map((i) => (
         <div
           key={i}
-          className="p-5 rounded-2xl bg-white/60 dark:bg-zinc-900/40 border border-zinc-200/80 dark:border-zinc-800/80 backdrop-blur-md space-y-3"
+          className="p-5 rounded-2xl bg-white/60 dark:bg-[#1e1e21]/40 border border-zinc-200/80 dark:border-zinc-800/80 backdrop-blur-md space-y-3"
         >
           <div className="flex items-center justify-between">
             <SkeletonPulse className="w-24 h-3.5" />
@@ -104,7 +104,7 @@ export function SupportQueueSkeleton({ modo = 'list', linhas = 5 }) {
       <div role="status" aria-busy="true" className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4">
         {rotulo}
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="rounded-2xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-4">
+          <div key={i} className="rounded-2xl p-5 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-4">
             <div className="flex justify-between">
               <SkeletonPulse className="w-20 h-6 rounded-full" />
               <SkeletonPulse className="w-28 h-6 rounded-full" />
@@ -129,13 +129,13 @@ export function SupportQueueSkeleton({ modo = 'list', linhas = 5 }) {
       <div role="status" aria-busy="true" className="flex gap-4 overflow-hidden">
         {rotulo}
         {Array.from({ length: 4 }).map((_, c) => (
-          <div key={c} className="w-[300px] flex-shrink-0 rounded-2xl p-3 border border-black/[0.06] dark:border-white/[0.08] bg-white/70 dark:bg-[#16161a]/70 space-y-3">
+          <div key={c} className="w-[300px] flex-shrink-0 rounded-2xl p-3 border border-black/[0.06] dark:border-white/[0.11] bg-white/70 dark:bg-[#1e1e21]/70 space-y-3">
             <div className="flex items-center gap-2">
               <SkeletonPulse className="w-7 h-7 rounded-full" />
               <SkeletonPulse className="w-28 h-4" />
             </div>
             {Array.from({ length: 3 - (c % 2) }).map((__, i) => (
-              <div key={i} className="rounded-xl p-3 border border-black/[0.05] dark:border-white/[0.06] bg-white dark:bg-[#1a1a20] space-y-2">
+              <div key={i} className="rounded-xl p-3 border border-black/[0.05] dark:border-white/[0.09] bg-white dark:bg-[#1e1e21] space-y-2">
                 <SkeletonPulse className="w-3/4 h-4" />
                 <SkeletonPulse className="w-1/2 h-3" />
                 <SkeletonPulse className="w-full h-8 rounded-full" />
@@ -148,11 +148,11 @@ export function SupportQueueSkeleton({ modo = 'list', linhas = 5 }) {
   }
 
   return (
-    <div role="status" aria-busy="true" className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden">
+    <div role="status" aria-busy="true" className="rounded-2xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] overflow-hidden">
       {rotulo}
-      <div className="h-10 border-b border-black/[0.05] dark:border-white/[0.06] bg-black/[0.015] dark:bg-white/[0.02]" />
+      <div className="h-10 border-b border-black/[0.05] dark:border-white/[0.09] bg-black/[0.015] dark:bg-white/[0.02]" />
       {Array.from({ length: linhas }).map((_, i) => (
-        <div key={i} className="flex items-center gap-4 px-4 py-4 border-b last:border-b-0 border-black/[0.04] dark:border-white/[0.05]">
+        <div key={i} className="flex items-center gap-4 px-4 py-4 border-b last:border-b-0 border-black/[0.04] dark:border-white/[0.09]">
           <SkeletonPulse className="w-16 h-6 rounded-full flex-shrink-0" />
           <div className="flex-1 space-y-1.5 min-w-0">
             <SkeletonPulse className="w-48 max-w-full h-4" />

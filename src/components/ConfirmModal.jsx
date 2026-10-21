@@ -159,7 +159,7 @@ export default function ConfirmModal({
           aria-labelledby={tituloId}
           aria-describedby={mensagemId}
           aria-busy={ocupado}
-          className="relative w-full max-w-md rounded-[32px] border border-black/[0.08] dark:border-white/[0.14] bg-white dark:bg-[#18181b] backdrop-blur-3xl p-6 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] space-y-5 text-[#1d1d1f] dark:text-[#f5f5f7] z-10 overflow-hidden"
+          className="relative w-full max-w-md rounded-[32px] border border-black/[0.08] dark:border-white/[0.14] bg-white dark:bg-[#1e1e21] backdrop-blur-3xl p-6 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] space-y-5 text-[#1d1d1f] dark:text-[#f5f5f7] z-10 overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Brilho sutil no topo */}
@@ -186,7 +186,7 @@ export default function ConfirmModal({
           </div>
 
           {/* Botões de Ação */}
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-black/[0.06] dark:border-white/[0.08]">
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-black/[0.06] dark:border-white/[0.11]">
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}

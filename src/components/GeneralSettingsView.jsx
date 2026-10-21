@@ -26,6 +26,7 @@ import ChannelsManagement from '@/components/ChannelsManagement';
 import ServerConfigView from './ServerConfigView';
 import AuditLogsView from './AuditLogsView';
 import SupportIntegrationSettings from './SupportIntegrationSettings';
+import GoogleAgendaSync from './GoogleAgendaSync';
 import { podeVerConfiguracoesAvancadas, podeAcessarAbaConfiguracao, ROTULOS_PAPEL } from '@/lib/roles';
 import { 
   SparklesIcon, 
@@ -346,9 +347,9 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           {gruposNavegacao.filter((_, idx) => idx === 0 || isAdmin).map((grp, idx) => (
             <div
               key={idx}
-              className="p-4 sm:p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] space-y-3 shadow-xs"
+              className="p-4 sm:p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-3 shadow-xs"
             >
-              <div className="border-b border-black/[0.04] dark:border-white/[0.05] pb-2">
+              <div className="border-b border-black/[0.04] dark:border-white/[0.09] pb-2">
                 <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block mb-1 ${
                   idx === 0 
                     ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20'
@@ -402,7 +403,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           transition={{ duration: 0.2 }}
           className="space-y-6"
         >
-          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] shadow-sm space-y-5">
+          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-sm space-y-5">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
                 Preferência de Interface
@@ -490,10 +491,10 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           transition={{ duration: 0.2 }}
           className="space-y-6"
         >
-          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] shadow-sm space-y-4">
+          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-sm space-y-4">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-400">
                   Notificações em Tempo Real
                 </span>
                 <h3 className="text-lg font-bold text-[#1d1d1f] dark:text-white mt-0.5">
@@ -520,7 +521,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
             <div className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Escopo */}
-                <div className="rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] shadow-sm space-y-4">
+                <div className="rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-sm space-y-4">
                   <div>
                     <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
                       Escopo das Notificações
@@ -542,7 +543,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                           className={`p-3.5 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
                             audioConfig.escopo === item.id
                               ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10'
-                              : 'border-black/[0.06] dark:border-white/[0.08] hover:border-black/20'
+                              : 'border-black/[0.06] dark:border-white/[0.11] hover:border-black/20'
                           }`}
                         >
                           <input
@@ -564,7 +565,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
 
                         {/* Se selecionados for o escopo ativo, exibe checkboxes com os departamentos disponíveis */}
                         {item.id === 'selecionados' && audioConfig.escopo === 'selecionados' && (
-                          <div className="p-3 bg-black/[0.02] dark:bg-white/[0.03] rounded-2xl border border-black/[0.05] dark:border-white/[0.06] space-y-2">
+                          <div className="p-3 bg-black/[0.02] dark:bg-white/[0.03] rounded-2xl border border-black/[0.05] dark:border-white/[0.09] space-y-2">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">
                               Selecione os departamentos a monitorar:
                             </span>
@@ -577,7 +578,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                                     className={`px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all ${
                                       checked
                                         ? 'border-[#4d7c0f]/50 bg-[#4d7c0f]/10 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
-                                        : 'border-black/[0.06] dark:border-white/[0.08] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.03]'
+                                        : 'border-black/[0.06] dark:border-white/[0.11] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.03]'
                                     }`}
                                   >
                                     <input
@@ -604,7 +605,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                   </div>
 
                   {/* Opção de silenciar som para demandas que o próprio usuário abrir */}
-                  <div className="pt-3 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between">
+                  <div className="pt-3 border-t border-black/[0.05] dark:border-white/[0.09] flex items-center justify-between">
                     <div>
                       <span className="text-xs font-bold text-[#1d1d1f] dark:text-white block">
                         Notificar ao Criar Demanda
@@ -626,7 +627,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                 </div>
 
                 {/* Modo de Repetição com Intermitente */}
-                <div className="rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] shadow-sm space-y-4">
+                <div className="rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-sm space-y-4">
                   <div>
                     <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
                       Modo de Repetição do Alerta
@@ -648,7 +649,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                         className={`p-3.5 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
                           audioConfig.modoRepeticao === item.id
                             ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10'
-                            : 'border-black/[0.06] dark:border-white/[0.08] hover:border-black/20'
+                            : 'border-black/[0.06] dark:border-white/[0.11] hover:border-black/20'
                         }`}
                       >
                         <input
@@ -694,7 +695,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                 </div>
 
                 {/* Timbre do Alerta Sonoro */}
-                <div className="lg:col-span-2 rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] shadow-sm space-y-4">
+                <div className="lg:col-span-2 rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-sm space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
@@ -727,7 +728,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                           className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-2 flex flex-col justify-between ${
                             isSel
                               ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10 shadow-sm'
-                              : 'border-black/[0.06] dark:border-white/[0.08] hover:border-black/20 bg-black/[0.01]'
+                              : 'border-black/[0.06] dark:border-white/[0.11] hover:border-black/20 bg-black/[0.01]'
                           }`}
                         >
                           <div className="flex items-start justify-between gap-2">
@@ -754,7 +755,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
               </div>
 
               {/* Botão de Salvar Alterações de Alerta Sonoro */}
-              <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-[#16161a] border border-black/[0.08] dark:border-white/[0.1] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <SparklesIcon className="w-4 h-4 text-[#4d7c0f] dark:text-[#84cc16]" />
                   <span className="text-xs text-slate-600 dark:text-zinc-300">
@@ -796,8 +797,11 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           transition={{ duration: 0.2 }}
           className="space-y-6"
         >
+          {/* Sincronização bidirecional pelo servidor (Google Workspace) */}
+          <GoogleAgendaSync />
+
           {/* Card 1: Formulário Principal de Integração */}
-          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] space-y-6 shadow-sm">
+          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] space-y-6 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2 mb-1">
@@ -854,10 +858,10 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                   <select
                     value={agendaConfig.visualizacaoPadrao || 'nativa'}
                     onChange={(e) => setAgendaConfigState({ ...agendaConfig, visualizacaoPadrao: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 cursor-pointer"
+                    className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 cursor-pointer"
                   >
-                    <option value="nativa" className="dark:bg-zinc-900">Visão Semanal Nativa Apple / RM Controle (Recomendado)</option>
-                    <option value="embed" className="dark:bg-zinc-900">Visão Google Calendar Embutida (iFrame Oficial)</option>
+                    <option value="nativa" className="dark:bg-[#1e1e21]">Visão Semanal Nativa Apple / RM Controle (Recomendado)</option>
+                    <option value="embed" className="dark:bg-[#1e1e21]">Visão Google Calendar Embutida (iFrame Oficial)</option>
                   </select>
                   <p className="text-[11px] text-slate-400">
                     A visão nativa permite cronômetros, contagem regressiva e alertas com som.
@@ -900,7 +904,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
               </div>
 
               {/* Regras de Alerta & Antecedência */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-black/[0.04] dark:border-white/[0.05]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-black/[0.04] dark:border-white/[0.09]">
                 <div className="space-y-1.5">
                   <label className="block font-semibold text-slate-800 dark:text-zinc-200">
                     Antecedência do Alerta Sonoro
@@ -908,13 +912,13 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                   <select
                     value={agendaConfig.minutosAntecedencia || 15}
                     onChange={(e) => setAgendaConfigState({ ...agendaConfig, minutosAntecedencia: parseInt(e.target.value, 10) })}
-                    className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 cursor-pointer"
+                    className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 cursor-pointer"
                   >
-                    <option value={5} className="dark:bg-zinc-900">5 minutos antes da reunião</option>
-                    <option value={10} className="dark:bg-zinc-900">10 minutos antes da reunião</option>
-                    <option value={15} className="dark:bg-zinc-900">15 minutos antes da reunião (Recomendado)</option>
-                    <option value={30} className="dark:bg-zinc-900">30 minutos antes da reunião</option>
-                    <option value={60} className="dark:bg-zinc-900">1 hora antes da reunião</option>
+                    <option value={5} className="dark:bg-[#1e1e21]">5 minutos antes da reunião</option>
+                    <option value={10} className="dark:bg-[#1e1e21]">10 minutos antes da reunião</option>
+                    <option value={15} className="dark:bg-[#1e1e21]">15 minutos antes da reunião (Recomendado)</option>
+                    <option value={30} className="dark:bg-[#1e1e21]">30 minutos antes da reunião</option>
+                    <option value={60} className="dark:bg-[#1e1e21]">1 hora antes da reunião</option>
                   </select>
                 </div>
 
@@ -925,16 +929,16 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                   <select
                     value={agendaConfig.notificarEscopo || 'proprias'}
                     onChange={(e) => setAgendaConfigState({ ...agendaConfig, notificarEscopo: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 cursor-pointer"
+                    className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 cursor-pointer"
                   >
-                    <option value="proprias" className="dark:bg-zinc-900">Apenas reuniões atribuídas a mim (Operador)</option>
-                    <option value="todas" className="dark:bg-zinc-900">Todas as reuniões da equipe (Gestor / Diretoria)</option>
+                    <option value="proprias" className="dark:bg-[#1e1e21]">Apenas reuniões atribuídas a mim (Operador)</option>
+                    <option value="todas" className="dark:bg-[#1e1e21]">Todas as reuniões da equipe (Gestor / Diretoria)</option>
                   </select>
                 </div>
               </div>
 
               {/* Botão Salvar */}
-              <div className="flex items-center justify-between pt-3 border-t border-black/[0.04] dark:border-white/[0.05]">
+              <div className="flex items-center justify-between pt-3 border-t border-black/[0.04] dark:border-white/[0.09]">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-500">
                     Os alertas tocam no navegador com som harmônico e disparam aviso visual com link direto do Meet.
@@ -953,27 +957,27 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           </div>
 
           {/* Card 2: Guia Técnico de Integração e Sincronização */}
-          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] space-y-4 shadow-sm text-xs">
+          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm text-xs">
             <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white flex items-center gap-2">
               <span>📖 Como Obter os Links no seu Google Agenda</span>
             </h4>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-slate-600 dark:text-zinc-300">
-              <div className="p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.06] space-y-1.5">
+              <div className="p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.09] space-y-1.5">
                 <span className="font-bold text-blue-600 dark:text-blue-400 block font-mono">1. Endereço iCal (.ics)</span>
                 <p className="leading-relaxed text-[11px] text-slate-500 dark:text-zinc-400">
                   No Google Agenda, vá em <strong>Configurações da agenda</strong> → clique na agenda desejada (ex: Pedro Alvarez) → role até <strong>Integrar agenda</strong> → copie o campo <strong>"Endereço público no formato iCal"</strong>.
                 </p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.06] space-y-1.5">
+              <div className="p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.09] space-y-1.5">
                 <span className="font-bold text-purple-600 dark:text-purple-400 block font-mono">2. Visualização Embed</span>
                 <p className="leading-relaxed text-[11px] text-slate-500 dark:text-zinc-400">
                   No mesmo bloco <strong>Integrar agenda</strong>, copie a <strong>URL pública para essa agenda</strong> ou o atributo <code>src="..."</code> do campo <strong>Incorporar código</strong>. Ela permite ver o calendário oficial ao vivo na aba Agenda.
                 </p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.06] space-y-1.5">
+              <div className="p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.09] space-y-1.5">
                 <span className="font-bold text-emerald-600 dark:text-emerald-400 block font-mono">3. Sincronização Total 2-Vias (API)</span>
                 <p className="leading-relaxed text-[11px] text-slate-500 dark:text-zinc-400">
                   Para que alterações feitas no RM Controle salvem no Google e vice-versa sem delay, o Google exige credenciais de API (Google Cloud Console → Habilitar <strong>Google Calendar API</strong> → Criar OAuth 2.0 Client ID ou Service Account).
@@ -994,7 +998,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           transition={{ duration: 0.2 }}
           className="space-y-6"
         >
-          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] shadow-sm space-y-5">
+          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-sm space-y-5">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">
                 Segmentação Operacional
@@ -1025,7 +1029,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
             </form>
 
             {/* Lista de Categorias Atuais */}
-            <div className="space-y-2 pt-2 border-t border-black/[0.05] dark:border-white/[0.06]">
+            <div className="space-y-2 pt-2 border-t border-black/[0.05] dark:border-white/[0.09]">
               <div className="flex items-center justify-between text-xs font-semibold text-slate-800 dark:text-zinc-200">
                 <span>Departamentos Cadastrados ({categoriasDemandas.length})</span>
                 <span className="text-[10px] text-slate-400 font-normal">Disponíveis em todo o sistema</span>
@@ -1066,7 +1070,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           transition={{ duration: 0.2 }}
           className="space-y-6"
         >
-          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
+          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
                 Acesso do Suporte
@@ -1108,7 +1112,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
             </form>
           </div>
 
-          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
+          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#4d7c0f] dark:text-[#84cc16]">
                 Validação de Atendimento
@@ -1136,7 +1140,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                     className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start justify-between gap-3 ${
                       ativo
                         ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10'
-                        : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.01] hover:border-black/20'
+                        : 'border-black/[0.06] dark:border-white/[0.11] bg-black/[0.01] hover:border-black/20'
                     }`}
                   >
                     <div>
@@ -1162,7 +1166,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           </div>
 
           {/* Card: Monitoramento de Tempos Operacionais (Saudável, Intermediário e Crítico) */}
-          <div className="p-6 rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] shadow-xs space-y-4">
+          <div className="p-6 rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-xs space-y-4">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 font-mono">
                 Monitoramento Operacional & Níveis de Tempo
@@ -1191,7 +1195,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                     setConfigSuporteState(novo);
                     showToast(`Tempo saudável ajustado para ${v} min.`, 'success');
                   }}
-                  className="w-full px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-xs font-semibold focus:outline-none cursor-pointer"
+                  className="w-full px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-xs font-semibold focus:outline-none cursor-pointer"
                 >
                   <option value={5}>Até 5 minutos</option>
                   <option value={10}>Até 10 minutos (Padrão)</option>
@@ -1214,7 +1218,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                     setConfigSuporteState(novo);
                     showToast(`Tempo intermediário ajustado para ${v} min.`, 'success');
                   }}
-                  className="w-full px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-xs font-semibold focus:outline-none cursor-pointer"
+                  className="w-full px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-xs font-semibold focus:outline-none cursor-pointer"
                 >
                   <option value={15}>Até 15 minutos</option>
                   <option value={20}>Até 20 minutos (Padrão)</option>
@@ -1238,7 +1242,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                     setConfigSuporteState(novo);
                     showToast(`Tempo crítico ajustado para ${v} min.`, 'success');
                   }}
-                  className="w-full px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-xs font-semibold focus:outline-none cursor-pointer"
+                  className="w-full px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-xs font-semibold focus:outline-none cursor-pointer"
                 >
                   <option value={20}>Acima de 20 minutos</option>
                   <option value={25}>Acima de 25 minutos</option>
@@ -1250,7 +1254,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
             </div>
           </div>
           {/* Card: URLs de Acesso aos Servidores (Servidor 1 e Servidor 2) */}
-          <div className="p-6 rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#16161a] shadow-xs space-y-4">
+          <div className="p-6 rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-xs space-y-4">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-mono">
                 Redirecionamento Rápido de Suporte
@@ -1265,7 +1269,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
               {/* Servidor 1 */}
-              <div className="p-4 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.015] dark:bg-white/[0.02] space-y-2">
+              <div className="p-4 rounded-2xl border border-black/[0.06] dark:border-white/[0.11] bg-black/[0.015] dark:bg-white/[0.02] space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-[#1d1d1f] dark:text-white">Servidor 1 (Principal)</span>
                   <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
@@ -1275,12 +1279,12 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                   placeholder="https://acesso.suaempresa.com.br"
                   value={servidoresConfig.servidor_1_url || ''}
                   onChange={(e) => setServidoresConfigState({ ...servidoresConfig, servidor_1_url: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none"
+                  className="w-full px-3.5 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none"
                 />
               </div>
 
               {/* Servidor 2 */}
-              <div className="p-4 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.015] dark:bg-white/[0.02] space-y-2">
+              <div className="p-4 rounded-2xl border border-black/[0.06] dark:border-white/[0.11] bg-black/[0.015] dark:bg-white/[0.02] space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-[#1d1d1f] dark:text-white">Servidor 2 (Secundário)</span>
                   <span className="w-2 h-2 rounded-full bg-purple-500"></span>
@@ -1290,7 +1294,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                   placeholder="https://acesso2.suaempresa.com.br"
                   value={servidoresConfig.servidor_2_url || ''}
                   onChange={(e) => setServidoresConfigState({ ...servidoresConfig, servidor_2_url: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none"
+                  className="w-full px-3.5 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none"
                 />
               </div>
             </div>

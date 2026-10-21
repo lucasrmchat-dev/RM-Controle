@@ -271,7 +271,7 @@ export default function NovaDemandaModal({
         </div>
 
         {/* COLUNA 2: sobre a demanda */}
-        <div className="lg:pl-12 lg:border-l border-black/[0.06] dark:border-white/[0.08]">
+        <div className="lg:pl-12 lg:border-l border-black/[0.06] dark:border-white/[0.11]">
           <Etapa
             numero={3}
             titulo="Sobre a demanda"

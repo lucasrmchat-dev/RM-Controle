@@ -109,7 +109,7 @@ export default function ChannelsManagement() {
       )}
 
       {/* Formulário Novo Canal Estilo Apple */}
-      <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-sm">
+      <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] shadow-sm">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 mb-4">
           Cadastrar Novo Tipo de Canal
         </h3>
@@ -182,7 +182,7 @@ export default function ChannelsManagement() {
           </h3>
 
           {/* Alternador de Visualização Cards / Lista */}
-          <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.06]">
+          <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.09]">
             <button
               type="button"
               onClick={() => handleChangeViewMode('grid')}
@@ -217,12 +217,12 @@ export default function ChannelsManagement() {
             {canais.map((c) => (
               <div
                 key={c.id}
-                className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] hover:shadow-apple-hover transition-all flex flex-col justify-between"
+                className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] hover:shadow-apple-hover transition-all flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-2xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.06] flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-2xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.09] flex items-center justify-center">
                         {renderIcon(c)}
                       </div>
                       <div>
@@ -245,7 +245,7 @@ export default function ChannelsManagement() {
                   </p>
                 </div>
 
-                <div className="pt-3 mt-3 border-t border-black/[0.04] dark:border-white/[0.05] flex items-center justify-between text-[11px] text-slate-400">
+                <div className="pt-3 mt-3 border-t border-black/[0.04] dark:border-white/[0.09] flex items-center justify-between text-[11px] text-slate-400">
                   <span>Catálogo Global</span>
                   <span className="text-[#4d7c0f] dark:text-[#84cc16] font-medium">Ativo</span>
                 </div>
@@ -254,15 +254,15 @@ export default function ChannelsManagement() {
           </div>
         ) : (
           /* Visualização em Lista / Tabela Apple */
-          <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] overflow-hidden shadow-sm">
-            <div className="hidden sm:grid grid-cols-12 gap-3 px-5 py-3 border-b border-black/[0.05] dark:border-white/[0.06] text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 bg-black/[0.01] dark:bg-white/[0.02]">
+          <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] overflow-hidden shadow-sm">
+            <div className="hidden sm:grid grid-cols-12 gap-3 px-5 py-3 border-b border-black/[0.05] dark:border-white/[0.09] text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-400 bg-black/[0.01] dark:bg-white/[0.02]">
               <div className="col-span-4">Canal de Atendimento</div>
               <div className="col-span-2">Categoria Técnica</div>
               <div className="col-span-4">Descrição / Requisitos</div>
               <div className="col-span-2 text-right">Status</div>
             </div>
 
-            <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
+            <div className="divide-y divide-black/[0.04] dark:divide-white/[0.09]">
               {canais.map((c) => (
                 <div key={c.id} className="p-4 sm:px-5 sm:py-3.5 flex flex-col sm:grid sm:grid-cols-12 gap-2 sm:gap-3 items-start sm:items-center hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors">
                   <div className="sm:col-span-4 flex items-center gap-2.5 min-w-0">

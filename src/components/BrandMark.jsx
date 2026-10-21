@@ -20,9 +20,10 @@ export function BrandMark({ size = 40, className = '', title = 'RM Controle' }) 
           <stop offset="1" stopColor="#0a0c07" />
         </linearGradient>
       </defs>
-      <rect width="40" height="40" rx="11" fill={`url(#${gradId})`} />
-      <rect x="0.5" y="0.5" width="39" height="39" rx="10.5" stroke="#ffffff" strokeOpacity="0.09" />
-      <g transform="translate(-2.2 0.3)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3.2">
+      <circle cx="20" cy="20" r="20" fill={`url(#${gradId})`} />
+      <circle cx="20" cy="20" r="19.5" stroke="#ffffff" strokeOpacity="0.09" />
+      {/* Monograma levemente reduzido para respirar dentro do círculo */}
+      <g transform="translate(20 20) scale(0.9) translate(-20 -20) translate(-2.2 0.3)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3.2">
         <path d="M13 11V28.5M13 11H19.5A5 5 0 0 1 19.5 21H13" stroke="#f4f2ec" />
         <path d="M17.5 21L22 27.8L31.5 12.5" stroke="#a3e635" />
       </g>

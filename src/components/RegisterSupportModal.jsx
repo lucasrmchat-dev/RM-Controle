@@ -242,7 +242,7 @@ export default function RegisterSupportModal({ isOpen, onClose, empresaPreSeleci
           </Etapa>
         </div>
 
-        <div className="lg:pl-12 lg:border-l border-black/[0.06] dark:border-white/[0.08]">
+        <div className="lg:pl-12 lg:border-l border-black/[0.06] dark:border-white/[0.11]">
           <Etapa numero={3} titulo="Detalhes" descricao="Quando aconteceu e o que foi feito." estado={!etapa2Ok ? 'travada' : resumo.trim() ? 'concluida' : 'ativa'} ultima>
             <div className="space-y-5">
               <div>

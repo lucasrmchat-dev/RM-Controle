@@ -149,7 +149,7 @@ export default function KnowledgeBaseTab({
   return (
     <div className="space-y-5">
       {/* CARD DO TOPO: PESQUISA & CONTROLES DA BASE DE CONHECIMENTO */}
-      <div className="rounded-3xl p-6 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] space-y-4 shadow-sm">
+      <div className="rounded-3xl p-6 border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
@@ -263,7 +263,7 @@ export default function KnowledgeBaseTab({
             exit={{ opacity: 0, y: 15, scale: 0.98 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
             onSubmit={handleSalvarSolucao} 
-            className="space-y-5 p-6 sm:p-7 rounded-3xl border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] shadow-sm"
+            className="space-y-5 p-6 sm:p-7 rounded-3xl border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] shadow-sm"
           >
             <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs space-y-1">
               <span className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
@@ -310,7 +310,7 @@ export default function KnowledgeBaseTab({
                 <select
                   value={novoTipo}
                   onChange={(e) => setNovoTipo(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-[#1a1a20] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white cursor-pointer"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white cursor-pointer"
                 >
                   <option value="Envio de Mensagem">Envio de Mensagem</option>
                   <option value="Desconexão de Instância">Desconexão de Instância</option>
@@ -363,7 +363,7 @@ export default function KnowledgeBaseTab({
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-black/[0.05] dark:border-white/[0.06]">
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-black/[0.05] dark:border-white/[0.09]">
               <button
                 type="button"
                 onClick={() => setIsNovaSolucaoOpen(false)}
@@ -419,7 +419,7 @@ export default function KnowledgeBaseTab({
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                     <span>Soluções Encontradas ({solucoes.length})</span>
                   </div>
-                  <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.06]">
+                  <div className="flex items-center gap-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.09]">
                     <button
                       type="button"
                       onClick={() => setKbViewMode('cards')}
@@ -451,7 +451,7 @@ export default function KnowledgeBaseTab({
 
                 <AnimatePresence mode="popLayout">
                   {solucoes.length === 0 ? (
-              <div className="p-10 rounded-3xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#16161a] text-center space-y-3 shadow-xs">
+              <div className="p-10 rounded-3xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#1e1e21] text-center space-y-3 shadow-xs">
                 <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto">
                   <LightBulbIcon className="w-6 h-6" />
                 </div>
@@ -490,7 +490,7 @@ export default function KnowledgeBaseTab({
                         className={`w-full rounded-3xl p-5 sm:p-6 border space-y-4 relative group flex flex-col justify-between shadow-xs transition-all ${
                           isDestaEmpresa
                             ? 'border-emerald-500/35 dark:border-emerald-500/25 bg-emerald-500/[0.02] dark:bg-emerald-500/[0.04]'
-                            : 'border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a]'
+                            : 'border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21]'
                         }`}
                       >
                         <div>
@@ -502,7 +502,7 @@ export default function KnowledgeBaseTab({
                                     {s.erro_codigo}
                                   </span>
                                 )}
-                                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-300 font-semibold border border-black/[0.04] dark:border-white/[0.05]">
+                                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-300 font-semibold border border-black/[0.04] dark:border-white/[0.09]">
                                   {s.tipo_erro}
                                 </span>
 
@@ -551,12 +551,12 @@ export default function KnowledgeBaseTab({
                             )}
                           </div>
 
-                          <div className="w-full p-4 sm:p-5 rounded-2xl bg-slate-50/90 dark:bg-zinc-900/90 border border-black/[0.05] dark:border-white/[0.06] text-xs sm:text-[13px] font-mono text-slate-800 dark:text-zinc-200 whitespace-pre-line leading-relaxed shadow-2xs">
+                          <div className="w-full p-4 sm:p-5 rounded-2xl bg-slate-50/90 dark:bg-[#1e1e21]/90 border border-black/[0.05] dark:border-white/[0.09] text-xs sm:text-[13px] font-mono text-slate-800 dark:text-zinc-200 whitespace-pre-line leading-relaxed shadow-2xs">
                             {s.solucao_passos}
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between pt-3 border-t border-black/[0.04] dark:border-white/[0.06] text-xs">
+                        <div className="flex items-center justify-between pt-3 border-t border-black/[0.04] dark:border-white/[0.09] text-xs">
                           <span className="text-[10px] text-slate-400 font-mono">
                             {s.created_at ? new Date(s.created_at).toLocaleDateString('pt-BR') : 'Registrado'}
                           </span>
@@ -602,7 +602,7 @@ export default function KnowledgeBaseTab({
                         className={`w-full rounded-2xl border p-4 sm:p-5 transition-all shadow-2xs ${
                           isDestaEmpresa
                             ? 'border-emerald-500/35 dark:border-emerald-500/25 bg-emerald-500/[0.02] dark:bg-emerald-500/[0.04]'
-                            : 'border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a]'
+                            : 'border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21]'
                         }`}
                       >
                         {/* Linha Principal do Item */}
@@ -614,7 +614,7 @@ export default function KnowledgeBaseTab({
                                   {s.erro_codigo}
                                 </span>
                               )}
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-300 font-semibold border border-black/[0.04] dark:border-white/[0.05]">
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-300 font-semibold border border-black/[0.04] dark:border-white/[0.09]">
                                 {s.tipo_erro}
                               </span>
 
@@ -640,7 +640,7 @@ export default function KnowledgeBaseTab({
 
                             {/* Preview resumido quando fechado */}
                             {!isExpanded && (
-                              <p className="text-xs text-slate-500 dark:text-zinc-400 font-mono line-clamp-2 leading-relaxed bg-black/[0.015] dark:bg-white/[0.02] p-2 rounded-xl border border-black/[0.03] dark:border-white/[0.04]">
+                              <p className="text-xs text-slate-500 dark:text-zinc-400 font-mono line-clamp-2 leading-relaxed bg-black/[0.015] dark:bg-white/[0.02] p-2 rounded-xl border border-black/[0.03] dark:border-white/[0.09]">
                                 {s.solucao_passos}
                               </p>
                             )}
@@ -685,13 +685,13 @@ export default function KnowledgeBaseTab({
 
                         {/* Conteúdo Expandido do Modo Lista */}
                         {isExpanded && (
-                          <div className="mt-3 pt-3 border-t border-black/[0.05] dark:border-white/[0.06] space-y-2.5">
+                          <div className="mt-3 pt-3 border-t border-black/[0.05] dark:border-white/[0.09] space-y-2.5">
                             {s.contexto && (
                               <p className="text-xs text-slate-500 dark:text-zinc-400 italic">
                                 {s.contexto}
                               </p>
                             )}
-                            <div className="w-full p-4 rounded-xl bg-slate-50/90 dark:bg-zinc-900/90 border border-black/[0.06] dark:border-white/[0.08] text-xs sm:text-[13px] font-mono text-slate-800 dark:text-zinc-200 whitespace-pre-line leading-relaxed shadow-inner">
+                            <div className="w-full p-4 rounded-xl bg-slate-50/90 dark:bg-[#1e1e21]/90 border border-black/[0.06] dark:border-white/[0.11] text-xs sm:text-[13px] font-mono text-slate-800 dark:text-zinc-200 whitespace-pre-line leading-relaxed shadow-inner">
                               {s.solucao_passos}
                             </div>
                             <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono pt-1">

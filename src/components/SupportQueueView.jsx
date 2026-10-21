@@ -1246,6 +1246,46 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
   };
 
   // Abrir demanda: abre o formulário completo já com a empresa escolhida
+  // Ações vindas do cabeçalho compacto (Navbar) quando os botões do topo saem de vista
+  // Os botões do topo estão no cabeçalho? (a Navbar avisa; ao voltar, eles voam de lá para cá)
+  const [acoesNoCabecalho, setAcoesNoCabecalho] = useState(() => (typeof window !== 'undefined' ? Boolean(window.__rmFilaAcoesNoCabecalho) : false));
+  useEffect(() => {
+    const aoMudar = (e) => {
+      const { encaixado, origens } = e.detail || {};
+      setAcoesNoCabecalho(Boolean(encaixado));
+      if (encaixado || !origens) return;
+      // Volta: cada botão sai de onde estava no cabeçalho e desliza até o seu lugar na página
+      requestAnimationFrame(() => {
+        document.querySelectorAll('#fila-acoes-topo [data-acao-fila]').forEach((el) => {
+          const de = origens[el.dataset.acaoFila];
+          if (!de || !el.animate) return;
+          const r = el.getBoundingClientRect();
+          const dx = de.x - (r.left + r.width / 2);
+          const dy = de.y - (r.top + r.height / 2);
+          el.animate([{ transform: `translate(${dx}px, ${dy}px)`, opacity: 0.6 }, { transform: 'translate(0, 0)', opacity: 1 }], {
+            duration: 520,
+            easing: 'cubic-bezier(0.32, 0.72, 0, 1)',
+          });
+        });
+      });
+    };
+    window.addEventListener('rm_fila_acoes_cabecalho', aoMudar);
+    return () => window.removeEventListener('rm_fila_acoes_cabecalho', aoMudar);
+  }, []);
+
+  // (a ref guarda os handlers atuais sem re-inscrever o ouvinte a cada segundo do cronômetro)
+  const acoesCabecalhoRef = useRef({});
+  acoesCabecalhoRef.current = {
+    nova: handleAbrirModalNovoChamado,
+    retroativo: () => onRegistrarRetroativo?.(),
+    empresas: () => onVerEmpresas?.(''),
+  };
+  useEffect(() => {
+    const aoAcionar = (e) => acoesCabecalhoRef.current[e.detail]?.();
+    window.addEventListener('rm_fila_acao', aoAcionar);
+    return () => window.removeEventListener('rm_fila_acao', aoAcionar);
+  }, []);
+
   const handleAbrirDemandaEmpresa = (emp) => setNovaDemanda({ aberto: true, empresaInicial: emp });
 
   // Empresa que não existe: abre o formulário da demanda já com os campos de cadastro da empresa
@@ -1445,10 +1485,12 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Ao rolar, estes botões "voam" para o cabeçalho (Navbar) e ficam ocultos aqui, mantendo o espaço */}
+        <div id="fila-acoes-topo" className={`flex flex-wrap items-center gap-2 ${acoesNoCabecalho ? 'invisible' : ''}`}>
           {onVerEmpresas && (
             <button
               type="button"
+              data-acao-fila="empresas"
               onClick={() => onVerEmpresas('')}
               className="h-10 px-4 rounded-full border border-black/10 dark:border-white/10 bg-white dark:bg-white/[0.04] text-[#1d1d1f] dark:text-white text-xs font-semibold shadow-sm hover:bg-black/[0.03] dark:hover:bg-white/[0.08] flex items-center gap-2 transition-colors cursor-pointer"
               title="Lista completa de empresas, cadastros e filtros"
@@ -1460,6 +1502,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
           {onRegistrarRetroativo && (
             <button
               type="button"
+              data-acao-fila="retroativo"
               onClick={onRegistrarRetroativo}
               className="h-10 px-4 rounded-full border border-black/10 dark:border-white/10 bg-white dark:bg-white/[0.04] text-[#1d1d1f] dark:text-white text-xs font-semibold shadow-sm hover:bg-black/[0.03] dark:hover:bg-white/[0.08] flex items-center gap-2 transition-colors cursor-pointer"
               title="Registrar um atendimento que já foi feito, sem passar pela fila"
@@ -1472,6 +1515,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
           )}
           <button
             type="button"
+            data-acao-fila="nova"
             onClick={handleAbrirModalNovoChamado}
             className="h-10 px-5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold shadow-md shadow-[#4d7c0f]/20 dark:shadow-[#84cc16]/20 hover:opacity-95 flex items-center gap-2 transition-opacity cursor-pointer"
           >
@@ -1507,7 +1551,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
         <div className="min-w-0 w-full space-y-4">
 
           {/* BARRA DE STATUS, VISUALIZAÇÃO E FILTROS */}
-          <div className="relative z-30 rounded-2xl p-2.5 sm:p-3 border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#16161a] shadow-sm space-y-3">
+          <div className="relative z-30 rounded-2xl p-2.5 sm:p-3 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] shadow-sm space-y-3">
             <div className="flex flex-col xl:flex-row xl:items-center gap-3">
 
               {/* Status com contagem (substitui o antigo painel lateral de métricas) */}
@@ -1529,7 +1573,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                       className={`text-left px-3.5 py-2.5 rounded-xl border transition-all cursor-pointer flex-shrink-0 min-w-[148px] lg:min-w-0 ${
                         isSelected
                           ? 'bg-[#1d1d1f] dark:bg-white border-transparent text-white dark:text-[#1d1d1f] shadow-sm'
-                          : 'border-black/[0.06] dark:border-white/[0.08] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-600 dark:text-zinc-300'
+                          : 'border-black/[0.06] dark:border-white/[0.11] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-600 dark:text-zinc-300'
                       }`}
                     >
                       <span className="flex items-center gap-1.5 text-[11px] font-semibold whitespace-nowrap">
@@ -1578,7 +1622,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
             </div>
 
             {/* BARRA REFINADA DE DEPARTAMENTOS E FILTRO DE TÉCNICO (100% SEM SCROLL HORIZONTAL) */}
-            <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-black/[0.05] dark:border-white/[0.06] text-xs">
+            <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-black/[0.05] dark:border-white/[0.09] text-xs">
 
               {/* Filtrar demandas já listadas */}
               <div className="relative w-full md:w-64 flex-shrink-0">
@@ -1590,7 +1634,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
                   placeholder="Filtrar demandas, técnico, etiqueta…"
-                  className="w-full h-8 pl-8 pr-7 rounded-full bg-black/[0.03] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/15 dark:focus:ring-[#84cc16]/15 text-[#1d1d1f] dark:text-white placeholder:text-slate-400"
+                  className="w-full h-8 pl-8 pr-7 rounded-full bg-black/[0.03] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.11] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/15 dark:focus:ring-[#84cc16]/15 text-[#1d1d1f] dark:text-white placeholder:text-slate-400"
                 />
                 {busca && (
                   <button
@@ -1614,7 +1658,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                     className={`px-3.5 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-xs ${
                       filtrosDepartamentos.length > 0
                         ? 'border-[#4d7c0f]/50 bg-[#4d7c0f]/10 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
-                        : 'border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-slate-700 dark:text-zinc-200 hover:border-black/20'
+                        : 'border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-slate-700 dark:text-zinc-200 hover:border-black/20'
                     }`}
                   >
                     <LayersIcon className="w-3.5 h-3.5 text-slate-400" />
@@ -1631,10 +1675,10 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
 
                   {filtroDeptDropdownAberto && (
                     <div
-                      className="absolute top-full left-0 mt-1.5 w-72 rounded-2xl bg-white dark:bg-[#1c1c20] border border-black/[0.1] dark:border-white/[0.15] shadow-2xl p-2 z-50 space-y-1 text-xs"
+                      className="absolute top-full left-0 mt-1.5 w-72 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.1] dark:border-white/[0.15] shadow-2xl p-2 z-50 space-y-1 text-xs"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="flex items-center justify-between px-2.5 py-1 border-b border-black/[0.05] dark:border-white/[0.06] mb-1">
+                      <div className="flex items-center justify-between px-2.5 py-1 border-b border-black/[0.05] dark:border-white/[0.09] mb-1">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
                           Departamentos
                         </span>
@@ -1758,7 +1802,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                   className={`px-3 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-xs ${
                     filtroTecnico !== 'todos'
                       ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300'
-                      : 'border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1a1a20] text-slate-700 dark:text-zinc-200 hover:border-black/20'
+                      : 'border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-slate-700 dark:text-zinc-200 hover:border-black/20'
                   }`}
                 >
                   <div className="w-5 h-5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] flex items-center justify-center flex-shrink-0">
@@ -1781,7 +1825,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                 </button>
 
                 {filtroTecnicoDropdownAberto && (
-                  <div className="absolute right-0 top-full mt-1.5 z-50 w-72 rounded-2xl bg-white dark:bg-[#1c1c20] border border-black/[0.1] dark:border-white/[0.15] shadow-2xl p-2 space-y-1">
+                  <div className="absolute right-0 top-full mt-1.5 z-50 w-72 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.1] dark:border-white/[0.15] shadow-2xl p-2 space-y-1">
                     <input
                       type="text"
                       autoFocus
@@ -1823,7 +1867,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                         {filtroTecnico === 'nao_atribuido' && <CheckIcon className="w-3.5 h-3.5" />}
                       </button>
 
-                      <div className="my-1 border-t border-black/[0.05] dark:border-white/[0.06]" />
+                      <div className="my-1 border-t border-black/[0.05] dark:border-white/[0.09]" />
 
                       {listaTecnicosKanban
                         .filter((t) => {
@@ -1921,8 +1965,8 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
           {!carregado ? (
             <SupportQueueSkeleton modo={filaViewMode} />
           ) : chamadosFiltrados.length === 0 ? (
-            <div className="relative z-10 rounded-3xl p-12 border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#16161a]/85 backdrop-blur-xl text-center space-y-4 shadow-sm">
-              <div className="w-12 h-12 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] text-slate-400 dark:text-zinc-500 flex items-center justify-center mx-auto">
+            <div className="relative z-10 rounded-3xl p-12 border border-black/[0.06] dark:border-white/[0.11] bg-white/80 dark:bg-[#1e1e21]/85 backdrop-blur-xl text-center space-y-4 shadow-sm">
+              <div className="w-12 h-12 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] text-slate-400 dark:text-zinc-400 flex items-center justify-center mx-auto">
                 <SupportQueueIcon className="w-6 h-6" />
               </div>
               <h3 className="text-base font-semibold text-[#1d1d1f] dark:text-white">
@@ -2003,9 +2047,9 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="w-full max-w-lg rounded-3xl border border-black/10 dark:border-white/15 bg-white dark:bg-[#16161a] p-6 shadow-2xl space-y-5 my-auto"
+            className="w-full max-w-lg rounded-3xl border border-black/10 dark:border-white/15 bg-white dark:bg-[#1e1e21] p-6 shadow-2xl space-y-5 my-auto"
           >
-            <div className="flex items-center justify-between pb-3 border-b border-black/6 dark:border-white/8">
+            <div className="flex items-center justify-between pb-3 border-b border-black/6 dark:border-white/[0.11]">
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
@@ -2030,7 +2074,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
             </div>
 
             {/* Dados do Chamado */}
-            <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/6 dark:border-white/8 space-y-1.5 text-xs">
+            <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/6 dark:border-white/[0.11] space-y-1.5 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-slate-500">Empresa:</span>
                 <strong className="text-[#1d1d1f] dark:text-white">{chamadoParaReatribuir.empresa_nome}</strong>
@@ -2090,7 +2134,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                   onClick={() => handleConfirmarReatribuicao({ email: 'geral', nome: 'Fila Geral' })}
                   className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
                     (!chamadoParaReatribuir?.atribuido_a || chamadoParaReatribuir?.atribuido_a === 'geral')
-                      ? 'border-black/5 dark:border-white/5 opacity-50 cursor-not-allowed bg-black/[0.01]'
+                      ? 'border-black/5 dark:border-white/[0.09] opacity-50 cursor-not-allowed bg-black/[0.01]'
                       : 'border-black/10 dark:border-white/10 hover:border-blue-500 hover:bg-blue-500/5 dark:hover:bg-blue-500/10'
                   }`}
                 >
@@ -2126,7 +2170,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                       onClick={() => handleConfirmarReatribuicao(tec)}
                       className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
                         isAtual
-                          ? 'border-black/5 dark:border-white/5 opacity-50 cursor-not-allowed bg-black/[0.01]'
+                          ? 'border-black/5 dark:border-white/[0.09] opacity-50 cursor-not-allowed bg-black/[0.01]'
                           : 'border-black/10 dark:border-white/10 hover:border-blue-500 hover:bg-blue-500/5 dark:hover:bg-blue-500/10'
                       }`}
                     >
@@ -2156,7 +2200,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
               </div>
             </div>
 
-            <div className="flex items-center justify-end pt-3 border-t border-black/6 dark:border-white/8">
+            <div className="flex items-center justify-end pt-3 border-t border-black/6 dark:border-white/[0.11]">
               <button
                 type="button"
                 onClick={() => setChamadoParaReatribuir(null)}

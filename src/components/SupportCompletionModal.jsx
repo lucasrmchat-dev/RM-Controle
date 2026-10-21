@@ -392,7 +392,7 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
           </Etapa>
         </div>
 
-        <div className="lg:pl-12 lg:border-l border-black/[0.06] dark:border-white/[0.08]">
+        <div className="lg:pl-12 lg:border-l border-black/[0.06] dark:border-white/[0.11]">
           {/* 3. TEMPO */}
           <Etapa numero={3} titulo="Tempo" descricao="Calculado pelo cronômetro. Ajuste se algo ficou aberto sem querer." estado="concluida" ultima={!explicar || semResposta}>
             <div className="grid grid-cols-2 gap-2.5">

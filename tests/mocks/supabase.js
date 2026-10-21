@@ -27,6 +27,41 @@ export const db = {
   },
 };
 
+function dividirTopo(expr) {
+  const partes = [];
+  let nivel = 0;
+  let aspas = false;
+  let atual = '';
+  for (const ch of expr) {
+    if (ch === '"') aspas = !aspas;
+    if (!aspas && ch === '(') nivel += 1;
+    if (!aspas && ch === ')') nivel -= 1;
+    if (!aspas && nivel === 0 && ch === ',') {
+      partes.push(atual);
+      atual = '';
+    } else atual += ch;
+  }
+  if (atual) partes.push(atual);
+  return partes;
+}
+
+function compilarCondicao(c) {
+  if (c.startsWith('and(')) {
+    const filhos = dividirTopo(c.slice(4, -1)).map(compilarCondicao);
+    return (r) => filhos.every((f) => f(r));
+  }
+  const [col, op, ...resto] = c.split('.');
+  const valor = resto.join('.').replace(/^"|"$/g, '');
+  if (op === 'is' && valor === 'null') return (r) => (r[col] ?? null) === null;
+  if (op === 'eq') return (r) => String(r[col] ?? '') === valor;
+  throw new Error(`Filtro or não suportado no mock: ${c}`);
+}
+
+const compilarOu = (expr) => {
+  const filhos = dividirTopo(expr).map(compilarCondicao);
+  return (r) => filhos.some((f) => f(r));
+};
+
 class Query {
   constructor(table) {
     this.table = table;
@@ -39,6 +74,9 @@ class Query {
   update(obj) { this.op = 'update'; this.payload = obj; return this; }
   upsert(row, opts = {}) { this.op = 'upsert'; this.payload = Array.isArray(row) ? row : [row]; this.conflito = opts.onConflict || 'id'; return this; }
   gte(col, val) { this.filters.push((r) => (r[col] ?? '') >= val); return this; }
+  lte(col, val) { this.filters.push((r) => (r[col] ?? '') <= val); return this; }
+  // Subconjunto do filtro "or" do PostgREST: col.eq.valor, col.eq."valor", col.is.null e and(...)
+  or(expr) { this.filters.push(compilarOu(expr)); return this; }
   delete() { this.op = 'delete'; return this; }
   select(colunas) {
     if (typeof colunas === 'string' && colunas.trim() !== '*' && !colunas.includes('(')) {
