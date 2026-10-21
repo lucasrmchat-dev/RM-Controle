@@ -40,7 +40,12 @@ export class ErroGoogle extends Error {
   }
 }
 
-export const googleConfigurado = () => Boolean(process.env.GOOGLE_OAUTH_CLIENT_ID && process.env.GOOGLE_OAUTH_CLIENT_SECRET);
+// Valores colados no painel da Vercel às vezes vêm com espaço, quebra de linha ou aspas: o Google recusaria
+const variavel = (nome) => String(process.env[nome] || '').trim().replace(/^["']|["']$/g, '').trim();
+const idCliente = () => variavel('GOOGLE_OAUTH_CLIENT_ID');
+const segredoCliente = () => variavel('GOOGLE_OAUTH_CLIENT_SECRET');
+
+export const googleConfigurado = () => Boolean(idCliente() && segredoCliente());
 
 // ------------------------------------------------------------------------------
 // Segredos: criptografia dos tokens e assinatura do "state" do OAuth
@@ -96,7 +101,7 @@ export function lerState(state, nonceCookie) {
 export function urlConectar({ state, redirectUri, loginHint }) {
   const u = new URL(URL_AUTORIZACAO);
   u.search = new URLSearchParams({
-    client_id: process.env.GOOGLE_OAUTH_CLIENT_ID,
+    client_id: idCliente(),
     redirect_uri: redirectUri,
     response_type: 'code',
     scope: ESCOPOS.join(' '),
@@ -116,8 +121,8 @@ export async function trocarCodigo(code, redirectUri, fetchImpl = fetch) {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       code,
-      client_id: process.env.GOOGLE_OAUTH_CLIENT_ID,
-      client_secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+      client_id: idCliente(),
+      client_secret: segredoCliente(),
       redirect_uri: redirectUri,
       grant_type: 'authorization_code',
     }),
@@ -149,8 +154,8 @@ async function tokenPara(conta, fetchImpl = fetch) {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_id: process.env.GOOGLE_OAUTH_CLIENT_ID,
-      client_secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+      client_id: idCliente(),
+      client_secret: segredoCliente(),
       refresh_token: conta.refresh_token,
       grant_type: 'refresh_token',
     }),
