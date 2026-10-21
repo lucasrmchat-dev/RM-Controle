@@ -338,6 +338,109 @@ export function Pilulas({ opcoes, selecionadas, onAlternar, rotuloId, cor = 'esc
   );
 }
 
+/**
+ * Escolha única entre muitas opções sem lista com rolagem: as mais usadas ficam à vista como pílulas,
+ * o resto abre no mesmo lugar e "Outra" vira um campo para criar na hora.
+ * `valor` é { nome, nova } ou null.
+ */
+export function SeletorCategoria({ opcoes, valor, onMudar, rotuloId, visiveis = 8 }) {
+  const [todas, setTodas] = useState(false);
+  const [filtro, setFiltro] = useState('');
+  const [criando, setCriando] = useState(false);
+  const [texto, setTexto] = useState('');
+  const campoRef = useRef(null);
+
+  useEffect(() => {
+    if (criando) campoRef.current?.focus();
+  }, [criando]);
+
+  const termo = normalizarBusca(filtro);
+  const comFiltro = opcoes.length > 12 && todas;
+  let mostradas = termo ? opcoes.filter((o) => normalizarBusca(o).includes(termo)) : todas ? opcoes : opcoes.slice(0, visiveis);
+  // A escolhida continua à vista mesmo fora das mais usadas
+  if (valor?.nome && !valor.nova && !mostradas.includes(valor.nome)) mostradas = [valor.nome, ...mostradas];
+  const ocultas = opcoes.length - visiveis;
+
+  const confirmarNova = () => {
+    const nome = texto.trim().replace(/\s+/g, ' ');
+    if (!nome) return setCriando(false);
+    const existente = opcoes.find((o) => normalizarBusca(o) === normalizarBusca(nome));
+    onMudar(existente ? { nome: existente } : { nome, nova: true });
+    setTexto('');
+    setCriando(false);
+  };
+
+  const pilula = (ativo) =>
+    `h-9 px-3.5 rounded-full text-[13px] font-medium border transition-colors cursor-pointer flex items-center gap-1.5 ${
+      ativo
+        ? 'bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] border-transparent'
+        : 'bg-white dark:bg-white/[0.04] border-black/[0.12] dark:border-white/[0.14] text-slate-700 dark:text-zinc-300 hover:border-black/25 dark:hover:border-white/25'
+    }`;
+  const pilulaSutil =
+    'h-9 px-3.5 rounded-full text-[13px] font-medium border border-dashed border-black/[0.18] dark:border-white/[0.2] text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:border-black/30 dark:hover:border-white/30 transition-colors cursor-pointer';
+
+  return (
+    <div className="space-y-2.5">
+      {comFiltro && (
+        <input
+          type="search"
+          value={filtro}
+          onChange={(e) => setFiltro(e.target.value)}
+          placeholder="Filtrar categorias"
+          aria-label="Filtrar categorias"
+          className={`${classeCampo} h-9 text-[13px]`}
+        />
+      )}
+      <div role="group" aria-labelledby={rotuloId} className="flex flex-wrap gap-2">
+        {mostradas.map((op) => {
+          const ativo = valor?.nome === op && !valor?.nova;
+          return (
+            <button key={op} type="button" aria-pressed={ativo} onClick={() => onMudar(ativo ? null : { nome: op })} className={pilula(ativo)}>
+              {ativo && <CheckIcon className="w-3.5 h-3.5 stroke-[3]" />}
+              {op}
+            </button>
+          );
+        })}
+        {valor?.nova && (
+          <button type="button" aria-pressed onClick={() => onMudar(null)} className={pilula(true)}>
+            <CheckIcon className="w-3.5 h-3.5 stroke-[3]" />
+            {valor.nome}
+            <span className="text-[10px] font-semibold uppercase tracking-wide opacity-70">nova</span>
+          </button>
+        )}
+        {termo && mostradas.length === 0 && <span className="h-9 flex items-center text-[13px] text-slate-500 dark:text-zinc-400">Nenhuma categoria com esse nome.</span>}
+        {!termo && ocultas > 0 && (
+          <button type="button" onClick={() => { setTodas((v) => !v); setFiltro(''); }} className={pilulaSutil}>
+            {todas ? 'Mostrar menos' : `+ ${ocultas} outras`}
+          </button>
+        )}
+        {criando ? (
+          <span className="flex items-center gap-1.5">
+            <input
+              ref={campoRef}
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); confirmarNova(); }
+                if (e.key === 'Escape') { e.stopPropagation(); setCriando(false); setTexto(''); }
+              }}
+              onBlur={confirmarNova}
+              maxLength={60}
+              placeholder="Nome da categoria"
+              aria-label="Nome da nova categoria"
+              className="h-9 w-48 px-3.5 rounded-full text-[13px] border border-black/25 dark:border-white/30 bg-white dark:bg-white/[0.04] outline-none focus:ring-2 focus:ring-black/10 dark:focus:ring-white/15"
+            />
+          </span>
+        ) : (
+          <button type="button" onClick={() => setCriando(true)} className={pilulaSutil}>
+            + Outra
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** Mensagem de erro animada do rodapé. */
 export function ErroRodape({ erro }) {
   return (

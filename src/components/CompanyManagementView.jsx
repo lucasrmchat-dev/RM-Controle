@@ -72,6 +72,7 @@ import {
   deleteSolucaoSuporte
 } from '@/lib/storage';
 import RegisterSupportModal from './RegisterSupportModal';
+import ExcluirEmpresaModal from './ExcluirEmpresaModal';
 
 export default function CompanyManagementView({ empresa, onBack, onUpdated, userEmail, voltarRotulo = 'Voltar para a lista de empresas' }) {
   const [activeTab, setActiveTab] = useState('cockpit'); // 'como_resolver' | 'canais' | 'credenciais' | 'servidor' | 'observacoes' | 'chamados'
@@ -82,6 +83,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
   const [isEditServidoresModalOpen, setIsEditServidoresModalOpen] = useState(false);
   const [servidor1UrlInput, setServidor1UrlInput] = useState('');
   const [servidor2UrlInput, setServidor2UrlInput] = useState('');
+  const [excluirAberto, setExcluirAberto] = useState(false);
   const [cockpitMobileTab, setCockpitMobileTab] = useState('acessos'); // 'acessos' | 'como_resolver' | 'empresa'
 
   // Garante que ao abrir a tela de suporte de uma empresa, a aba padrão seja sempre "Como Resolver Chamado"
@@ -226,7 +228,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
   };
 
   const verificarChamadoAtivo = () => {
-    const ativo = getChamadoAtivo(empresa.id);
+    const ativo = getChamadoAtivo(empresa.id, userEmail);
     setChamadoAtivo(ativo);
   };
 
@@ -1104,7 +1106,11 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.98 }}
                   type="button"
-                  onClick={() => setIsFinalizarModalOpen(true)}
+                  onClick={() => {
+                    // Dados frescos da demanda (solicitante, descrição) no momento de concluir
+                    verificarChamadoAtivo();
+                    setIsFinalizarModalOpen(true);
+                  }}
                   className="w-full py-3 rounded-2xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 flex items-center justify-center gap-2 transition-all cursor-pointer"
                 >
                   <CheckIcon className="w-4 h-4 stroke-[2.5]" />
@@ -2205,6 +2211,23 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 </div>
               </div>
 
+              {/* Ação destrutiva separada do resto, com confirmação por nome e senha */}
+              <div className="rounded-3xl p-6 sm:p-7 border border-black/8 dark:border-white/10 bg-white dark:bg-[#16161a] flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-semibold text-[#0a0a0c] dark:text-white">Excluir empresa</h3>
+                  <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                    Remove a empresa e o que está guardado nela. Pede sua senha e fica registrado na auditoria.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setExcluirAberto(true)}
+                  className="h-10 px-4 rounded-full text-[13px] font-semibold border border-red-600/30 text-red-600 dark:text-red-400 dark:border-red-400/30 hover:bg-red-600 hover:text-white hover:border-transparent dark:hover:bg-red-500 dark:hover:text-white transition-colors cursor-pointer flex-shrink-0"
+                >
+                  Excluir empresa…
+                </button>
+              </div>
+
             </div>
           )}
 
@@ -2980,6 +3003,17 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
       </AnimatePresence>
 
 
+
+      <ExcluirEmpresaModal
+        aberto={excluirAberto}
+        onFechar={() => setExcluirAberto(false)}
+        empresa={empresa}
+        onExcluida={() => {
+          setExcluirAberto(false);
+          onUpdated?.();
+          onBack?.();
+        }}
+      />
 
       {/* Modal de Confirmação Visual Apple / Vercel (Substitui confirm do navegador) */}
       <ConfirmModal

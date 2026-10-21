@@ -15,7 +15,8 @@ import {
   getEmpresas,
   parseIcalEvents,
   saveAgendaEventos,
-  fetchAgendaEventos
+  fetchAgendaEventos,
+  partesLocaisPrazo
 } from '@/lib/storage';
 import { playMeetingAlertTone } from '@/lib/audioNotifications';
 import { showToast } from './ToastNotification';
@@ -64,15 +65,16 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
   const [confirmDialog, setConfirmDialog] = useState(null);
 
   const carregarDados = () => {
-    const eventosNormais = getAgendaEventos() || [];
+    // Cópias antigas do prazo salvas como evento duplicavam o evento derivado da própria demanda abaixo
+    const ehCopiaDePrazo = (e) => Boolean(e?.chamado_id) || /^\[Prazo Demanda\]/.test(e?.titulo || '');
+    const eventosNormais = (getAgendaEventos() || []).filter((e) => !ehCopiaDePrazo(e));
     // Também mescla demandas ativas com prazo de execução ou marcadas como lembrete
     const chamadosFila = (getChamadosSuporte() || []).filter(
       (c) => c && c.prazo_limite && c.status !== 'concluido' && c.status !== 'finalizado'
     );
 
     const eventosChamados = chamadosFila.map((c) => {
-      const dataPrazo = c.prazo_limite.split('T')[0];
-      const horaPrazo = c.prazo_limite.includes('T') ? c.prazo_limite.split('T')[1].slice(0, 5) : '09:00';
+      const { data: dataPrazo, hora: horaPrazo } = partesLocaisPrazo(c.prazo_limite);
       return {
         id: 'evt_demanda_' + c.id,
         titulo: `[${c.is_lembrete ? 'Lembrete' : 'Prazo Demanda'}] ${c.empresa_nome || 'Empresa'}${c.solicitante_nome ? ' — ' + c.solicitante_nome : ''}`,

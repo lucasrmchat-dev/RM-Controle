@@ -986,6 +986,27 @@ export async function iniciarSuporte({
   return novoChamado;
 }
 
+/**
+ * O campo datetime-local entrega "AAAA-MM-DDTHH:mm" sem fuso. Gravado assim, o banco
+ * (timestamptz) lê como UTC e o prazo volta 3h adiantado. Aqui vira ISO com o fuso local.
+ */
+export function prazoParaIso(valor) {
+  if (!valor) return null;
+  const d = new Date(valor);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** Data (AAAA-MM-DD) e hora (HH:mm) locais de um prazo, para agenda e lembretes. */
+export function partesLocaisPrazo(valor) {
+  const d = valor ? new Date(valor) : null;
+  if (!d || Number.isNaN(d.getTime())) return { data: null, hora: '09:00' };
+  const dois = (n) => String(n).padStart(2, '0');
+  return {
+    data: `${d.getFullYear()}-${dois(d.getMonth() + 1)}-${dois(d.getDate())}`,
+    hora: `${dois(d.getHours())}:${dois(d.getMinutes())}`,
+  };
+}
+
 export async function adicionarChamadoFila({
   empresa_id,
   empresa_nome,
@@ -1006,6 +1027,7 @@ export async function adicionarChamadoFila({
 }) {
   const agora = new Date().toISOString();
   const agoraMs = Date.now();
+  prazo_limite = prazoParaIso(prazo_limite);
   const chamados = getLocalData('chamados_suporte', []);
   let categoriasValidas = Array.isArray(categorias)
     ? (categorias.length > 0 ? categorias : ['Suporte'])
@@ -1117,29 +1139,7 @@ export async function adicionarChamadoFila({
       acao: 'iniciou_suporte_tecnico',
       detalhes: { empresa_nome, modulo: 'Fila de Suporte' },
     });
-    // Sincroniza prazo com a Agenda se informado
-    if (prazo_limite) {
-      try {
-        const dataPrazo = prazo_limite.split('T')[0];
-        const horaPrazo = prazo_limite.includes('T') ? prazo_limite.split('T')[1].slice(0, 5) : '09:00';
-        addAgendaEvento({
-          id: 'evt_prazo_' + novoChamado.id,
-          titulo: `[Prazo Demanda] ${empresa_nome || 'Empresa'}${is_lembrete ? ' (Lembrete)' : ''}`,
-          empresa: empresa_nome || 'Empresa',
-          data: dataPrazo,
-          hora_inicio: horaPrazo,
-          hora_fim: horaPrazo,
-          responsavel_email: userEmail,
-          responsavel_nome: getNomeTecnico(userEmail),
-          tipo: is_lembrete ? 'lembrete' : 'suporte',
-          observacoes: observacao_inicial || 'Prazo cadastrado na Fila de Demandas',
-          chamado_id: novoChamado.id,
-        }).catch((eAg) => console.warn('Aviso ao sincronizar prazo com agenda:', eAg));
-      } catch (eAg) {
-        console.warn('Aviso ao sincronizar prazo com agenda:', eAg);
-      }
-    }
-
+    // O prazo aparece na Agenda a partir da própria demanda (AgendaView), sem evento duplicado
     window.dispatchEvent(new Event('suporte_updated'));
     return novoChamado;
   }
@@ -1265,6 +1265,54 @@ export async function atualizarEtiquetasChamado(chamadoId, novasEtiquetas, userE
 
   window.dispatchEvent(new Event('suporte_updated'));
   return chamados[idx];
+}
+
+/**
+ * Troca a descrição de uma demanda guardando as versões anteriores (quem escreveu e quando).
+ * `descricao_historico` lista TODAS as versões, da primeira à atual.
+ */
+export async function editarDescricaoChamado(chamadoId, novoTexto, userEmail = 'admin@rmcontrole.com') {
+  const texto = String(novoTexto || '').trim().slice(0, 4000);
+  const chamados = getLocalData('chamados_suporte', []);
+  const idx = encontrarIndiceChamado(chamados, chamadoId);
+  if (idx === -1) throw new Error('Demanda não encontrada.');
+  const atual = chamados[idx];
+  const anterior = (atual.observacao_inicial || '').trim();
+  if (texto === anterior) return atual;
+
+  const versoes = Array.isArray(atual.descricao_historico) ? [...atual.descricao_historico] : [];
+  // Primeira edição: a descrição da abertura vira a versão 1
+  if (versoes.length === 0 && anterior) {
+    versoes.push({
+      texto: anterior,
+      autor_email: atual.criador_email || '',
+      autor_nome: atual.criador_nome || (atual.criador_email ? getNomeTecnico(atual.criador_email) : ''),
+      em: atual.created_at || atual.tempo_espera_inicio || null,
+    });
+  }
+  versoes.push({ texto, autor_email: userEmail, autor_nome: getNomeTecnico(userEmail), em: new Date().toISOString() });
+  const historico = versoes.slice(-30);
+
+  const res = await atualizarChamadoNuvem(atual.id, { observacoes: texto, descricao_historico: historico }, ['descricao_historico']);
+  if (!res.ok) throw new Error(res.erro || 'Não foi possível salvar a descrição.');
+
+  const lista = getLocalData('chamados_suporte', []);
+  const i = encontrarIndiceChamado(lista, chamadoId);
+  if (i !== -1) {
+    lista[i] = { ...lista[i], observacao_inicial: texto, descricao_historico: historico };
+    registrarMutacaoLocal();
+    setLocalData('chamados_suporte', lista);
+  }
+
+  await logAuditoria({
+    empresaId: atual.empresa_id,
+    usuarioEmail: userEmail,
+    acao: 'editou_descricao_chamado',
+    detalhes: { chamadoId, empresa_nome: atual.empresa_nome, anterior, nova: texto },
+  });
+
+  window.dispatchEvent(new Event('suporte_updated'));
+  return i !== -1 ? lista[i] : atual;
 }
 
 export function adiarAlertaChamado(chamadoId, minutos = 15, userEmail = 'admin@rmcontrole.com') {
@@ -1568,6 +1616,7 @@ export async function fetchChamadosFila() {
             // Campos operacionais preservados mesmo quando o schema remoto ainda não tem as colunas
             is_lembrete: Boolean(d.is_lembrete ?? localMatch?.is_lembrete ?? cats.some((cat) => cat.toLowerCase() === DEPARTAMENTO_LEMBRETES.toLowerCase())),
             prazo_limite: d.prazo_limite || localMatch?.prazo_limite || null,
+            descricao_historico: Array.isArray(d.descricao_historico) && d.descricao_historico.length ? d.descricao_historico : localMatch?.descricao_historico || [],
             // Nuvem primeiro: é o que todos os colaboradores enxergam
             is_fila_geral: d.atribuido_a
               ? d.atribuido_a === 'geral'
@@ -2372,12 +2421,20 @@ export async function registrarSuporteRetroativo({
   return novoChamado;
 }
 
-export function getChamadoAtivo(empresa_id = null) {
-  const chamados = getLocalData('chamados_suporte', []);
-  if (empresa_id) {
-    return chamados.find((c) => c.empresa_id === empresa_id && c.status === 'em_andamento') || null;
-  }
-  return chamados.find((c) => c.status === 'em_andamento') || null;
+/**
+ * Demanda em atendimento da empresa. Com `userEmail`, prefere a que está com essa pessoa
+ * (e a iniciada por último): uma empresa pode ter mais de uma demanda aberta ao mesmo tempo.
+ */
+export function getChamadoAtivo(empresa_id = null, userEmail = null) {
+  const ativos = getLocalData('chamados_suporte', []).filter(
+    (c) => c && c.status === 'em_andamento' && (!empresa_id || c.empresa_id === empresa_id)
+  );
+  if (!ativos.length) return null;
+  const recentes = [...ativos].sort(
+    (a, b) => new Date(b.tempo_ativo_inicio || b.iniciado_em || 0).getTime() - new Date(a.tempo_ativo_inicio || a.iniciado_em || 0).getTime()
+  );
+  const email = (userEmail || '').toLowerCase();
+  return (email && recentes.find((c) => (c.tecnico_email || '').toLowerCase() === email)) || recentes[0];
 }
 
 export function getChamadosAtivos() {
@@ -4068,26 +4125,29 @@ export async function updateEmpresa(id, dados, userEmail = 'admin@rmcontrole.com
   return dados;
 }
 
-export async function deleteEmpresa(id, userEmail = 'admin@rmcontrole.com') {
-  if (isSupabaseConfigured && supabase && id && id.length === 36) {
+/**
+ * Exclusão definitiva de empresa. No banco quem decide é o servidor (/api/empresas/excluir):
+ * confere a senha de quem está excluindo, o nome digitado e registra a auditoria.
+ */
+export async function excluirEmpresa(id, { senha, confirmacaoNome }) {
+  if (isSupabaseConfigured && supabase && isCloudId(id)) {
+    let resposta;
     try {
-      await supabase.from('empresas').delete().eq('id', id);
-    } catch (e) {
-      console.warn('Erro ao excluir empresa no Supabase:', e);
+      resposta = await fetch('/api/empresas/excluir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ empresaId: id, senha, confirmacaoNome }),
+      });
+    } catch {
+      throw new Error('Sem conexão com o servidor. Tente de novo.');
     }
+    const json = await resposta.json().catch(() => ({}));
+    if (!resposta.ok || !json.ok) throw new Error(json.mensagem || 'Não foi possível excluir a empresa.');
   }
 
-  let empresasReais = getLocalData('empresas_reais', []);
-  empresasReais = empresasReais.filter((e) => e.id !== id);
-  setLocalData('empresas_reais', empresasReais);
-
-  await logAuditoria({
-    empresaId: id,
-    usuarioEmail: userEmail,
-    acao: 'excluiu_empresa',
-    detalhes: { id, modulo: 'Gestão de Empresas' },
-  });
-
+  setLocalData('empresas_reais', getLocalData('empresas_reais', []).filter((e) => e.id !== id));
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('empresas_updated'));
   return true;
 }
 

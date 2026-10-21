@@ -27,6 +27,7 @@ import {
   getHistoricoChamados,
   createEmpresa,
   atualizarEtiquetasChamado,
+  editarDescricaoChamado,
   adiarAlertaChamado,
   cancelarAdiarAlertaChamado,
   marcarChamadoEscalonado,
@@ -1392,6 +1393,17 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
       cancelarAdiarAlertaChamado(ch.id, userEmail);
       carregarDados();
       showToast('Alerta sonoro reativado.', 'info');
+    },
+    editarDescricao: async (ch, texto) => {
+      try {
+        await editarDescricaoChamado(ch.id, texto, userEmail);
+        await carregarDados();
+        showToast('Descrição atualizada.', 'success');
+        return true;
+      } catch (err) {
+        showToast(err.message || 'Não foi possível salvar a descrição.', 'error');
+        return false;
+      }
     },
     etiquetas: async (ch, lista) => {
       await atualizarEtiquetasChamado(ch.id, lista, userEmail);

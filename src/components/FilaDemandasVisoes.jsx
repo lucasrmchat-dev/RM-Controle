@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BuildingIcon, CheckIcon, PlayIcon, XMarkIcon, BellOffIcon, UsersIcon, KanbanIcon } from './Icons';
+import { BuildingIcon, CheckIcon, PlayIcon, XMarkIcon, BellOffIcon, UsersIcon, KanbanIcon, EditIcon } from './Icons';
 
 // ==============================================================================
 // ESTADO, COR E PRIORIDADE DE CADA DEMANDA (uma regra só para lista, cards, kanban e painel)
@@ -240,7 +240,7 @@ function AcaoPrincipal({ ch, info, acoes, assumindoId, rotuloLongo = false, chei
       </button>
     );
   }
-  if (info.estado === 'atendimento' && !info.interna) {
+  if (info.estado === 'atendimento' && info.meu && !info.interna) {
     return (
       <button
         type="button"
@@ -373,7 +373,8 @@ function AcoesSecundarias({ chamado, info, acoes, assumindoId, compacta = false 
           <PlayIcon className="w-2.5 h-2.5 fill-current" /> {compacta ? null : 'Só assumir'}
         </button>
       )}
-      {!info.interna && (
+      {/* A empresa só abre para quem está com a demanda; antes disso o caminho é "Assumir" */}
+      {!info.interna && info.meu && (
         <button type="button" onClick={parar(() => acoes.abrirEmpresa(chamado))} className={acaoTexto} title="Abrir empresa" aria-label="Abrir empresa">
           <BuildingIcon className="w-3.5 h-3.5" /> {!compacta && 'Empresa'}
         </button>
@@ -430,6 +431,117 @@ function AcoesSecundarias({ chamado, info, acoes, assumindoId, compacta = false 
   );
 }
 
+/**
+ * Descrição editável. Ao salvar, o texto novo substitui o atual e as versões anteriores
+ * ficam guardadas: um link discreto mostra quem escreveu cada uma e quando.
+ */
+function DescricaoDemanda({ ch, info, acoes, tamanho = 'normal' }) {
+  const [editando, setEditando] = useState(false);
+  const [texto, setTexto] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const [verVersoes, setVerVersoes] = useState(false);
+  const versoes = Array.isArray(ch.descricao_historico) ? ch.descricao_historico : [];
+  const atual = versoes.length > 1 ? versoes[versoes.length - 1] : null;
+  const anteriores = versoes.slice(0, -1).reverse();
+  const podeEditar = info.estado !== 'concluida' && Boolean(acoes.editarDescricao);
+  const classeTexto = tamanho === 'pequeno' ? 'text-[13px] text-slate-700 dark:text-zinc-200' : 'text-[14px] text-slate-800 dark:text-zinc-200';
+
+  const salvar = async () => {
+    if (salvando) return;
+    setSalvando(true);
+    const ok = await acoes.editarDescricao(ch, texto);
+    setSalvando(false);
+    if (ok) setEditando(false);
+  };
+
+  if (editando) {
+    return (
+      <div className="space-y-2">
+        <textarea
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.stopPropagation();
+              setEditando(false);
+            }
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) salvar();
+          }}
+          rows={4}
+          maxLength={4000}
+          autoFocus
+          aria-label="Descrição da demanda"
+          className={`w-full px-3 py-2.5 rounded-xl leading-relaxed resize-y bg-white dark:bg-white/[0.04] ring-1 ring-black/[0.12] dark:ring-white/[0.14] focus:ring-2 focus:ring-black/25 dark:focus:ring-white/30 outline-none ${classeTexto}`}
+        />
+        <div className="flex items-center gap-1.5">
+          <button type="button" onClick={salvar} disabled={salvando || !texto.trim() || texto.trim() === info.descricao} className="h-8 px-3.5 rounded-full text-[13px] font-semibold bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] hover:opacity-90 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed">
+            {salvando ? 'Salvando…' : 'Salvar'}
+          </button>
+          <button type="button" onClick={() => setEditando(false)} disabled={salvando} className={acaoTexto}>
+            Cancelar
+          </button>
+          <span className="ml-auto text-[11px] text-slate-400 hidden sm:inline">A versão atual fica no histórico</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <p className={`leading-relaxed whitespace-pre-wrap ${classeTexto}`}>{info.descricao || <span className="text-slate-400">Sem descrição.</span>}</p>
+      {(atual || podeEditar) && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-1 text-[12px] text-slate-500 dark:text-zinc-400">
+          {atual && (
+            <span className="mr-1">
+              Editada{atual.autor_nome ? ` por ${atual.autor_nome}` : ''} {formatarHora(atual.em)}
+            </span>
+          )}
+          {anteriores.length > 0 && (
+            <button type="button" onClick={() => setVerVersoes((v) => !v)} aria-expanded={verVersoes} className="font-medium text-slate-600 dark:text-zinc-300 hover:text-[#1d1d1f] dark:hover:text-white underline-offset-2 hover:underline cursor-pointer">
+              {verVersoes ? 'Ocultar versões anteriores' : anteriores.length === 1 ? 'Ver versão anterior' : `Ver ${anteriores.length} versões anteriores`}
+            </button>
+          )}
+          {podeEditar && (
+            <button
+              type="button"
+              onClick={() => {
+                setTexto(info.descricao);
+                setEditando(true);
+              }}
+              className="inline-flex items-center gap-1 font-medium text-slate-600 dark:text-zinc-300 hover:text-[#1d1d1f] dark:hover:text-white cursor-pointer ml-auto"
+            >
+              <EditIcon className="w-3 h-3" /> Editar
+            </button>
+          )}
+        </div>
+      )}
+      <AnimatePresence initial={false}>
+        {verVersoes && anteriores.length > 0 && (
+          <motion.ol
+            key="versoes"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            {anteriores.map((v, i) => (
+              <li key={`${v.em}-${i}`} className="mt-2.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] px-3 py-2.5">
+                <p className="text-[11px] text-slate-500 dark:text-zinc-400 mb-1">
+                  {i === anteriores.length - 1 ? 'Original' : `Versão ${anteriores.length - i}`}
+                  {v.autor_nome ? ` · ${v.autor_nome}` : ''}
+                  {v.em ? ` · ${formatarHora(v.em)}` : ''}
+                </p>
+                <p className="text-[13px] leading-relaxed text-slate-600 dark:text-zinc-300 whitespace-pre-wrap">{v.texto}</p>
+              </li>
+            ))}
+          </motion.ol>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 /** Detalhes que se abrem embaixo da linha da lista: aproveita a largura toda, em três colunas. */
 function DetalhesLinha({ ch, info, acoes, assumindoId }) {
   return (
@@ -437,7 +549,7 @@ function DetalhesLinha({ ch, info, acoes, assumindoId }) {
       <div className="min-w-0 space-y-4">
         <div>
           <h4 className="text-[12px] font-medium text-slate-500 dark:text-zinc-400 mb-1.5">Pedido</h4>
-          <p className="text-[14px] leading-relaxed text-slate-800 dark:text-zinc-200 whitespace-pre-wrap">{info.descricao || <span className="text-slate-400">Sem descrição.</span>}</p>
+          <DescricaoDemanda ch={ch} info={info} acoes={acoes} />
         </div>
         <div>
           <h4 className="text-[12px] font-medium text-slate-500 dark:text-zinc-400 mb-1.5">Etiquetas</h4>
@@ -630,7 +742,7 @@ function CartaoDemanda({ ch, ctx, acoes, tempos, assumindoId, aberto = false, ka
           ) : (
             <motion.div key="verso" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }} transition={{ duration: 0.18 }} className="absolute inset-0 flex flex-col" onClick={(e) => e.stopPropagation()}>
               <div className={`flex-1 min-h-0 overflow-y-auto ${pad} pt-3 space-y-2.5`}>
-                <p className="text-[13px] leading-relaxed text-slate-700 dark:text-zinc-200 whitespace-pre-wrap">{info.descricao || <span className="text-slate-400">Sem descrição.</span>}</p>
+                <DescricaoDemanda ch={ch} info={info} acoes={acoes} tamanho="pequeno" />
                 <p className="text-[12px] text-slate-500 dark:text-zinc-400">
                   {info.departamentos.join(', ')}
                   {info.solicitante && <> · pedido por {info.solicitante}</>}

@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   getMotivosSuporte,
+  getHistoricoChamados,
   addMotivoSuporte,
   getEmpresaCredenciais,
   getConfiguracoesSuporte,
@@ -19,6 +20,7 @@ import {
   ModalEtapas,
   Etapa,
   Combobox,
+  SeletorCategoria,
   Escolhido,
   SeloNovo,
   Expandir,
@@ -30,7 +32,7 @@ import {
   classeBotaoSecundario,
   classeBotaoTexto,
 } from './FormularioEtapas';
-import { CheckIcon, ClockIcon, HourglassIcon, TagIcon, UserIcon } from './Icons';
+import { CheckIcon, ClockIcon, HourglassIcon, UserIcon } from './Icons';
 import { showToast } from './ToastNotification';
 
 const DESFECHOS = [
@@ -88,7 +90,13 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
     const cfg = getConfiguracoesSuporte();
     setConfig(cfg);
     setDesfecho('resolvido');
-    setCategorias(getMotivosSuporte().map((m) => ({ id: m.id, nome: m.nome })).filter((m) => m.nome));
+    // Mais usadas primeiro, para que a escolha comum esteja sempre à vista
+    const uso = new Map();
+    (getHistoricoChamados() || []).forEach((h) => {
+      String(h?.motivo || '').split(',').map((m) => normalizarBusca(m.trim())).filter(Boolean).forEach((m) => uso.set(m, (uso.get(m) || 0) + 1));
+    });
+    const nomes = [...new Set(getMotivosSuporte().map((m) => (m.nome || '').trim()).filter(Boolean))];
+    setCategorias(nomes.sort((a, b) => (uso.get(normalizarBusca(b)) || 0) - (uso.get(normalizarBusca(a)) || 0) || a.localeCompare(b, 'pt-BR')));
     setCategoria(null);
 
     // Contatos da empresa (colaboradores + acessos), sem nada pré-selecionado
@@ -107,7 +115,9 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
     setContatos(lista);
     // Quem abriu a demanda já informou o solicitante: vem preenchido
     const jaInformado = (chamado.solicitante_nome || '').trim();
-    setSolicitante(jaInformado && jaInformado !== 'Colaborador da Empresa' ? { nome: jaInformado, detalhe: 'Informado na abertura', novo: false } : null);
+    // Valores genéricos gravados quando ninguém foi informado não contam como solicitante
+    const generico = ['colaborador da empresa', 'colaborador', 'acesso principal'].includes(normalizarBusca(jaInformado));
+    setSolicitante(jaInformado && !generico ? { nome: jaInformado, detalhe: 'Informado na abertura', novo: false } : null);
 
     // Tempos
     const agora = Date.now();
@@ -343,22 +353,10 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
           >
             <div className="space-y-4">
               <div>
-                <span className={classeRotulo}>
+                <span id="cf-categoria" className={classeRotulo}>
                   Categoria do suporte {config.motivo_obrigatorio && <span className="text-red-600 dark:text-red-400">*</span>}
                 </span>
-                {categoria ? (
-                  <Escolhido icone={<TagIcon className="w-4 h-4" />} titulo={categoria.nome} selo={categoria.nova && <SeloNovo>Nova</SeloNovo>} onTrocar={() => setCategoria(null)} />
-                ) : (
-                  <Combobox
-                    id="cf-categoria"
-                    placeholder="Ex.: Redefinição de senha, Instância desconectada…"
-                    opcoes={categorias}
-                    onEscolher={(c) => setCategoria({ nome: c.nome })}
-                    onNova={(nome) => setCategoria({ nome, nova: true })}
-                    opcaoNova={(t) => `Criar categoria “${t}”`}
-                    renderOpcao={(c) => <span className="text-sm font-medium">{c.nome}</span>}
-                  />
-                )}
+                <SeletorCategoria rotuloId="cf-categoria" opcoes={categorias} valor={categoria} onMudar={setCategoria} />
               </div>
 
               <div>
