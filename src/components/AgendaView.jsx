@@ -20,6 +20,7 @@ import { showToast } from './ToastNotification';
 import { ListSkeleton } from './SkeletonLoaders';
 import ConfirmModal from './ConfirmModal';
 import AgendaEventoModal from './AgendaEventoModal';
+import AgendaGradeSemana from './AgendaGradeSemana';
 import { isoDoDia } from './SeletoresTempo';
 import { CheckIcon, RefreshIcon } from './Icons';
 
@@ -150,7 +151,22 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
   const [carregado, setCarregado] = useState(false);
   const [equipe, setEquipe] = useState([]);
   const [empresas, setEmpresas] = useState([]);
-  const [visao, setVisao] = useState('semana'); // 'semana' | 'lista'
+  // 'grade' (horários, como o Google) | 'semana' (cartões por dia) | 'lista'
+  const [visao, setVisao] = useState(() => {
+    // No celular a grade de 7 colunas fica apertada: começa nos cartões (dá para trocar)
+    const padrao = typeof window !== 'undefined' && window.innerWidth < 768 ? 'semana' : 'grade';
+    try {
+      return localStorage.getItem('rm_agenda_visao') || padrao;
+    } catch {
+      return padrao;
+    }
+  });
+  const escolherVisao = (v) => {
+    setVisao(v);
+    try {
+      localStorage.setItem('rm_agenda_visao', v);
+    } catch {}
+  };
   const [pessoa, setPessoa] = useState('todas'); // 'todas' | 'eu' | email
   const [busca, setBusca] = useState('');
   const [referencia, setReferencia] = useState(isoDoDia(new Date()));
@@ -368,6 +384,20 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
       },
     });
 
+  // Arrastar na grade: remarca na hora (otimista) e leva ao Google
+  const moverReuniao = async (evt, novo) => {
+    setEventos((lista) => lista.map((e) => (e.id === evt.id ? { ...e, ...novo } : e)));
+    try {
+      const r = await updateAgendaEvento(evt.id, novo);
+      const quando = `${deIso(novo.data).toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric' }).replace('.', '')}, ${novo.hora_inicio}–${novo.hora_fim}`;
+      showToast(r?.aviso_google || `"${evt.titulo}" remarcada para ${quando}.`, r?.aviso_google ? 'warning' : 'success');
+    } catch (e) {
+      showToast(e.message, 'error');
+    } finally {
+      carregarDados();
+    }
+  };
+
   const marcarRealizada = async (evt) => {
     try {
       await updateAgendaEvento(evt.id, { status: evt.status === 'concluida' ? 'agendada' : 'concluida' });
@@ -450,7 +480,8 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
         <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
           <div role="radiogroup" aria-label="Visualização" className="flex p-1 rounded-full bg-black/[0.04] dark:bg-white/[0.06]">
             {[
-              ['semana', 'Semana'],
+              ['grade', 'Horários'],
+              ['semana', 'Cartões'],
               ['lista', 'Lista'],
             ].map(([id, rotulo]) => (
               <button
@@ -458,7 +489,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
                 type="button"
                 role="radio"
                 aria-checked={visao === id}
-                onClick={() => setVisao(id)}
+                onClick={() => escolherVisao(id)}
                 className={`relative h-8 px-3.5 rounded-full text-[12.5px] font-medium cursor-pointer ${visao === id ? 'text-[#1d1d1f] dark:text-white' : 'text-slate-500 dark:text-zinc-400'}`}
               >
                 {visao === id && (
@@ -498,6 +529,17 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
       {/* Conteúdo */}
       {!carregado ? (
         <ListSkeleton linhas={5} />
+      ) : visao === 'grade' ? (
+        <AgendaGradeSemana
+          dias={dias}
+          porDia={porDia}
+          hojeIso={hojeIso}
+          agora={agora}
+          corDaAgenda={corDaAgenda}
+          onAbrir={abrirEvento}
+          onCriar={(data, hora) => setModal({ data, hora })}
+          onMover={moverReuniao}
+        />
       ) : visao === 'semana' ? (
         <div className="grid grid-cols-1 md:grid-cols-7 gap-2.5">
           {dias.map((dia, i) => {
@@ -609,6 +651,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
         }}
         evento={modal?.evento || null}
         dataInicial={modal?.data || null}
+        horaInicial={modal?.hora || null}
         equipe={equipe}
         empresas={empresas}
         userEmail={userEmail}

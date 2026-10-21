@@ -48,6 +48,23 @@ const segredoCliente = () => variavel('GOOGLE_OAUTH_CLIENT_SECRET');
 
 export const googleConfigurado = () => Boolean(idCliente() && segredoCliente());
 
+/**
+ * Impressão digital da configuração OAuth (para conferir se o servidor publicado usa os mesmos valores
+ * que o local, sem revelar a chave secreta): tamanho + 8 primeiros caracteres do SHA-256.
+ */
+export function diagnosticoOAuth() {
+  const impressao = (v) => (v ? crypto.createHash('sha256').update(v).digest('hex').slice(0, 8) : null);
+  const segredo = segredoCliente();
+  return {
+    id_cliente_final: idCliente().replace('.apps.googleusercontent.com', '').slice(-6) || null,
+    segredo_tamanho: segredo.length,
+    segredo_impressao: impressao(segredo),
+    // Caracteres invisíveis (ex.: espaço de largura zero) copiados junto com a chave
+    segredo_caracteres_estranhos: /[^A-Za-z0-9_-]/.test(segredo),
+    versao_publicada: (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7) || 'local',
+  };
+}
+
 // ------------------------------------------------------------------------------
 // Segredos: criptografia dos tokens e assinatura do "state" do OAuth
 // ------------------------------------------------------------------------------

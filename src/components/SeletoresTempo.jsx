@@ -127,31 +127,96 @@ export function CalendarioMes({ valor, onMudar }) {
 const HORAS = Array.from({ length: 15 }, (_, i) => i + 7); // 07h–21h, horário comercial ampliado
 const MINUTOS = [0, 15, 30, 45];
 
-/** Hora e minuto em botões: dois toques, sem rolar lista. */
+/** Lê "1410", "14:10", "14h10" ou "9" como horário válido (ou null). */
+export function lerHorario(texto) {
+  const limpo = String(texto || '').replace(/[^0-9]/g, '');
+  if (!limpo) return null;
+  let h;
+  let m;
+  if (limpo.length <= 2) {
+    h = Number(limpo);
+    m = 0;
+  } else {
+    h = Number(limpo.slice(0, limpo.length - 2));
+    m = Number(limpo.slice(-2));
+  }
+  if (h > 23 || m > 59) return null;
+  return `${doisDigitos(h)}:${doisDigitos(m)}`;
+}
+
+/** Campo de horário digitável (qualquer minuto), confirmado ao sair do campo ou com Enter. */
+export function CampoHorario({ valor, onMudar, rotulo, id }) {
+  const [texto, setTexto] = useState(valor);
+  const [invalido, setInvalido] = useState(false);
+  React.useEffect(() => setTexto(valor), [valor]);
+  const confirmar = () => {
+    const h = lerHorario(texto);
+    if (!h) {
+      setInvalido(true);
+      setTexto(valor);
+      return;
+    }
+    setInvalido(false);
+    if (h !== valor) onMudar(h);
+    else setTexto(h);
+  };
+  return (
+    <input
+      id={id}
+      inputMode="numeric"
+      value={texto}
+      onChange={(e) => setTexto(e.target.value.slice(0, 5))}
+      onBlur={confirmar}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          confirmar();
+        }
+      }}
+      aria-label={rotulo}
+      aria-invalid={invalido}
+      placeholder="hh:mm"
+      className={`w-[88px] h-10 px-3 rounded-xl text-center text-[15px] font-semibold tabular-nums bg-white dark:bg-white/[0.04] ring-1 outline-none focus:ring-2 focus:ring-[#4d7c0f]/40 ${
+        invalido ? 'ring-rose-400' : 'ring-black/[0.12] dark:ring-white/[0.14]'
+      }`}
+    />
+  );
+}
+
+/** Horário: campo livre (qualquer minuto) + atalhos de hora e minuto em botões. */
 export function SeletorHorario({ valor, onMudar, rotuloId }) {
   const [h, m] = String(valor || '09:00').split(':').map(Number);
-  const foraDaGrade = !HORAS.includes(h) || !MINUTOS.includes(m);
   const pilula = (ativo) =>
     `h-8 rounded-lg text-[13px] tabular-nums cursor-pointer transition-colors ${
       ativo ? 'bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] font-semibold' : 'hover:bg-black/[0.05] dark:hover:bg-white/[0.08] text-[#1d1d1f] dark:text-zinc-100'
     }`;
+  const passo = (delta) => onMudar(horaDe(Math.max(0, Math.min(23 * 60 + 55, h * 60 + m + delta))));
   return (
     <div role="group" aria-labelledby={rotuloId} className="rounded-2xl ring-1 ring-black/[0.08] dark:ring-white/[0.1] bg-white dark:bg-white/[0.03] p-2.5 space-y-2">
-      <div className="grid grid-cols-8 gap-1">
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={() => passo(-5)} aria-label="5 minutos antes" className="w-9 h-9 rounded-full text-lg text-slate-500 hover:bg-black/[0.05] dark:hover:bg-white/[0.08] cursor-pointer">
+          −
+        </button>
+        <CampoHorario valor={valor} onMudar={onMudar} rotulo="Horário de início (digite qualquer horário)" />
+        <button type="button" onClick={() => passo(5)} aria-label="5 minutos depois" className="w-9 h-9 rounded-full text-lg text-slate-500 hover:bg-black/[0.05] dark:hover:bg-white/[0.08] cursor-pointer">
+          +
+        </button>
+        <span className="text-[12px] text-slate-500 dark:text-zinc-400 ml-1">Digite ou escolha abaixo</span>
+      </div>
+      <div className="grid grid-cols-8 gap-1 pt-2 border-t border-black/[0.06] dark:border-white/[0.08]">
         {HORAS.map((hora) => (
-          <button key={hora} type="button" onClick={() => onMudar(horaDe(hora * 60 + (MINUTOS.includes(m) ? m : 0)))} className={pilula(hora === h)} aria-pressed={hora === h}>
+          <button key={hora} type="button" onClick={() => onMudar(horaDe(hora * 60 + m))} className={pilula(hora === h)} aria-pressed={hora === h}>
             {doisDigitos(hora)}h
           </button>
         ))}
       </div>
-      <div className="grid grid-cols-4 gap-1 pt-2 border-t border-black/[0.06] dark:border-white/[0.08]">
+      <div className="grid grid-cols-4 gap-1">
         {MINUTOS.map((min) => (
           <button key={min} type="button" onClick={() => onMudar(horaDe(h * 60 + min))} className={pilula(min === m)} aria-pressed={min === m}>
             :{doisDigitos(min)}
           </button>
         ))}
       </div>
-      {foraDaGrade && <p className="text-[12px] text-slate-500 dark:text-zinc-400 px-1">Horário atual: {valor}</p>}
     </div>
   );
 }
@@ -165,35 +230,72 @@ const DURACOES = [
   [120, '2 h'],
 ];
 
-/** Duração em atalhos; o término é calculado (mínimo de 15 minutos). */
+/** Duração em atalhos ou personalizada (término ou minutos); mínimo de 15 minutos. */
 export function SeletorDuracao({ inicio, fim, onMudar, rotuloId }) {
   const duracao = Math.max(15, minutosDe(fim) - minutosDe(inicio));
+  const padrao = DURACOES.some(([min]) => min === duracao);
+  const [personalizada, setPersonalizada] = useState(!padrao);
+  const [minutosTexto, setMinutosTexto] = useState(String(duracao));
+  React.useEffect(() => setMinutosTexto(String(duracao)), [duracao]);
+  const chip = (ativo) =>
+    `h-9 px-3.5 rounded-full text-[13px] font-medium border cursor-pointer transition-colors ${
+      ativo
+        ? 'bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] border-transparent'
+        : 'bg-white dark:bg-white/[0.04] border-black/[0.12] dark:border-white/[0.14] text-slate-700 dark:text-zinc-300 hover:border-black/25 dark:hover:border-white/25'
+    }`;
+  const definirMinutos = (min) => onMudar(horaDe(minutosDe(inicio) + Math.max(15, Math.min(16 * 60, min))));
   return (
     <div>
       <div role="group" aria-labelledby={rotuloId} className="flex flex-wrap gap-1.5">
         {DURACOES.map(([min, rotulo]) => {
-          const ativo = duracao === min;
+          const ativo = !personalizada && duracao === min;
           return (
             <button
               key={min}
               type="button"
-              onClick={() => onMudar(horaDe(minutosDe(inicio) + min))}
+              onClick={() => {
+                setPersonalizada(false);
+                definirMinutos(min);
+              }}
               aria-pressed={ativo}
-              className={`h-9 px-3.5 rounded-full text-[13px] font-medium border cursor-pointer transition-colors ${
-                ativo
-                  ? 'bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] border-transparent'
-                  : 'bg-white dark:bg-white/[0.04] border-black/[0.12] dark:border-white/[0.14] text-slate-700 dark:text-zinc-300 hover:border-black/25 dark:hover:border-white/25'
-              }`}
+              className={chip(ativo)}
             >
               {rotulo}
             </button>
           );
         })}
+        <button type="button" onClick={() => setPersonalizada(true)} aria-pressed={personalizada} className={chip(personalizada)}>
+          Outra
+        </button>
       </div>
+      {personalizada && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px]">
+          <label className="flex items-center gap-2">
+            <span className="text-slate-500 dark:text-zinc-400">Termina às</span>
+            <CampoHorario
+              valor={horaDe(minutosDe(inicio) + duracao)}
+              onMudar={(h) => definirMinutos(minutosDe(h) - minutosDe(inicio))}
+              rotulo="Horário de término"
+            />
+          </label>
+          <label className="flex items-center gap-2">
+            <span className="text-slate-500 dark:text-zinc-400">ou</span>
+            <input
+              inputMode="numeric"
+              value={minutosTexto}
+              onChange={(e) => setMinutosTexto(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))}
+              onBlur={() => definirMinutos(Number(minutosTexto) || 15)}
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), definirMinutos(Number(minutosTexto) || 15))}
+              aria-label="Duração em minutos"
+              className="w-[64px] h-10 px-2 rounded-xl text-center text-[15px] font-semibold tabular-nums bg-white dark:bg-white/[0.04] ring-1 ring-black/[0.12] dark:ring-white/[0.14] outline-none focus:ring-2 focus:ring-[#4d7c0f]/40"
+            />
+            <span className="text-slate-500 dark:text-zinc-400">minutos</span>
+          </label>
+        </div>
+      )}
       <p className="text-[12.5px] text-slate-500 dark:text-zinc-400 mt-2">
         Das <span className="font-medium text-[#1d1d1f] dark:text-white tabular-nums">{inicio}</span> às{' '}
-        <span className="font-medium text-[#1d1d1f] dark:text-white tabular-nums">{horaDe(minutosDe(inicio) + duracao)}</span>
-        {!DURACOES.some(([min]) => min === duracao) && ` (${duracao} min)`}
+        <span className="font-medium text-[#1d1d1f] dark:text-white tabular-nums">{horaDe(minutosDe(inicio) + duracao)}</span> · {duracao} min
       </p>
     </div>
   );

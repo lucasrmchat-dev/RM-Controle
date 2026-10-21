@@ -260,6 +260,13 @@ export default function GoogleAgendaSync() {
                     Última sincronização: {formatar(st.ultima_sincronizacao)} · Mudanças do Google {st.avisos_em_tempo_real ? 'em tempo real' : 'ao abrir a Agenda'}
                   </p>
                   {st.meu_erro && <p className="text-[12px] text-rose-600 dark:text-rose-400 mt-1">{st.meu_erro}</p>}
+                  {st.meu_erro && st.diagnostico && (
+                    <p className="text-[11.5px] text-slate-500 dark:text-zinc-400 mt-1 font-mono">
+                      Diagnóstico: cliente …{st.diagnostico.id_cliente_final} · chave com {st.diagnostico.segredo_tamanho} caracteres · impressão{' '}
+                      {st.diagnostico.segredo_impressao}
+                      {st.diagnostico.segredo_caracteres_estranhos ? ' · ⚠ caracteres invisíveis na chave' : ''} · versão {st.diagnostico.versao_publicada}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button

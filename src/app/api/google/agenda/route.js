@@ -11,6 +11,7 @@ import {
   salvarAgendasEscolhidas,
   listarAgendasSincronizadas,
   definirAgendaPadrao,
+  diagnosticoOAuth,
   sincronizarTodas,
   desconectar,
   tokenWebhook,
@@ -28,7 +29,7 @@ async function autenticar(request) {
   const email = normalizarEmail(sessao.sub);
   const acesso = await obterAcessoServidor(email);
   if (!acesso.liberado) return { erro: erro('Seu acesso está desativado.', 403) };
-  return { email };
+  return { email, admin: acesso.proprietario || acesso.papel === 'administrador' };
 }
 
 // Situação da integração: a minha conexão e quem da equipe já conectou (nunca devolve tokens)
@@ -50,6 +51,7 @@ export async function GET(request) {
     minha_conta: contas.find((c) => c.email_sistema === quem.email) || null,
     meu_erro: config.erros?.[quem.email] || null,
     minha_falha_conexao: config.falhas_conexao?.[quem.email] || null,
+    ...(quem.admin ? { diagnostico: diagnosticoOAuth() } : {}),
     contas,
   });
 }
