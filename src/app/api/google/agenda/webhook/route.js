@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
-import { googleConfigurado, carregarConfigGoogle, contaDoCanal, sincronizarConta, tokenWebhook } from '@/lib/server/googleAgenda';
+import { googleConfigurado, contaDoCanal, sincronizarConta, tokenWebhook } from '@/lib/server/googleAgenda';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -21,8 +21,7 @@ export async function POST(request) {
   // "sync" é só a confirmação de que o canal foi aberto
   if (request.headers.get('x-goog-resource-state') === 'sync') return new NextResponse(null, { status: 200 });
 
-  const config = await carregarConfigGoogle();
-  const conta = contaDoCanal(config, request.headers.get('x-goog-channel-id'));
+  const conta = await contaDoCanal(request.headers.get('x-goog-channel-id'));
   if (!conta) return new NextResponse(null, { status: 200 });
   try {
     await sincronizarConta(conta);

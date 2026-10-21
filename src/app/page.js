@@ -186,6 +186,32 @@ export default function Home() {
     return () => mq.removeEventListener('change', mudar);
   }, [theme]);
 
+  // Volta do "Conectar Google Agenda": mostra o resultado e leva para onde faz sentido
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get('google_agenda');
+    if (!status) return;
+    window.history.replaceState(null, '', window.location.pathname);
+    if (status === 'conectado') {
+      showToast('Google Agenda conectado. Sua agenda já está sincronizando.', 'success');
+      setSelectedEmpresa(null);
+      setActiveTab('agenda');
+      return;
+    }
+    const motivos = {
+      recusado: 'Você não autorizou o acesso à agenda no Google.',
+      escopo: 'Para sincronizar, marque a permissão de acesso à agenda na tela do Google.',
+      expirou: 'A conexão demorou demais. Tente conectar de novo.',
+      sessao: 'Sua sessão mudou durante a conexão. Entre novamente e tente de novo.',
+      nao_configurado: 'A conexão com o Google ainda não foi ativada no servidor.',
+    };
+    showToast(motivos[params.get('motivo')] || 'Não foi possível conectar o Google Agenda. Tente de novo.', 'error');
+    setSelectedEmpresa(null);
+    setSettingsSubTab('agenda');
+    setActiveTab('configuracoes');
+  }, [isAuthenticated]);
+
   const handleToggleTheme = (newTheme) => {
     setTheme(newTheme);
     salvarPreferenciaTema(newTheme);

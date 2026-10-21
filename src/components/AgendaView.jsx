@@ -18,7 +18,8 @@ import {
   fetchAgendaEventos,
   partesLocaisPrazo,
   sincronizarGoogleAgenda,
-  statusGoogleAgenda
+  statusGoogleAgenda,
+  URL_CONECTAR_GOOGLE_AGENDA
 } from '@/lib/storage';
 import { playMeetingAlertTone } from '@/lib/audioNotifications';
 import { showToast } from './ToastNotification';
@@ -450,17 +451,28 @@ export default function AgendaView({ userEmail, onSelectEmpresa, onNavigateConfi
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
-          {/* Botão Sincronizar Google */}
+          {/* Google Agenda: conectar a própria conta ou sincronizar */}
+          {googleSync?.configurado && !googleSync.minha_conta ? (
+            <a
+              href={URL_CONECTAR_GOOGLE_AGENDA}
+              className="px-3.5 py-2 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-xs font-semibold text-slate-700 dark:text-zinc-200 flex items-center gap-1.5 transition-all shadow-xs"
+              title="Autorize a sua conta Google para sincronizar a agenda nos dois sentidos"
+            >
+              <CalendarIcon className="w-3.5 h-3.5 text-slate-400" />
+              <span>Conectar Google Agenda</span>
+            </a>
+          ) : (
           <button
             type="button"
             onClick={handleSincronizarGoogle}
             disabled={syncing}
             className="px-3.5 py-2 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-xs font-semibold text-slate-700 dark:text-zinc-200 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 shadow-xs"
-            title="Sincronizar reuniões da URL pública iCal do Google Agenda"
+            title="Puxar agora as mudanças do Google Agenda"
           >
             <RefreshIcon className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-blue-500' : 'text-slate-400'}`} />
             <span>{syncing ? 'Sincronizando...' : 'Sincronizar Google'}</span>
           </button>
+          )}
 
           {/* Botão Novo Agendamento */}
           <motion.button

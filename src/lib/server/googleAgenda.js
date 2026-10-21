@@ -2,19 +2,19 @@
  * Sincronização bidirecional entre a Agenda do RM Controle (public.agenda_eventos) e o Google Agenda
  * de cada pessoa da equipe.
  *
- * Acesso: conta de serviço do Google Cloud com delegação em todo o domínio (Google Workspace).
- * O servidor assina um JWT e "age em nome" de cada conta (sub = e-mail Google), com o escopo de agenda.
- * Nenhum colaborador precisa entrar com o Google no sistema.
+ * Acesso: cada pessoa clica em "Conectar Google Agenda" e autoriza a própria conta (OAuth 2.0).
+ * O servidor guarda só o refresh token, criptografado (AES-256-GCM), e o usa para ler e escrever
+ * naquela agenda. Desconectar revoga a autorização no Google.
  *
  * Fluxos:
- *  - Sistema → Google: criar/editar/excluir no RM Controle chama espelharEvento / excluirEventoGoogle.
+ *  - Sistema → Google: criar/editar/excluir no RM Controle chama espelharEvento / excluirEvento.
  *  - Google → Sistema: o Google avisa o webhook (/api/google/agenda/webhook) a cada mudança e o servidor
  *    reconcilia a janela da agenda daquela pessoa (cria, atualiza e apaga linhas).
  *  - Cron diário: renova os canais de aviso (expiram em ~7 dias) e reconcilia tudo.
  *
  * Variáveis de ambiente (painel da Vercel):
- *  GOOGLE_SERVICE_ACCOUNT_JSON   conteúdo do arquivo .json da conta de serviço (ou EMAIL + PRIVATE_KEY abaixo)
- *  GOOGLE_SERVICE_ACCOUNT_EMAIL / GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
+ *  GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET   ID do cliente OAuth (tipo "Aplicativo da Web")
+ *  GOOGLE_TOKENS_KEY             opcional: chave para criptografar os tokens (padrão: derivada do segredo do servidor)
  *  GOOGLE_AGENDA_WEBHOOK_TOKEN   segredo aleatório que o Google devolve em cada aviso
  *  CRON_SECRET                   a Vercel envia no cabeçalho Authorization do cron
  */
@@ -22,66 +22,15 @@ import crypto from 'crypto';
 import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
 
 export const CHAVE_CONFIG = 'google_agenda';
+const CHAVE_TOKENS = 'google_agenda_tokens';
 export const FUSO = 'America/Sao_Paulo';
-const ESCOPO = 'https://www.googleapis.com/auth/calendar';
+const ESCOPOS = ['openid', 'email', 'https://www.googleapis.com/auth/calendar.events'];
+const URL_AUTORIZACAO = 'https://accounts.google.com/o/oauth2/v2/auth';
 const URL_TOKEN = 'https://oauth2.googleapis.com/token';
+const URL_REVOGAR = 'https://oauth2.googleapis.com/revoke';
 const API = 'https://www.googleapis.com/calendar/v3';
 const DIAS_PASSADO = 30;
 const DIAS_FUTURO = 180;
-
-// ------------------------------------------------------------------------------
-// Credenciais
-// ------------------------------------------------------------------------------
-export function credenciaisServico() {
-  let email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '';
-  let chave = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || '';
-  if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
-    try {
-      const json = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-      email = json.client_email || email;
-      chave = json.private_key || chave;
-    } catch {
-      return null;
-    }
-  }
-  if (!email || !chave) return null;
-  return { email, chave: chave.replace(/\\n/g, '\n') };
-}
-
-export const googleConfigurado = () => Boolean(credenciaisServico());
-
-const base64url = (buf) => Buffer.from(buf).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
-
-const cacheTokens = new Map();
-
-async function tokenPara(emailGoogle, fetchImpl = fetch) {
-  const emCache = cacheTokens.get(emailGoogle);
-  if (emCache && emCache.expira > Date.now() + 60000) return emCache.token;
-  const cred = credenciaisServico();
-  if (!cred) throw new ErroGoogle('nao_configurado', 'A conta de serviço do Google não está configurada no servidor.');
-
-  const agora = Math.floor(Date.now() / 1000);
-  const cabecalho = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
-  const corpo = base64url(JSON.stringify({ iss: cred.email, sub: emailGoogle, scope: ESCOPO, aud: URL_TOKEN, iat: agora, exp: agora + 3600 }));
-  const assinatura = base64url(crypto.createSign('RSA-SHA256').update(`${cabecalho}.${corpo}`).sign(cred.chave));
-
-  const res = await fetchImpl(URL_TOKEN, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: `${cabecalho}.${corpo}.${assinatura}` }),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok || !json.access_token) {
-    const motivo = json.error === 'unauthorized_client'
-      ? 'A delegação em todo o domínio ainda não foi autorizada no Google Workspace para esta conta de serviço.'
-      : json.error === 'invalid_grant'
-        ? `A conta ${emailGoogle} não existe no Workspace ou não pode ser acessada.`
-        : json.error_description || json.error || `Falha ao autenticar (${res.status}).`;
-    throw new ErroGoogle(json.error || 'falha_token', motivo);
-  }
-  cacheTokens.set(emailGoogle, { token: json.access_token, expira: Date.now() + (json.expires_in || 3600) * 1000 });
-  return json.access_token;
-}
 
 export class ErroGoogle extends Error {
   constructor(codigo, mensagem, status = 0) {
@@ -91,8 +40,136 @@ export class ErroGoogle extends Error {
   }
 }
 
-async function chamarApi(emailGoogle, caminho, { metodo = 'GET', corpo, consulta } = {}, fetchImpl = fetch) {
-  const token = await tokenPara(emailGoogle, fetchImpl);
+export const googleConfigurado = () => Boolean(process.env.GOOGLE_OAUTH_CLIENT_ID && process.env.GOOGLE_OAUTH_CLIENT_SECRET);
+
+// ------------------------------------------------------------------------------
+// Segredos: criptografia dos tokens e assinatura do "state" do OAuth
+// ------------------------------------------------------------------------------
+function segredoBase() {
+  return process.env.GOOGLE_TOKENS_KEY || process.env.SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || 'rm_dev_local';
+}
+const chaveCifra = () => crypto.createHash('sha256').update(`rm_google_tokens:${segredoBase()}`).digest();
+
+export function cifrar(texto) {
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv('aes-256-gcm', chaveCifra(), iv);
+  const dados = Buffer.concat([c.update(String(texto), 'utf8'), c.final()]);
+  return [iv, c.getAuthTag(), dados].map((b) => b.toString('base64url')).join('.');
+}
+
+export function decifrar(cifrado) {
+  try {
+    const [iv, tag, dados] = String(cifrado).split('.').map((p) => Buffer.from(p, 'base64url'));
+    const d = crypto.createDecipheriv('aes-256-gcm', chaveCifra(), iv);
+    d.setAuthTag(tag);
+    return Buffer.concat([d.update(dados), d.final()]).toString('utf8');
+  } catch {
+    return null;
+  }
+}
+
+const assinar = (texto) => crypto.createHmac('sha256', `rm_google_state:${segredoBase()}`).update(texto).digest('base64url');
+
+/** "state" do OAuth: amarra a volta do Google à pessoa logada e expira em 10 minutos. */
+export function criarState(emailSistema, nonce) {
+  const corpo = Buffer.from(JSON.stringify({ e: emailSistema, n: nonce, x: Date.now() + 10 * 60000 })).toString('base64url');
+  return `${corpo}.${assinar(corpo)}`;
+}
+
+export function lerState(state, nonceCookie) {
+  const [corpo, assinatura] = String(state || '').split('.');
+  if (!corpo || !assinatura) return null;
+  const esperada = assinar(corpo);
+  if (esperada.length !== assinatura.length || !crypto.timingSafeEqual(Buffer.from(esperada), Buffer.from(assinatura))) return null;
+  try {
+    const dados = JSON.parse(Buffer.from(corpo, 'base64url').toString());
+    if (!dados.e || dados.x < Date.now() || !nonceCookie || dados.n !== nonceCookie) return null;
+    return dados.e;
+  } catch {
+    return null;
+  }
+}
+
+// ------------------------------------------------------------------------------
+// OAuth: conectar, trocar o código e renovar o acesso
+// ------------------------------------------------------------------------------
+export function urlConectar({ state, redirectUri, loginHint }) {
+  const u = new URL(URL_AUTORIZACAO);
+  u.search = new URLSearchParams({
+    client_id: process.env.GOOGLE_OAUTH_CLIENT_ID,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: ESCOPOS.join(' '),
+    access_type: 'offline',
+    prompt: 'consent',
+    include_granted_scopes: 'true',
+    state,
+    ...(loginHint ? { login_hint: loginHint } : {}),
+  }).toString();
+  return u.toString();
+}
+
+/** Troca o código da volta do Google por tokens e descobre qual conta Google foi conectada. */
+export async function trocarCodigo(code, redirectUri, fetchImpl = fetch) {
+  const res = await fetchImpl(URL_TOKEN, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      code,
+      client_id: process.env.GOOGLE_OAUTH_CLIENT_ID,
+      client_secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code',
+    }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.refresh_token) {
+    throw new ErroGoogle('oauth', json.error_description || 'O Google não devolveu a autorização. Tente conectar de novo.');
+  }
+  if (!String(json.scope || '').includes('calendar')) {
+    throw new ErroGoogle('escopo', 'Para sincronizar, é preciso permitir o acesso à agenda na tela do Google.');
+  }
+  // O id_token veio direto do Google por HTTPS nesta troca: o e-mail dele é confiável
+  let emailGoogle = '';
+  try {
+    emailGoogle = JSON.parse(Buffer.from(String(json.id_token).split('.')[1], 'base64url').toString()).email || '';
+  } catch {}
+  if (!emailGoogle) throw new ErroGoogle('oauth', 'Não foi possível identificar a conta Google conectada.');
+  cacheTokens.set(emailGoogle.toLowerCase(), { token: json.access_token, expira: Date.now() + (json.expires_in || 3600) * 1000 });
+  return { emailGoogle: emailGoogle.toLowerCase(), refreshToken: json.refresh_token };
+}
+
+const cacheTokens = new Map();
+
+async function tokenPara(conta, fetchImpl = fetch) {
+  const emCache = cacheTokens.get(conta.email_google);
+  if (emCache && emCache.expira > Date.now() + 60000) return emCache.token;
+  if (!conta.refresh_token) throw new ErroGoogle('desconectado', 'Esta agenda não está conectada ao Google.');
+  const res = await fetchImpl(URL_TOKEN, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: process.env.GOOGLE_OAUTH_CLIENT_ID,
+      client_secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+      refresh_token: conta.refresh_token,
+      grant_type: 'refresh_token',
+    }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.access_token) {
+    throw new ErroGoogle(
+      json.error === 'invalid_grant' ? 'desconectado' : 'falha_token',
+      json.error === 'invalid_grant'
+        ? 'A conexão com o Google foi revogada ou expirou. Conecte o Google Agenda de novo.'
+        : json.error_description || `Falha ao renovar o acesso ao Google (${res.status}).`
+    );
+  }
+  cacheTokens.set(conta.email_google, { token: json.access_token, expira: Date.now() + (json.expires_in || 3600) * 1000 });
+  return json.access_token;
+}
+
+async function chamarApi(conta, caminho, { metodo = 'GET', corpo, consulta } = {}, fetchImpl = fetch) {
+  const token = await tokenPara(conta, fetchImpl);
   const url = new URL(API + caminho);
   Object.entries(consulta || {}).forEach(([k, v]) => v !== undefined && v !== null && url.searchParams.set(k, String(v)));
   const res = await fetchImpl(url, {
@@ -240,8 +317,59 @@ export async function salvarConfigGoogle(config) {
   return config;
 }
 
-const contasAtivas = (config) => (config.contas || []).filter((c) => c.ativo !== false && c.email_google && c.email_sistema);
-const contaPorSistema = (config, email) => contasAtivas(config).find((c) => c.email_sistema === String(email || '').toLowerCase());
+// Refresh tokens ficam numa chave separada e sempre criptografados
+async function carregarTokens() {
+  const { data } = await db().from('sistema_config').select('valor').eq('chave', CHAVE_TOKENS).maybeSingle();
+  return data?.valor || {};
+}
+
+async function salvarTokens(tokens) {
+  const { error } = await db()
+    .from('sistema_config')
+    .upsert({ chave: CHAVE_TOKENS, valor: tokens, updated_at: new Date().toISOString() }, { onConflict: 'chave' });
+  if (error) throw new ErroGoogle('config', `Não foi possível guardar a conexão com o Google: ${error.message}`);
+}
+
+/** Contas conectadas, já com o refresh token decifrado (uso exclusivo do servidor). */
+export async function carregarContasConectadas(config = null) {
+  const cfg = config || (await carregarConfigGoogle());
+  const tokens = await carregarTokens();
+  return (cfg.contas || [])
+    .map((c) => ({ ...c, refresh_token: tokens[c.email_sistema] ? decifrar(tokens[c.email_sistema]) : null }))
+    .filter((c) => c.email_google && c.email_sistema && c.refresh_token);
+}
+
+/** Grava a conexão de uma pessoa (substitui a anterior, se houver). */
+export async function registrarConexao({ emailSistema, nome, emailGoogle, refreshToken }) {
+  const config = await carregarConfigGoogle();
+  const contas = (config.contas || []).filter((c) => c.email_sistema !== emailSistema && c.email_google !== emailGoogle);
+  contas.push({ email_sistema: emailSistema, email_google: emailGoogle, nome: nome || '', conectado_em: new Date().toISOString() });
+  const erros = { ...(config.erros || {}) };
+  delete erros[emailSistema];
+  await salvarConfigGoogle({ ...config, contas, erros });
+  const tokens = await carregarTokens();
+  await salvarTokens({ ...tokens, [emailSistema]: cifrar(refreshToken) });
+}
+
+/** Desconecta: revoga no Google, encerra o canal de avisos e esquece o token. */
+export async function desconectar(emailSistema, fetchImpl = fetch) {
+  const config = await carregarConfigGoogle();
+  const [conta] = (await carregarContasConectadas(config)).filter((c) => c.email_sistema === emailSistema);
+  if (conta) {
+    const canal = config.canais?.[conta.email_google];
+    if (canal?.id) {
+      await chamarApi(conta, '/channels/stop', { metodo: 'POST', corpo: { id: canal.id, resourceId: canal.resource_id } }, fetchImpl).catch(() => {});
+    }
+    await fetchImpl(`${URL_REVOGAR}?token=${encodeURIComponent(conta.refresh_token)}`, { method: 'POST' }).catch(() => {});
+    cacheTokens.delete(conta.email_google);
+  }
+  const canais = { ...(config.canais || {}) };
+  if (conta) delete canais[conta.email_google];
+  await salvarConfigGoogle({ ...config, canais, contas: (config.contas || []).filter((c) => c.email_sistema !== emailSistema) });
+  const tokens = await carregarTokens();
+  delete tokens[emailSistema];
+  await salvarTokens(tokens);
+}
 
 // ------------------------------------------------------------------------------
 // Google → Sistema: reconcilia a janela de uma agenda
@@ -252,7 +380,7 @@ async function listarEventosGoogle(conta, fetchImpl) {
   let pageToken;
   do {
     const pagina = await chamarApi(
-      conta.email_google,
+      conta,
       `/calendars/${encodeURIComponent(conta.email_google)}/events`,
       {
         consulta: {
@@ -336,7 +464,7 @@ export async function sincronizarConta(conta, fetchImpl = fetch) {
 /** Reconcilia todas as contas (cada uma isolada: o erro de uma não impede as outras). */
 export async function sincronizarTodas({ fetchImpl = fetch, renovarCanais = false, urlBase = null } = {}) {
   const config = await carregarConfigGoogle();
-  const contas = contasAtivas(config);
+  const contas = await carregarContasConectadas(config);
   const resultados = {};
   const erros = {};
   await Promise.all(
@@ -360,7 +488,7 @@ export async function sincronizarTodas({ fetchImpl = fetch, renovarCanais = fals
 async function enviarParaGoogle(linha, conta, fetchImpl = fetch) {
   const corpo = linhaParaGoogle(linha);
   const caminho = `/calendars/${encodeURIComponent(conta.email_google)}/events`;
-  const ev = await chamarApi(conta.email_google, caminho, { metodo: 'POST', corpo }, fetchImpl);
+  const ev = await chamarApi(conta, caminho, { metodo: 'POST', corpo }, fetchImpl);
   await db()
     .from('agenda_eventos')
     .update({ google_event_id: ev.id, google_calendar_id: conta.email_google, google_ical_uid: ev.iCalUID || null, google_atualizado_em: ev.updated || null })
@@ -368,9 +496,11 @@ async function enviarParaGoogle(linha, conta, fetchImpl = fetch) {
   return ev;
 }
 
-async function apagarNoGoogle(calendarId, eventId, fetchImpl = fetch) {
+async function apagarNoGoogle(conta, eventId, fetchImpl = fetch) {
+  // A agenda pode ter sido desconectada: sem acesso, não há o que apagar lá
+  if (!conta) return;
   try {
-    await chamarApi(calendarId, `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`, { metodo: 'DELETE' }, fetchImpl);
+    await chamarApi(conta, `/calendars/${encodeURIComponent(conta.email_google)}/events/${encodeURIComponent(eventId)}`, { metodo: 'DELETE' }, fetchImpl);
   } catch (e) {
     // Já apagado no Google: segue normalmente
     if (e.status !== 404 && e.status !== 410) throw e;
@@ -382,20 +512,20 @@ async function apagarNoGoogle(calendarId, eventId, fetchImpl = fetch) {
  * Se o responsável mudou de pessoa, o evento sai da agenda antiga e entra na nova.
  */
 export async function espelharEvento(id, fetchImpl = fetch) {
-  const config = await carregarConfigGoogle();
+  const contas = await carregarContasConectadas();
   const { data: linha } = await db().from('agenda_eventos').select('*').eq('id', id).maybeSingle();
   if (!linha) return { ok: false, motivo: 'nao_encontrado' };
-  const conta = contaPorSistema(config, linha.responsavel_email);
+  const conta = contas.find((c) => c.email_sistema === String(linha.responsavel_email || '').toLowerCase());
 
   if (linha.google_event_id && (!conta || conta.email_google !== linha.google_calendar_id)) {
-    await apagarNoGoogle(linha.google_calendar_id, linha.google_event_id, fetchImpl);
+    await apagarNoGoogle(contas.find((c) => c.email_google === linha.google_calendar_id), linha.google_event_id, fetchImpl);
     await db().from('agenda_eventos').update({ google_event_id: null, google_calendar_id: null, google_atualizado_em: null }).eq('id', id);
     linha.google_event_id = null;
   }
   if (!conta) return { ok: true, motivo: 'responsavel_sem_google' };
   if (linha.status === 'cancelada') {
     if (linha.google_event_id) {
-      await apagarNoGoogle(conta.email_google, linha.google_event_id, fetchImpl);
+      await apagarNoGoogle(conta, linha.google_event_id, fetchImpl);
       await db().from('agenda_eventos').update({ google_event_id: null, google_calendar_id: null, google_atualizado_em: null }).eq('id', id);
     }
     return { ok: true };
@@ -405,7 +535,7 @@ export async function espelharEvento(id, fetchImpl = fetch) {
     return { ok: true };
   }
   const ev = await chamarApi(
-    conta.email_google,
+    conta,
     `/calendars/${encodeURIComponent(conta.email_google)}/events/${encodeURIComponent(linha.google_event_id)}`,
     { metodo: 'PATCH', corpo: linhaParaGoogle(linha) },
     fetchImpl
@@ -417,7 +547,8 @@ export async function espelharEvento(id, fetchImpl = fetch) {
 /** Exclui no Google e no banco (o servidor já conferiu a permissão de quem pediu). */
 export async function excluirEvento(linha, fetchImpl = fetch) {
   if (linha.google_event_id && linha.google_calendar_id && googleConfigurado()) {
-    await apagarNoGoogle(linha.google_calendar_id, linha.google_event_id, fetchImpl);
+    const contas = await carregarContasConectadas();
+    await apagarNoGoogle(contas.find((c) => c.email_google === linha.google_calendar_id), linha.google_event_id, fetchImpl);
   }
   const { error } = await db().from('agenda_eventos').delete().eq('id', linha.id);
   if (error) throw new ErroGoogle('banco', `Não foi possível excluir o evento: ${error.message}`);
@@ -436,7 +567,7 @@ async function garantirCanal(config, conta, urlBase, fetchImpl = fetch) {
   const atual = config.canais?.[conta.email_google];
   if (atual?.expira_em && atual.expira_em - Date.now() > 2 * 86400000) return;
   const canal = await chamarApi(
-    conta.email_google,
+    conta,
     `/calendars/${encodeURIComponent(conta.email_google)}/events/watch`,
     {
       metodo: 'POST',
@@ -447,15 +578,16 @@ async function garantirCanal(config, conta, urlBase, fetchImpl = fetch) {
   config.canais = { ...(config.canais || {}), [conta.email_google]: { id: canal.id, resource_id: canal.resourceId, expira_em: Number(canal.expiration) || Date.now() + 6 * 86400000 } };
   // O canal antigo continua válido até expirar; encerrá-lo evita avisos em dobro
   if (atual?.id && atual?.resource_id) {
-    await chamarApi(conta.email_google, '/channels/stop', { metodo: 'POST', corpo: { id: atual.id, resourceId: atual.resource_id } }, fetchImpl).catch(() => {});
+    await chamarApi(conta, '/channels/stop', { metodo: 'POST', corpo: { id: atual.id, resourceId: atual.resource_id } }, fetchImpl).catch(() => {});
   }
 }
 
 /** Qual conta um aviso do Google se refere (pelo id do canal). */
-export function contaDoCanal(config, canalId) {
+export async function contaDoCanal(canalId) {
+  const config = await carregarConfigGoogle();
   const entrada = Object.entries(config.canais || {}).find(([, c]) => c.id === canalId);
   if (!entrada) return null;
-  return contasAtivas(config).find((c) => c.email_google === entrada[0]) || null;
+  return (await carregarContasConectadas(config)).find((c) => c.email_google === entrada[0]) || null;
 }
 
 /** Endereço público do sistema para o Google chamar (precisa ser https). */
@@ -463,11 +595,7 @@ export function urlPublica(request) {
   if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
   const host = request?.headers?.get('host');
-  return host ? `https://${host}` : null;
-}
-
-/** Testa o acesso a uma conta (usado na tela de configuração). */
-export async function testarConta(emailGoogle, fetchImpl = fetch) {
-  await chamarApi(emailGoogle, `/calendars/${encodeURIComponent(emailGoogle)}/events`, { consulta: { maxResults: 1 } }, fetchImpl);
-  return true;
+  if (!host) return null;
+  // Em desenvolvimento o Google aceita http://localhost como endereço de volta
+  return /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host) ? `http://${host}` : `https://${host}`;
 }

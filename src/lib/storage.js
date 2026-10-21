@@ -5371,29 +5371,21 @@ export async function statusGoogleAgenda() {
   }
 }
 
-export async function salvarContasGoogleAgenda(contas) {
+/** Desconecta a minha agenda Google (revoga o acesso e para de sincronizar). */
+export async function desconectarGoogleAgenda() {
   const r = await fetch('/api/google/agenda', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'same-origin',
-    body: JSON.stringify({ acao: 'salvar_contas', contas }),
+    body: JSON.stringify({ acao: 'desconectar' }),
   });
   const json = await r.json().catch(() => ({}));
-  if (!r.ok || !json.ok) throw new Error(json.mensagem || 'Não foi possível salvar.');
-  return json.contas;
-}
-
-export async function testarContaGoogleAgenda(emailGoogle) {
-  const r = await fetch('/api/google/agenda', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'same-origin',
-    body: JSON.stringify({ acao: 'testar', email_google: emailGoogle }),
-  });
-  const json = await r.json().catch(() => ({}));
-  if (!r.ok || !json.ok) throw new Error(json.mensagem || 'Não foi possível acessar essa agenda.');
+  if (!r.ok || !json.ok) throw new Error(json.mensagem || 'Não foi possível desconectar.');
   return true;
 }
+
+/** Endereço que inicia o "Conectar Google Agenda" (redireciona para o Google). */
+export const URL_CONECTAR_GOOGLE_AGENDA = '/api/google/agenda/oauth/iniciar';
 
 /** Baixa a agenda da equipe; na primeira vez, envia os eventos criados só neste navegador. */
 export async function fetchAgendaEventos() {

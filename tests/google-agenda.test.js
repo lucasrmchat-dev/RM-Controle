@@ -13,6 +13,13 @@ import {
   linhaParaGoogle,
   sincronizarTodas,
   espelharEvento,
+  cifrar,
+  decifrar,
+  criarState,
+  lerState,
+  trocarCodigo,
+  registrarConexao,
+  desconectar,
   CHAVE_CONFIG,
 } from '../src/lib/server/googleAgenda.js';
 import { POST as webhook } from '../src/app/api/google/agenda/webhook/route.js';
@@ -22,18 +29,15 @@ __definirSupabaseAdmin(mockSupabase);
 process.env.NEXT_PUBLIC_SUPABASE_URL ||= 'http://mock';
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'mock';
 
-const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
-process.env.GOOGLE_SERVICE_ACCOUNT_JSON = JSON.stringify({
-  client_email: 'rm-sync@projeto.iam.gserviceaccount.com',
-  client_id: '1234567890',
-  private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }),
-});
+process.env.GOOGLE_OAUTH_CLIENT_ID = 'cliente.apps.googleusercontent.com';
+process.env.GOOGLE_OAUTH_CLIENT_SECRET = 'segredo-cliente';
 process.env.GOOGLE_AGENDA_WEBHOOK_TOKEN = 'segredo-webhook';
+const REFRESH = 'refresh-do-lucas';
 
 const CONTA = { email_sistema: 'lucas@rmchat.com', email_google: 'lucas.amorim@rmchat.com.br', nome: 'Lucas' };
 const uuid = () => crypto.randomUUID();
 
-/** Google Agenda falso: guarda eventos por agenda e confere a assinatura do JWT. */
+/** Google Agenda falso: guarda eventos por agenda e só aceita o refresh token conectado. */
 function googleFalso() {
   const agendas = { [CONTA.email_google]: new Map() };
   const chamadas = [];
@@ -42,14 +46,18 @@ function googleFalso() {
   const fetchImpl = async (url, opts = {}) => {
     const u = new URL(url);
     chamadas.push(`${opts.method || 'GET'} ${u.pathname}`);
+    if (u.href.startsWith('https://oauth2.googleapis.com/revoke')) return resposta(200, {});
     if (u.href.startsWith('https://oauth2.googleapis.com/token')) {
-      const assertion = new URLSearchParams(opts.body.toString()).get('assertion');
-      const [h, c, sig] = assertion.split('.');
-      const valido = crypto.createVerify('RSA-SHA256').update(`${h}.${c}`).verify(publicKey, Buffer.from(sig, 'base64url'));
-      const claims = JSON.parse(Buffer.from(c, 'base64url').toString());
-      if (!valido || !claims.sub) return resposta(400, { error: 'invalid_grant' });
-      return resposta(200, { access_token: `tok-${claims.sub}`, expires_in: 3600 });
+      const corpo = new URLSearchParams(opts.body.toString());
+      if (corpo.get('client_secret') !== 'segredo-cliente') return resposta(401, { error: 'invalid_client' });
+      if (corpo.get('grant_type') === 'authorization_code') {
+        const idToken = ['x', Buffer.from(JSON.stringify({ email: 'Lucas.Amorim@rmchat.com.br' })).toString('base64url'), 'y'].join('.');
+        return resposta(200, { access_token: 'tok', refresh_token: REFRESH, id_token: idToken, scope: 'openid email https://www.googleapis.com/auth/calendar.events', expires_in: 3600 });
+      }
+      if (corpo.get('refresh_token') !== REFRESH) return resposta(400, { error: 'invalid_grant' });
+      return resposta(200, { access_token: 'tok-lucas', expires_in: 3600 });
     }
+    if (u.pathname === '/calendar/v3/channels/stop') return { ok: true, status: 204, json: async () => null };
     const m = u.pathname.match(/\/calendars\/([^/]+)\/events(?:\/([^/]+))?$/);
     const agenda = agendas[decodeURIComponent(m[1])];
     const id = m[2] && decodeURIComponent(m[2]);
@@ -79,7 +87,10 @@ function googleFalso() {
 beforeEach(() => {
   db.reset();
   db.tables.agenda_eventos = [];
-  db.tables.sistema_config = [{ chave: CHAVE_CONFIG, valor: { contas: [CONTA], canais: {} } }];
+  db.tables.sistema_config = [
+    { chave: CHAVE_CONFIG, valor: { contas: [CONTA], canais: {} } },
+    { chave: 'google_agenda_tokens', valor: { [CONTA.email_sistema]: cifrar(REFRESH) } },
+  ];
   db.tables.equipe_usuarios = [
     { id: uuid(), email: 'lucas@rmchat.com', nome: 'Lucas', papel: 'administrador', ativo: true },
     { id: uuid(), email: 'maria@rmchat.com', nome: 'Maria', papel: 'suporte', ativo: true },
@@ -218,4 +229,38 @@ test('excluir pelo sistema: só criador, responsável ou administrador', async (
   const ok = await pedir('lucas@rmchat.com', 'administrador');
   assert.equal(ok.status, 200);
   assert.ok(!db.tables.agenda_eventos.find((l) => l.id === id));
+});
+
+test('token do Google é guardado criptografado e o state só vale para a mesma pessoa', () => {
+  const c = cifrar('segredo');
+  assert.ok(!c.includes('segredo'));
+  assert.equal(decifrar(c), 'segredo');
+  assert.equal(decifrar(c.replace(/.$/, (x) => (x === 'A' ? 'B' : 'A'))), null, 'adulterado não decifra');
+
+  const state = criarState('lucas@rmchat.com', 'nonce-1');
+  assert.equal(lerState(state, 'nonce-1'), 'lucas@rmchat.com');
+  assert.equal(lerState(state, 'outro-nonce'), null, 'cookie de outra aba/pessoa');
+  const [corpo] = state.split('.');
+  const forjado = Buffer.from(JSON.stringify({ e: 'admin@rmchat.com', n: 'nonce-1', x: Date.now() + 60000 })).toString('base64url');
+  assert.equal(lerState(`${forjado}.${state.split('.')[1]}`, 'nonce-1'), null, 'assinatura não confere');
+  assert.ok(corpo);
+});
+
+test('conectar: troca o código, identifica a conta Google e guarda o token cifrado; desconectar apaga', async () => {
+  db.tables.sistema_config = [];
+  const g = googleFalso();
+  const { emailGoogle, refreshToken } = await trocarCodigo('codigo', 'http://localhost/cb', g.fetchImpl);
+  assert.equal(emailGoogle, 'lucas.amorim@rmchat.com.br');
+  await registrarConexao({ emailSistema: 'lucas@rmchat.com', nome: 'Lucas', emailGoogle, refreshToken });
+
+  const tokens = db.tables.sistema_config.find((r) => r.chave === 'google_agenda_tokens').valor;
+  assert.ok(!JSON.stringify(tokens).includes(REFRESH), 'refresh token nunca em texto puro');
+  const config = db.tables.sistema_config.find((r) => r.chave === CHAVE_CONFIG).valor;
+  assert.equal(config.contas[0].email_google, 'lucas.amorim@rmchat.com.br');
+  assert.ok(!JSON.stringify(config).includes(REFRESH));
+
+  await desconectar('lucas@rmchat.com', g.fetchImpl);
+  assert.ok(g.chamadas.some((c) => c.startsWith('POST /revoke')), 'revoga no Google');
+  assert.deepEqual(db.tables.sistema_config.find((r) => r.chave === 'google_agenda_tokens').valor, {});
+  assert.equal(db.tables.sistema_config.find((r) => r.chave === CHAVE_CONFIG).valor.contas.length, 0);
 });
