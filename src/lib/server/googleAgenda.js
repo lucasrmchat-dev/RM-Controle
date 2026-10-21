@@ -24,7 +24,8 @@ import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
 export const CHAVE_CONFIG = 'google_agenda';
 const CHAVE_TOKENS = 'google_agenda_tokens';
 export const FUSO = 'America/Sao_Paulo';
-const ESCOPOS = ['openid', 'email', 'https://www.googleapis.com/auth/calendar.events'];
+// calendar.events: ler/escrever eventos · calendarlist.readonly: listar agendas compartilhadas (para escolher)
+const ESCOPOS = ['openid', 'email', 'https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar.calendarlist.readonly'];
 const URL_AUTORIZACAO = 'https://accounts.google.com/o/oauth2/v2/auth';
 const URL_TOKEN = 'https://oauth2.googleapis.com/token';
 const URL_REVOGAR = 'https://oauth2.googleapis.com/revoke';
@@ -129,7 +130,12 @@ export async function trocarCodigo(code, redirectUri, fetchImpl = fetch) {
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok || !json.refresh_token) {
-    throw new ErroGoogle('oauth', json.error_description || 'O Google não devolveu a autorização. Tente conectar de novo.');
+    const motivos = {
+      invalid_client: 'O Google recusou o ID do cliente ou a chave secreta configurados no servidor (confira GOOGLE_OAUTH_CLIENT_ID e GOOGLE_OAUTH_CLIENT_SECRET na Vercel).',
+      redirect_uri_mismatch: `O endereço de volta não está autorizado no Google: cadastre ${redirectUri} em "URIs de redirecionamento autorizados".`,
+      invalid_grant: 'A autorização expirou antes de ser usada. Tente conectar de novo.',
+    };
+    throw new ErroGoogle('oauth', motivos[json.error] || json.error_description || `O Google não devolveu a autorização (${json.error || res.status}).`);
   }
   if (!String(json.scope || '').includes('calendar')) {
     throw new ErroGoogle('escopo', 'Para sincronizar, é preciso permitir o acesso à agenda na tela do Google.');
@@ -235,7 +241,29 @@ function linkDaReuniao(ev) {
   return /^https?:\/\//.test(ev.location || '') ? ev.location : '';
 }
 
-/** Evento do Google → campos de agenda_eventos (preserva o que só existe no sistema, como empresa e tipo). */
+// Bloco que o RM Controle escreve no fim da descrição do evento no Google (legível por quem abre lá)
+const MARCA_RM = '— RM Controle —';
+
+/** Separa a descrição do Google em texto livre + campos do bloco do RM Controle. */
+export function lerDescricao(descricao) {
+  const texto = textoSemHtml(descricao);
+  const i = texto.indexOf(MARCA_RM);
+  if (i === -1) return { observacoes: texto, campos: {} };
+  const campos = {};
+  texto
+    .slice(i + MARCA_RM.length)
+    .split('\n')
+    .forEach((linha) => {
+      const m = linha.match(/^\s*(Responsável|Empresa):\s*(.+?)\s*$/);
+      if (m) campos[m[1] === 'Responsável' ? 'responsavel' : 'empresa'] = m[2];
+    });
+  return { observacoes: texto.slice(0, i).trim(), campos };
+}
+
+/**
+ * Evento do Google → campos de agenda_eventos. O responsável é do EVENTO (definido no RM Controle e
+ * guardado no Google), não da agenda: agendas compartilhadas são da equipe toda.
+ */
 export function googleParaLinha(ev, conta, existente = null) {
   const diaInteiro = Boolean(ev.start?.date && !ev.start?.dateTime);
   let data;
@@ -252,39 +280,71 @@ export function googleParaLinha(ev, conta, existente = null) {
     horaInicio = ini.hora;
     horaFim = fim.data === ini.data ? fim.hora : '23:59';
   }
+  const priv = ev.extendedProperties?.private || {};
+  const { observacoes, campos } = lerDescricao(ev.description);
+  // Ordem: o que o RM Controle gravou no Google > o que já estava no sistema > dono da agenda pessoal
+  const temResponsavelNoGoogle = Object.prototype.hasOwnProperty.call(priv, 'rm_responsavel_email');
+  // Agenda compartilhada: sem responsável gravado no Google, o evento é da equipe (não herda dono antigo)
+  const herdado = conta.principal || existente?.origem === 'sistema';
+  const responsavelEmail = temResponsavelNoGoogle
+    ? priv.rm_responsavel_email || null
+    : herdado
+      ? existente?.responsavel_email ?? (conta.principal ? conta.email_sistema : null)
+      : null;
+  const responsavelNome = temResponsavelNoGoogle
+    ? priv.rm_responsavel_nome || campos.responsavel || null
+    : herdado
+      ? existente?.responsavel_nome ?? (conta.principal ? conta.nome : null)
+      : null;
   return {
     titulo: (ev.summary || '(Sem título)').trim().slice(0, 300),
-    empresa: existente?.empresa ?? (ev.location && !/^https?:\/\//.test(ev.location) ? ev.location.slice(0, 200) : ''),
+    empresa: priv.rm_empresa ?? campos.empresa ?? existente?.empresa ?? (ev.location && !/^https?:\/\//.test(ev.location) ? ev.location.slice(0, 200) : ''),
     data,
     hora_inicio: horaInicio,
     hora_fim: horaFim,
     dia_inteiro: diaInteiro,
-    responsavel_email: conta.email_sistema,
-    responsavel_nome: conta.nome || existente?.responsavel_nome || conta.email_sistema,
+    responsavel_email: responsavelEmail,
+    responsavel_nome: responsavelNome,
     link_reuniao: linkDaReuniao(ev),
     status: existente?.status && existente.status !== 'cancelada' ? existente.status : 'agendada',
     tipo: existente?.tipo || 'interna',
-    observacoes: textoSemHtml(ev.description),
+    observacoes,
     chamado_id: existente?.chamado_id ?? null,
     origem: existente?.origem || 'google',
-    criado_por: existente?.criado_por || ev.organizer?.email || conta.email_sistema,
+    criado_por: existente?.criado_por || ev.organizer?.email || null,
     google_event_id: ev.id,
-    google_calendar_id: conta.email_google,
+    google_calendar_id: conta.calendar_id,
     google_ical_uid: ev.iCalUID || null,
     google_atualizado_em: ev.updated || null,
     updated_at: new Date().toISOString(),
   };
 }
 
-/** Linha de agenda_eventos → corpo de evento do Google. */
-export function linhaParaGoogle(linha) {
-  const descricao = [linha.empresa ? `Empresa: ${linha.empresa}` : '', linha.observacoes || ''].filter(Boolean).join('\n\n');
+/** Linha de agenda_eventos → corpo de evento do Google (com o responsável no fim da descrição). */
+export function linhaParaGoogle(linha, { gerarMeet = false } = {}) {
+  const bloco = [
+    linha.responsavel_nome || linha.responsavel_email ? `Responsável: ${linha.responsavel_nome || linha.responsavel_email}` : '',
+    linha.empresa && linha.empresa !== 'Cliente Geral' ? `Empresa: ${linha.empresa}` : '',
+  ].filter(Boolean);
+  const descricao = [linha.observacoes || '', bloco.length ? `${MARCA_RM}\n${bloco.join('\n')}` : ''].filter(Boolean).join('\n\n');
+  const meet = /meet\.google\.com/.test(linha.link_reuniao || '');
   const corpo = {
     summary: linha.titulo || 'Reunião',
-    description: descricao || undefined,
-    location: linha.link_reuniao || undefined,
-    extendedProperties: { private: { rm_id: String(linha.id) } },
+    description: descricao,
+    // O link do Meet já vai na própria conferência; outros links (Zoom, Teams) ficam no local
+    location: linha.link_reuniao && !meet ? linha.link_reuniao : '',
+    extendedProperties: {
+      private: {
+        rm_id: String(linha.id),
+        rm_responsavel_email: linha.responsavel_email || '',
+        rm_responsavel_nome: linha.responsavel_nome || '',
+        rm_empresa: linha.empresa && linha.empresa !== 'Cliente Geral' ? linha.empresa : '',
+      },
+    },
   };
+  if (gerarMeet) {
+    corpo.conferenceData = { createRequest: { requestId: crypto.randomUUID(), conferenceSolutionKey: { type: 'hangoutsMeet' } } };
+  }
   if (linha.dia_inteiro) {
     corpo.start = { date: linha.data };
     corpo.end = { date: somarDia(linha.data, 1) };
@@ -301,7 +361,7 @@ export function linhaParaGoogle(linha) {
 // ------------------------------------------------------------------------------
 // Configuração (sistema_config, lida só pelo servidor)
 // ------------------------------------------------------------------------------
-const CONFIG_PADRAO = { contas: [], canais: {}, ultima_sincronizacao: null, erros: {} };
+const CONFIG_PADRAO = { canais: {}, ultima_sincronizacao: null, erros: {} };
 
 function db() {
   const cliente = getSupabaseAdmin();
@@ -322,58 +382,191 @@ export async function salvarConfigGoogle(config) {
   return config;
 }
 
-// Refresh tokens ficam numa chave separada e sempre criptografados
-async function carregarTokens() {
+// Conexões: cada pessoa tem UMA entrada própria (conta Google + refresh token criptografado), numa chave
+// separada do resto da configuração. Assim as outras gravações (última sincronização, canais) nunca
+// sobrescrevem uma conexão recém-feita.
+async function carregarConexoes() {
   const { data } = await db().from('sistema_config').select('valor').eq('chave', CHAVE_TOKENS).maybeSingle();
-  return data?.valor || {};
+  const valor = data?.valor || {};
+  // Formato antigo (só o token cifrado, sem a conta) é descartado: a pessoa conecta de novo
+  return Object.fromEntries(Object.entries(valor).filter(([, v]) => v && typeof v === 'object' && v.token && v.email_google));
 }
 
-async function salvarTokens(tokens) {
+async function salvarConexoes(conexoes) {
   const { error } = await db()
     .from('sistema_config')
-    .upsert({ chave: CHAVE_TOKENS, valor: tokens, updated_at: new Date().toISOString() }, { onConflict: 'chave' });
+    .upsert({ chave: CHAVE_TOKENS, valor: conexoes, updated_at: new Date().toISOString() }, { onConflict: 'chave' });
   if (error) throw new ErroGoogle('config', `Não foi possível guardar a conexão com o Google: ${error.message}`);
 }
 
-/** Contas conectadas, já com o refresh token decifrado (uso exclusivo do servidor). */
-export async function carregarContasConectadas(config = null) {
-  const cfg = config || (await carregarConfigGoogle());
-  const tokens = await carregarTokens();
-  return (cfg.contas || [])
-    .map((c) => ({ ...c, refresh_token: tokens[c.email_sistema] ? decifrar(tokens[c.email_sistema]) : null }))
-    .filter((c) => c.email_google && c.email_sistema && c.refresh_token);
+/** Contas conectadas, sem o token (para mostrar na tela). */
+export async function listarContasConectadas() {
+  const conexoes = await carregarConexoes();
+  return Object.entries(conexoes).map(([emailSistema, c]) => ({
+    email_sistema: emailSistema,
+    email_google: c.email_google,
+    nome: c.nome || '',
+    conectado_em: c.conectado_em || null,
+    agendas: (c.agendas || []).map(({ id, nome }) => ({ id, nome })),
+  }));
+}
+
+/**
+ * Agendas a sincronizar, já com o refresh token decifrado (uso exclusivo do servidor).
+ * Cada conexão gera a agenda principal da pessoa e, opcionalmente, agendas compartilhadas com ela
+ * (ex.: a agenda do suporte@), cada uma atribuída a alguém da equipe.
+ *  - email_google / refresh_token: de quem conectou (autenticação)
+ *  - calendar_id: a agenda no Google
+ *  - email_sistema / nome: dono da agenda pessoal (vazio nas compartilhadas, que são da equipe)
+ * Uma mesma agenda nunca entra duas vezes: a do próprio dono (conectada por ele) tem prioridade.
+ */
+export async function carregarContasConectadas() {
+  const conexoes = await carregarConexoes();
+  const principais = [];
+  const extras = [];
+  for (const [emailSistema, c] of Object.entries(conexoes)) {
+    const refreshToken = decifrar(c.token);
+    if (!refreshToken) continue;
+    const base = { email_google: c.email_google, refresh_token: refreshToken, conectado_por: emailSistema };
+    principais.push({
+      ...base,
+      calendar_id: c.email_google,
+      email_sistema: emailSistema,
+      nome: c.nome || '',
+      rotulo: `Agenda de ${(c.nome || c.email_google).split(' ')[0]}`,
+      principal: true,
+    });
+    // Agendas compartilhadas são da equipe: não têm dono no sistema
+    (c.agendas || []).forEach((a) => {
+      if (a?.id) extras.push({ ...base, calendar_id: a.id, email_sistema: null, nome: '', rotulo: a.nome || a.id, cor: a.cor || null, principal: false });
+    });
+  }
+  const vistas = new Set();
+  return [...principais, ...extras].filter((a) => (vistas.has(a.calendar_id) ? false : vistas.add(a.calendar_id)));
+}
+
+/** Agendas do Google que quem conectou pode editar (para escolher quais sincronizar). */
+export async function listarAgendasDisponiveis(emailSistema, fetchImpl = fetch) {
+  const conexoes = await carregarConexoes();
+  const c = conexoes[emailSistema];
+  if (!c) throw new ErroGoogle('desconectado', 'Conecte o seu Google Agenda primeiro.');
+  const conta = { email_google: c.email_google, refresh_token: decifrar(c.token) };
+  let lista;
+  try {
+    lista = await chamarApi(conta, '/users/me/calendarList', { consulta: { minAccessRole: 'writer', maxResults: 250 } }, fetchImpl);
+  } catch (e) {
+    // Conectado antes desta permissão existir: precisa autorizar de novo para ver a lista
+    if (e.status === 403) throw new ErroGoogle('reconectar', 'Para listar as agendas compartilhadas, conecte o Google Agenda de novo e permita "ver a lista de agendas".');
+    throw e;
+  }
+  const escolhidas = new Map((c.agendas || []).map((a) => [a.id, a]));
+  return (lista.items || [])
+    .filter((cal) => cal.id !== c.email_google && !cal.primary && !/#holiday@|#contacts@|#weeknum@/.test(cal.id))
+    .map((cal) => ({
+      id: cal.id,
+      nome: cal.summaryOverride || cal.summary || cal.id,
+      cor: cal.backgroundColor || null,
+      selecionada: escolhidas.has(cal.id),
+    }));
+}
+
+/** Salva quais agendas compartilhadas a pessoa quer sincronizar (são da equipe toda). */
+export async function salvarAgendasEscolhidas(emailSistema, ids, fetchImpl = fetch) {
+  const disponiveis = new Map((await listarAgendasDisponiveis(emailSistema, fetchImpl)).map((a) => [a.id, a]));
+  const validas = [];
+  for (const id of ids) {
+    const a = disponiveis.get(id);
+    if (!a) throw new ErroGoogle('agenda', 'Uma das agendas escolhidas não está mais disponível para você no Google.');
+    validas.push({ id, nome: a.nome, cor: a.cor || null });
+  }
+  const conexoes = await carregarConexoes();
+  if (!conexoes[emailSistema]) throw new ErroGoogle('desconectado', 'Conecte o seu Google Agenda primeiro.');
+  conexoes[emailSistema] = { ...conexoes[emailSistema], agendas: validas };
+  await salvarConexoes(conexoes);
+  return validas;
+}
+
+/** Agendas sincronizadas (de toda a equipe) para escolher onde criar um evento. */
+export async function listarAgendasSincronizadas() {
+  const [alvos, config] = await Promise.all([carregarContasConectadas(), carregarConfigGoogle()]);
+  return {
+    agendas: alvos.map((a) => ({ id: a.calendar_id, nome: a.rotulo, cor: a.cor || null, compartilhada: !a.principal })),
+    padrao: agendaPadrao(alvos, config),
+  };
+}
+
+/** Onde os novos eventos são criados: a escolhida pela equipe, senão a primeira compartilhada, senão a pessoal. */
+function agendaPadrao(alvos, config) {
+  if (config.agenda_padrao && alvos.some((a) => a.calendar_id === config.agenda_padrao)) return config.agenda_padrao;
+  return (alvos.find((a) => !a.principal) || alvos[0])?.calendar_id || null;
+}
+
+export async function definirAgendaPadrao(calendarId) {
+  const alvos = await carregarContasConectadas();
+  if (!alvos.some((a) => a.calendar_id === calendarId)) throw new ErroGoogle('agenda', 'Essa agenda não está sincronizada.');
+  const config = await carregarConfigGoogle();
+  await salvarConfigGoogle({ ...config, agenda_padrao: calendarId });
 }
 
 /** Grava a conexão de uma pessoa (substitui a anterior, se houver). */
 export async function registrarConexao({ emailSistema, nome, emailGoogle, refreshToken }) {
+  const conexoes = await carregarConexoes();
+  // A mesma conta Google não pode alimentar duas pessoas do sistema
+  const anterior = conexoes[emailSistema];
+  Object.keys(conexoes).forEach((k) => conexoes[k].email_google === emailGoogle && delete conexoes[k]);
+  conexoes[emailSistema] = {
+    email_google: emailGoogle,
+    nome: nome || '',
+    token: cifrar(refreshToken),
+    conectado_em: new Date().toISOString(),
+    // Reconectar a mesma conta mantém as agendas compartilhadas já escolhidas
+    agendas: anterior?.email_google === emailGoogle ? anterior.agendas || [] : [],
+  };
+  await salvarConexoes(conexoes);
+  await limparAvisos(emailSistema);
+}
+
+async function limparAvisos(emailSistema) {
   const config = await carregarConfigGoogle();
-  const contas = (config.contas || []).filter((c) => c.email_sistema !== emailSistema && c.email_google !== emailGoogle);
-  contas.push({ email_sistema: emailSistema, email_google: emailGoogle, nome: nome || '', conectado_em: new Date().toISOString() });
   const erros = { ...(config.erros || {}) };
+  const falhas = { ...(config.falhas_conexao || {}) };
   delete erros[emailSistema];
-  await salvarConfigGoogle({ ...config, contas, erros });
-  const tokens = await carregarTokens();
-  await salvarTokens({ ...tokens, [emailSistema]: cifrar(refreshToken) });
+  delete falhas[emailSistema];
+  await salvarConfigGoogle({ ...config, erros, falhas_conexao: falhas });
+}
+
+/** Erro de sincronização de uma pessoa (aparece em Configurações › Agenda). */
+export async function registrarErroSincronizacao(emailSistema, mensagem) {
+  const config = await carregarConfigGoogle();
+  await salvarConfigGoogle({ ...config, erros: { ...(config.erros || {}), [emailSistema]: mensagem } });
+}
+
+/** Guarda o motivo de uma falha ao conectar, para a pessoa ver em Configurações › Agenda. */
+export async function registrarFalhaConexao(emailSistema, mensagem) {
+  const config = await carregarConfigGoogle();
+  await salvarConfigGoogle({ ...config, falhas_conexao: { ...(config.falhas_conexao || {}), [emailSistema]: { mensagem, em: new Date().toISOString() } } });
 }
 
 /** Desconecta: revoga no Google, encerra o canal de avisos e esquece o token. */
 export async function desconectar(emailSistema, fetchImpl = fetch) {
+  const minhas = (await carregarContasConectadas()).filter((c) => c.conectado_por === emailSistema);
   const config = await carregarConfigGoogle();
-  const [conta] = (await carregarContasConectadas(config)).filter((c) => c.email_sistema === emailSistema);
-  if (conta) {
-    const canal = config.canais?.[conta.email_google];
-    if (canal?.id) {
-      await chamarApi(conta, '/channels/stop', { metodo: 'POST', corpo: { id: canal.id, resourceId: canal.resource_id } }, fetchImpl).catch(() => {});
+  if (minhas.length) {
+    const canais = { ...(config.canais || {}) };
+    for (const alvo of minhas) {
+      const canal = canais[alvo.calendar_id];
+      if (canal?.id) {
+        await chamarApi(alvo, '/channels/stop', { metodo: 'POST', corpo: { id: canal.id, resourceId: canal.resource_id } }, fetchImpl).catch(() => {});
+      }
+      delete canais[alvo.calendar_id];
     }
-    await fetchImpl(`${URL_REVOGAR}?token=${encodeURIComponent(conta.refresh_token)}`, { method: 'POST' }).catch(() => {});
-    cacheTokens.delete(conta.email_google);
+    await fetchImpl(`${URL_REVOGAR}?token=${encodeURIComponent(minhas[0].refresh_token)}`, { method: 'POST' }).catch(() => {});
+    cacheTokens.delete(minhas[0].email_google);
+    await salvarConfigGoogle({ ...config, canais });
   }
-  const canais = { ...(config.canais || {}) };
-  if (conta) delete canais[conta.email_google];
-  await salvarConfigGoogle({ ...config, canais, contas: (config.contas || []).filter((c) => c.email_sistema !== emailSistema) });
-  const tokens = await carregarTokens();
-  delete tokens[emailSistema];
-  await salvarTokens(tokens);
+  const conexoes = await carregarConexoes();
+  delete conexoes[emailSistema];
+  await salvarConexoes(conexoes);
 }
 
 // ------------------------------------------------------------------------------
@@ -386,7 +579,7 @@ async function listarEventosGoogle(conta, fetchImpl) {
   do {
     const pagina = await chamarApi(
       conta,
-      `/calendars/${encodeURIComponent(conta.email_google)}/events`,
+      `/calendars/${encodeURIComponent(conta.calendar_id)}/events`,
       {
         consulta: {
           singleEvents: true,
@@ -405,6 +598,10 @@ async function listarEventosGoogle(conta, fetchImpl) {
   return eventos;
 }
 
+// Cópias antigas do prazo de demandas (o prazo já aparece na Agenda a partir da própria demanda):
+// não são compromissos de verdade e não devem ir para o Google
+const ehCopiaDePrazo = (l) => Boolean(l.chamado_id) || /^\[Prazo Demanda\]/.test(l.titulo || '');
+
 export async function sincronizarConta(conta, fetchImpl = fetch) {
   const cliente = db();
   const desde = new Date(Date.now() - DIAS_PASSADO * 86400000).toISOString().slice(0, 10);
@@ -416,14 +613,14 @@ export async function sincronizarConta(conta, fetchImpl = fetch) {
     .select('*')
     .gte('data', desde)
     .lte('data', ate)
-    .or(`google_calendar_id.eq."${conta.email_google}",and(google_event_id.is.null,responsavel_email.eq."${conta.email_sistema}")`);
+    .eq('google_calendar_id', conta.calendar_id);
   if (error) throw new ErroGoogle('banco', `Não foi possível ler a agenda: ${error.message}`);
 
   const porGoogleId = new Map();
   const porId = new Map();
   (linhas || []).forEach((l) => {
     porId.set(String(l.id), l);
-    if (l.google_event_id && l.google_calendar_id === conta.email_google) porGoogleId.set(l.google_event_id, l);
+    if (l.google_event_id && l.google_calendar_id === conta.calendar_id) porGoogleId.set(l.google_event_id, l);
   });
 
   const novos = [];
@@ -436,15 +633,17 @@ export async function sincronizarConta(conta, fetchImpl = fetch) {
     const rmId = ev.extendedProperties?.private?.rm_id;
     const existente = porGoogleId.get(ev.id) || (rmId && porId.get(rmId)) || null;
     if (existente) vinculados.add(String(existente.id));
-    if (existente && existente.google_atualizado_em && ev.updated && new Date(existente.google_atualizado_em).getTime() >= new Date(ev.updated).getTime()) continue;
     const linha = googleParaLinha(ev, conta, existente);
+    // Sem mudança no Google, só regrava se o responsável calculado mudou (ex.: regra nova de agendas da equipe)
+    const semMudanca = existente && existente.google_atualizado_em && ev.updated && new Date(existente.google_atualizado_em).getTime() >= new Date(ev.updated).getTime();
+    if (semMudanca && (existente.responsavel_email || null) === linha.responsavel_email) continue;
     if (existente) atualizados.push({ id: existente.id, ...linha });
     else novos.push(linha);
   }
 
   // Apagados no Google (ou fora da agenda): somem do sistema
   const apagar = (linhas || [])
-    .filter((l) => l.google_event_id && l.google_calendar_id === conta.email_google && !vistos.has(l.google_event_id))
+    .filter((l) => l.google_event_id && l.google_calendar_id === conta.calendar_id && !vistos.has(l.google_event_id))
     .map((l) => l.id);
 
   if (novos.length) {
@@ -459,7 +658,11 @@ export async function sincronizarConta(conta, fetchImpl = fetch) {
 
   // Eventos do sistema dessa pessoa que ainda não estão no Google (criados antes da integração ou com falha)
   const pendentes = (linhas || []).filter(
-    (l) => !l.google_event_id && !vinculados.has(String(l.id)) && l.responsavel_email === conta.email_sistema && l.status !== 'cancelada'
+    (l) =>
+      !l.google_event_id &&
+      !vinculados.has(String(l.id)) &&
+      l.status !== 'cancelada' &&
+      !ehCopiaDePrazo(l)
   );
   for (const l of pendentes) await enviarParaGoogle(l, conta, fetchImpl);
 
@@ -469,16 +672,18 @@ export async function sincronizarConta(conta, fetchImpl = fetch) {
 /** Reconcilia todas as contas (cada uma isolada: o erro de uma não impede as outras). */
 export async function sincronizarTodas({ fetchImpl = fetch, renovarCanais = false, urlBase = null } = {}) {
   const config = await carregarConfigGoogle();
-  const contas = await carregarContasConectadas(config);
+  const contas = await carregarContasConectadas();
   const resultados = {};
   const erros = {};
   await Promise.all(
     contas.map(async (conta) => {
       try {
-        resultados[conta.email_sistema] = await sincronizarConta(conta, fetchImpl);
+        resultados[conta.calendar_id] = await sincronizarConta(conta, fetchImpl);
         if (renovarCanais && urlBase) await garantirCanal(config, conta, urlBase, fetchImpl);
       } catch (e) {
-        erros[conta.email_sistema] = e.message;
+        // O erro aparece para quem conectou (é quem consegue resolver)
+        const prefixo = conta.principal ? '' : `Agenda ${conta.nome ? `de ${conta.nome}` : conta.calendar_id}: `;
+        erros[conta.conectado_por] = `${erros[conta.conectado_por] ? `${erros[conta.conectado_por]} · ` : ''}${prefixo}${e.message}`;
       }
     })
   );
@@ -490,13 +695,19 @@ export async function sincronizarTodas({ fetchImpl = fetch, renovarCanais = fals
 // ------------------------------------------------------------------------------
 // Sistema → Google
 // ------------------------------------------------------------------------------
-async function enviarParaGoogle(linha, conta, fetchImpl = fetch) {
-  const corpo = linhaParaGoogle(linha);
-  const caminho = `/calendars/${encodeURIComponent(conta.email_google)}/events`;
-  const ev = await chamarApi(conta, caminho, { metodo: 'POST', corpo }, fetchImpl);
+async function enviarParaGoogle(linha, conta, fetchImpl = fetch, { gerarMeet = false } = {}) {
+  const corpo = linhaParaGoogle(linha, { gerarMeet });
+  const caminho = `/calendars/${encodeURIComponent(conta.calendar_id)}/events`;
+  const ev = await chamarApi(conta, caminho, { metodo: 'POST', corpo, consulta: gerarMeet ? { conferenceDataVersion: 1 } : undefined }, fetchImpl);
   await db()
     .from('agenda_eventos')
-    .update({ google_event_id: ev.id, google_calendar_id: conta.email_google, google_ical_uid: ev.iCalUID || null, google_atualizado_em: ev.updated || null })
+    .update({
+      google_event_id: ev.id,
+      google_calendar_id: conta.calendar_id,
+      google_ical_uid: ev.iCalUID || null,
+      google_atualizado_em: ev.updated || null,
+      ...(gerarMeet && ev.hangoutLink ? { link_reuniao: ev.hangoutLink } : {}),
+    })
     .eq('id', linha.id);
   return ev;
 }
@@ -505,7 +716,7 @@ async function apagarNoGoogle(conta, eventId, fetchImpl = fetch) {
   // A agenda pode ter sido desconectada: sem acesso, não há o que apagar lá
   if (!conta) return;
   try {
-    await chamarApi(conta, `/calendars/${encodeURIComponent(conta.email_google)}/events/${encodeURIComponent(eventId)}`, { metodo: 'DELETE' }, fetchImpl);
+    await chamarApi(conta, `/calendars/${encodeURIComponent(conta.calendar_id)}/events/${encodeURIComponent(eventId)}`, { metodo: 'DELETE' }, fetchImpl);
   } catch (e) {
     // Já apagado no Google: segue normalmente
     if (e.status !== 404 && e.status !== 410) throw e;
@@ -513,47 +724,52 @@ async function apagarNoGoogle(conta, eventId, fetchImpl = fetch) {
 }
 
 /**
- * Leva ao Google o estado atual de um evento do sistema (criado ou editado).
- * Se o responsável mudou de pessoa, o evento sai da agenda antiga e entra na nova.
+ * Leva ao Google o estado atual de um evento do sistema (criado, editado, remarcado ou cancelado).
+ * O evento vai para a agenda escolhida nele (ou a agenda padrão da equipe).
  */
-export async function espelharEvento(id, fetchImpl = fetch) {
-  const contas = await carregarContasConectadas();
+export async function espelharEvento(id, fetchImpl = fetch, { gerarMeet = false } = {}) {
+  const [alvos, config] = await Promise.all([carregarContasConectadas(), carregarConfigGoogle()]);
   const { data: linha } = await db().from('agenda_eventos').select('*').eq('id', id).maybeSingle();
   if (!linha) return { ok: false, motivo: 'nao_encontrado' };
-  const conta = contas.find((c) => c.email_sistema === String(linha.responsavel_email || '').toLowerCase());
+  if (ehCopiaDePrazo(linha) && !linha.google_event_id) return { ok: true, motivo: 'copia_de_prazo' };
 
-  if (linha.google_event_id && (!conta || conta.email_google !== linha.google_calendar_id)) {
-    await apagarNoGoogle(contas.find((c) => c.email_google === linha.google_calendar_id), linha.google_event_id, fetchImpl);
-    await db().from('agenda_eventos').update({ google_event_id: null, google_calendar_id: null, google_atualizado_em: null }).eq('id', id);
-    linha.google_event_id = null;
+  const destino = linha.google_calendar_id || agendaPadrao(alvos, config);
+  const conta = alvos.find((a) => a.calendar_id === destino);
+  if (!conta) return { ok: true, motivo: 'agenda_sem_conexao' };
+  if (!linha.google_calendar_id) {
+    await db().from('agenda_eventos').update({ google_calendar_id: destino }).eq('id', id);
+    linha.google_calendar_id = destino;
   }
-  if (!conta) return { ok: true, motivo: 'responsavel_sem_google' };
+
   if (linha.status === 'cancelada') {
     if (linha.google_event_id) {
       await apagarNoGoogle(conta, linha.google_event_id, fetchImpl);
-      await db().from('agenda_eventos').update({ google_event_id: null, google_calendar_id: null, google_atualizado_em: null }).eq('id', id);
+      await db().from('agenda_eventos').update({ google_event_id: null, google_atualizado_em: null }).eq('id', id);
     }
     return { ok: true };
   }
   if (!linha.google_event_id) {
-    await enviarParaGoogle(linha, conta, fetchImpl);
-    return { ok: true };
+    const ev = await enviarParaGoogle(linha, conta, fetchImpl, { gerarMeet });
+    return { ok: true, link_reuniao: gerarMeet ? ev.hangoutLink || null : undefined };
   }
   const ev = await chamarApi(
     conta,
-    `/calendars/${encodeURIComponent(conta.email_google)}/events/${encodeURIComponent(linha.google_event_id)}`,
-    { metodo: 'PATCH', corpo: linhaParaGoogle(linha) },
+    `/calendars/${encodeURIComponent(conta.calendar_id)}/events/${encodeURIComponent(linha.google_event_id)}`,
+    { metodo: 'PATCH', corpo: linhaParaGoogle(linha, { gerarMeet }), consulta: gerarMeet ? { conferenceDataVersion: 1 } : undefined },
     fetchImpl
   );
-  await db().from('agenda_eventos').update({ google_atualizado_em: ev.updated || null }).eq('id', id);
-  return { ok: true };
+  await db()
+    .from('agenda_eventos')
+    .update({ google_atualizado_em: ev.updated || null, ...(gerarMeet && ev.hangoutLink ? { link_reuniao: ev.hangoutLink } : {}) })
+    .eq('id', id);
+  return { ok: true, link_reuniao: gerarMeet ? ev.hangoutLink || null : undefined };
 }
 
 /** Exclui no Google e no banco (o servidor já conferiu a permissão de quem pediu). */
 export async function excluirEvento(linha, fetchImpl = fetch) {
   if (linha.google_event_id && linha.google_calendar_id && googleConfigurado()) {
     const contas = await carregarContasConectadas();
-    await apagarNoGoogle(contas.find((c) => c.email_google === linha.google_calendar_id), linha.google_event_id, fetchImpl);
+    await apagarNoGoogle(contas.find((c) => c.calendar_id === linha.google_calendar_id), linha.google_event_id, fetchImpl);
   }
   const { error } = await db().from('agenda_eventos').delete().eq('id', linha.id);
   if (error) throw new ErroGoogle('banco', `Não foi possível excluir o evento: ${error.message}`);
@@ -569,18 +785,18 @@ export function tokenWebhook() {
 /** Abre (ou renova, se faltar menos de 2 dias para expirar) o canal de avisos de uma agenda. */
 async function garantirCanal(config, conta, urlBase, fetchImpl = fetch) {
   if (!tokenWebhook() || !/^https:\/\//.test(urlBase)) return;
-  const atual = config.canais?.[conta.email_google];
+  const atual = config.canais?.[conta.calendar_id];
   if (atual?.expira_em && atual.expira_em - Date.now() > 2 * 86400000) return;
   const canal = await chamarApi(
     conta,
-    `/calendars/${encodeURIComponent(conta.email_google)}/events/watch`,
+    `/calendars/${encodeURIComponent(conta.calendar_id)}/events/watch`,
     {
       metodo: 'POST',
       corpo: { id: crypto.randomUUID(), type: 'web_hook', address: `${urlBase}/api/google/agenda/webhook`, token: tokenWebhook() },
     },
     fetchImpl
   );
-  config.canais = { ...(config.canais || {}), [conta.email_google]: { id: canal.id, resource_id: canal.resourceId, expira_em: Number(canal.expiration) || Date.now() + 6 * 86400000 } };
+  config.canais = { ...(config.canais || {}), [conta.calendar_id]: { id: canal.id, resource_id: canal.resourceId, expira_em: Number(canal.expiration) || Date.now() + 6 * 86400000 } };
   // O canal antigo continua válido até expirar; encerrá-lo evita avisos em dobro
   if (atual?.id && atual?.resource_id) {
     await chamarApi(conta, '/channels/stop', { metodo: 'POST', corpo: { id: atual.id, resourceId: atual.resource_id } }, fetchImpl).catch(() => {});
@@ -592,7 +808,7 @@ export async function contaDoCanal(canalId) {
   const config = await carregarConfigGoogle();
   const entrada = Object.entries(config.canais || {}).find(([, c]) => c.id === canalId);
   if (!entrada) return null;
-  return (await carregarContasConectadas(config)).find((c) => c.email_google === entrada[0]) || null;
+  return (await carregarContasConectadas()).find((c) => c.calendar_id === entrada[0]) || null;
 }
 
 /** Endereço público do sistema para o Google chamar (precisa ser https). */

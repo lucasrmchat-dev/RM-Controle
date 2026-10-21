@@ -5312,7 +5312,7 @@ export function saveAgendaEventos(eventos) {
   }
 }
 
-const CAMPOS_AGENDA = ['titulo', 'empresa', 'data', 'hora_inicio', 'hora_fim', 'responsavel_email', 'responsavel_nome', 'link_reuniao', 'status', 'tipo', 'observacoes', 'chamado_id'];
+const CAMPOS_AGENDA = ['titulo', 'empresa', 'data', 'hora_inicio', 'hora_fim', 'responsavel_email', 'responsavel_nome', 'link_reuniao', 'status', 'tipo', 'observacoes', 'chamado_id', 'google_calendar_id'];
 
 function linhaAgenda(evento) {
   const linha = {};
@@ -5327,14 +5327,14 @@ function linhaAgenda(evento) {
 const ehEventoPessoal = (e) => e?.origem === 'google_calendar';
 
 /** Pede ao servidor para levar ao Google uma criação/edição (ou excluir nos dois lados). */
-async function googleAgendaEvento(id, acao = 'espelhar') {
+async function googleAgendaEvento(id, acao = 'espelhar', { gerarMeet = false } = {}) {
   if (!isCloudId(id) || typeof fetch === 'undefined') return { ok: true, configurado: false };
   try {
     const r = await fetch('/api/google/agenda/evento', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify({ id, acao }),
+      body: JSON.stringify({ id, acao, gerar_meet: gerarMeet }),
     });
     const json = await r.json().catch(() => ({}));
     return { ...json, ok: r.ok && json.ok !== false };
@@ -5384,6 +5384,27 @@ export async function desconectarGoogleAgenda() {
   return true;
 }
 
+async function postGoogleAgenda(corpo) {
+  const r = await fetch('/api/google/agenda', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(corpo),
+  });
+  const json = await r.json().catch(() => ({}));
+  if (!r.ok || !json.ok) throw new Error(json.mensagem || 'Não foi possível falar com o Google Agenda.');
+  return json;
+}
+
+/** Agendas do Google compartilhadas comigo que posso sincronizar + equipe (para escolher o responsável). */
+export const listarAgendasGoogleDisponiveis = () => postGoogleAgenda({ acao: 'listar_agendas' });
+
+/** Salva quais agendas compartilhadas sincronizar (ids) e sincroniza em seguida. */
+export const salvarAgendasGoogle = (ids) => postGoogleAgenda({ acao: 'salvar_agendas', agendas: ids });
+
+/** Agenda onde os novos eventos são criados (para a equipe toda). */
+export const definirAgendaPadraoGoogle = (id) => postGoogleAgenda({ acao: 'agenda_padrao', id });
+
 /** Endereço que inicia o "Conectar Google Agenda" (redireciona para o Google). */
 export const URL_CONECTAR_GOOGLE_AGENDA = '/api/google/agenda/oauth/iniciar';
 
@@ -5407,17 +5428,33 @@ export async function fetchAgendaEventos() {
   return getAgendaEventos();
 }
 
-export async function addAgendaEvento(eventoData) {
+/**
+ * Antes de gravar na agenda: renova a sessão do banco. Se ela tiver caído, a gravação chegaria como
+ * visitante e o banco responderia "permission denied for table agenda_eventos".
+ */
+async function sessaoAgendaOk() {
+  const sessao = await garantirSessaoBanco();
+  if (!sessao.ok) throw new Error(sessao.erro);
+}
+
+const mensagemErroAgenda = (error, acao) =>
+  error?.code === '42501' || /permission denied/i.test(error?.message || '')
+    ? 'Sua conexão com o banco expirou. Saia e entre novamente para continuar.'
+    : `Não foi possível ${acao}: ${error?.message || 'sem permissão'}`;
+
+export async function addAgendaEvento(eventoData, { gerarMeet = false } = {}) {
   const eventos = getAgendaEventos();
   let novo = {
     id: 'evt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
     titulo: (eventoData.titulo || 'Nova Reunião').trim(),
-    empresa: (eventoData.empresa || 'Cliente Geral').trim(),
+    empresa: (eventoData.empresa || '').trim(),
     data: eventoData.data || new Date().toISOString().split('T')[0],
     hora_inicio: eventoData.hora_inicio || '09:00',
     hora_fim: eventoData.hora_fim || '10:00',
-    responsavel_email: (eventoData.responsavel_email || 'admin@rmcontrole.com').trim().toLowerCase(),
-    responsavel_nome: eventoData.responsavel_nome || getNomeTecnico(eventoData.responsavel_email),
+    // Sem responsável é permitido (reunião da equipe)
+    responsavel_email: eventoData.responsavel_email ? eventoData.responsavel_email.trim().toLowerCase() : null,
+    responsavel_nome: eventoData.responsavel_email ? eventoData.responsavel_nome || getNomeTecnico(eventoData.responsavel_email) : null,
+    google_calendar_id: eventoData.google_calendar_id || null,
     link_reuniao: (eventoData.link_reuniao || '').trim(),
     status: eventoData.status || 'agendada',
     tipo: eventoData.tipo || 'cliente',
@@ -5426,37 +5463,41 @@ export async function addAgendaEvento(eventoData) {
     created_at: new Date().toISOString(),
   };
   if (podeUsarTabelas()) {
+    await sessaoAgendaOk();
     const { data, error } = await supabase
       .from('agenda_eventos')
-      .insert([{ ...linhaAgenda(novo), criado_por: novo.responsavel_email }])
+      .insert([{ ...linhaAgenda(novo), criado_por: eventoData.criado_por || novo.responsavel_email }])
       .select('*')
       .single();
-    if (error) throw new Error(`Não foi possível salvar o evento para a equipe: ${error.message}`);
+    if (error) throw new Error(mensagemErroAgenda(error, 'salvar o evento para a equipe'));
     novo = { ...novo, ...data };
-    const g = await googleAgendaEvento(novo.id);
+    const g = await googleAgendaEvento(novo.id, 'espelhar', { gerarMeet });
     if (!g.ok) novo.aviso_google = g.mensagem;
+    if (g.link_reuniao) novo.link_reuniao = g.link_reuniao;
   }
   eventos.push(novo);
   saveAgendaEventos(eventos);
   return novo;
 }
 
-export async function updateAgendaEvento(id, dados) {
+export async function updateAgendaEvento(id, dados, { gerarMeet = false } = {}) {
   const eventos = getAgendaEventos();
   const idx = eventos.findIndex((e) => e.id === id);
   if (idx === -1) return null;
   const atualizado = { ...eventos[idx], ...dados, updated_at: new Date().toISOString() };
   if (podeUsarTabelas() && isCloudId(id)) {
+    await sessaoAgendaOk();
     const { data, error } = await supabase
       .from('agenda_eventos')
       .update({ ...linhaAgenda(dados), updated_at: atualizado.updated_at })
       .eq('id', id)
       .select('id');
     if (error || !Array.isArray(data) || data.length === 0) {
-      throw new Error(`Não foi possível atualizar o evento: ${error?.message || 'sem permissão'}`);
+      throw new Error(mensagemErroAgenda(error, 'atualizar o evento'));
     }
-    const g = await googleAgendaEvento(id);
+    const g = await googleAgendaEvento(id, 'espelhar', { gerarMeet });
     if (!g.ok) atualizado.aviso_google = g.mensagem;
+    if (g.link_reuniao) atualizado.link_reuniao = g.link_reuniao;
   }
   eventos[idx] = atualizado;
   saveAgendaEventos(eventos);
@@ -5468,6 +5509,7 @@ export async function deleteAgendaEvento(id) {
   const g = podeUsarTabelas() ? await googleAgendaEvento(id, 'excluir') : { ok: true, configurado: false };
   if (!g.ok) throw new Error(g.mensagem || 'Não foi possível excluir o evento.');
   if (podeUsarTabelas() && isCloudId(id) && !g.excluido) {
+    await sessaoAgendaOk();
     const { data, error } = await supabase.from('agenda_eventos').delete().eq('id', id).select('id');
     if (error || !Array.isArray(data) || data.length === 0) {
       throw new Error(`Não foi possível excluir o evento: ${error?.message || 'apenas quem criou, o responsável ou um administrador pode excluir'}`);

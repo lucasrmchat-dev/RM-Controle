@@ -40,7 +40,7 @@ export async function POST(request) {
   }
 
   try {
-    return NextResponse.json(await espelharEvento(id));
+    return NextResponse.json(await espelharEvento(id, fetch, { gerarMeet: body.gerar_meet === true }));
   } catch (e) {
     return erro(`Salvo no sistema, mas não foi possível atualizar o Google Agenda: ${e.message}`, 502);
   }

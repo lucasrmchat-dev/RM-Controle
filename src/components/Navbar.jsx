@@ -135,7 +135,6 @@ export default function Navbar({
   acoesFila = false,
 }) {
   const [perfilAberto, setPerfilAberto] = useState(false);
-  const [avisoAgendaOpen, setAvisoAgendaOpen] = useState(false);
   const [totalFila, setTotalFila] = useState(0);
   const [totalReunioesHoje, setTotalReunioesHoje] = useState(0);
   const [userRole, setUserRole] = useState('administrador');
@@ -233,19 +232,10 @@ export default function Navbar({
 
   const irPara = (tabId) => {
     setPerfilAberto(false);
-    if (tabId === 'agenda') {
-      setAvisoAgendaOpen(true);
-      return;
-    }
     setActiveTab(tabId);
     window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
-  const handleConfirmarAgenda = () => {
-    setAvisoAgendaOpen(false);
-    setActiveTab('agenda');
-    window.scrollTo({ top: 0, behavior: 'instant' });
-  };
 
   const mostrarAcoes = acoesFila && encaixado;
   // Com as ações encaixadas, as abas inativas viram só ícone para abrir espaço
@@ -470,72 +460,6 @@ export default function Navbar({
         })}
       </nav>
 
-      {/* ============================================================================== */}
-      {/* 4. MODAL DE AVISO: AGENDA EM DESENVOLVIMENTO & HOMOLOGAÇÃO                      */}
-      {/* ============================================================================== */}
-      <AnimatePresence>
-        {avisoAgendaOpen && (
-          <div 
-            className="fixed inset-0 w-screen h-screen z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
-            onClick={() => setAvisoAgendaOpen(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.94, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.94, y: 12 }}
-              transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-              className="w-full max-w-md rounded-3xl bg-white/95 dark:bg-[#1e1e21]/95 backdrop-blur-2xl border border-black/[0.08] dark:border-white/[0.1] p-6 sm:p-7 shadow-2xl space-y-5 relative text-[#1d1d1f] dark:text-[#f5f5f7]"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xl flex-shrink-0 border border-amber-500/25 shadow-xs">
-                  📅
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="text-base font-bold text-[#1d1d1f] dark:text-white">
-                      Agenda & Compromissos
-                    </h3>
-                    <span className="text-[9px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/20 font-mono">
-                      Em Produção
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                    Módulo em fase contínua de desenvolvimento e homologação.
-                  </p>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.05] dark:border-white/[0.09] text-xs space-y-2 text-slate-600 dark:text-zinc-300 leading-relaxed">
-                <p>
-                  Esta aba inclui a visualização semanal nativa e a transmissão ao vivo do Google Agenda.
-                </p>
-                <p className="font-medium text-[#1d1d1f] dark:text-white">
-                  Você deseja prosseguir para visualizar a prévia do módulo?
-                </p>
-              </div>
-
-              <div className="flex items-center justify-end gap-2.5 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setAvisoAgendaOpen(false)}
-                  className="px-4 py-2.5 rounded-full border border-black/[0.08] dark:border-white/[0.1] text-xs font-semibold text-slate-600 dark:text-zinc-400 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-all cursor-pointer"
-                >
-                  Voltar
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleConfirmarAgenda}
-                  className="px-5 py-2.5 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black font-bold text-xs hover:opacity-90 transition-all cursor-pointer shadow-md shadow-black/10"
-                >
-                  Sim, Continuar para a Agenda →
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </>
   );
 }

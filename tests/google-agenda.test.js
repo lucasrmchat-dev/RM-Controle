@@ -20,6 +20,8 @@ import {
   trocarCodigo,
   registrarConexao,
   desconectar,
+  listarAgendasDisponiveis,
+  salvarAgendasEscolhidas,
   CHAVE_CONFIG,
 } from '../src/lib/server/googleAgenda.js';
 import { POST as webhook } from '../src/app/api/google/agenda/webhook/route.js';
@@ -34,12 +36,12 @@ process.env.GOOGLE_OAUTH_CLIENT_SECRET = 'segredo-cliente';
 process.env.GOOGLE_AGENDA_WEBHOOK_TOKEN = 'segredo-webhook';
 const REFRESH = 'refresh-do-lucas';
 
-const CONTA = { email_sistema: 'lucas@rmchat.com', email_google: 'lucas.amorim@rmchat.com.br', nome: 'Lucas' };
+const CONTA = { email_sistema: 'lucas@rmchat.com', email_google: 'lucas.amorim@rmchat.com.br', calendar_id: 'lucas.amorim@rmchat.com.br', nome: 'Lucas', principal: true };
 const uuid = () => crypto.randomUUID();
 
 /** Google Agenda falso: guarda eventos por agenda e só aceita o refresh token conectado. */
 function googleFalso() {
-  const agendas = { [CONTA.email_google]: new Map() };
+  const agendas = { [CONTA.email_google]: new Map(), 'suporte@rmchat.com.br': new Map() };
   const chamadas = [];
   let seq = 0;
   const resposta = (status, json) => ({ ok: status < 400, status, json: async () => json });
@@ -58,6 +60,15 @@ function googleFalso() {
       return resposta(200, { access_token: 'tok-lucas', expires_in: 3600 });
     }
     if (u.pathname === '/calendar/v3/channels/stop') return { ok: true, status: 204, json: async () => null };
+    if (u.pathname === '/calendar/v3/users/me/calendarList') {
+      return resposta(200, {
+        items: [
+          { id: CONTA.email_google, summary: 'Lucas Amorim', primary: true, accessRole: 'owner' },
+          { id: 'suporte@rmchat.com.br', summary: 'Pedro Alvarez', accessRole: 'writer', backgroundColor: '#e67c73' },
+          { id: 'pt-br.brazilian#holiday@group.v.calendar.google.com', summary: 'Feriados', accessRole: 'reader' },
+        ],
+      });
+    }
     const m = u.pathname.match(/\/calendars\/([^/]+)\/events(?:\/([^/]+))?$/);
     const agenda = agendas[decodeURIComponent(m[1])];
     const id = m[2] && decodeURIComponent(m[2]);
@@ -88,12 +99,13 @@ beforeEach(() => {
   db.reset();
   db.tables.agenda_eventos = [];
   db.tables.sistema_config = [
-    { chave: CHAVE_CONFIG, valor: { contas: [CONTA], canais: {} } },
-    { chave: 'google_agenda_tokens', valor: { [CONTA.email_sistema]: cifrar(REFRESH) } },
+    { chave: CHAVE_CONFIG, valor: { canais: {} } },
+    { chave: 'google_agenda_tokens', valor: { [CONTA.email_sistema]: { email_google: CONTA.email_google, nome: 'Lucas', token: cifrar(REFRESH) } } },
   ];
   db.tables.equipe_usuarios = [
     { id: uuid(), email: 'lucas@rmchat.com', nome: 'Lucas', papel: 'administrador', ativo: true },
     { id: uuid(), email: 'maria@rmchat.com', nome: 'Maria', papel: 'suporte', ativo: true },
+    { id: uuid(), email: 'pedro@rmchat.com', nome: 'Pedro Alvarez', papel: 'suporte', ativo: true },
   ];
 });
 
@@ -150,7 +162,7 @@ test('sincronização: traz do Google, apaga o que sumiu lá e envia o que só e
   const idEditado = uuid();
   const idApagado = uuid();
   db.tables.agenda_eventos.push(
-    { id: idSoSistema, titulo: 'Criado no sistema', data: hoje, hora_inicio: '16:00', hora_fim: '17:00', responsavel_email: 'lucas@rmchat.com', status: 'agendada' },
+    { id: idSoSistema, titulo: 'Criado no sistema', data: hoje, hora_inicio: '16:00', hora_fim: '17:00', responsavel_email: 'lucas@rmchat.com', status: 'agendada', google_calendar_id: CONTA.email_google },
     { id: idEditado, titulo: 'Título antigo', empresa: 'Mercado Bom', data: hoje, hora_inicio: '09:00', hora_fim: '10:00', responsavel_email: 'lucas@rmchat.com', google_event_id: 'g-editado', google_calendar_id: CONTA.email_google, google_atualizado_em: '2020-01-01T00:00:00Z' },
     { id: idApagado, titulo: 'Excluído no Google', data: hoje, hora_inicio: '08:00', hora_fim: '09:00', responsavel_email: 'lucas@rmchat.com', google_event_id: 'g-sumiu', google_calendar_id: CONTA.email_google }
   );
@@ -175,28 +187,30 @@ test('sincronização: traz do Google, apaga o que sumiu lá e envia o que só e
   assert.equal(db.tables.agenda_eventos.length, antes);
 });
 
-test('editar no sistema atualiza o Google; trocar para alguém sem Google remove de lá', async () => {
+test('editar e remarcar no sistema atualiza o Google; cancelar remove de lá', async () => {
   const g = googleFalso();
   const hoje = new Date().toISOString().slice(0, 10);
   const id = uuid();
-  db.tables.agenda_eventos.push({ id, titulo: 'Call', data: hoje, hora_inicio: '10:00', hora_fim: '11:00', responsavel_email: 'lucas@rmchat.com', status: 'agendada' });
+  db.tables.agenda_eventos.push({ id, titulo: 'Call', data: hoje, hora_inicio: '10:00', hora_fim: '11:00', responsavel_email: 'lucas@rmchat.com', responsavel_nome: 'Lucas', status: 'agendada' });
 
+  // Sem agenda escolhida, vai para a agenda padrão (aqui, a única conectada)
   await espelharEvento(id, g.fetchImpl);
   const linha = db.tables.agenda_eventos.find((l) => l.id === id);
   const gid = linha.google_event_id;
+  assert.equal(linha.google_calendar_id, CONTA.email_google);
   assert.ok(g.agendas[CONTA.email_google].has(gid));
 
-  linha.titulo = 'Call remarcada';
-  linha.hora_inicio = '15:00';
-  linha.hora_fim = '15:30';
+  Object.assign(linha, { titulo: 'Call remarcada', hora_inicio: '15:00', hora_fim: '15:30', responsavel_email: 'maria@rmchat.com', responsavel_nome: 'Maria' });
   await espelharEvento(id, g.fetchImpl);
-  assert.equal(g.agendas[CONTA.email_google].get(gid).summary, 'Call remarcada');
-  assert.equal(g.agendas[CONTA.email_google].get(gid).start.dateTime, `${hoje}T15:00:00`);
+  const noGoogle = g.agendas[CONTA.email_google].get(gid);
+  assert.equal(noGoogle.summary, 'Call remarcada');
+  assert.equal(noGoogle.start.dateTime, `${hoje}T15:00:00`);
+  assert.match(noGoogle.description, /Responsável: Maria/, 'responsável escrito na descrição do Google');
+  assert.equal(noGoogle.extendedProperties.private.rm_responsavel_email, 'maria@rmchat.com');
 
-  linha.responsavel_email = 'maria@rmchat.com'; // Maria não tem conta Google vinculada
+  linha.status = 'cancelada';
   await espelharEvento(id, g.fetchImpl);
   assert.ok(!g.agendas[CONTA.email_google].has(gid));
-  assert.equal(db.tables.agenda_eventos.find((l) => l.id === id).google_event_id, null);
 });
 
 test('webhook recusa token errado e ignora canal desconhecido', async () => {
@@ -235,7 +249,10 @@ test('token do Google é guardado criptografado e o state só vale para a mesma 
   const c = cifrar('segredo');
   assert.ok(!c.includes('segredo'));
   assert.equal(decifrar(c), 'segredo');
-  assert.equal(decifrar(c.replace(/.$/, (x) => (x === 'A' ? 'B' : 'A'))), null, 'adulterado não decifra');
+  // Altera o 1º caractere da etiqueta de autenticação (sempre carrega bits reais, ao contrário do último)
+  const [iv, tag, dados] = c.split('.');
+  const tagAdulterada = (tag[0] === 'A' ? 'B' : 'A') + tag.slice(1);
+  assert.equal(decifrar([iv, tagAdulterada, dados].join('.')), null, 'adulterado não decifra');
 
   const state = criarState('lucas@rmchat.com', 'nonce-1');
   assert.equal(lerState(state, 'nonce-1'), 'lucas@rmchat.com');
@@ -253,14 +270,72 @@ test('conectar: troca o código, identifica a conta Google e guarda o token cifr
   assert.equal(emailGoogle, 'lucas.amorim@rmchat.com.br');
   await registrarConexao({ emailSistema: 'lucas@rmchat.com', nome: 'Lucas', emailGoogle, refreshToken });
 
-  const tokens = db.tables.sistema_config.find((r) => r.chave === 'google_agenda_tokens').valor;
-  assert.ok(!JSON.stringify(tokens).includes(REFRESH), 'refresh token nunca em texto puro');
-  const config = db.tables.sistema_config.find((r) => r.chave === CHAVE_CONFIG).valor;
-  assert.equal(config.contas[0].email_google, 'lucas.amorim@rmchat.com.br');
-  assert.ok(!JSON.stringify(config).includes(REFRESH));
+  const conexoes = db.tables.sistema_config.find((r) => r.chave === 'google_agenda_tokens').valor;
+  assert.ok(!JSON.stringify(conexoes).includes(REFRESH), 'refresh token nunca em texto puro');
+  assert.equal(conexoes['lucas@rmchat.com'].email_google, 'lucas.amorim@rmchat.com.br');
+
+  // Outra gravação da configuração (ex.: sincronização) não apaga a conexão recém-feita
+  await sincronizarTodas({ fetchImpl: g.fetchImpl });
+  assert.ok(db.tables.sistema_config.find((r) => r.chave === 'google_agenda_tokens').valor['lucas@rmchat.com']);
 
   await desconectar('lucas@rmchat.com', g.fetchImpl);
   assert.ok(g.chamadas.some((c) => c.startsWith('POST /revoke')), 'revoga no Google');
   assert.deepEqual(db.tables.sistema_config.find((r) => r.chave === 'google_agenda_tokens').valor, {});
-  assert.equal(db.tables.sistema_config.find((r) => r.chave === CHAVE_CONFIG).valor.contas.length, 0);
+});
+
+test('agenda compartilhada (suporte@) é da equipe: o responsável vem de cada reunião e volta do Google', async () => {
+  const g = googleFalso();
+  const hoje = new Date().toISOString().slice(0, 10);
+  g.agendas['suporte@rmchat.com.br'].set('p1', {
+    id: 'p1', iCalUID: 'p1@google', summary: 'Reunião Quinzenal', start: { dateTime: `${hoje}T14:00:00-03:00` }, end: { dateTime: `${hoje}T14:45:00-03:00` }, updated: new Date().toISOString(),
+  });
+
+  const disponiveis = await listarAgendasDisponiveis('lucas@rmchat.com', g.fetchImpl);
+  assert.deepEqual(disponiveis.map((a) => a.id), ['suporte@rmchat.com.br'], 'só agendas editáveis e sem a principal');
+  await assert.rejects(salvarAgendasEscolhidas('lucas@rmchat.com', ['outra@x.com'], g.fetchImpl));
+  await salvarAgendasEscolhidas('lucas@rmchat.com', ['suporte@rmchat.com.br'], g.fetchImpl);
+
+  await sincronizarTodas({ fetchImpl: g.fetchImpl });
+  const daEquipe = db.tables.agenda_eventos.find((l) => l.google_event_id === 'p1');
+  assert.equal(daEquipe.google_calendar_id, 'suporte@rmchat.com.br');
+  assert.equal(daEquipe.responsavel_email, null, 'agenda compartilhada não tem dono');
+
+  // Reunião criada no sistema para o Pedro, na agenda da equipe
+  const id = uuid();
+  db.tables.agenda_eventos.push({ id, titulo: 'Onboarding cliente', data: hoje, hora_inicio: '16:00', hora_fim: '17:00', responsavel_email: 'pedro@rmchat.com', responsavel_nome: 'Pedro Alvarez', empresa: 'Padaria Sol', google_calendar_id: 'suporte@rmchat.com.br', status: 'agendada' });
+  await espelharEvento(id, g.fetchImpl);
+  const linha = db.tables.agenda_eventos.find((l) => l.id === id);
+  const noGoogle = g.agendas['suporte@rmchat.com.br'].get(linha.google_event_id);
+  assert.match(noGoogle.description, /Responsável: Pedro Alvarez/);
+  assert.match(noGoogle.description, /Empresa: Padaria Sol/);
+
+  // Ida e volta: alguém edita o título no Google; o responsável continua o do sistema e a descrição não duplica
+  noGoogle.summary = 'Onboarding cliente (remarcado)';
+  noGoogle.updated = new Date(Date.now() + 1000).toISOString();
+  await sincronizarTodas({ fetchImpl: g.fetchImpl });
+  const depois = db.tables.agenda_eventos.find((l) => l.id === id);
+  assert.equal(depois.titulo, 'Onboarding cliente (remarcado)');
+  assert.equal(depois.responsavel_email, 'pedro@rmchat.com');
+  assert.equal(depois.empresa, 'Padaria Sol');
+  assert.ok(!/RM Controle/.test(depois.observacoes || ''), 'bloco do RM Controle não vira observação');
+});
+
+test('reuniões antigas da agenda da equipe perdem o dono herdado da agenda', async () => {
+  const g = googleFalso();
+  const hoje = new Date().toISOString().slice(0, 10);
+  const atualizado = '2026-01-01T00:00:00Z';
+  g.agendas['suporte@rmchat.com.br'].set('v1', {
+    id: 'v1', iCalUID: 'v1@google', summary: 'Reunião com Gilliard', start: { dateTime: `${hoje}T11:00:00-03:00` }, end: { dateTime: `${hoje}T12:00:00-03:00` }, updated: atualizado,
+  });
+  await salvarAgendasEscolhidas('lucas@rmchat.com', ['suporte@rmchat.com.br'], g.fetchImpl);
+  // Linha importada no modelo antigo: dono = quem foi atribuído à agenda inteira
+  db.tables.agenda_eventos.push({
+    id: uuid(), titulo: 'Reunião com Gilliard', data: hoje, hora_inicio: '11:00', hora_fim: '12:00', origem: 'google',
+    responsavel_email: 'pedro@rmchat.com', responsavel_nome: 'Pedro Alvarez',
+    google_event_id: 'v1', google_calendar_id: 'suporte@rmchat.com.br', google_atualizado_em: atualizado,
+  });
+  await sincronizarTodas({ fetchImpl: g.fetchImpl });
+  const linha = db.tables.agenda_eventos.find((l) => l.google_event_id === 'v1');
+  assert.equal(linha.responsavel_email, null);
+  assert.equal(db.tables.agenda_eventos.filter((l) => l.google_event_id === 'v1').length, 1);
 });

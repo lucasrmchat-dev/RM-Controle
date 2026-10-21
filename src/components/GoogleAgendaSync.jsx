@@ -1,7 +1,15 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { statusGoogleAgenda, desconectarGoogleAgenda, sincronizarGoogleAgenda, URL_CONECTAR_GOOGLE_AGENDA } from '@/lib/storage';
+import {
+  statusGoogleAgenda,
+  desconectarGoogleAgenda,
+  sincronizarGoogleAgenda,
+  listarAgendasGoogleDisponiveis,
+  salvarAgendasGoogle,
+  definirAgendaPadraoGoogle,
+  URL_CONECTAR_GOOGLE_AGENDA,
+} from '@/lib/storage';
 import { showToast } from './ToastNotification';
 import ConfirmModal from './ConfirmModal';
 
@@ -25,6 +33,160 @@ export function BotaoConectarGoogle({ className = '' }) {
       <IconeGoogleAgenda />
       Conectar Google Agenda
     </a>
+  );
+}
+
+/**
+ * Agendas compartilhadas com a pessoa (ex.: a do suporte@) que ela pode escolher sincronizar.
+ * São da equipe toda: o responsável é definido em cada reunião, não na agenda.
+ */
+function AgendasCompartilhadas({ escolhidas = [], onSalvo }) {
+  const [lista, setLista] = useState(null);
+  const [marcadas, setMarcadas] = useState(new Set());
+  const [carregando, setCarregando] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState('');
+
+  const abrir = async () => {
+    setCarregando(true);
+    setErro('');
+    try {
+      const r = await listarAgendasGoogleDisponiveis();
+      setLista(r.agendas || []);
+      setMarcadas(new Set((r.agendas || []).filter((a) => a.selecionada).map((a) => a.id)));
+    } catch (e) {
+      setErro(e.message);
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  const salvar = async () => {
+    setSalvando(true);
+    setErro('');
+    try {
+      const r = await salvarAgendasGoogle([...marcadas]);
+      const falhas = Object.values(r.erros || {}).filter(Boolean);
+      if (falhas.length) showToast(`Agendas salvas, mas a sincronização avisou: ${falhas[0]}`, 'warning');
+      else showToast('Agendas salvas e sincronizadas.', 'success');
+      setLista(null);
+      onSalvo?.();
+    } catch (e) {
+      setErro(e.message);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  if (!lista) {
+    return (
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-[13.5px] font-medium">Agendas compartilhadas</p>
+          <p className="text-[12px] text-slate-500 dark:text-zinc-400 mt-0.5">
+            {escolhidas.length
+              ? `Sincronizando: ${escolhidas.map((a) => a.nome).join(', ')}`
+              : 'Traga agendas da equipe que você pode editar, como a do suporte.'}
+          </p>
+          {erro && <p className="text-[12px] text-rose-600 dark:text-rose-400 mt-1">{erro}</p>}
+        </div>
+        {/conecte o Google Agenda de novo/i.test(erro) && <BotaoConectarGoogle className="!h-9" />}
+        <button
+          type="button"
+          onClick={abrir}
+          disabled={carregando}
+          className="h-9 px-3.5 rounded-full text-[13px] font-medium ring-1 ring-black/[0.12] dark:ring-white/[0.15] hover:bg-black/[0.04] dark:hover:bg-white/[0.06] disabled:opacity-50 cursor-pointer flex-shrink-0"
+        >
+          {carregando ? 'Carregando…' : escolhidas.length ? 'Alterar agendas' : 'Escolher agendas'}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <p className="text-[13.5px] font-medium mb-1">Agendas compartilhadas</p>
+      <p className="text-[12px] text-slate-500 dark:text-zinc-400 mb-3">
+        Marque as agendas da equipe que devem aparecer no RM Controle. O responsável é escolhido em cada reunião.
+      </p>
+      {lista.length === 0 ? (
+        <p className="text-[13px] text-slate-500 dark:text-zinc-400">Nenhuma agenda que você possa editar foi encontrada além da sua.</p>
+      ) : (
+        <ul className="divide-y divide-black/[0.06] dark:divide-white/[0.09] rounded-2xl ring-1 ring-black/[0.06] dark:ring-white/[0.09]">
+          {lista.map((a) => (
+            <li key={a.id}>
+              <label className="flex items-center gap-3 px-4 py-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={marcadas.has(a.id)}
+                  onChange={(e) =>
+                    setMarcadas((m) => {
+                      const n = new Set(m);
+                      if (e.target.checked) n.add(a.id);
+                      else n.delete(a.id);
+                      return n;
+                    })
+                  }
+                  className="w-4 h-4 accent-[#4d7c0f] dark:accent-[#84cc16]"
+                />
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: a.cor || '#8e8e93' }} aria-hidden="true" />
+                <span className="min-w-0">
+                  <span className="block text-[13.5px] font-medium truncate">{a.nome}</span>
+                  <span className="block text-[12px] text-slate-500 dark:text-zinc-400 truncate">{a.id}</span>
+                </span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+      {erro && <p className="text-[12px] text-rose-600 dark:text-rose-400 mt-2">{erro}</p>}
+      <div className="flex justify-end gap-2 mt-3">
+        <button type="button" onClick={() => setLista(null)} className="h-9 px-3.5 rounded-full text-[13px] font-medium hover:bg-black/[0.04] dark:hover:bg-white/[0.06] cursor-pointer">
+          Cancelar
+        </button>
+        <button
+          type="button"
+          onClick={salvar}
+          disabled={salvando}
+          className="h-9 px-4 rounded-full text-[13px] font-semibold bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] hover:opacity-90 disabled:opacity-50 cursor-pointer"
+        >
+          {salvando ? 'Salvando e sincronizando…' : 'Salvar e sincronizar'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Onde as reuniões novas são criadas no Google (vale para a equipe toda). */
+function AgendaPadrao({ agendas = [], padrao, onSalvo }) {
+  if (agendas.length < 2) return null;
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+      <div className="flex-1 min-w-0">
+        <p className="text-[13.5px] font-medium">Novas reuniões vão para</p>
+        <p className="text-[12px] text-slate-500 dark:text-zinc-400 mt-0.5">Dá para trocar em cada reunião, ao criar.</p>
+      </div>
+      <select
+        value={padrao || ''}
+        onChange={async (e) => {
+          try {
+            await definirAgendaPadraoGoogle(e.target.value);
+            showToast('Agenda padrão atualizada.', 'success');
+            onSalvo?.();
+          } catch (err) {
+            showToast(err.message, 'error');
+          }
+        }}
+        aria-label="Agenda padrão para novas reuniões"
+        className="h-9 px-3 rounded-xl bg-white dark:bg-white/[0.04] ring-1 ring-black/[0.1] dark:ring-white/[0.12] text-[13px] cursor-pointer sm:w-64"
+      >
+        {agendas.map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.nome}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }
 
@@ -116,11 +278,29 @@ export default function GoogleAgendaSync() {
               </>
             ) : (
               <>
-                <p className="text-[13.5px] text-slate-600 dark:text-zinc-300 flex-1">Sua agenda Google ainda não está conectada.</p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13.5px] text-slate-600 dark:text-zinc-300">Sua agenda Google ainda não está conectada.</p>
+                  {st.minha_falha_conexao && (
+                    <p className="text-[12px] text-rose-600 dark:text-rose-400 mt-1">
+                      Última tentativa ({formatar(st.minha_falha_conexao.em)}): {st.minha_falha_conexao.mensagem}
+                    </p>
+                  )}
+                </div>
                 <BotaoConectarGoogle />
               </>
             )}
           </div>
+
+          {minha && (
+            <div className="rounded-2xl ring-1 ring-black/[0.08] dark:ring-white/[0.1] p-4">
+              <AgendasCompartilhadas escolhidas={minha.agendas || []} onSalvo={carregar} />
+            </div>
+          )}
+          {(st.agendas || []).length > 1 && (
+            <div className="rounded-2xl ring-1 ring-black/[0.08] dark:ring-white/[0.1] p-4">
+              <AgendaPadrao agendas={st.agendas} padrao={st.agenda_padrao} onSalvo={carregar} />
+            </div>
+          )}
 
           {/* Equipe */}
           {outras.length > 0 && (

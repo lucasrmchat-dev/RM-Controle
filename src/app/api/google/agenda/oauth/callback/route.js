@@ -2,7 +2,17 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
 import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
 import { normalizarEmail } from '@/lib/roles';
-import { lerState, trocarCodigo, registrarConexao, sincronizarTodas, urlPublica } from '@/lib/server/googleAgenda';
+import {
+  lerState,
+  trocarCodigo,
+  registrarConexao,
+  registrarFalhaConexao,
+  registrarErroSincronizacao,
+  carregarContasConectadas,
+  sincronizarConta,
+  sincronizarTodas,
+  urlPublica,
+} from '@/lib/server/googleAgenda';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -32,10 +42,22 @@ export async function GET(request) {
     await registrarConexao({ emailSistema, nome: membro?.nome || '', emailGoogle, refreshToken });
   } catch (e) {
     console.warn('Google Agenda: falha ao conectar', e.message);
+    await registrarFalhaConexao(emailSistema, e.message).catch(() => {});
     return ir('erro', e.codigo === 'escopo' ? 'escopo' : 'google');
   }
 
-  // Primeira sincronização já na volta: a pessoa chega na Agenda com os eventos do Google
+  // Primeira importação já na volta, só desta pessoa: ela chega na Agenda com os eventos do Google.
+  // Se falhar, o motivo fica visível em Configurações › Agenda.
+  try {
+    const conta = (await carregarContasConectadas()).find((c) => c.conectado_por === emailSistema && c.principal);
+    if (!conta) throw new Error('A conexão não foi encontrada logo após ser gravada. Tente conectar de novo.');
+    await sincronizarConta(conta);
+  } catch (e) {
+    console.warn('Google Agenda: primeira importação falhou', e.message);
+    await registrarErroSincronizacao(emailSistema, `Conectado, mas a primeira importação falhou: ${e.message}`).catch(() => {});
+    return ir('conectado', 'importacao');
+  }
+  // Abre o canal de avisos em tempo real (só no site publicado, com https)
   await sincronizarTodas({ renovarCanais: true, urlBase: urlPublica(request) }).catch(() => {});
   return ir('conectado');
 }

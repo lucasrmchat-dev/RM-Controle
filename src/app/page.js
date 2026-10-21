@@ -193,6 +193,13 @@ export default function Home() {
     const status = params.get('google_agenda');
     if (!status) return;
     window.history.replaceState(null, '', window.location.pathname);
+    if (status === 'conectado' && params.get('motivo') === 'importacao') {
+      showToast('Google Agenda conectado, mas a primeira importação falhou. Veja o motivo em Configurações › Agenda.', 'warning');
+      setSelectedEmpresa(null);
+      setSettingsSubTab('agenda');
+      setActiveTab('configuracoes');
+      return;
+    }
     if (status === 'conectado') {
       showToast('Google Agenda conectado. Sua agenda já está sincronizando.', 'success');
       setSelectedEmpresa(null);

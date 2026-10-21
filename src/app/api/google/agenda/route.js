@@ -3,7 +3,19 @@ import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
 import { obterAcessoServidor } from '@/lib/server/acesso';
 import { consumirLimite } from '@/lib/server/protecao';
 import { normalizarEmail } from '@/lib/roles';
-import { googleConfigurado, carregarConfigGoogle, sincronizarTodas, desconectar, tokenWebhook, urlPublica } from '@/lib/server/googleAgenda';
+import {
+  googleConfigurado,
+  carregarConfigGoogle,
+  listarContasConectadas,
+  listarAgendasDisponiveis,
+  salvarAgendasEscolhidas,
+  listarAgendasSincronizadas,
+  definirAgendaPadrao,
+  sincronizarTodas,
+  desconectar,
+  tokenWebhook,
+  urlPublica,
+} from '@/lib/server/googleAgenda';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -26,14 +38,18 @@ export async function GET(request) {
   if (!googleConfigurado()) return NextResponse.json({ ok: true, configurado: false });
 
   const config = await carregarConfigGoogle();
-  const contas = (config.contas || []).map(({ email_sistema, email_google, nome, conectado_em }) => ({ email_sistema, email_google, nome, conectado_em }));
+  const contas = await listarContasConectadas();
+  const { agendas, padrao } = await listarAgendasSincronizadas();
   return NextResponse.json({
+    agendas,
+    agenda_padrao: padrao,
     ok: true,
     configurado: true,
     avisos_em_tempo_real: Boolean(tokenWebhook()),
     ultima_sincronizacao: config.ultima_sincronizacao,
     minha_conta: contas.find((c) => c.email_sistema === quem.email) || null,
     meu_erro: config.erros?.[quem.email] || null,
+    minha_falha_conexao: config.falhas_conexao?.[quem.email] || null,
     contas,
   });
 }
@@ -52,6 +68,35 @@ export async function POST(request) {
     const ultima = config.ultima_sincronizacao ? new Date(config.ultima_sincronizacao).getTime() : 0;
     if (!body.forcar && Date.now() - ultima < 30000) return NextResponse.json({ ok: true, recente: true });
     return NextResponse.json({ ok: true, ...(await sincronizarTodas({ renovarCanais: true, urlBase: urlPublica(request) })) });
+  }
+
+  // Agendas compartilhadas comigo que posso sincronizar (ex.: a do suporte@)
+  if (body?.acao === 'listar_agendas') {
+    try {
+      return NextResponse.json({ ok: true, agendas: await listarAgendasDisponiveis(quem.email) });
+    } catch (e) {
+      return erro(e.message, 400);
+    }
+  }
+
+  if (body?.acao === 'agenda_padrao') {
+    try {
+      await definirAgendaPadrao(String(body.id || ''));
+      return NextResponse.json({ ok: true });
+    } catch (e) {
+      return erro(e.message, 400);
+    }
+  }
+
+  if (body?.acao === 'salvar_agendas') {
+    if (!Array.isArray(body.agendas) || body.agendas.length > 50) return erro('Lista de agendas inválida.', 400);
+    try {
+      const salvas = await salvarAgendasEscolhidas(quem.email, body.agendas.map((a) => String(a?.id || a || '')));
+      const r = await sincronizarTodas({ renovarCanais: true, urlBase: urlPublica(request) });
+      return NextResponse.json({ ok: true, agendas: salvas, erros: r.erros });
+    } catch (e) {
+      return erro(e.message, 400);
+    }
   }
 
   // Cada pessoa desconecta só a própria agenda
