@@ -63,7 +63,14 @@ const minutosDoDia = (hora) => {
   return h * 60 + (m || 0);
 };
 
-const formatarHoraSync = (iso) => (iso ? new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null);
+/** "agora", "há 3 min" ou o horário, para a última sincronização com o Google. */
+const formatarHoraSync = (iso, agora = Date.now()) => {
+  if (!iso) return null;
+  const seg = Math.max(0, Math.round((agora - new Date(iso).getTime()) / 1000));
+  if (seg < 60) return 'agora';
+  if (seg < 3600) return `há ${Math.floor(seg / 60)} min`;
+  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+};
 
 const IconeVideo = ({ className = 'w-3.5 h-3.5' }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
@@ -223,7 +230,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
     });
     window.addEventListener('agenda_eventos_updated', carregarDados);
     window.addEventListener('suporte_updated', carregarDados);
-    const relogio = setInterval(() => setAgora(Date.now()), 30000);
+    const relogio = setInterval(() => setAgora(Date.now()), 15000);
 
     // Google Agenda: com a Agenda aberta, atualiza a cada 30 s e ao voltar para a aba.
     // No site publicado o Google também avisa na hora (webhook); assim funciona mesmo sem o aviso
@@ -235,7 +242,12 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
       const pedido = sincronizaComGoogle ? sincronizarGoogleAgenda() : fetchAgendaEventos();
       Promise.resolve(pedido)
         .catch(() => {})
-        .finally(() => ativo && carregarDados());
+        .finally(() => {
+          if (!ativo) return;
+          carregarDados();
+          // Atualiza também o "Google Agenda · há X" do topo
+          if (sincronizaComGoogle) statusGoogleAgenda().then((st) => ativo && st?.configurado && setGoogleSync(st));
+        });
     };
     statusGoogleAgenda().then((st) => {
       if (!ativo) return;
@@ -415,7 +427,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
   };
 
   const conectado = Boolean(googleSync?.minha_conta);
-  const ultimaSync = formatarHoraSync(googleSync?.ultima_sincronizacao);
+  const ultimaSync = formatarHoraSync(googleSync?.ultima_sincronizacao, agora);
 
   return (
     <div className="space-y-5 pb-6">
@@ -438,7 +450,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
                 className="h-10 px-3.5 rounded-full flex items-center gap-2 text-[12.5px] text-slate-600 dark:text-zinc-300 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] cursor-pointer disabled:opacity-60"
               >
                 <RefreshIcon className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-                {syncing ? 'Sincronizando…' : ultimaSync ? `Google Agenda · ${ultimaSync}` : 'Sincronizar'}
+                {syncing ? 'Sincronizando…' : ultimaSync ? `Sincronizado com o Google · ${ultimaSync}` : 'Sincronizar'}
               </button>
             ) : (
               <a

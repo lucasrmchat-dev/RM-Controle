@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { getEmpresaById, getEmpresaCredenciais } from '@/lib/storage';
+import { getEmpresaById, getEmpresaCredenciais, getNomeTecnico } from '@/lib/storage';
+import { CalendarioMes, SeletorHorario, isoDoDia, rotuloData } from './SeletoresTempo';
 import NovaEmpresaCampos, { dadosNovaEmpresaIniciais, classeCampo, classeRotulo } from './NovaEmpresaCampos';
 import {
   ModalEtapas,
@@ -15,15 +16,38 @@ import {
   Spinner,
   normalizarBusca,
   classeBotaoPrimario,
-  classeBotaoSecundario,
   classeBotaoTexto,
 } from './FormularioEtapas';
 import { BuildingIcon, CalendarIcon, PlayIcon, UserIcon, XMarkIcon } from './Icons';
 
+// Como descrever a demanda: o relato do cliente (para quem atender interpretar) ou o que já se sabe que precisa ser feito
+const TIPOS_DESCRICAO = {
+  relato: {
+    rotulo: 'Relato do cliente',
+    curto: 'Relato',
+    campo: 'O que o cliente relatou',
+    exemplo: 'Ex.: “as mensagens pararam de chegar no número do comercial desde hoje cedo”.',
+    prefixo: 'Relato do cliente: ',
+  },
+  fazer: {
+    rotulo: 'O que precisa ser feito',
+    curto: 'O que fazer',
+    campo: 'O que precisa ser feito',
+    exemplo: 'Ex.: reconectar o número do WhatsApp do comercial e reenviar as mensagens da fila.',
+    prefixo: '',
+  },
+  nenhum: { rotulo: 'Sem descrição', curto: 'Sem texto' },
+};
+
+const DESTINOS = [
+  { id: 'fila', titulo: 'Fila', detalhe: 'Qualquer pessoa assume' },
+  { id: 'mim', titulo: 'Eu', detalhe: 'Começo a atender agora' },
+  { id: 'outra', titulo: 'Outra pessoa', detalhe: 'Abre direto para alguém' },
+];
+
 /**
- * Formulário de nova demanda em 3 etapas: empresa → quem pediu → sobre a demanda.
- * No desktop as etapas ficam lado a lado (1 e 2 à esquerda, 3 à direita); no celular, uma abaixo da outra.
- * Quem cria de fato é o pai (onEnviar), que recebe tudo já organizado.
+ * Formulário de nova demanda em 3 colunas: empresa e quem pediu → sobre a demanda → quem atende e prazo.
+ * No celular, uma etapa abaixo da outra. Quem cria de fato é o pai (onEnviar), que recebe tudo organizado.
  */
 export default function NovaDemandaModal({
   aberto,
@@ -32,6 +56,8 @@ export default function NovaDemandaModal({
   empresaInicial = null,
   categorias = [],
   etiquetasSugeridas = [],
+  equipe = [],
+  userEmail = '',
   onEnviar,
 }) {
   const [empresa, setEmpresa] = useState(null);
@@ -42,11 +68,15 @@ export default function NovaDemandaModal({
   const [etiquetas, setEtiquetas] = useState([]);
   const [tagTexto, setTagTexto] = useState('');
   const [descricao, setDescricao] = useState('');
+  const [tipoDescricao, setTipoDescricao] = useState('relato'); // 'relato' | 'fazer' | 'nenhum'
   const [prazoAberto, setPrazoAberto] = useState(false);
-  const [prazo, setPrazo] = useState('');
+  const [prazoData, setPrazoData] = useState(isoDoDia(new Date()));
+  const [prazoHora, setPrazoHora] = useState('18:00');
+  const [destino, setDestino] = useState('fila'); // 'fila' | 'mim' | 'outra'
+  const [pessoa, setPessoa] = useState(null); // { email, nome } quando destino = 'outra'
   const [lembrete, setLembrete] = useState(false);
   const [erro, setErro] = useState('');
-  const [enviando, setEnviando] = useState(null); // 'fila' | 'mim' | null
+  const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
     if (!aberto) return;
@@ -57,11 +87,15 @@ export default function NovaDemandaModal({
     setEtiquetas([]);
     setTagTexto('');
     setDescricao('');
+    setTipoDescricao('relato');
     setPrazoAberto(false);
-    setPrazo('');
+    setPrazoData(isoDoDia(new Date()));
+    setPrazoHora('18:00');
     setLembrete(false);
+    setDestino('fila');
+    setPessoa(null);
     setErro('');
-    setEnviando(null);
+    setEnviando(false);
   }, [aberto, empresaInicial]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pessoas já cadastradas na empresa (acessos + colaboradores)
@@ -94,6 +128,14 @@ export default function NovaDemandaModal({
 
   const etapa1Ok = Boolean(empresa) && (!empresa.isNova || Boolean(dadosEmpresa.tipo_cliente));
 
+  // Para quem pode abrir: equipe ativa, sem a própria pessoa (para ela existe "Eu")
+  const pessoas = useMemo(() => {
+    const eu = String(userEmail || '').toLowerCase();
+    return (equipe || [])
+      .filter((u) => u?.email && u.ativo !== false && u.email.toLowerCase() !== eu)
+      .map((u) => ({ id: u.email.toLowerCase(), email: u.email.toLowerCase(), nome: u.nome || getNomeTecnico(u.email) }));
+  }, [equipe, userEmail]);
+
   const tagsSugeridas = useMemo(() => {
     const q = normalizarBusca(tagTexto.replace(/^#/, ''));
     return etiquetasSugeridas.filter((t) => !etiquetas.includes(t) && (!q || normalizarBusca(t).includes(q))).slice(0, 6);
@@ -105,13 +147,14 @@ export default function NovaDemandaModal({
     setTagTexto('');
   };
 
-  const enviar = async (paraMim) => {
+  const enviar = async () => {
     if (enviando) return;
     if (!empresa) return setErro('Escolha a empresa da demanda.');
     if (empresa.isNova && !dadosEmpresa.tipo_cliente) return setErro('Empresa nova: informe se é cliente novo ou se já era cliente.');
     if (!cats.length) return setErro('Escolha ao menos um departamento.');
+    if (destino === 'outra' && !pessoa) return setErro('Escolha para quem a demanda vai.');
     setErro('');
-    setEnviando(paraMim ? 'mim' : 'fila');
+    setEnviando(true);
     try {
       await onEnviar(
         {
@@ -120,33 +163,34 @@ export default function NovaDemandaModal({
           solicitante,
           categorias: cats,
           etiquetas,
-          observacao: descricao.trim(),
-          prazo: prazoAberto && prazo ? prazo : null,
+          // O relato vai marcado, para quem pegar saber que são palavras do cliente
+          observacao: tipoDescricao === 'nenhum' || !descricao.trim() ? '' : `${TIPOS_DESCRICAO[tipoDescricao].prefixo}${descricao.trim()}`,
+          // Data e hora locais; quem grava converte para o fuso certo
+          prazo: prazoAberto ? `${prazoData}T${prazoHora}` : null,
           lembrete: prazoAberto && lembrete,
         },
-        { paraMim }
+        { paraMim: destino === 'mim', atribuirA: destino === 'outra' ? pessoa : null }
       );
     } catch (e) {
       setErro(e?.message || 'Não foi possível abrir a demanda.');
     } finally {
-      setEnviando(null);
+      setEnviando(false);
     }
   };
+
+  const rotuloEnviar =
+    destino === 'mim' ? 'Abrir e começar a atender' : destino === 'outra' ? (pessoa ? `Abrir para ${pessoa.nome.split(' ')[0]}` : 'Abrir para…') : 'Abrir na fila';
 
   const rodape = (
     <>
       <ErroRodape erro={erro} />
       <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-2.5">
-        <button type="button" onClick={onFechar} disabled={Boolean(enviando)} className={`${classeBotaoTexto} sm:mr-auto`}>
+        <button type="button" onClick={onFechar} disabled={enviando} className={`${classeBotaoTexto} sm:mr-auto`}>
           Cancelar
         </button>
-        <button type="button" onClick={() => enviar(false)} disabled={Boolean(enviando)} title="Fica aguardando para qualquer pessoa da equipe assumir" className={classeBotaoSecundario}>
-          {enviando === 'fila' && <Spinner />}
-          Abrir na fila
-        </button>
-        <button type="button" onClick={() => enviar(true)} disabled={Boolean(enviando)} title="A demanda fica com você, o atendimento começa e a empresa abre" className={classeBotaoPrimario}>
-          {enviando === 'mim' ? <Spinner /> : <PlayIcon className="w-3 h-3 fill-current" />}
-          Abrir para mim e atender
+        <button type="button" onClick={enviar} disabled={enviando} className={classeBotaoPrimario}>
+          {enviando ? <Spinner /> : destino === 'mim' ? <PlayIcon className="w-3 h-3 fill-current" /> : null}
+          {rotuloEnviar}
         </button>
       </div>
     </>
@@ -156,13 +200,14 @@ export default function NovaDemandaModal({
     <ModalEtapas
       aberto={aberto}
       onFechar={onFechar}
-      bloqueado={Boolean(enviando)}
+      bloqueado={enviando}
+      largura="max-w-[1320px]"
       idTitulo="nova-demanda-titulo"
       titulo="Nova demanda"
-      subtitulo="Três passos: empresa, quem pediu e o que precisa ser feito."
+      subtitulo="Empresa e quem pediu, o que precisa ser feito, e quem atende."
       rodape={rodape}
     >
-      <div className="grid grid-cols-1 lg:grid-cols-2 lg:gap-x-12">
+      <div className="grid grid-cols-1 lg:grid-cols-3 lg:gap-x-10">
         {/* COLUNA 1: empresa e quem pediu */}
         <div>
           <Etapa numero={1} titulo="Empresa" descricao="Busque pelo nome. Se ainda não existir, cadastre aqui mesmo." estado={etapa1Ok ? 'concluida' : 'ativa'}>
@@ -274,34 +319,64 @@ export default function NovaDemandaModal({
         <div className="lg:pl-12 lg:border-l border-black/[0.06] dark:border-white/[0.11]">
           <Etapa
             numero={3}
+            titulo="Departamento"
+            descricao="Quem é responsável por esta demanda."
+            estado={!etapa1Ok ? 'travada' : cats.length ? 'concluida' : 'ativa'}
+          >
+            <Pilulas
+              rotuloId="nd-dep"
+              opcoes={categorias}
+              selecionadas={cats}
+              onAlternar={(c) => setCats((atual) => (atual.includes(c) ? (atual.length > 1 ? atual.filter((x) => x !== c) : atual) : [...atual, c]))}
+            />
+          </Etapa>
+
+          <Etapa
+            numero={4}
             titulo="Sobre a demanda"
-            descricao="Departamento responsável e o contexto para quem for atender."
-            estado={!etapa1Ok ? 'travada' : cats.length && descricao.trim() ? 'concluida' : 'ativa'}
-            ultima
+            descricao="Conte o que o cliente disse ou o que já se sabe que precisa ser feito."
+            estado={!etapa1Ok ? 'travada' : tipoDescricao === 'nenhum' || descricao.trim() ? 'concluida' : 'ativa'}
+            fimDeColuna
           >
             <div className="space-y-5">
               <div>
-                <span id="nd-dep" className={classeRotulo}>
-                  Departamento <span className="text-red-600 dark:text-red-400">*</span>
-                </span>
-                <Pilulas
-                  rotuloId="nd-dep"
-                  opcoes={categorias}
-                  selecionadas={cats}
-                  onAlternar={(c) => setCats((atual) => (atual.includes(c) ? (atual.length > 1 ? atual.filter((x) => x !== c) : atual) : [...atual, c]))}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="nd-descricao" className={classeRotulo}>O que precisa ser feito</label>
-                <textarea
-                  id="nd-descricao"
-                  rows={3}
-                  value={descricao}
-                  onChange={(e) => setDescricao(e.target.value)}
-                  placeholder="Ex.: reconectar o número do WhatsApp do comercial que caiu hoje cedo."
-                  className={`${classeCampo} h-auto py-3 leading-relaxed resize-none`}
-                />
+                <div role="radiogroup" aria-label="Como descrever a demanda" className="grid grid-cols-3 gap-1 p-1 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06]">
+                  {Object.entries(TIPOS_DESCRICAO).map(([id, t]) => {
+                    const ativo = tipoDescricao === id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        role="radio"
+                        aria-checked={ativo}
+                        onClick={() => setTipoDescricao(id)}
+                        title={t.rotulo}
+                        className={`min-h-9 py-1.5 px-2 rounded-xl text-[12.5px] leading-tight font-medium cursor-pointer transition-colors ${
+                          ativo ? 'bg-white dark:bg-[#3a3a3f] text-[#1d1d1f] dark:text-white shadow-sm' : 'text-slate-500 dark:text-zinc-400 hover:text-[#1d1d1f] dark:hover:text-white'
+                        }`}
+                      >
+                        {t.curto}
+                      </button>
+                    );
+                  })}
+                </div>
+                {tipoDescricao === 'nenhum' ? (
+                  <p className="mt-3 text-[12.5px] text-slate-500 dark:text-zinc-400">A demanda abre só com a empresa e o departamento. Dá para escrever a descrição depois, na própria demanda.</p>
+                ) : (
+                  <div className="mt-3">
+                    <label htmlFor="nd-descricao" className={classeRotulo}>
+                      {TIPOS_DESCRICAO[tipoDescricao].campo}
+                    </label>
+                    <textarea
+                      id="nd-descricao"
+                      rows={4}
+                      value={descricao}
+                      onChange={(e) => setDescricao(e.target.value)}
+                      placeholder={TIPOS_DESCRICAO[tipoDescricao].exemplo}
+                      className={`${classeCampo} h-auto py-3 leading-relaxed resize-none`}
+                    />
+                  </div>
+                )}
               </div>
 
               <div>
@@ -356,31 +431,91 @@ export default function NovaDemandaModal({
                 )}
               </div>
 
-              {/* Prazo: fechado por padrão para não poluir */}
-              <div className="rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-white/[0.03]">
-                <button type="button" aria-expanded={prazoAberto} onClick={() => setPrazoAberto((v) => !v)} className="w-full flex items-center gap-3 px-4 h-12 text-left cursor-pointer">
-                  <CalendarIcon className="w-4 h-4 text-slate-500 dark:text-zinc-400" />
-                  <span className="flex-1 text-[13px] font-medium">
-                    Agendar prazo <span className="font-normal text-slate-500 dark:text-zinc-400">(opcional)</span>
-                  </span>
-                  <svg className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${prazoAberto ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                </button>
-                <Expandir aberto={prazoAberto}>
-                  <div className="px-4 pb-4 space-y-3">
-                    <input type="datetime-local" aria-label="Prazo para executar" value={prazo} onChange={(e) => setPrazo(e.target.value)} className={`${classeCampo} font-mono text-[13px]`} />
-                    <label className="flex items-start gap-3 cursor-pointer">
-                      <input type="checkbox" checked={lembrete} onChange={(e) => setLembrete(e.target.checked)} className="mt-0.5 w-4 h-4 rounded accent-[#4d7c0f]" />
-                      <span>
-                        <span className="block text-[13px] font-medium">Marcar como lembrete</span>
-                        <span className="block text-xs text-slate-500 dark:text-zinc-400">Aparece em destaque na fila e na Agenda da equipe.</span>
-                      </span>
-                    </label>
-                  </div>
-                </Expandir>
-              </div>
             </div>
+          </Etapa>
+        </div>
+
+        {/* COLUNA 3: quem atende e prazo */}
+        <div className="lg:pl-10 lg:border-l border-black/[0.06] dark:border-white/[0.11]">
+          <Etapa numero={5} titulo="Quem atende" descricao="Deixe na fila, pegue para você ou mande direto para alguém." estado={destino === 'outra' && !pessoa ? 'ativa' : 'concluida'}>
+            <div role="radiogroup" aria-label="Quem atende" className="grid grid-cols-3 gap-2">
+              {DESTINOS.map((d) => {
+                const ativo = destino === d.id;
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={ativo}
+                    onClick={() => setDestino(d.id)}
+                    className={`text-left rounded-2xl px-3 py-2.5 ring-1 transition-colors cursor-pointer ${
+                      ativo ? 'ring-2 ring-[#1d1d1f] dark:ring-white bg-black/[0.03] dark:bg-white/[0.06]' : 'ring-black/[0.1] dark:ring-white/[0.12] hover:ring-black/25 dark:hover:ring-white/25'
+                    }`}
+                  >
+                    <span className="block text-[13px] font-semibold">{d.titulo}</span>
+                    <span className="block text-[11.5px] leading-snug text-slate-500 dark:text-zinc-400">{d.detalhe}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <Expandir aberto={destino === 'outra'}>
+              <div className="mt-3">
+                {pessoa ? (
+                  <Escolhido icone={<UserIcon className="w-4 h-4" />} titulo={pessoa.nome} detalhe={pessoa.email} onTrocar={() => setPessoa(null)} />
+                ) : (
+                  <Combobox
+                    id="nd-pessoa"
+                    placeholder="Buscar alguém da equipe"
+                    textoVazio={pessoas.length ? 'Ninguém da equipe com esse nome.' : 'Nenhum colaborador cadastrado em Servidores & Equipe.'}
+                    opcoes={pessoas}
+                    onEscolher={setPessoa}
+                    renderOpcao={(p) => (
+                      <span className="block min-w-0">
+                        <span className="block text-sm font-medium truncate">{p.nome}</span>
+                        <span className="block text-xs text-slate-500 dark:text-zinc-400 truncate">{p.email}</span>
+                      </span>
+                    )}
+                  />
+                )}
+                {!pessoa && <p className="mt-1.5 text-[12px] text-slate-500 dark:text-zinc-400">Só colaboradores já cadastrados na equipe.</p>}
+              </div>
+            </Expandir>
+          </Etapa>
+
+          <Etapa
+            numero={6}
+            titulo={<>Prazo <span className="font-normal text-slate-500 dark:text-zinc-400">· opcional</span></>}
+            descricao={prazoAberto ? `Até ${rotuloData(prazoData)}, às ${prazoHora}` : 'Para demandas com data para ficar pronta.'}
+            estado={prazoAberto ? 'concluida' : 'ativa'}
+            ultima
+          >
+            {!prazoAberto ? (
+              <button
+                type="button"
+                onClick={() => setPrazoAberto(true)}
+                className="h-10 px-4 rounded-full text-[13px] font-medium ring-1 ring-black/[0.12] dark:ring-white/[0.15] hover:bg-black/[0.04] dark:hover:bg-white/[0.06] inline-flex items-center gap-2 cursor-pointer"
+              >
+                <CalendarIcon className="w-4 h-4" /> Definir prazo
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <CalendarioMes valor={prazoData} onMudar={setPrazoData} />
+                <div>
+                  <span id="nd-prazo-hora" className={classeRotulo}>Até às</span>
+                  <SeletorHorario valor={prazoHora} onMudar={setPrazoHora} rotuloId="nd-prazo-hora" />
+                </div>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" checked={lembrete} onChange={(e) => setLembrete(e.target.checked)} className="mt-0.5 w-4 h-4 rounded accent-[#4d7c0f]" />
+                  <span>
+                    <span className="block text-[13px] font-medium">Marcar como lembrete</span>
+                    <span className="block text-xs text-slate-500 dark:text-zinc-400">Aparece em destaque na fila e na Agenda da equipe.</span>
+                  </span>
+                </label>
+                <button type="button" onClick={() => setPrazoAberto(false)} className="text-[12.5px] font-medium text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white cursor-pointer">
+                  Remover prazo
+                </button>
+              </div>
+            )}
           </Etapa>
         </div>
       </div>

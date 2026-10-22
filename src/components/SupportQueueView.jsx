@@ -1307,7 +1307,8 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
 
   // Cria a demanda com o que veio do formulário. Erros sobem para o formulário mostrar (nada é aberto pela metade).
   // paraMim: a demanda fica com quem está logado, o atendimento começa e a tela da empresa abre.
-  const criarDemanda = async (dados, { paraMim = false } = {}) => {
+  // paraMim: começa agora comigo · atribuirA: { email, nome } abre direto para outra pessoa
+  const criarDemanda = async (dados, { paraMim = false, atribuirA = null } = {}) => {
     if (paraMim && !userEmail) throw new Error('Não foi possível identificar seu usuário. Entre novamente.');
     const operador = userEmail || 'admin@rmcontrole.com';
     let empresaId = dados.empresa.id;
@@ -1345,7 +1346,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
       solicitante_telefone: sol?.telefone || '',
       categorias: dados.categorias,
       etiquetas: dados.etiquetas,
-      atribuido_a: paraMim ? userEmail : null,
+      atribuido_a: paraMim ? userEmail : atribuirA?.email || null,
       observacao_inicial: dados.observacao,
       prazo_limite: dados.prazo,
       is_lembrete: dados.lembrete,
@@ -1377,7 +1378,13 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
     if (criado?.sync_estado === 'pendente') {
       showToast(`Demanda de ${empresaNome} salva neste computador, mas ainda não chegou à equipe. O envio será repetido automaticamente.`, 'warning');
     } else {
-      showFeedbackMsg(paraMim ? `Demanda de ${empresaNome} iniciada agora!` : `Demanda de ${empresaNome} aberta na fila.`);
+      showFeedbackMsg(
+        paraMim
+          ? `Demanda de ${empresaNome} iniciada agora!`
+          : atribuirA
+            ? `Demanda de ${empresaNome} aberta para ${atribuirA.nome || atribuirA.email}.`
+            : `Demanda de ${empresaNome} aberta na fila.`
+      );
     }
   };
 
@@ -2044,13 +2051,16 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
       </div>
 
       {/* Formulário de nova demanda (3 etapas) */}
+      {/* Criar pode ser para qualquer departamento: o perfil só limita o que a pessoa vê depois */}
       <NovaDemandaModal
         aberto={novaDemanda.aberto}
         empresaInicial={novaDemanda.empresaInicial}
         onFechar={() => setNovaDemanda({ aberto: false, empresaInicial: null })}
         empresas={empresasLista}
-        categorias={categoriasDisponiveis}
+        categorias={getCategoriasDemandas()}
         etiquetasSugeridas={todasEtiquetasDisponiveis}
+        equipe={equipeLista}
+        userEmail={userEmail}
         onEnviar={criarDemanda}
       />
 

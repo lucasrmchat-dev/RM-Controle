@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   getMotivosSuporte,
+  fetchMotivosSuporte,
   getHistoricoChamados,
   addMotivoSuporte,
   getEmpresaCredenciais,
@@ -91,12 +92,17 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
     setConfig(cfg);
     setDesfecho('resolvido');
     // Mais usadas primeiro, para que a escolha comum esteja sempre à vista
-    const uso = new Map();
-    (getHistoricoChamados() || []).forEach((h) => {
-      String(h?.motivo || '').split(',').map((m) => normalizarBusca(m.trim())).filter(Boolean).forEach((m) => uso.set(m, (uso.get(m) || 0) + 1));
-    });
-    const nomes = [...new Set(getMotivosSuporte().map((m) => (m.nome || '').trim()).filter(Boolean))];
-    setCategorias(nomes.sort((a, b) => (uso.get(normalizarBusca(b)) || 0) - (uso.get(normalizarBusca(a)) || 0) || a.localeCompare(b, 'pt-BR')));
+    const ordenarCategorias = () => {
+      const uso = new Map();
+      (getHistoricoChamados() || []).forEach((h) => {
+        String(h?.motivo || '').split(',').map((m) => normalizarBusca(m.trim())).filter(Boolean).forEach((m) => uso.set(m, (uso.get(m) || 0) + 1));
+      });
+      const nomes = [...new Set(getMotivosSuporte().map((m) => (m.nome || '').trim()).filter(Boolean))];
+      setCategorias(nomes.sort((a, b) => (uso.get(normalizarBusca(b)) || 0) - (uso.get(normalizarBusca(a)) || 0) || a.localeCompare(b, 'pt-BR')));
+    };
+    ordenarCategorias();
+    // Categorias são da equipe: busca as atuais no banco (criadas por qualquer pessoa)
+    fetchMotivosSuporte().then(ordenarCategorias).catch(() => {});
     setCategoria(null);
 
     // Contatos da empresa (colaboradores + acessos), sem nada pré-selecionado

@@ -128,7 +128,7 @@ export function Etapa({ numero, titulo, descricao, estado, ultima = false, fimDe
 }
 
 /** Combobox: digita, filtra, ↑↓ Enter; opcionalmente oferece "cadastrar novo" como última opção. */
-export function Combobox({ id, placeholder, opcoes, renderOpcao, onEscolher, opcaoNova, onNova, autoFocus = false, mostrarAoFocar = true }) {
+export function Combobox({ id, placeholder, opcoes, renderOpcao, onEscolher, opcaoNova, onNova, autoFocus = false, mostrarAoFocar = true, textoVazio = 'Nada encontrado.' }) {
   const [termo, setTermo] = useState('');
   const [aberto, setAberto] = useState(false);
   const [destaque, setDestaque] = useState(0);
@@ -227,7 +227,7 @@ export function Combobox({ id, placeholder, opcoes, renderOpcao, onEscolher, opc
                 {renderOpcao(o)}
               </li>
             ))}
-            {filtradas.length === 0 && !mostrarNova && <li className="px-3 py-3 text-sm text-slate-500 dark:text-zinc-400">Nada encontrado.</li>}
+            {filtradas.length === 0 && !mostrarNova && <li className="px-3 py-3 text-sm text-slate-500 dark:text-zinc-400">{textoVazio}</li>}
             {mostrarNova && (
               <li
                 role="option"
@@ -290,6 +290,9 @@ export function SeloNovo({ children = 'Novo' }) {
 
 /** Bloco que abre/fecha com altura animada. */
 export function Expandir({ aberto, children }) {
+  // overflow escondido só durante a animação de altura: aberto, listas suspensas (combobox) podem
+  // passar da borda sem ficar cortadas
+  const [animando, setAnimando] = useState(true);
   return (
     <AnimatePresence initial={false}>
       {aberto && (
@@ -298,7 +301,9 @@ export function Expandir({ aberto, children }) {
           animate={{ opacity: 1, height: 'auto' }}
           exit={{ opacity: 0, height: 0 }}
           transition={{ duration: 0.3, ease: EASE }}
-          className="overflow-hidden"
+          onAnimationStart={() => setAnimando(true)}
+          onAnimationComplete={() => setAnimando(false)}
+          className={animando ? 'overflow-hidden' : 'overflow-visible'}
         >
           {children}
         </motion.div>

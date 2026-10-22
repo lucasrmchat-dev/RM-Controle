@@ -674,7 +674,12 @@ export function removeMotivoSuporte(id) {
   if (isCloudId(id)) {
     // Desativa em vez de apagar: chamados antigos continuam com o nome do motivo
     persistirEmSegundoPlano(
-      () => supabase.from('suporte_motivos').update({ ativo: false }).eq('id', id),
+      async () => {
+        const res = await supabase.from('suporte_motivos').update({ ativo: false }).eq('id', id);
+        // Banco sem a coluna "ativo": remove a categoria de fato
+        if (res.error && isErroColunaInexistente(res.error)) return supabase.from('suporte_motivos').delete().eq('id', id);
+        return res;
+      },
       () => setLocalData('motivos_suporte', anterior),
       'O motivo não foi removido para a equipe'
     );
@@ -685,7 +690,9 @@ export function removeMotivoSuporte(id) {
 /** Baixa o catálogo de motivos da equipe; na primeira vez, envia motivos que só existiam aqui. */
 export async function fetchMotivosSuporte() {
   if (!podeUsarTabelas()) return getMotivosSuporte();
-  const { data, error } = await supabase.from('suporte_motivos').select('id, nome, descricao, ativo').order('nome');
+  // select('*'): a coluna "ativo" não existe em todos os bancos; pedir por ela fazia a leitura falhar
+  // e cada navegador ficava só com as categorias que tinha salvo localmente
+  const { data, error } = await supabase.from('suporte_motivos').select('*').order('nome');
   if (error || !Array.isArray(data)) return getMotivosSuporte();
   let lista = data;
   const nomes = new Set(data.map((m) => (m.nome || '').toLowerCase().trim()));
@@ -696,7 +703,7 @@ export async function fetchMotivosSuporte() {
     const { data: enviados } = await supabase
       .from('suporte_motivos')
       .insert(legados.map((m) => ({ nome: m.nome.trim(), descricao: m.descricao || '' })))
-      .select('id, nome, descricao, ativo');
+      .select('*');
     if (Array.isArray(enviados)) lista = [...data, ...enviados];
   }
   setLocalData('motivos_suporte', lista.filter((m) => m.ativo !== false).map((m) => ({ id: m.id, nome: m.nome, descricao: m.descricao || '' })));

@@ -39,6 +39,7 @@ import { triggerSupportNotification, stopSupportNotificationLoop, playMeetingAle
 import FirstAccessSetupView from '@/components/FirstAccessSetupView';
 import { lerPreferenciaTema, aplicarTema, salvarPreferenciaTema } from '@/lib/tema';
 import Navbar from '@/components/Navbar';
+import SplashCarregamento from '@/components/SplashCarregamento';
 import CompanyModal from '@/components/CompanyModal';
 import CompanyManagementView from '@/components/CompanyManagementView';
 import AuditLogsView from '@/components/AuditLogsView';
@@ -116,6 +117,7 @@ export default function Home() {
   // Estado de Autenticação
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
+  const [aberturaConcluida, setAberturaConcluida] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [primeiroAcessoPendente, setPrimeiroAcessoPendente] = useState(false);
   
@@ -891,15 +893,8 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
   // ==============================================================================
   // TELA DE CARREGAMENTO INICIAL
   // ==============================================================================
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f5f5f7] dark:bg-[#141416]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-[#4d7c0f] dark:border-[#84cc16] border-t-transparent rounded-full animate-spin"></div>
-          <span className="text-xs text-slate-500 dark:text-zinc-400 font-medium">Carregando RM Controle...</span>
-        </div>
-      </div>
-    );
+  if (authLoading || !aberturaConcluida) {
+    return <SplashCarregamento pronto={!authLoading} onFim={() => setAberturaConcluida(true)} />;
   }
 
   // ==============================================================================
