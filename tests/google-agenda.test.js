@@ -26,6 +26,7 @@ import {
 } from '../src/lib/server/googleAgenda.js';
 import { POST as webhook } from '../src/app/api/google/agenda/webhook/route.js';
 import { POST as eventoRota } from '../src/app/api/google/agenda/evento/route.js';
+import { GET as lerAgenda } from '../src/app/api/agenda/eventos/route.js';
 
 __definirSupabaseAdmin(mockSupabase);
 process.env.NEXT_PUBLIC_SUPABASE_URL ||= 'http://mock';
@@ -338,4 +339,16 @@ test('reuniões antigas da agenda da equipe perdem o dono herdado da agenda', as
   const linha = db.tables.agenda_eventos.find((l) => l.google_event_id === 'v1');
   assert.equal(linha.responsavel_email, null);
   assert.equal(db.tables.agenda_eventos.filter((l) => l.google_event_id === 'v1').length, 1);
+});
+
+test('agenda lida pelo servidor: só com login, e traz os eventos da equipe', async () => {
+  const hoje = new Date().toISOString().slice(0, 10);
+  db.tables.agenda_eventos.push({ id: uuid(), titulo: 'Reunião da equipe', data: hoje, hora_inicio: '10:00', hora_fim: '11:00' });
+  const semLogin = await lerAgenda(new NextRequest('http://localhost/api/agenda/eventos'));
+  assert.equal(semLogin.status, 401);
+  const cookie = `${SESSION_COOKIE_NAME}=${await createSessionToken({ email: 'maria@rmchat.com', role: 'suporte' })}`;
+  const r = await lerAgenda(new NextRequest('http://localhost/api/agenda/eventos', { headers: { Cookie: cookie } }));
+  const json = await r.json();
+  assert.equal(r.status, 200);
+  assert.ok(json.eventos.some((e) => e.titulo === 'Reunião da equipe'));
 });

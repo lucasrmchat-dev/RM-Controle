@@ -5411,9 +5411,21 @@ export const URL_CONECTAR_GOOGLE_AGENDA = '/api/google/agenda/oauth/iniciar';
 /** Baixa a agenda da equipe; na primeira vez, envia os eventos criados só neste navegador. */
 export async function fetchAgendaEventos() {
   if (!podeUsarTabelas()) return getAgendaEventos();
-  const desde = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
-  const { data, error } = await supabase.from('agenda_eventos').select('*').gte('data', desde).order('data');
-  if (error || !Array.isArray(data)) return getAgendaEventos();
+  // 1º pelo servidor (usa o login do sistema; não depende da sessão do banco no navegador, que pode
+  // expirar e deixar a agenda parada com dados antigos). Se o servidor falhar, tenta direto no banco.
+  let data = null;
+  try {
+    const r = await fetch('/api/agenda/eventos', { credentials: 'same-origin', cache: 'no-store' });
+    const json = await r.json().catch(() => ({}));
+    if (r.ok && Array.isArray(json.eventos)) data = json.eventos;
+  } catch {}
+  if (!data) {
+    const desde = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
+    await garantirSessaoBanco();
+    const { data: direto, error } = await supabase.from('agenda_eventos').select('*').gte('data', desde).order('data');
+    if (error || !Array.isArray(direto)) return getAgendaEventos();
+    data = direto;
+  }
 
   const locais = getLocalData('agenda_eventos', []);
   const idsMock = new Set(['evt_1', 'evt_2', 'evt_3', 'evt_4']);

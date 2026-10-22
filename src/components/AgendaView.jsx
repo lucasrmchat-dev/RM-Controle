@@ -21,6 +21,7 @@ import { ListSkeleton } from './SkeletonLoaders';
 import ConfirmModal from './ConfirmModal';
 import AgendaEventoModal from './AgendaEventoModal';
 import AgendaGradeSemana from './AgendaGradeSemana';
+import AgendaEventoResumo from './AgendaEventoResumo';
 import { isoDoDia } from './SeletoresTempo';
 import { CheckIcon, RefreshIcon } from './Icons';
 
@@ -173,7 +174,8 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
   const [syncing, setSyncing] = useState(false);
   const [googleSync, setGoogleSync] = useState(null);
   const [agora, setAgora] = useState(Date.now());
-  const [modal, setModal] = useState(null); // { evento?, data? }
+  const [modal, setModal] = useState(null); // edição/criação: { evento?, data?, hora? }
+  const [resumo, setResumo] = useState(null); // reunião aberta no resumo
   const [confirmDialog, setConfirmDialog] = useState(null);
   const meuEmail = (userEmail || '').toLowerCase();
 
@@ -223,7 +225,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
     window.addEventListener('suporte_updated', carregarDados);
     const relogio = setInterval(() => setAgora(Date.now()), 30000);
 
-    // Google Agenda: com a Agenda aberta, pergunta ao Google a cada minuto e ao voltar para a aba.
+    // Google Agenda: com a Agenda aberta, atualiza a cada 30 s e ao voltar para a aba.
     // No site publicado o Google também avisa na hora (webhook); assim funciona mesmo sem o aviso
     // (ex.: em localhost). O servidor segura repetições: no máximo uma sincronização a cada 30 s.
     let ativo = true;
@@ -247,7 +249,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
         });
       }
     });
-    const releitura = setInterval(puxarNovidades, 60000);
+    const releitura = setInterval(puxarNovidades, 30000);
     document.addEventListener('visibilitychange', puxarNovidades);
     window.addEventListener('focus', puxarNovidades);
 
@@ -343,7 +345,8 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
       if (onSelectEmpresa && evt.empresa_id) onSelectEmpresa({ id: evt.empresa_id, nome: evt.empresa });
       return;
     }
-    setModal({ evento: evt });
+    // Primeiro o resumo; editar é uma ação de dentro dele
+    setResumo(evt);
   };
 
   const cancelarReuniao = (evt) =>
@@ -356,6 +359,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
           const r = await updateAgendaEvento(evt.id, { status: 'cancelada' });
           showToast(r?.aviso_google || 'Reunião cancelada.', r?.aviso_google ? 'warning' : 'success');
           setModal(null);
+          setResumo(null);
         } catch (e) {
           showToast(e.message, 'error');
         } finally {
@@ -375,6 +379,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
           await deleteAgendaEvento(evt.id);
           showToast('Reunião excluída.', 'success');
           setModal(null);
+          setResumo(null);
         } catch (e) {
           showToast(e.message, 'error');
         } finally {
@@ -399,8 +404,10 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
   };
 
   const marcarRealizada = async (evt) => {
+    const status = evt.status === 'concluida' ? 'agendada' : 'concluida';
     try {
-      await updateAgendaEvento(evt.id, { status: evt.status === 'concluida' ? 'agendada' : 'concluida' });
+      await updateAgendaEvento(evt.id, { status });
+      setResumo((r) => (r && r.id === evt.id ? { ...r, status } : r));
       carregarDados();
     } catch (e) {
       showToast(e.message, 'error');
@@ -660,6 +667,20 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
         googleAtivo={Boolean(googleSync?.agendas?.length)}
         onCancelarReuniao={cancelarReuniao}
         onExcluir={excluirReuniao}
+      />
+
+      <AgendaEventoResumo
+        evento={resumo}
+        agendas={googleSync?.agendas || []}
+        userEmail={userEmail}
+        onFechar={() => setResumo(null)}
+        onEditar={(evt) => {
+          setResumo(null);
+          setModal({ evento: evt });
+        }}
+        onCancelar={cancelarReuniao}
+        onExcluir={excluirReuniao}
+        onRealizada={marcarRealizada}
       />
 
       <ConfirmModal
