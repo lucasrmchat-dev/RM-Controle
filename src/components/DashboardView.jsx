@@ -14,8 +14,10 @@ import {
   getNomeTecnico,
   finalizarSuporte,
   getEmpresas,
-  getCategoriasDemandas
+  getCategoriasDemandas,
+  getPermissoesAtuais
 } from '@/lib/storage';
+import { podeVerDemanda, departamentosVisiveis } from '@/lib/perfis';
 import SupportCompletionModal from './SupportCompletionModal';
 import ConfirmModal from './ConfirmModal';
 import { showToast } from './ToastNotification';
@@ -146,7 +148,8 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
 
   const carregarDados = async () => {
     // Mostra na hora o que já está em memória (ao voltar para a aba) e atualiza ao sincronizar
-    const histCache = getHistoricoChamados();
+    const perm = getPermissoesAtuais();
+    const histCache = getHistoricoChamados().filter((c) => podeVerDemanda(perm, c));
     if (histCache.length > 0) {
       setMetricas(getMetricasSuporte({ periodo, dataInicio, dataFim, categoria: filtroCategoria }));
       setChamadosRecentes(histCache);
@@ -159,7 +162,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
     }
     const met = getMetricasSuporte({ periodo, dataInicio, dataFim, categoria: filtroCategoria });
     setMetricas(met);
-    const hist = getHistoricoChamados();
+    const hist = getHistoricoChamados().filter((c) => podeVerDemanda(getPermissoesAtuais(), c));
     setChamadosRecentes(hist);
     setCarregado(true);
     const emp = await getEmpresas({ pageSize: 1000 });
@@ -168,10 +171,17 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
   };
 
   useEffect(() => {
-    setCategoriasLista(getCategoriasDemandas());
-    const handleCats = () => setCategoriasLista(getCategoriasDemandas());
+    // Só os departamentos do perfil da pessoa
+    const handleCats = () => setCategoriasLista(departamentosVisiveis(getPermissoesAtuais(), getCategoriasDemandas()));
+    handleCats();
+    window.addEventListener('perfis_updated', handleCats);
+    window.addEventListener('user_role_updated', handleCats);
     window.addEventListener('categorias_demandas_updated', handleCats);
-    return () => window.removeEventListener('categorias_demandas_updated', handleCats);
+    return () => {
+      window.removeEventListener('categorias_demandas_updated', handleCats);
+      window.removeEventListener('perfis_updated', handleCats);
+      window.removeEventListener('user_role_updated', handleCats);
+    };
   }, []);
 
   useEffect(() => {
@@ -625,7 +635,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
             onChange={(e) => setFiltroCategoria(e.target.value)}
             className="px-3 py-1.5 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-xs font-semibold text-slate-700 dark:text-zinc-200 [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white focus:outline-none cursor-pointer shadow-xs"
           >
-            <option value="todas">Todos os Departamentos</option>
+            <option value="todas">{getPermissoesAtuais().administrador ? 'Todos os Departamentos' : 'Todos os meus departamentos'}</option>
             {categoriasLista.map((cat) => (
               <option key={cat} value={cat}>
                 {cat}

@@ -18,6 +18,7 @@ import {
   removeCategoriaDemanda,
   resolveUserRole,
   getCurrentUserRole,
+  getPermissoesAtuais,
   getAgendaConfig,
   setAgendaConfig
 } from '@/lib/storage';
@@ -27,6 +28,7 @@ import ServerConfigView from './ServerConfigView';
 import AuditLogsView from './AuditLogsView';
 import SupportIntegrationSettings from './SupportIntegrationSettings';
 import GoogleAgendaSync from './GoogleAgendaSync';
+import PerfisAcessoView from './PerfisAcessoView';
 import { podeVerConfiguracoesAvancadas, podeAcessarAbaConfiguracao, ROTULOS_PAPEL } from '@/lib/roles';
 import { 
   SparklesIcon, 
@@ -44,16 +46,23 @@ import { showToast } from './ToastNotification';
 
 export default function GeneralSettingsView({ userEmail, initialSubTab = 'visualizacao' }) {
   // Papel definido pelo servidor no login/sessão (mesma regra de src/lib/roles.js)
-  const [currentRole, setCurrentRole] = useState(() => getCurrentUserRole() || resolveUserRole(userEmail));
+  // Administrador = perfil de acesso com acesso total (ou papel administrador para quem ainda não tem perfil).
+  // "Ver o sistema como" também vale aqui, para conferir o que outro perfil enxerga.
+  const papelEfetivo = () => (getPermissoesAtuais().administrador ? 'administrador' : 'suporte');
+  const [currentRole, setCurrentRole] = useState(papelEfetivo);
   const isAdmin = podeVerConfiguracoesAvancadas(currentRole);
   const [subTab, setSubTab] = useState(() =>
-    podeAcessarAbaConfiguracao(getCurrentUserRole(), initialSubTab) ? initialSubTab : 'visualizacao'
+    podeAcessarAbaConfiguracao(papelEfetivo(), initialSubTab) ? initialSubTab : 'visualizacao'
   );
 
   useEffect(() => {
-    const atualizarPapel = () => setCurrentRole(getCurrentUserRole());
+    const atualizarPapel = () => setCurrentRole(papelEfetivo());
     window.addEventListener('user_role_updated', atualizarPapel);
-    return () => window.removeEventListener('user_role_updated', atualizarPapel);
+    window.addEventListener('perfis_updated', atualizarPapel);
+    return () => {
+      window.removeEventListener('user_role_updated', atualizarPapel);
+      window.removeEventListener('perfis_updated', atualizarPapel);
+    };
   }, []);
 
   // Se o papel mudar (ou a aba inicial vier de um link), nunca deixa um não-administrador numa aba avançada
@@ -278,6 +287,17 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
               <rect width="20" height="8" x="2" y="2" rx="2" ry="2" />
               <rect width="20" height="8" x="2" y="14" rx="2" ry="2" />
+            </svg>
+          ),
+        },
+        {
+          id: 'perfis',
+          label: 'Perfis de acesso',
+          icon: (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M19 8v6M22 11h-6" />
             </svg>
           ),
         },
@@ -1348,6 +1368,9 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           renderRestrictedNotice('Servidores & Equipe')
         )
       )}
+
+      {/* AVANÇADA: PERFIS DE ACESSO */}
+      {subTab === 'perfis' && (isAdmin ? <PerfisAcessoView /> : renderRestrictedNotice('Perfis de acesso'))}
 
       {/* AVANÇADA 3: AUDITORIA & LGPD */}
       {subTab === 'suporte_automatico' && (

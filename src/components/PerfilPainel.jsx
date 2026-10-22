@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ROTULOS_PAPEL } from '@/lib/roles';
 
 const MOLA = { type: 'spring', bounce: 0.18, duration: 0.42 };
 const LIMITE_SESSAO = 30 * 60;
@@ -91,9 +90,11 @@ export default function PerfilPainel({
   modo = 'popover',
   nome,
   email,
-  papelReal,
-  papelAtual,
-  onTrocarPapel,
+  rotuloAcesso,
+  podeSimular = false,
+  perfis = [],
+  verComo = null,
+  onVerComo,
   tema,
   onTema,
   segundosRestantes = LIMITE_SESSAO,
@@ -106,7 +107,7 @@ export default function PerfilPainel({
   const minutos = Math.floor(segundosRestantes / 60);
   const segundos = String(segundosRestantes % 60).padStart(2, '0');
   const fracao = Math.max(0, Math.min(1, segundosRestantes / LIMITE_SESSAO));
-  const ehAdmin = papelReal === 'administrador';
+  const ehAdmin = podeSimular;
   const folha = modo === 'sheet';
 
   return (
@@ -134,7 +135,10 @@ export default function PerfilPainel({
         <div className="min-w-0">
           <p className="text-[15px] font-semibold leading-tight truncate">{nome}</p>
           <p className="text-[12.5px] text-slate-500 dark:text-zinc-400 truncate">{email}</p>
-          <p className="text-[12px] text-slate-500 dark:text-zinc-400 mt-0.5">{ROTULOS_PAPEL[papelAtual] || papelAtual}</p>
+          <p className="text-[12px] text-slate-500 dark:text-zinc-400 mt-0.5">
+            {rotuloAcesso}
+            {verComo ? ' · simulando' : ''}
+          </p>
         </div>
       </div>
 
@@ -174,20 +178,25 @@ export default function PerfilPainel({
 
       {ehAdmin && (
         <div className="mt-4 px-1 space-y-3.5">
-          <div>
-            <p className="text-[12px] font-medium text-slate-500 dark:text-zinc-400 mb-2">Ver o sistema como</p>
-            <Segmentado
-              id={`papel-${modo}`}
-              rotulo="Ver o sistema como"
-              valor={papelAtual}
-              onMudar={onTrocarPapel}
-              opcoes={[
-                { id: 'administrador', rotulo: 'Admin' },
-                { id: 'suporte', rotulo: 'Suporte' },
-                { id: 'vendas', rotulo: 'Vendas' },
-              ]}
-            />
-          </div>
+          {perfis.length > 0 && (
+            <div>
+              <p className="text-[12px] font-medium text-slate-500 dark:text-zinc-400 mb-2">Ver o sistema como</p>
+              <select
+                value={verComo || ''}
+                onChange={(e) => onVerComo?.(e.target.value || null)}
+                aria-label="Ver o sistema como"
+                className="w-full h-9 px-3 rounded-xl bg-black/[0.05] dark:bg-white/[0.07] text-[13px] font-medium cursor-pointer outline-none focus:ring-2 focus:ring-[#4d7c0f]/30"
+              >
+                <option value="">Eu (acesso completo)</option>
+                {perfis.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nome}
+                  </option>
+                ))}
+              </select>
+              {verComo && <p className="text-[11.5px] text-amber-700 dark:text-amber-400 mt-1.5">Você está vendo o sistema com as permissões deste perfil.</p>}
+            </div>
+          )}
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[13.5px] font-medium">Dados de demonstração</p>

@@ -23,6 +23,8 @@ import {
   getCurrentUserRole,
   sincronizarDadosCompartilhados,
   getAbasPermitidas,
+  definirUsuarioAtual,
+  fetchPerfisAcesso,
   resolveUserRole,
   isPrimeiroAcessoPendente,
   concluirPrimeiroAcesso,
@@ -135,6 +137,8 @@ export default function Home() {
   // Navegação Principal por Abas
   // Empresas virou subpágina da Fila de Demandas: a Fila é a tela inicial
   const [activeTab, setActiveTab] = useState('fila');
+  // Módulos liberados pelo perfil de acesso (atualiza quando perfil/equipe mudam)
+  const [abasPermitidas, setAbasPermitidas] = useState([]);
   const [settingsSubTab, setSettingsSubTab] = useState('audio');
   const [isRegistrarModalGlobalOpen, setIsRegistrarModalGlobalOpen] = useState(false);
   const [empresaParaRegistrar, setEmpresaParaRegistrar] = useState(null);
@@ -416,15 +420,24 @@ export default function Home() {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, [activeTab, selectedEmpresa]);
 
+  // Quem está logado + perfis de acesso: base da regra do que cada um vê (src/lib/perfis.js)
+  useEffect(() => {
+    definirUsuarioAtual(userEmail);
+    if (!isAuthenticated || !userEmail) return;
+    fetchPerfisAcesso().then(() => window.dispatchEvent(new Event('user_role_updated')));
+  }, [isAuthenticated, userEmail]);
+
   // Proteção e Redirecionamento de Abas Permitidas por Papel (Hierarquia Estrita)
   useEffect(() => {
     if (!isAuthenticated) return;
     // Só lê o papel já definido pelo servidor; regravá-lo aqui disparava 'user_role_updated'
     // dentro do próprio ouvinte (recursão) e trocava o papel do servidor pela regra local
     const checkRoleAndTab = () => {
-      const permitidas = getAbasPermitidas(getCurrentUserRole());
+      const permitidas = getAbasPermitidas();
+      setAbasPermitidas(permitidas);
       if (!permitidas.includes(activeTab)) {
-        setActiveTab('fila');
+        // Vai para o primeiro módulo que o perfil permite (nem todo perfil tem a Fila)
+        setActiveTab(['fila', 'agenda', 'dashboard', 'feedbacks', 'empresas', 'configuracoes'].find((m) => permitidas.includes(m)) || 'fila');
       }
     };
     // Papel alterado em Equipe & Senhas: pergunta ao servidor e aplica
@@ -436,10 +449,12 @@ export default function Home() {
     checkRoleAndTab();
 
     window.addEventListener('user_role_updated', checkRoleAndTab);
+    window.addEventListener('perfis_updated', checkRoleAndTab);
     window.addEventListener('equipe_updated', atualizarPapelDoServidor);
 
     return () => {
       window.removeEventListener('user_role_updated', checkRoleAndTab);
+      window.removeEventListener('perfis_updated', checkRoleAndTab);
       window.removeEventListener('equipe_updated', atualizarPapelDoServidor);
     };
   }, [isAuthenticated, userEmail, activeTab]);
@@ -1610,11 +1625,15 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
               {activeTab === 'fila' && (
                 <SupportQueueView
                   onSelectEmpresa={handleSelectEmpresaGlobal}
-                  onVerEmpresas={(termo = '') => {
-                    setPage(1);
-                    setSearchTerm(termo);
-                    setActiveTab('empresas');
-                  }}
+                  onVerEmpresas={
+                    abasPermitidas.includes('empresas')
+                      ? (termo = '') => {
+                          setPage(1);
+                          setSearchTerm(termo);
+                          setActiveTab('empresas');
+                        }
+                      : null
+                  }
                   onRegistrarRetroativo={() => {
                     setEmpresaParaRegistrar(null);
                     setIsRegistrarModalGlobalOpen(true);

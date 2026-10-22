@@ -22,6 +22,7 @@ import { triggerSupportNotification, stopSupportNotificationLoop, registrarFonte
 import { supabase, isSupabaseConfigured } from './supabase';
 import { logAuditoria } from './security';
 import { resolverPapel, ADMINS_PROPRIETARIOS } from './roles';
+import { permissoesEfetivas, podeVerDemanda } from './perfis';
 
 // ==============================================================================
 // CONTROLE DE DADOS SIMULADOS (MOCK DEV)
@@ -2527,7 +2528,9 @@ export function getMetricasSuporte({ periodo = '7d', dataInicio = null, dataFim 
     }
   });
 
-  let chamados = Array.from(mapa.values());
+  // Perfil de acesso: métricas só dos departamentos que a pessoa enxerga
+  const permissoes = getPermissoesAtuais();
+  let chamados = Array.from(mapa.values()).filter((c) => podeVerDemanda(permissoes, c));
   const hoje = new Date();
 
   // Filtro por Categoria se especificado (inclui verificação ampla em categorias e motivo)
@@ -3023,18 +3026,81 @@ export function setCurrentUserRole(role) {
   window.dispatchEvent(new Event('user_role_updated'));
 }
 
-export function getAbasPermitidas(role = null) {
-  const currentRole = role || getCurrentUserRole();
-  return PERMISSOES_PADRAO[currentRole] || PERMISSOES_PADRAO.suporte;
+// ------------------------------------------------------------------------------
+// Perfis de acesso (Configurações › Perfis de acesso)
+// ------------------------------------------------------------------------------
+export function getPerfisAcesso() {
+  return getLocalData('perfis_acesso', []);
+}
+
+export async function fetchPerfisAcesso() {
+  if (!podeUsarTabelas()) return getPerfisAcesso();
+  try {
+    const r = await fetch('/api/perfis', { credentials: 'same-origin', cache: 'no-store' });
+    const json = await r.json().catch(() => ({}));
+    if (r.ok && Array.isArray(json.perfis)) {
+      setLocalData('perfis_acesso', json.perfis);
+      setLocalData('perfis_migracao_pendente', Boolean(json.migracao_pendente));
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('perfis_updated'));
+    }
+  } catch {}
+  return getPerfisAcesso();
+}
+
+async function pedirPerfis(metodo, corpo) {
+  const r = await fetch('/api/perfis', {
+    method: metodo,
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(corpo),
+  });
+  const json = await r.json().catch(() => ({}));
+  if (!r.ok || !json.ok) throw new Error(json.mensagem || 'Não foi possível salvar o perfil.');
+  await fetchPerfisAcesso();
+  await fetchEquipeUsuarios().catch(() => {});
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('user_role_updated'));
+  return json.perfil || true;
+}
+
+export const salvarPerfilAcesso = (perfil) => pedirPerfis(perfil.id ? 'PATCH' : 'POST', perfil);
+export const excluirPerfilAcesso = (id) => pedirPerfis('DELETE', { id });
+
+/** Administrador conferindo o sistema como outro perfil ("Ver o sistema como"). Vale só neste navegador. */
+export function getVerComoPerfil() {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('rm_ver_como_perfil') || null;
+}
+export function setVerComoPerfil(id) {
+  if (typeof window === 'undefined') return;
+  if (id) localStorage.setItem('rm_ver_como_perfil', id);
+  else localStorage.removeItem('rm_ver_como_perfil');
+  window.dispatchEvent(new Event('user_role_updated'));
+}
+
+// E-mail de quem está logado (definido pela página principal ao confirmar a sessão)
+let emailUsuarioAtual = '';
+export function definirUsuarioAtual(email) {
+  emailUsuarioAtual = String(email || '').toLowerCase().trim();
+}
+
+/** O que a pessoa logada pode ver: módulos e departamentos (regra em src/lib/perfis.js). */
+export function getPermissoesAtuais(email = null) {
+  const alvo = email || emailUsuarioAtual;
+  return permissoesEfetivas({ email: alvo, equipe: getEquipeUsuarios(), perfis: getPerfisAcesso(), verComoPerfilId: getVerComoPerfil() });
+}
+
+export function getAbasPermitidas() {
+  return getPermissoesAtuais().modulos;
 }
 
 export async function fetchEquipeUsuarios() {
   if (isSupabaseConfigured && supabase) {
     try {
       // Colunas explícitas: a senha (hash) não é legível pelo navegador
-      const { data, error } = await supabase
-        .from('equipe_usuarios')
-        .select('id, nome, email, papel, ativo, departamentos, departamentos_bloqueados, primeiro_acesso_concluido, primeiro_acesso_data, created_at');
+      const colunas = 'id, nome, email, papel, ativo, departamentos, departamentos_bloqueados, primeiro_acesso_concluido, primeiro_acesso_data, created_at';
+      // perfil_id existe depois de supabase/migration_perfis_acesso.sql; sem ela, lê sem a coluna
+      let { data, error } = await supabase.from('equipe_usuarios').select(`${colunas}, perfil_id`);
+      if (error && /perfil_id/.test(error.message || '')) ({ data, error } = await supabase.from('equipe_usuarios').select(colunas));
 
       if (!error && Array.isArray(data)) {
         // A equipe é EXATAMENTE o que está no banco. Antes a lista local (e uma lista fixa no código)
@@ -3055,6 +3121,7 @@ export async function fetchEquipeUsuarios() {
             papel: u.papel || prev.papel || 'suporte',
             departamentos: u.departamentos || prev.departamentos,
             departamentos_bloqueados: u.departamentos_bloqueados || prev.departamentos_bloqueados,
+            perfil_id: u.perfil_id ?? prev.perfil_id ?? null,
             ativo: u.ativo !== false,
             primeiro_acesso_concluido: u.primeiro_acesso_concluido === true,
             primeiro_acesso_data: u.primeiro_acesso_data || null,
@@ -3149,7 +3216,7 @@ function atualizarEquipeLocal(transformar) {
   return lista;
 }
 
-export async function addEquipeUsuario({ nome, email, senha = '', papel = 'suporte', departamentos }) {
+export async function addEquipeUsuario({ nome, email, senha = '', papel = 'suporte', departamentos, perfil_id = null }) {
   if (!email || !email.trim()) throw new Error('E-mail é obrigatório.');
   const emailLimpo = email.trim().toLowerCase();
   const senhaFinal = (senha || '').trim() || getSenhaPadraoRedefinicao();
@@ -3166,7 +3233,7 @@ export async function addEquipeUsuario({ nome, email, senha = '', papel = 'supor
     criado_em: new Date().toISOString(),
   };
   if (podeFalarComServidor()) {
-    const { membro } = await chamarApiEquipe('POST', { nome: novo.nome, email: emailLimpo, senha: senhaFinal, papel: novo.papel, departamentos });
+    const { membro } = await chamarApiEquipe('POST', { nome: novo.nome, email: emailLimpo, senha: senhaFinal, papel: novo.papel, departamentos, ...(perfil_id ? { perfil_id } : {}) });
     const { senha: _ignorada, ...membroSemSenha } = membro || {};
     novo = { ...novo, ...membroSemSenha, criado_em: membro?.created_at || novo.criado_em };
   }

@@ -4,7 +4,20 @@ import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { BrandMark } from './BrandMark';
 import PerfilPainel from './PerfilPainel';
-import { getFilaChamados, getAbasPermitidas, getCurrentUserRole, resolveUserRole, setCurrentUserRole, getAgendaEventos, getNomeTecnico } from '@/lib/storage';
+import {
+  getFilaChamados,
+  getAbasPermitidas,
+  getCurrentUserRole,
+  getAgendaEventos,
+  getNomeTecnico,
+  getPermissoesAtuais,
+  getPerfisAcesso,
+  getEquipeUsuarios,
+  getVerComoPerfil,
+  setVerComoPerfil,
+} from '@/lib/storage';
+import { permissoesEfetivas, podeVerDemanda } from '@/lib/perfis';
+import { ROTULOS_PAPEL } from '@/lib/roles';
 import { SupportQueueIcon, CalendarIcon, BuildingIcon } from './Icons';
 
 // Mola única do cabeçalho: tudo se move junto, como uma peça só
@@ -144,7 +157,9 @@ export default function Navbar({
   const largura = useLarguraTela();
 
   const checarEstado = () => {
-    setTotalFila((getFilaChamados ? getFilaChamados() : []).length);
+    // Só conta o que o perfil da pessoa enxerga
+    const perm = getPermissoesAtuais();
+    setTotalFila((getFilaChamados ? getFilaChamados() : []).filter((c) => podeVerDemanda(perm, c)).length);
     setUserRole(getCurrentUserRole());
     try {
       const hojeIso = new Date().toISOString().split('T')[0];
@@ -154,7 +169,7 @@ export default function Navbar({
 
   useEffect(() => {
     checarEstado();
-    const eventos = ['suporte_updated', 'user_role_updated', 'equipe_updated', 'agenda_eventos_updated'];
+    const eventos = ['suporte_updated', 'user_role_updated', 'equipe_updated', 'agenda_eventos_updated', 'perfis_updated'];
     eventos.forEach((ev) => window.addEventListener(ev, checarEstado));
     return () => eventos.forEach((ev) => window.removeEventListener(ev, checarEstado));
   }, []);
@@ -226,7 +241,11 @@ export default function Navbar({
     { id: 'dashboard', label: 'Dashboard', curto: 'Métricas', icon: <IconeDashboard /> },
     { id: 'feedbacks', label: 'Feedbacks', curto: 'Feedbacks', icon: <IconeFeedbacks /> },
   ];
-  const permitidas = getAbasPermitidas(userRole);
+  const permitidas = getAbasPermitidas();
+  const permAtual = getPermissoesAtuais();
+  // Acesso real (sem a simulação de "Ver o sistema como"), para decidir quem pode simular
+  const permReal = permissoesEfetivas({ email: userEmail, equipe: getEquipeUsuarios(), perfis: getPerfisAcesso() });
+  const rotuloAcesso = permAtual.perfil?.nome || (permAtual.administrador ? 'Administrador' : ROTULOS_PAPEL[userRole] || 'Suporte Técnico');
   const abas = todasAsAbas.filter((t) => permitidas.includes(t.id));
   const podeConfigurar = permitidas.includes('configuracoes');
 
@@ -247,11 +266,13 @@ export default function Navbar({
       modo={modo}
       nome={nome}
       email={userEmail}
-      papelReal={resolveUserRole(userEmail)}
-      papelAtual={userRole}
-      onTrocarPapel={(r) => {
-        setCurrentUserRole(r);
-        setUserRole(r);
+      rotuloAcesso={rotuloAcesso}
+      podeSimular={permReal.administrador}
+      perfis={getPerfisAcesso()}
+      verComo={getVerComoPerfil()}
+      onVerComo={(id) => {
+        setVerComoPerfil(id);
+        checarEstado();
       }}
       tema={theme}
       onTema={setTheme}
@@ -276,6 +297,23 @@ export default function Navbar({
       {/* COMPUTADOR: ilha centralizada; na fila, recebe as ações ao lado ao rolar       */}
       {/* ============================================================================== */}
       <header className="hidden md:flex fixed top-3 inset-x-0 z-40 justify-center px-4 lg:px-6 pointer-events-none">
+        {/* Tempo até a sessão encerrar por inatividade, no canto (fora da ilha) */}
+        <div className="absolute right-4 lg:right-6 top-0 h-[54px] hidden lg:flex items-center">
+        <div
+          title="Tempo até a sessão encerrar por inatividade"
+          className={`h-9 flex items-center gap-1.5 px-3.5 rounded-full pointer-events-auto text-[12.5px] font-medium tabular-nums transition-colors ${
+            inactivityTimeLeft < 300
+              ? 'bg-rose-500/12 text-rose-600 dark:text-rose-400'
+              : 'bg-white/70 dark:bg-[#232326]/70 backdrop-blur-xl border border-black/[0.06] dark:border-white/[0.1] text-slate-500 dark:text-zinc-400'
+          }`}
+        >
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="13" r="8" />
+            <path d="M12 9v4l2 2M9 2h6" />
+          </svg>
+          {relogio}
+        </div>
+        </div>
         <LayoutGroup>
           <div className="flex items-center justify-center gap-2 w-full max-w-[1720px]">
             <motion.div
@@ -350,21 +388,7 @@ export default function Navbar({
 
               {/* Conta */}
               <motion.div layout="position" transition={MOLA} className="flex items-center gap-1.5 flex-shrink-0 ml-1">
-                <AnimatePresence initial={false}>
-                  {inactivityTimeLeft < 300 && (
-                    <motion.span
-                      key="sessao"
-                      initial={{ opacity: 0, width: 0 }}
-                      animate={{ opacity: 1, width: 'auto' }}
-                      exit={{ opacity: 0, width: 0 }}
-                      transition={ROTULO}
-                      title="Tempo até a sessão encerrar por inatividade"
-                      className="overflow-hidden whitespace-nowrap text-[12px] tabular-nums pr-1 text-rose-600 dark:text-rose-400"
-                    >
-                      {relogio}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
+
                 <div className="relative" ref={perfilRef}>
                   <button
                     type="button"

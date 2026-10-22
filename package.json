@@ -11,7 +11,7 @@
     "security:scan": "node scripts/security-audit.js",
     "biome:check": "npx @biomejs/biome check src/",
     "biome:format": "npx @biomejs/biome format --write src/",
-    "test:sync": "node --import ./tests/mocks/setup.js --test tests/fila-feedbacks-sync.test.js tests/integracao-suporte.test.js tests/permissoes.test.js tests/empresas-servidores.test.js tests/supabase-migracao.test.js tests/google-agenda.test.js"
+    "test:sync": "node --import ./tests/mocks/setup.js --test tests/fila-feedbacks-sync.test.js tests/integracao-suporte.test.js tests/permissoes.test.js tests/empresas-servidores.test.js tests/supabase-migracao.test.js tests/google-agenda.test.js tests/perfis.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

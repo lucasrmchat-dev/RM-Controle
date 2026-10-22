@@ -20,6 +20,7 @@ import {
   addEmpresaCredencial,
   getEmpresaCredenciais,
   getCategoriasDemandas,
+  getPermissoesAtuais,
   fetchChamadosFila,
   fetchHistoricoChamados,
   fetchEquipeUsuarios,
@@ -38,6 +39,7 @@ import {
   diagnosticarVisibilidadeFila,
 } from '@/lib/storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { podeVerDemanda, departamentosVisiveis } from '@/lib/perfis';
 import { stopSupportNotificationLoop, playNotificationTone } from '@/lib/audioNotifications';
 import SupportCompletionModal from './SupportCompletionModal';
 import ConfirmModal from './ConfirmModal';
@@ -404,7 +406,9 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
       }
     });
 
-    return Array.from(mapa.values());
+    // Perfil de acesso: só as demandas dos departamentos que a pessoa enxerga
+    const perm = getPermissoesAtuais();
+    return Array.from(mapa.values()).filter((c) => podeVerDemanda(perm, c));
   };
 
   const carregarDados = async () => {
@@ -430,7 +434,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
       diagnosticarVisibilidadeFila().then(setDiagnosticoVisibilidade).catch(() => {});
     }
     setEquipeLista(getEquipeUsuarios());
-    setCategoriasDisponiveis(getCategoriasDemandas());
+    setCategoriasDisponiveis(departamentosVisiveis(getPermissoesAtuais(), getCategoriasDemandas()));
     const resEmp = await getEmpresas({ pageSize: 1000 });
     const lista = Array.isArray(resEmp) ? resEmp : (resEmp?.items || []);
     const listaOrdenada = [...lista].sort((a, b) =>
@@ -451,10 +455,17 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
 
   useEffect(() => {
     const handleUpdate = () => carregarDados();
-    const handleCatsUpdated = () => setCategoriasDisponiveis(getCategoriasDemandas());
+    const handleCatsUpdated = () => setCategoriasDisponiveis(departamentosVisiveis(getPermissoesAtuais(), getCategoriasDemandas()));
     window.addEventListener('suporte_updated', handleUpdate);
     window.addEventListener('equipe_updated', handleUpdate);
     window.addEventListener('categorias_demandas_updated', handleCatsUpdated);
+    // Perfil mudou (ou "Ver o sistema como"): refiltra a fila e os departamentos
+    const handlePerfil = () => {
+      setChamados(montarListaChamados());
+      handleCatsUpdated();
+    };
+    window.addEventListener('user_role_updated', handlePerfil);
+    window.addEventListener('perfis_updated', handlePerfil);
 
     // Ticker a cada 1 segundo para atualizar cronômetros e verificar escalonamento de SLA
     const timer = setInterval(() => {
@@ -499,6 +510,8 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
       window.removeEventListener('suporte_updated', handleUpdate);
       window.removeEventListener('equipe_updated', handleUpdate);
       window.removeEventListener('categorias_demandas_updated', handleCatsUpdated);
+      window.removeEventListener('user_role_updated', handlePerfil);
+      window.removeEventListener('perfis_updated', handlePerfil);
       clearInterval(timer);
     };
   }, []);
@@ -1651,6 +1664,13 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
               {/* Filtros em Popovers Apple: Departamentos & Responsável (Zero Scroll Horizontal) */}
               <div className="flex items-center gap-2 flex-wrap md:flex-1 min-w-0">
                 {/* 1. Popover de Departamentos (Multi-seleção com Checkboxes) */}
+                {categoriasDisponiveis.length === 1 ? (
+                  // Perfil com um só departamento: nada para alternar
+                  <span className="px-3.5 py-1.5 rounded-full border border-black/[0.08] dark:border-white/[0.1] text-xs font-semibold flex items-center gap-2 text-slate-600 dark:text-zinc-300">
+                    <LayersIcon className="w-3.5 h-3.5 text-slate-400" />
+                    {categoriasDisponiveis[0]}
+                  </span>
+                ) : (
                 <div ref={filtroDeptRef} className="relative z-40">
                   <button
                     type="button"
@@ -1761,6 +1781,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                     </div>
                   )}
                 </div>
+                )}
 
                 {/* Chips Ativos de Departamentos Selecionados */}
                 {filtrosDepartamentos.map((dept) => (

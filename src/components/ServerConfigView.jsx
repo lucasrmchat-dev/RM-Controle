@@ -26,7 +26,9 @@ import {
   removeMotivoSuporte,
   updateEquipeUsuario,
   getCategoriasDemandas,
-  getEmpresas
+  getEmpresas,
+  getPerfisAcesso,
+  fetchPerfisAcesso,
 } from '@/lib/storage';
 import { 
   EyeIcon, 
@@ -65,6 +67,9 @@ export default function ServerConfigView() {
   const [novoUsuarioEmail, setNovoUsuarioEmail] = useState('');
   const [novoUsuarioSenha, setNovoUsuarioSenha] = useState('');
   const [novoUsuarioPapel, setNovoUsuarioPapel] = useState('suporte');
+  const [novoUsuarioPerfil, setNovoUsuarioPerfil] = useState('');
+  // Perfis de acesso (Configurações › Perfis de acesso); com eles, papel e departamentos saem do membro
+  const [perfis, setPerfis] = useState(getPerfisAcesso());
   const [novoUsuarioEmpresa, setNovoUsuarioEmpresa] = useState('Todas as Empresas');
   const [empresasLista, setEmpresasLista] = useState([]);
   const [userRole, setUserRole] = useState('administrador');
@@ -74,6 +79,7 @@ export default function ServerConfigView() {
   const [editNome, setEditNome] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editPapel, setEditPapel] = useState('suporte');
+  const [editPerfil, setEditPerfil] = useState('');
   const [editSenha, setEditSenha] = useState('');
   const [editDepartamentos, setEditDepartamentos] = useState([]);
   const [editDepartamentosBloqueados, setEditDepartamentosBloqueados] = useState([]);
@@ -100,6 +106,7 @@ export default function ServerConfigView() {
       await fetchEquipeUsuarios();
     } catch (e) {}
     setEquipe(getEquipeUsuarios());
+    setPerfis(await fetchPerfisAcesso());
     setUserRole(getCurrentUserRole());
     setSenhaPadrao(getSenhaPadraoRedefinicao());
     setConfigSuporte(getConfiguracoesSuporte());
@@ -167,6 +174,7 @@ export default function ServerConfigView() {
         email: novoUsuarioEmail,
         senha: novoUsuarioSenha || senhaPadrao,
         papel: novoUsuarioPapel,
+        perfil_id: novoUsuarioPerfil || null,
       });
 
       setNovoUsuarioNome('');
@@ -204,6 +212,7 @@ export default function ServerConfigView() {
     setEditNome(u.nome || '');
     setEditEmail(u.email || '');
     setEditPapel(u.papel || 'suporte');
+    setEditPerfil(u.perfil_id || '');
     setEditSenha('');
     setEditDepartamentos(Array.isArray(u.departamentos) ? u.departamentos : []);
     setEditDepartamentosBloqueados(Array.isArray(u.departamentos_bloqueados) ? u.departamentos_bloqueados : []);
@@ -221,11 +230,12 @@ export default function ServerConfigView() {
       await updateEquipeUsuario(usuarioEditando.id, {
         nome: editNome.trim(),
         email: editEmail.trim(),
-        papel: editPapel,
+        // Com perfil, o servidor define o papel a partir dele; sem perfil, vale o papel escolhido
+        ...(perfis.length ? { perfil_id: editPerfil || null } : {}),
+        ...(editPerfil ? {} : { papel: editPapel }),
         senha: editSenha.trim() || undefined,
         empresa_nome: editEmpresaNome,
-        departamentos: editDepartamentos,
-        departamentos_bloqueados: editDepartamentosBloqueados,
+        ...(perfis.length ? {} : { departamentos: editDepartamentos, departamentos_bloqueados: editDepartamentosBloqueados }),
       });
 
       showFeedbackMsg(`Perfil de ${editNome} atualizado com sucesso.`);
@@ -620,17 +630,36 @@ export default function ServerConfigView() {
 
                 <div className="space-y-1">
                   <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 pl-1">
-                    Papel / Permissões de Abas <span className="text-red-500">*</span>
+                    Perfil de acesso <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    value={novoUsuarioPapel}
-                    onChange={(e) => setNovoUsuarioPapel(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium cursor-pointer"
-                  >
-                    <option value="suporte" className="dark:bg-[#1e1e21]">Suporte Técnico (Acesso a Empresas, Atendimento & Dashboard)</option>
-                    <option value="vendas" className="dark:bg-[#1e1e21]">Comercial & Vendas (Acesso a Empresas & Dashboard)</option>
-                    <option value="administrador" className="dark:bg-[#1e1e21]">Administrador Geral (Acesso Total: Servidores, Equipe e Auditoria)</option>
-                  </select>
+                  {perfis.length ? (
+                    <select
+                      value={novoUsuarioPerfil}
+                      onChange={(e) => setNovoUsuarioPerfil(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium cursor-pointer"
+                    >
+                      <option value="" className="dark:bg-[#1e1e21]">Sem perfil (acesso padrão de Suporte)</option>
+                      {perfis.map((p) => (
+                        <option key={p.id} value={p.id} className="dark:bg-[#1e1e21]">
+                          {p.nome}
+                          {p.administrador ? ' · administrador' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <>
+                      <select
+                        value={novoUsuarioPapel}
+                        onChange={(e) => setNovoUsuarioPapel(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium cursor-pointer"
+                      >
+                        <option value="suporte" className="dark:bg-[#1e1e21]">Suporte Técnico</option>
+                        <option value="vendas" className="dark:bg-[#1e1e21]">Comercial & Vendas</option>
+                        <option value="administrador" className="dark:bg-[#1e1e21]">Administrador Geral</option>
+                      </select>
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400 pl-1">Crie perfis personalizados em Configurações › Perfis de acesso.</p>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -676,7 +705,7 @@ export default function ServerConfigView() {
                             {u.papel === 'administrador' && <CrownIcon className="w-3 h-3" />}
                             {u.papel === 'suporte' && <WrenchIcon className="w-3 h-3" />}
                             {u.papel === 'vendas' && <BriefcaseIcon className="w-3 h-3" />}
-                            <span>{u.papel}</span>
+                            <span>{perfis.find((p) => p.id === u.perfil_id)?.nome || u.papel}</span>
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono mt-0.5">{u.email}</p>
@@ -772,6 +801,39 @@ export default function ServerConfigView() {
                         />
                       </div>
 
+                      {perfis.length ? (
+                        <div className="space-y-1.5">
+                          <label htmlFor="edit-perfil" className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 pl-1">
+                            Perfil de acesso
+                          </label>
+                          <select
+                            id="edit-perfil"
+                            value={editPerfil}
+                            onChange={(e) => setEditPerfil(e.target.value)}
+                            className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white font-medium cursor-pointer"
+                          >
+                            <option value="">Sem perfil (acesso padrão de {editPapel === 'administrador' ? 'Administrador' : editPapel === 'vendas' ? 'Vendas' : 'Suporte'})</option>
+                            {perfis.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.nome}
+                                {p.administrador ? ' · administrador' : ''}
+                              </option>
+                            ))}
+                          </select>
+                          {(() => {
+                            const p = perfis.find((x) => x.id === editPerfil);
+                            if (!p) return <p className="text-[11px] text-slate-500 dark:text-zinc-400 pl-1">Módulos e departamentos são definidos pelo perfil. Sem perfil, continua com o acesso atual.</p>;
+                            return (
+                              <p className="text-[11px] text-slate-500 dark:text-zinc-400 pl-1">
+                                {p.administrador
+                                  ? 'Acesso total, inclusive Configurações Avançadas.'
+                                  : `Vê ${p.todos_departamentos ? 'todos os departamentos' : (p.departamentos || []).join(', ') || 'nenhum departamento'}.`}
+                              </p>
+                            );
+                          })()}
+                        </div>
+                      ) : (
+                        <>
                       <div className="space-y-1">
                         <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 pl-1">
                           Papel / Permissões de Acesso <span className="text-red-500">*</span>
@@ -871,6 +933,9 @@ export default function ServerConfigView() {
                           })}
                         </div>
                       </div>
+
+                        </>
+                      )}
 
                       <div className="space-y-1 pt-2 border-t border-black/[0.05] dark:border-white/[0.09]">
                         <div className="flex items-center justify-between pl-1">

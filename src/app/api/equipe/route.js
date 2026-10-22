@@ -8,7 +8,21 @@ export const dynamic = 'force-dynamic';
 
 // Gestão da equipe pelo servidor: cria a conta de login já confirmada e grava a senha
 // (o banco converte em hash bcrypt). O navegador nunca recebe nem guarda senhas da equipe.
-const COLUNAS_PUBLICAS = 'id, nome, email, papel, ativo, departamentos, departamentos_bloqueados, primeiro_acesso_concluido, primeiro_acesso_data, created_at';
+const COLUNAS_BASE = 'id, nome, email, papel, ativo, departamentos, departamentos_bloqueados, primeiro_acesso_concluido, primeiro_acesso_data, created_at';
+// perfil_id só existe depois de rodar supabase/migration_perfis_acesso.sql
+let temColunaPerfil = true;
+const colunasPublicas = () => (temColunaPerfil ? `${COLUNAS_BASE}, perfil_id` : COLUNAS_BASE);
+const colunaPerfilAusente = (error) => /perfil_id/.test(error?.message || '');
+
+/** Executa a consulta; se a coluna perfil_id ainda não existir, repete sem ela. */
+async function comColunas(consulta) {
+  let r = await consulta(colunasPublicas());
+  if (r.error && temColunaPerfil && colunaPerfilAusente(r.error)) {
+    temColunaPerfil = false;
+    r = await consulta(colunasPublicas());
+  }
+  return r;
+}
 
 function json(corpo, status = 200) {
   return Response.json(corpo, { status });
@@ -55,13 +69,31 @@ function camposEditaveis(body) {
   if (body.ativo !== undefined) campos.ativo = Boolean(body.ativo);
   if (Array.isArray(body.departamentos)) campos.departamentos = body.departamentos.map(String);
   if (Array.isArray(body.departamentos_bloqueados)) campos.departamentos_bloqueados = body.departamentos_bloqueados.map(String);
+  if (body.perfil_id !== undefined) {
+    if (body.perfil_id !== null && body.perfil_id !== '' && !isValidUUID(body.perfil_id)) return { erro: 'Perfil inválido.' };
+    campos.perfil_id = body.perfil_id || null;
+  }
   return { campos };
+}
+
+/** Com perfil, o papel do banco acompanha o perfil (as regras de segurança usam o papel). */
+async function aplicarPerfil(db, campos) {
+  // Tirou o perfil: volta ao papel informado (ou suporte), nunca herda o "administrador" do perfil antigo
+  if (campos.perfil_id === null) {
+    if (campos.papel === undefined) campos.papel = 'suporte';
+    return null;
+  }
+  if (!campos.perfil_id) return null;
+  const { data: perfil } = await db.from('perfis_acesso').select('id, administrador').eq('id', campos.perfil_id).maybeSingle();
+  if (!perfil) return 'Perfil não encontrado.';
+  campos.papel = perfil.administrador ? 'administrador' : 'suporte';
+  return null;
 }
 
 export async function GET(request) {
   const { erro, db } = await exigirAdmin(request);
   if (erro) return erro;
-  const { data, error } = await db.from('equipe_usuarios').select(COLUNAS_PUBLICAS).order('nome');
+  const { data, error } = await comColunas((cols) => db.from('equipe_usuarios').select(cols).order('nome'));
   if (error) return json({ ok: false, mensagem: error.message }, 500);
   return json({ ok: true, equipe: data });
 }
@@ -76,6 +108,8 @@ export async function POST(request) {
   if (erroSenha) return json({ ok: false, mensagem: erroSenha }, 400);
   const { campos, erro: erroCampos } = camposEditaveis({ papel: 'suporte', ...body });
   if (erroCampos) return json({ ok: false, mensagem: erroCampos }, 400);
+  const erroPerfil = await aplicarPerfil(db, campos);
+  if (erroPerfil) return json({ ok: false, mensagem: erroPerfil }, 400);
 
   const { data: existente } = await db.from('equipe_usuarios').select('id').eq('email', email).maybeSingle();
   if (existente) return json({ ok: false, mensagem: 'Já existe um membro cadastrado com este e-mail.' }, 409);
@@ -83,11 +117,13 @@ export async function POST(request) {
   const conta = await garantirContaAuth(email, body.senha, { name: campos.nome || '', papel: campos.papel });
   if (!conta.ok) return json({ ok: false, mensagem: `Não foi possível criar o login: ${conta.erro}` }, 500);
 
-  const { data, error } = await db
-    .from('equipe_usuarios')
-    .insert([{ nome: campos.nome || email.split('@')[0], email, senha: body.senha, ativo: true, ...campos }])
-    .select(COLUNAS_PUBLICAS)
-    .single();
+  const { data, error } = await comColunas((cols) =>
+    db
+      .from('equipe_usuarios')
+      .insert([{ nome: campos.nome || email.split('@')[0], email, senha: body.senha, ativo: true, ...campos }])
+      .select(cols)
+      .single()
+  );
   if (error) return json({ ok: false, mensagem: error.message }, 500);
   return json({ ok: true, membro: data }, 201);
 }
@@ -101,6 +137,8 @@ export async function PATCH(request) {
 
   const { campos, erro: erroCampos } = camposEditaveis(body);
   if (erroCampos) return json({ ok: false, mensagem: erroCampos }, 400);
+  const erroPerfil = await aplicarPerfil(db, campos);
+  if (erroPerfil) return json({ ok: false, mensagem: erroPerfil }, 400);
   const erroSenha = validarSenha(body.senha);
   if (erroSenha) return json({ ok: false, mensagem: erroSenha }, 400);
   if (body.senha) {
@@ -109,7 +147,7 @@ export async function PATCH(request) {
     campos.senha = body.senha;
   }
 
-  const { data, error } = await db.from('equipe_usuarios').update(campos).eq('id', atual.id).select(COLUNAS_PUBLICAS).single();
+  const { data, error } = await comColunas((cols) => db.from('equipe_usuarios').update(campos).eq('id', atual.id).select(cols).single());
   if (error) return json({ ok: false, mensagem: error.message }, 500);
   return json({ ok: true, membro: data });
 }

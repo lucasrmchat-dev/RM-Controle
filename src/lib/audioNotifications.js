@@ -2,6 +2,7 @@
  * Sistema de Notificações Sonoras com Web Audio API
  * Sem dependência de arquivos externos (100% autônomo, confiável e nativo do navegador)
  */
+import { permissoesEfetivas, podeVerDemanda } from './perfis';
 
 let audioCtx = null;
 let activeLoopInterval = null;
@@ -188,6 +189,18 @@ let loopIniciadoEm = 0;
  * Regras de quem deve ouvir o alerta de um chamado (usadas no primeiro toque E na repetição,
  * para que a repetição nunca toque por algo que o primeiro toque não tocaria).
  */
+// Permissões do perfil de acesso de quem está no navegador (lidas do cache local, sem ir ao banco)
+function permissoesLocais(myEmail) {
+  try {
+    if (typeof window === 'undefined') return null;
+    const equipe = JSON.parse(localStorage.getItem('rm_equipe_usuarios') || '[]');
+    const perfis = JSON.parse(localStorage.getItem('rm_perfis_acesso') || '[]');
+    return permissoesEfetivas({ email: myEmail, equipe, perfis, verComoPerfilId: localStorage.getItem('rm_ver_como_perfil') });
+  } catch {
+    return null;
+  }
+}
+
 export function deveNotificarChamado(chamado, userEmail, config = getAudioConfig(), criadoPorMim = false) {
   if (!chamado || !config.habilitado) return false;
   // 'pendente' = aguardando retorno do cliente: já tem responsável, não alerta a equipe
@@ -233,6 +246,10 @@ export function deveNotificarChamado(chamado, userEmail, config = getAudioConfig
 
   // 4. Se for da Fila Geral (não atribuída especificamente a alguém):
   if (!isAtribuidoDiretamente) {
+    // Perfil de acesso: demanda de departamento que a pessoa não enxerga nunca toca para ela
+    const perm = permissoesLocais(myEmail);
+    if (perm && !podeVerDemanda(perm, chamado)) return false;
+
     // 1. Se o usuário só quer receber alertas do que foi atribuído diretamente a ele
     if (config.escopo === 'apenas_meus' || config.escopo === 'atribuidos') {
       return false;
@@ -262,7 +279,8 @@ export function deveNotificarChamado(chamado, userEmail, config = getAudioConfig
           const role = localStorage.getItem('rm_user_role') || '';
           const isAdmin = role === 'administrador';
 
-          if (!isAdmin && rawUsers) {
+          // Com perfil de acesso, os departamentos do perfil já decidiram acima
+          if (!isAdmin && rawUsers && !perm?.perfil) {
             const equipe = JSON.parse(rawUsers);
             const me = equipe.find((u) => (u.email || '').toLowerCase().trim() === myEmail);
             const meusDeps = Array.isArray(me?.departamentos) && me.departamentos.length > 0
