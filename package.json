@@ -11,7 +11,8 @@
     "security:scan": "node scripts/security-audit.js",
     "biome:check": "npx @biomejs/biome check src/",
     "biome:format": "npx @biomejs/biome format --write src/",
-    "test:sync": "node --import ./tests/mocks/setup.js --test tests/fila-feedbacks-sync.test.js tests/integracao-suporte.test.js tests/permissoes.test.js tests/empresas-servidores.test.js tests/supabase-migracao.test.js tests/google-agenda.test.js tests/perfis.test.js"
+    "test:sync": "node --import ./tests/mocks/setup.js --test tests/fila-feedbacks-sync.test.js tests/integracao-suporte.test.js tests/permissoes.test.js tests/empresas-servidores.test.js tests/supabase-migracao.test.js tests/google-agenda.test.js tests/perfis.test.js tests/comercial-webhooks.test.js tests/feedbacks.test.js tests/whatsapp-agenda.test.js tests/multiempresa.test.js",
+    "test:banco": "node tests/banco/isolamento.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.8.3",
+    "@electric-sql/pglite": "^0.4.6",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.45",
     "tailwindcss": "^3.4.10"

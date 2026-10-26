@@ -1,3 +1,7 @@
+import { validarConfigComercial, CONFIG_COMERCIAL_PADRAO } from './comercial';
+import { validarModelosTitulosAgenda } from './titulosAgenda';
+import { validarConfigFeedbacks, validarSubtarefas, CONFIG_FEEDBACKS_PADRAO, tipoFeedback } from './feedbacks';
+import { validarContratoCliente } from './plataforma';
 
 // Auxiliar para identificar chamados gerados por feedbacks/relatos internos
 export function isChamadoFeedback(c) {
@@ -152,7 +156,16 @@ function persistirConfigGlobal(chave, valor, desfazer) {
 }
 
 function aplicarConfigGlobalLocal(chave, valor) {
-  if (chave === 'departamentos') {
+  if (chave === 'comercial') {
+    setLocalData('comercial', valor || CONFIG_COMERCIAL_PADRAO);
+    window.dispatchEvent(new Event('comercial_config_updated'));
+  } else if (chave === 'feedbacks') {
+    setLocalData('feedbacks_config', validarConfigFeedbacks(valor || CONFIG_FEEDBACKS_PADRAO));
+    window.dispatchEvent(new Event('feedbacks_config_updated'));
+  } else if (chave === 'agenda_titulos') {
+    setLocalData('agenda_titulos', valor || {});
+    window.dispatchEvent(new Event('agenda_titulos_updated'));
+  } else if (chave === 'departamentos') {
     setLocalData('categorias_demandas', valor);
     window.dispatchEvent(new Event('categorias_demandas_updated'));
     window.dispatchEvent(new Event('departamentos_updated'));
@@ -203,6 +216,134 @@ export async function sincronizarConfiguracoesGlobais() {
       console.warn(`Migração de "${chave}" para o Supabase não concluída:`, e.message);
     }
   }
+}
+
+export const getConfigComercial = () => getLocalData('comercial', CONFIG_COMERCIAL_PADRAO);
+export async function fetchConfigComercial() {
+  if (!podeFalarComServidor()) return getConfigComercial();
+  const res = await fetch('/api/configuracoes?chave=comercial', { cache: 'no-store', credentials: 'same-origin' });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.ok) throw new Error(json.mensagem || 'Não foi possível carregar a configuração comercial.');
+  const config = validarConfigComercial(json.config?.comercial || CONFIG_COMERCIAL_PADRAO);
+  aplicarConfigGlobalLocal('comercial', config);
+  return config;
+}
+export async function salvarConfigComercial(config) {
+  const valor = await salvarConfiguracaoGlobal('comercial', validarConfigComercial(config));
+  aplicarConfigGlobalLocal('comercial', valor);
+  return valor;
+}
+export async function moverReuniaoComercial(id, pipelineId, etapaId, opcoes = {}) {
+  const res = await fetch('/api/comercial', {
+    method: 'PATCH', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, pipelineId, etapaId, ...opcoes }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.ok) throw new Error(json.mensagem || 'Não foi possível mover a reunião.');
+  if (opcoes.tipo !== 'lead') saveAgendaEventos(getAgendaEventos().map((e) => e.id === id ? { ...e, ...json.evento } : e));
+  else if (typeof window !== 'undefined') window.dispatchEvent(new Event('comercial_leads_updated'));
+  return json.evento;
+}
+
+// Feedbacks: nomes das etapas do pipeline e departamentos de desenvolvimento (só administradores salvam)
+export const getConfigFeedbacks = () => validarConfigFeedbacks(getLocalData('feedbacks_config', CONFIG_FEEDBACKS_PADRAO));
+export async function fetchConfigFeedbacks() {
+  if (!podeFalarComServidor()) return getConfigFeedbacks();
+  const res = await fetch('/api/configuracoes?chave=feedbacks', { cache: 'no-store', credentials: 'same-origin' }).catch(() => null);
+  const json = res ? await res.json().catch(() => ({})) : {};
+  if (!res || !res.ok || !json.ok) return getConfigFeedbacks();
+  aplicarConfigGlobalLocal('feedbacks', json.config?.feedbacks || CONFIG_FEEDBACKS_PADRAO);
+  return getConfigFeedbacks();
+}
+export async function salvarConfigFeedbacks(config) {
+  const valor = await salvarConfiguracaoGlobal('feedbacks', validarConfigFeedbacks(config));
+  aplicarConfigGlobalLocal('feedbacks', valor);
+  return getConfigFeedbacks();
+}
+
+// Novidades (notas de versão): o texto está em lib/novidades.js; o banco guarda quem publicou
+export const getPublicacaoNovidades = () => getLocalData('novidades_publicacao', {});
+export async function fetchPublicacaoNovidades() {
+  if (!podeFalarComServidor()) return { publicacao: getPublicacaoNovidades(), desenvolvimento: null };
+  const res = await fetch('/api/novidades', { cache: 'no-store', credentials: 'same-origin' }).catch(() => null);
+  const json = res ? await res.json().catch(() => ({})) : {};
+  if (!res || !res.ok || !json.ok) return { publicacao: getPublicacaoNovidades(), desenvolvimento: null };
+  setLocalData('novidades_publicacao', json.publicacao || {});
+  return { publicacao: json.publicacao || {}, desenvolvimento: Boolean(json.desenvolvimento) };
+}
+export async function publicarNovidade(id, publicar = true) {
+  const res = await fetch('/api/novidades', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, publicar }),
+  }).catch(() => null);
+  const json = res ? await res.json().catch(() => ({})) : {};
+  if (!res || !res.ok || !json.ok) throw new Error(json.mensagem || 'Sem conexão com o servidor.');
+  setLocalData('novidades_publicacao', json.publicacao || {});
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('novidades_updated'));
+  return json.publicacao;
+}
+
+// WhatsApp da agenda: confirmação e lembrete enviados ao cliente (o servidor guarda o webhook)
+export const getWhatsappAgenda = () => getLocalData('whatsapp_agenda', null);
+async function chamarWhatsapp(metodo, corpo) {
+  const res = await fetch('/api/agenda/whatsapp', {
+    method: metodo,
+    credentials: 'same-origin',
+    cache: 'no-store',
+    ...(corpo ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) } : {}),
+  }).catch(() => null);
+  const json = res ? await res.json().catch(() => ({})) : {};
+  if (!res || !res.ok || !json.ok) throw new Error(json.mensagem || 'Sem conexão com o servidor.');
+  return json;
+}
+export async function fetchWhatsappAgenda() {
+  if (!podeFalarComServidor()) return getWhatsappAgenda();
+  const json = await chamarWhatsapp('GET');
+  setLocalData('whatsapp_agenda', json);
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('whatsapp_agenda_updated'));
+  return json;
+}
+export async function salvarPreferenciasWhatsapp(valor) {
+  const json = await chamarWhatsapp('PUT', { tipo: 'preferencias', valor });
+  setLocalData('whatsapp_agenda', { ...(getWhatsappAgenda() || {}), preferencias: json.preferencias });
+  return json.preferencias;
+}
+export async function salvarConfigWhatsapp({ valor, url, token }) {
+  const json = await chamarWhatsapp('PUT', { tipo: 'config', valor, url, token });
+  return fetchWhatsappAgenda().catch(() => json);
+}
+export async function enviarWhatsappReuniao(eventoId, tipo = 'confirmacao') {
+  const json = await chamarWhatsapp('POST', { acao: 'enviar', evento_id: eventoId, tipo });
+  if (tipo === 'confirmacao') {
+    saveAgendaEventos(getAgendaEventos().map((e) => (e.id === eventoId ? { ...e, confirmacao_status: 'enviada', confirmacao_enviada_em: new Date().toISOString(), confirmacao_mensagem: null } : e)));
+  }
+  return json;
+}
+export const testarWhatsapp = (telefone, tipo = 'confirmacao') => chamarWhatsapp('POST', { acao: 'teste', telefone, tipo });
+
+// Modelos de títulos são compartilhados; apenas administradores podem salvar no servidor.
+export const getModelosTitulosAgenda = () => getLocalData('agenda_titulos', {});
+let leituraModelosTitulos = null;
+export function fetchModelosTitulosAgenda() {
+  if (!podeFalarComServidor()) return Promise.resolve(getModelosTitulosAgenda());
+  if (leituraModelosTitulos) return leituraModelosTitulos;
+  leituraModelosTitulos = (async () => {
+    const res = await fetch('/api/configuracoes?chave=agenda_titulos', { cache: 'no-store', credentials: 'same-origin' });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json.ok) throw new Error(json.mensagem || 'Não foi possível carregar os modelos das reuniões.');
+    const modelos = validarModelosTitulosAgenda(json.config?.agenda_titulos || {});
+    aplicarConfigGlobalLocal('agenda_titulos', modelos);
+    return modelos;
+  })().finally(() => { leituraModelosTitulos = null; });
+  return leituraModelosTitulos;
+}
+export async function salvarModelosTitulosAgenda(modelos) {
+  const validos = validarModelosTitulosAgenda(modelos);
+  const valor = await salvarConfiguracaoGlobal('agenda_titulos', validos);
+  aplicarConfigGlobalLocal('agenda_titulos', valor);
+  return valor;
 }
 
 // ==============================================================================
@@ -371,21 +512,34 @@ async function inserirChamadoNuvem(payloadBase, extras = {}, localId = null) {
   }
 }
 
-async function inserirChamadoNuvemBruto(payloadBase, extras = {}) {
-  const { etiquetas } = extras;
-  const tentativas = [
-    { ...payloadBase, ...extras },
-    etiquetas !== undefined ? { ...payloadBase, etiquetas } : null,
-    payloadBase,
-  ].filter(Boolean);
+/** Nome da coluna citada num erro do PostgREST/Postgres ("Could not find the 'x' column", column "x"...). */
+export function colunaDoErro(error) {
+  const msg = `${error?.message || ''} ${error?.details || ''}`;
+  const m = /'([a-z_]+)' column/i.exec(msg) || /column "?(?:[a-z_]+\.)?([a-z_]+)"? /i.exec(msg) || /column ([a-z_]+)/i.exec(msg);
+  return m ? m[1] : null;
+}
 
+async function inserirChamadoNuvemBruto(payloadBase, extras = {}) {
+  // Tenta com todos os campos; se o banco recusar uma coluna, tira SÓ ela e tenta de novo.
+  // (Antes, qualquer coluna recusada derrubava todos os extras, inclusive a descrição e o prazo.)
+  let extrasAtuais = { ...extras };
   let ultimoErro = null;
-  for (const payload of tentativas) {
-    const { data, error } = await supabase.from('suporte_chamados').insert([payload]).select().maybeSingle();
+  for (let tentativa = 0; tentativa <= Object.keys(extras).length + 1; tentativa++) {
+    const { data, error } = await supabase.from('suporte_chamados').insert([{ ...payloadBase, ...extrasAtuais }]).select().maybeSingle();
     if (!error) return { data, error: null };
     ultimoErro = error;
-    // Só tenta a próxima variação quando o problema for coluna inexistente; outros erros (RLS, rede) são definitivos
+    // Outros erros (RLS, rede) são definitivos
     if (!isErroColunaInexistente(error)) break;
+    const coluna = colunaDoErro(error);
+    if (coluna && coluna in extrasAtuais) {
+      console.warn(`suporte_chamados: coluna "${coluna}" recusada pelo banco; enviando sem ela.`, error.message);
+      const { [coluna]: _, ...resto } = extrasAtuais;
+      extrasAtuais = resto;
+    } else if (Object.keys(extrasAtuais).length) {
+      // Não deu para saber a coluna: último recurso, só os campos básicos
+      console.warn('suporte_chamados: extras recusados pelo banco; enviando só os campos básicos.', error.message);
+      extrasAtuais = {};
+    } else break;
   }
   return { data: null, error: ultimoErro };
 }
@@ -454,6 +608,16 @@ export async function garantirSessaoBanco() {
   } catch (e) {
     return { ok: false, erro: 'Não foi possível confirmar sua conexão com o banco. Verifique a internet.' };
   }
+}
+
+/**
+ * Descrição de uma demanda ativa vinda do banco. Demandas criadas antes desta correção gravavam
+ * o texto só em "observacoes" e deixavam "observacao_inicial" vazio (""); como "" não é nulo,
+ * a descrição sumia da tela na sincronização seguinte.
+ */
+export function descricaoDaLinha(d) {
+  const inicial = String(d?.observacao_inicial || '').trim();
+  return inicial ? d.observacao_inicial : d?.observacoes || '';
 }
 
 async function atualizarChamadoNuvem(id, campos, colunasOpcionais = [], statusPermitidos = null) {
@@ -659,6 +823,7 @@ export function addMotivoSuporte({ nome, descricao = '' }) {
       if (!res.error && res.data?.id) {
         const atual = getLocalData('motivos_suporte', []);
         setLocalData('motivos_suporte', atual.map((m) => (m.id === novoMotivo.id ? { ...m, id: res.data.id } : m)));
+        if (typeof window !== 'undefined') window.dispatchEvent(new Event('motivos_updated'));
       }
       return res;
     },
@@ -668,22 +833,41 @@ export function addMotivoSuporte({ nome, descricao = '' }) {
   return novoMotivo;
 }
 
-export function removeMotivoSuporte(id) {
-  const anterior = getLocalData('motivos_suporte', DEFAULT_MOTIVOS_SUPORTE);
-  setLocalData('motivos_suporte', anterior.filter((m) => m.id !== id));
-  if (isCloudId(id)) {
-    // Desativa em vez de apagar: chamados antigos continuam com o nome do motivo
-    persistirEmSegundoPlano(
-      async () => {
-        const res = await supabase.from('suporte_motivos').update({ ativo: false }).eq('id', id);
-        // Banco sem a coluna "ativo": remove a categoria de fato
-        if (res.error && isErroColunaInexistente(res.error)) return supabase.from('suporte_motivos').delete().eq('id', id);
-        return res;
-      },
-      () => setLocalData('motivos_suporte', anterior),
-      'O motivo não foi removido para a equipe'
-    );
+/** Edita apenas o catálogo: a classificação dos atendimentos antigos permanece como registrada. */
+export async function updateMotivoSuporte(id, { nome, descricao = '' }) {
+  const nomeFinal = String(nome || '').trim().replace(/\s+/g, ' ');
+  if (!nomeFinal) throw new Error('Informe o nome do motivo.');
+  if (nomeFinal.length > 120) throw new Error('O nome deve ter até 120 caracteres.');
+  const motivos = getMotivosSuporte();
+  if (!motivos.some((m) => m.id === id)) throw new Error('Motivo não encontrado. Atualize o catálogo.');
+  const normalizar = (texto) => removerAcentos(texto).toLowerCase().trim();
+  if (motivos.some((m) => m.id !== id && normalizar(m.nome) === normalizar(nomeFinal))) throw new Error('Já existe um motivo com esse nome.');
+  const campos = { nome: nomeFinal, descricao: String(descricao || '').trim() };
+  if (podeUsarTabelas()) {
+    if (!isCloudId(id)) throw new Error('Aguarde a sincronização do motivo e reabra a edição.');
+    const sessao = await garantirSessaoBanco();
+    if (!sessao.ok) throw new Error(sessao.erro);
+    const { data, error } = await supabase.from('suporte_motivos').update(campos).eq('id', id).select('id');
+    if (error || !data?.length) throw new Error(error?.message || 'O banco recusou a edição do motivo.');
   }
+  const atuais = getMotivosSuporte();
+  setLocalData('motivos_suporte', atuais.map((m) => m.id === id ? { ...m, ...campos } : m));
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('motivos_updated'));
+  return { id, ...campos };
+}
+
+export async function removeMotivoSuporte(id) {
+  if (podeUsarTabelas()) {
+    if (!isCloudId(id)) throw new Error('Aguarde a sincronização do motivo e tente novamente.');
+    const sessao = await garantirSessaoBanco();
+    if (!sessao.ok) throw new Error(sessao.erro);
+    let res = await supabase.from('suporte_motivos').update({ ativo: false }).eq('id', id).select('id');
+    // Alguns bancos não possuem exclusão lógica neste catálogo.
+    if (res.error && isErroColunaInexistente(res.error)) res = await supabase.from('suporte_motivos').delete().eq('id', id).select('id');
+    if (res.error || !res.data?.length) throw new Error(res.error?.message || 'O banco recusou a remoção do motivo.');
+  }
+  setLocalData('motivos_suporte', getMotivosSuporte().filter((m) => m.id !== id));
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('motivos_updated'));
   return true;
 }
 
@@ -946,6 +1130,7 @@ export async function iniciarSuporte({
     sync_estado: isSupabaseConfigured && supabase ? 'enviando' : 'local',
   };
 
+  registrarMutacaoLocal();
   chamados.unshift(novoChamado);
   setLocalData('chamados_suporte', chamados);
   window.dispatchEvent(new Event('suporte_updated'));
@@ -1051,27 +1236,12 @@ export async function adicionarChamadoFila({
     prazo_limite: prazo_limite || null,
     is_lembrete: Boolean(is_lembrete),
     criador_email: userEmail,
+    observacao_inicial: observacao_inicial.trim(),
+    categorias: categoriasValidas,
   };
   const syncInicial = isSupabaseConfigured && supabase ? 'enviando' : 'local';
 
-  // Prevenção apenas contra duplo-clique imediato (menos de 1.5s com exatamente a mesma observação e mesmo solicitante)
-  const solicitanteFinalCheck = (solicitante_nome || '').trim().toLowerCase();
-  const obsFinalCheck = (observacao_inicial || '').trim();
-  if (obsFinalCheck || solicitanteFinalCheck) {
-    const cliqueDuplo = chamados.find((c) => {
-      if (!c) return false;
-      const mesmaEmpresa = (c.empresa_id && c.empresa_id === empresa_id) ||
-        (c.empresa_nome && empresa_nome && c.empresa_nome.toLowerCase().trim() === empresa_nome.toLowerCase().trim());
-      if (!mesmaEmpresa) return false;
-      const mesmoSol = (c.solicitante_nome || '').toLowerCase().trim() === solicitanteFinalCheck;
-      const mesmaObs = (c.observacao_inicial || c.observacoes || '').trim() === obsFinalCheck;
-      const diff = Math.abs(Date.now() - new Date(c.created_at || c.tempo_espera_inicio || 0).getTime());
-      return mesmaEmpresa && mesmoSol && mesmaObs && diff < 1500;
-    });
-    if (cliqueDuplo) {
-      return cliqueDuplo;
-    }
-  }
+  // Cada envio do formulário é uma demanda distinta, mesmo com empresa e relato iguais.
 
   if (iniciarAgora) {
     const novoChamado = {
@@ -1108,9 +1278,17 @@ export async function adicionarChamadoFila({
       iniciado_em: agora,
       finalizado_em: null,
     };
+    registrarMutacaoLocal();
     chamados.unshift(novoChamado);
     setLocalData('chamados_suporte', chamados);
     window.dispatchEvent(new Event('suporte_updated'));
+
+    const auditoria = logAuditoria({
+      empresaId: empresa_id,
+      usuarioEmail: userEmail,
+      acao: 'iniciou_suporte_tecnico',
+      detalhes: { empresa_nome, modulo: 'Fila de Suporte' },
+    });
 
     // Sincroniza em tempo real com o Supabase
     if (isSupabaseConfigured && supabase) {
@@ -1126,7 +1304,7 @@ export async function adicionarChamadoFila({
           observacoes: observacao_inicial ? observacao_inicial.trim() : '',
           motivo: categoriasValidas.join(', '),
           iniciado_em: agora,
-        }, { ...extrasNuvem, atribuido_a: userEmail }, localId);
+        }, { ...extrasNuvem, atribuido_a: userEmail, observacao_inicial: (observacao_inicial || '').trim() }, localId);
         if (error) throw error;
         if (dbSaved?.id) {
           novoChamado.id = dbSaved.id;
@@ -1141,12 +1319,7 @@ export async function adicionarChamadoFila({
       }
     }
 
-    await logAuditoria({
-      empresaId: empresa_id,
-      usuarioEmail: userEmail,
-      acao: 'iniciou_suporte_tecnico',
-      detalhes: { empresa_nome, modulo: 'Fila de Suporte' },
-    });
+    await auditoria;
     // O prazo aparece na Agenda a partir da própria demanda (AgendaView), sem evento duplicado
     window.dispatchEvent(new Event('suporte_updated'));
     return novoChamado;
@@ -1194,9 +1367,17 @@ export async function adicionarChamadoFila({
     finalizado_em: null,
   };
 
+  registrarMutacaoLocal();
   chamados.unshift(novoChamado);
   setLocalData('chamados_suporte', chamados);
   window.dispatchEvent(new Event('suporte_updated'));
+
+  const auditoria = logAuditoria({
+    empresaId: empresa_id,
+    usuarioEmail: userEmail,
+    acao: 'adicionou_chamado_na_fila',
+    detalhes: { empresa_nome, atribuido_a: tecnicoDesignado, modulo: 'Fila de Suporte' },
+  });
 
   // Sincroniza imediatamente na nuvem (Supabase) para que apareça em tempo real para toda a equipe
   if (isSupabaseConfigured && supabase) {
@@ -1214,7 +1395,7 @@ export async function adicionarChamadoFila({
         observacoes: observacao_inicial ? observacao_inicial.trim() : '',
         motivo: categoriasValidas.join(', '),
         iniciado_em: agora,
-      }, { ...extrasNuvem, atribuido_a: isFilaGeral ? 'geral' : tecnicoDesignado }, localId);
+      }, { ...extrasNuvem, atribuido_a: isFilaGeral ? 'geral' : tecnicoDesignado, observacao_inicial: (observacao_inicial || '').trim() }, localId);
       if (error) throw error;
       if (dbSaved?.id) {
         novoChamado.id = dbSaved.id;
@@ -1233,12 +1414,7 @@ export async function adicionarChamadoFila({
     triggerSupportNotification({ chamado: novoChamado, userEmail });
   } catch (e) {}
 
-  await logAuditoria({
-    empresaId: empresa_id,
-    usuarioEmail: userEmail,
-    acao: 'adicionou_chamado_na_fila',
-    detalhes: { empresa_nome, atribuido_a: tecnicoDesignado, modulo: 'Fila de Suporte' },
-  });
+  await auditoria;
 
   window.dispatchEvent(new Event('suporte_updated'));
   return novoChamado;
@@ -1301,7 +1477,7 @@ export async function editarDescricaoChamado(chamadoId, novoTexto, userEmail = '
   versoes.push({ texto, autor_email: userEmail, autor_nome: getNomeTecnico(userEmail), em: new Date().toISOString() });
   const historico = versoes.slice(-30);
 
-  const res = await atualizarChamadoNuvem(atual.id, { observacoes: texto, descricao_historico: historico }, ['descricao_historico']);
+  const res = await atualizarChamadoNuvem(atual.id, { observacoes: texto, observacao_inicial: texto, descricao_historico: historico }, ['descricao_historico', 'observacao_inicial']);
   if (!res.ok) throw new Error(res.erro || 'Não foi possível salvar a descrição.');
 
   const lista = getLocalData('chamados_suporte', []);
@@ -1521,7 +1697,17 @@ export async function diagnosticarVisibilidadeFila() {
   return { ocultas, total: d.ativosNoBanco, motivo };
 }
 
-export async function fetchChamadosFila() {
+let leituraFilaEmAndamento = null;
+export function fetchChamadosFila() {
+  const versao = versaoMutacoesLocais;
+  const usuario = emailUsuarioAtual;
+  if (leituraFilaEmAndamento?.versao === versao && leituraFilaEmAndamento.usuario === usuario) return leituraFilaEmAndamento.promessa;
+  const leitura = { versao, usuario };
+  leitura.promessa = lerChamadosFila().finally(() => { if (leituraFilaEmAndamento === leitura) leituraFilaEmAndamento = null; });
+  leituraFilaEmAndamento = leitura;
+  return leitura.promessa;
+}
+async function lerChamadosFila() {
   if (isSupabaseConfigured && supabase) {
     try {
       // Reenvia demandas que falharam ao sincronizar antes de ler a nuvem
@@ -1554,7 +1740,7 @@ export async function fetchChamadosFila() {
           if (!d || !d.id) return false;
           if (d.status === 'finalizado' || d.status === 'concluido' || d.status === 'cancelado') return false;
           if (d.finalizado_em) return false;
-          if (historicoIds.has(d.id)) return false;
+          // Um histórico antigo incorreto não pode esconder uma linha que a nuvem confirma aberta.
           if (canceladosIds.has(d.id)) return false;
           if (encerradosIds.has(d.id)) return false;
           if (isChamadoFeedback(d)) return false;
@@ -1608,7 +1794,7 @@ export async function fetchChamadosFila() {
             criador_nome: d.criador_nome || localMatch?.criador_nome || (d.criador_email ? getNomeTecnico(d.criador_email) : ''),
             atribuido_a: d.atribuido_a || localMatch?.atribuido_a || (d.status === 'aguardando_visualizacao' ? (d.tecnico_email || 'geral') : d.tecnico_email),
             atribuido_nome: d.atribuido_nome || localMatch?.atribuido_nome || (d.atribuido_a && d.atribuido_a !== 'geral' ? getNomeTecnico(d.atribuido_a) : (d.status === 'em_andamento' ? (d.atendente || getNomeTecnico(d.tecnico_email)) : 'Fila Geral (Todos)')),
-            observacao_inicial: d.observacoes || '',
+            observacao_inicial: descricaoDaLinha(d),
             status: d.status,
             categorias: cats,
             etiquetas: finalTags,
@@ -1668,7 +1854,7 @@ export async function fetchChamadosFila() {
 
           // Envio em andamento: some só se a nuvem já tiver exatamente a mesma demanda
           if (c.sync_estado === 'enviando' || insercoesEmAndamento.has(c.id)) {
-            return !cloudChamados.some((d) => mesmaDemanda(d, 10000));
+            return true; // Outra demanda igual da mesma empresa não confirma este envio.
           }
           if (c.sync_estado === 'pendente' || c.sync_estado === 'local') return true;
           // Dados de demonstração nunca são enviados para a nuvem
@@ -1718,6 +1904,7 @@ async function reenviarChamadosPendentes() {
         is_lembrete: Boolean(c.is_lembrete),
         criador_email: c.criador_email || null,
         atribuido_a: c.atribuido_a || null,
+        observacao_inicial: c.observacao_inicial || c.observacoes || '',
       }, c.id);
       if (!error && data?.id) substituirIdLocalChamado(c.id, data.id);
       else if (error) marcarChamadoSyncPendente(c.id, error);
@@ -1766,6 +1953,7 @@ export async function finalizarSuporte({
   chamado_id,
   motivo,
   observacoes = '',
+  observacao_inicial,
   colaborador_solicitante = '',
   atendente = '',
   userEmail = 'admin@rmcontrole.com',
@@ -1802,10 +1990,20 @@ export async function finalizarSuporte({
     ? tempo_ativo_segundos
     : Math.max(1, Math.floor((agoraMs - ativoInicioMs) / 1000));
 
+  const relatoFinal = observacao_inicial === undefined ? chamado.observacao_inicial || '' : String(observacao_inicial).trim();
+  const versoesDescricao = [...(chamado.descricao_historico || [])];
+  if (relatoFinal !== (chamado.observacao_inicial || '')) {
+    if (!versoesDescricao.length && chamado.observacao_inicial) {
+      versoesDescricao.push({ texto: chamado.observacao_inicial, autor_email: chamado.criador_email || '', em: chamado.created_at || null });
+    }
+    versoesDescricao.push({ texto: relatoFinal, autor_email: userEmail, autor_nome: getNomeTecnico(userEmail), em: finalizadoEm });
+  }
   const chamadoFinalizado = {
     ...chamado,
+    descricao_historico: versoesDescricao,
     status: 'concluido',
     status_resolucao: status_resolucao || 'resolvido',
+    observacao_inicial: relatoFinal,
     categorias: sanitizarCategoriasDemanda(chamado.categorias, motivo || chamado.motivo),
     motivo: motivo || chamado.motivo || (status_resolucao === 'sem_resposta' ? 'Sem resposta do cliente' : 'Atendimento Geral'),
     solicitante_nome: colaborador_solicitante || chamado.solicitante_nome || 'Colaborador',
@@ -1846,13 +2044,20 @@ export async function finalizarSuporte({
       observacoes: chamadoFinalizado.observacoes || '',
     };
 
+    const extrasHistorico = {
+      observacao_inicial: chamadoFinalizado.observacao_inicial,
+      categorias: chamadoFinalizado.categorias,
+      status_resolucao: chamadoFinalizado.status_resolucao,
+      descricao_historico: chamadoFinalizado.descricao_historico || [],
+    };
     let resultado;
     const cloudId = await resolverIdNuvem(chamado.id);
     if (cloudId) {
-      resultado = await atualizarChamadoNuvem(cloudId, payload);
+      resultado = await atualizarChamadoNuvem(cloudId, { ...payload, ...extrasHistorico }, Object.keys(extrasHistorico).filter((campo) => campo !== 'observacao_inicial' || !chamadoFinalizado.observacao_inicial));
     } else {
       // Demanda que nunca chegou à nuvem (sem conexão): registra direto como finalizada
-      const { data, error } = await inserirChamadoNuvemBruto(payload);
+      const baseFinal = chamadoFinalizado.observacao_inicial ? { ...payload, observacao_inicial: chamadoFinalizado.observacao_inicial } : payload;
+      const { data, error } = await inserirChamadoNuvemBruto(baseFinal, extrasHistorico);
       resultado = { ok: !error, cloudId: data?.id || null, erro: error?.message };
     }
 
@@ -1864,7 +2069,10 @@ export async function finalizarSuporte({
       setLocalData('historico_chamados', historicoAntes);
       window.dispatchEvent(new Event('suporte_updated'));
       console.warn('Falha ao concluir chamado no Supabase:', resultado.erro);
-      throw new Error(`Não foi possível concluir no servidor: ${resultado.erro} A demanda continua na fila.`);
+      const detalhe = /observacao_inicial/.test(resultado.erro || '')
+        ? 'É necessário aplicar a migração migration_relato_atendimentos.sql no Supabase para preservar o relato do problema.'
+        : resultado.erro;
+      throw new Error(`Não foi possível concluir no servidor: ${detalhe} A demanda continua na fila.`);
     }
 
     if (resultado.cloudId && resultado.cloudId !== chamadoFinalizado.id) {
@@ -2226,20 +2434,44 @@ export function getHistoricoChamados() {
 }
 
 // Sincroniza e busca todos os chamados finalizados do Supabase (para exibir atendimentos de todos os usuários)
-export async function fetchHistoricoChamados() {
+let leituraHistoricoEmAndamento = null;
+let cacheHistorico = null;
+export function fetchHistoricoChamados({ usarCache = false } = {}) {
+  const versao = versaoMutacoesLocais;
+  const usuario = emailUsuarioAtual;
+  if (leituraHistoricoEmAndamento?.versao === versao && leituraHistoricoEmAndamento.usuario === usuario) return leituraHistoricoEmAndamento.promessa;
+  if (usarCache && cacheHistorico?.versao === versao && cacheHistorico.usuario === usuario && Date.now() - cacheHistorico.em < 15000 && getLocalData('historico_chamados', null) !== null) return Promise.resolve(getHistoricoChamados());
+  const leitura = { versao, usuario };
+  leitura.promessa = lerHistoricoChamados().finally(() => { if (leituraHistoricoEmAndamento === leitura) leituraHistoricoEmAndamento = null; });
+  leituraHistoricoEmAndamento = leitura;
+  return leitura.promessa;
+}
+async function lerHistoricoChamados() {
+  let nuvemAtualizada = !isSupabaseConfigured || !supabase;
+  const versaoInicial = versaoMutacoesLocais;
+  const ativosNaNuvem = new Set();
   let dbChamados = [];
   if (isSupabaseConfigured && supabase) {
     try {
-      // Busca todos os chamados finalizados ou que possuam resolução/observação técnica preenchida
-      const { data, error } = await supabase
-        .from('suporte_chamados')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Paginação: os totais anuais não podem parar no limite padrão de 1.000 linhas.
+      const data = [];
+      let error = null;
+      for (let inicio = 0; ; inicio += 1000) {
+        const pagina = await supabase.from('suporte_chamados').select('*')
+          .order('created_at', { ascending: false }).order('id', { ascending: false })
+          .range(inicio, inicio + 999);
+        if (versaoInicial !== versaoMutacoesLocais) return getHistoricoChamados();
+        if (pagina.error || !Array.isArray(pagina.data)) { error = pagina.error || new Error('Histórico indisponível'); break; }
+        data.push(...pagina.data);
+        if (pagina.data.length < 1000) break;
+      }
 
       if (!error && Array.isArray(data)) {
+        nuvemAtualizada = true;
+        data.filter((d) => ['aguardando_visualizacao', 'em_andamento', 'pendente'].includes(d.status)).forEach((d) => ativosNaNuvem.add(d.id));
         const localHistMap = new Map((getLocalData('historico_chamados', []) || []).map((h) => [h.id, h]));
         const canceladosIds = getChamadosCanceladosIds();
-        dbChamados = data.filter((d) => d && d.status !== 'cancelado' && !canceladosIds.has(d.id)).map((d) => {
+        dbChamados = data.filter((d) => d && ['finalizado', 'concluido'].includes(d.status) && !canceladosIds.has(d.id)).map((d) => {
           const localItem = localHistMap.get(d.id);
           // Extrai categorias do motivo ou do localItem
           // Separa rigorosamente departamentos (categorias) dos motivos diagnosticados
@@ -2265,6 +2497,9 @@ export async function fetchHistoricoChamados() {
             status: 'finalizado',
             motivo: (d.motivo || '').trim() || 'Atendimento Geral',
             categorias: cats,
+            observacao_inicial: (d.observacao_inicial || '').trim() ? d.observacao_inicial : localItem?.observacao_inicial || '',
+            descricao_historico: d.descricao_historico || localItem?.descricao_historico || [],
+            status_resolucao: d.status_resolucao || localItem?.status_resolucao || null,
             observacoes: d.observacoes || '',
             resolucao: d.observacoes || '',
             iniciado_em: d.iniciado_em,
@@ -2280,6 +2515,8 @@ export async function fetchHistoricoChamados() {
       console.warn('Erro ao buscar suporte_chamados no Supabase:', e);
     }
   }
+
+  if (versaoInicial !== versaoMutacoesLocais) return getHistoricoChamados();
 
   // Lista de IDs ativos na fila para blindar o histórico contra chamados ativos
   const chamadosAtivos = getLocalData('chamados_suporte', []);
@@ -2300,7 +2537,7 @@ export async function fetchHistoricoChamados() {
   });
   // Mantém locais apenas se não forem ativos
   localHist.forEach((c) => {
-    if (!mapa.has(c.id) && !idsAtivosNaFila.has(c.id) && (c.status === 'finalizado' || c.status === 'concluido')) {
+    if (!mapa.has(c.id) && !idsAtivosNaFila.has(c.id) && !ativosNaNuvem.has(c.id) && (c.status === 'finalizado' || c.status === 'concluido')) {
       mapa.set(c.id, c);
     }
   });
@@ -2310,6 +2547,7 @@ export async function fetchHistoricoChamados() {
   );
 
   setLocalData('historico_chamados', merged);
+  if (nuvemAtualizada) cacheHistorico = { em: Date.now(), versao: versaoMutacoesLocais, usuario: emailUsuarioAtual };
   return merged;
 }
 
@@ -3096,8 +3334,80 @@ export function getPermissoesAtuais(email = null) {
   return permissoesEfetivas({ email: alvo, equipe: getEquipeUsuarios(), perfis: getPerfisAcesso(), verComoPerfilId: getVerComoPerfil() });
 }
 
-export function getAbasPermitidas() {
-  return getPermissoesAtuais().modulos;
+export function getAbasPermitidas(email = null) {
+  const modulos = getPermissoesAtuais(email).modulos;
+  // Painel da plataforma: só para quem gerencia outras empresas (dono da plataforma ou revenda)
+  return getGestaoAtual() ? [...modulos, 'plataforma'] : modulos;
+}
+
+// ==============================================================================
+// MULTIEMPRESA: o navegador guarda dados de UMA empresa por vez
+// ==============================================================================
+// Preferências visuais sobrevivem à troca; todo o resto (demandas, empresas, equipe, agenda...) é apagado
+const PRESERVAR_AO_TROCAR_EMPRESA = new Set(['rm_theme', 'rm_last_active_timestamp', 'rm_feedbacks_visao', 'rm_feedbacks_modo_dev', 'rm_organizacao_atual']);
+
+/**
+ * Registra a empresa em que a pessoa está (vinda de /api/auth/session). Se mudou desde a última vez
+ * (outro login neste navegador, entrou ou saiu do suporte), apaga os dados da empresa anterior.
+ * @returns {boolean} true quando apagou: a página deve recarregar para baixar os dados da nova empresa
+ */
+export function definirOrganizacaoAtual(organizacao, gestao) {
+  if (typeof window === 'undefined') return false;
+  const id = organizacao?.id || 'principal';
+  let trocou = false;
+  try {
+    const anterior = localStorage.getItem('rm_organizacao_atual');
+    if (anterior && anterior !== id) {
+      Object.keys(localStorage).forEach((k) => {
+        if (k.startsWith('rm_') && !PRESERVAR_AO_TROCAR_EMPRESA.has(k)) localStorage.removeItem(k);
+      });
+      trocou = true;
+    }
+    localStorage.setItem('rm_organizacao_atual', id);
+  } catch (e) {}
+  setLocalData('organizacao_info', organizacao || null);
+  setLocalData('gestao_info', gestao || null);
+  window.dispatchEvent(new Event('organizacao_updated'));
+  return trocou;
+}
+
+export const getOrganizacaoAtual = () => getLocalData('organizacao_info', null);
+export const getGestaoAtual = () => getLocalData('gestao_info', null);
+
+async function chamarPlataforma(metodo, corpo) {
+  const res = await fetch('/api/plataforma', {
+    method: metodo,
+    credentials: 'same-origin',
+    cache: 'no-store',
+    ...(corpo ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) } : {}),
+  }).catch(() => null);
+  const json = res ? await res.json().catch(() => ({})) : {};
+  if (!res || !res.ok || !json.ok) throw new Error(json.mensagem || 'Sem conexão com o servidor.');
+  return json;
+}
+export const fetchPlataforma = () => chamarPlataforma('GET');
+export const acaoPlataforma = (corpo) => chamarPlataforma('POST', corpo);
+
+// Contratos da assinante com os clientes dela (gravados direto: o banco confere a empresa pela RLS)
+export async function fetchContratosEmpresa(empresaId) {
+  if (!podeUsarTabelas() || !isCloudId(empresaId)) return [];
+  const { data, error } = await supabase.from('empresa_contratos').select('*').eq('empresa_id', empresaId).order('inicio', { ascending: false });
+  if (error) throw new Error(/empresa_contratos/.test(error.message) ? 'Rode supabase/migration_multiempresa.sql no Supabase para registrar contratos.' : error.message);
+  return data || [];
+}
+export async function salvarContratoEmpresa(empresaId, dados, userEmail = '') {
+  const campos = validarContratoCliente(dados);
+  const consulta = dados.id
+    ? supabase.from('empresa_contratos').update({ ...campos, atualizado_em: new Date().toISOString() }).eq('id', dados.id)
+    : supabase.from('empresa_contratos').insert([{ ...campos, empresa_id: empresaId, criado_por: userEmail }]);
+  const { data, error } = await consulta.select('*').single();
+  if (error) throw new Error(error.message);
+  logAuditoria({ empresaId, usuarioEmail: userEmail, acao: dados.id ? 'editou_contrato_cliente' : 'registrou_contrato_cliente', detalhes: { plano: campos.plano, valor_mensal: campos.valor_mensal } }).catch(() => {});
+  return data;
+}
+export async function excluirContratoEmpresa(id) {
+  const { error } = await supabase.from('empresa_contratos').delete().eq('id', id);
+  if (error) throw new Error(error.message);
 }
 
 export async function fetchEquipeUsuarios() {
@@ -3729,6 +4039,9 @@ async function inserirEmpresasNuvem(linhas) {
     const semExtras = linhas.map(({ tipo_cliente, cliente_desde, ...resto }) => resto);
     resultado = await supabase.from('empresas').insert(semExtras).select();
   }
+  // Limite do plano (conferido pelo banco): mensagem que a pessoa entende
+  const limite = /Limite do plano atingido: \d+ de (\d+)/.exec(resultado.error?.message || '');
+  if (limite) resultado = { ...resultado, error: { ...resultado.error, message: `Seu plano permite até ${limite[1]} empresas clientes. Fale com o fornecedor do sistema para ampliar.` } };
   return resultado;
 }
 
@@ -5149,6 +5462,8 @@ export async function createFeedback({
   autor_email = 'admin@rmcontrole.com',
   autor_nome = 'Colaborador',
 }) {
+  tipo = tipoFeedback(tipo);
+  const statusInicial = tipo === 'novidade' ? 'resolvido' : 'em_analise';
   if (!titulo || !titulo.trim()) throw new Error('Título do feedback é obrigatório.');
   if (!descricao || !descricao.trim()) throw new Error('Descrição do feedback é obrigatória.');
 
@@ -5164,7 +5479,7 @@ export async function createFeedback({
     imagem_url: imagem_base64 || null,
     autor_email,
     autor_nome,
-    status: 'em_analise',
+    status: statusInicial,
     created_at: agora,
   };
 
@@ -5184,7 +5499,7 @@ export async function createFeedback({
         imagem_url: novoFeedback.imagem_url,
         autor_email,
         autor_nome,
-        status: 'em_analise',
+        status: statusInicial,
         created_at: agora,
       };
       const { data: dbSaved, error } = await supabase.from('feedbacks').insert([payload]).select().maybeSingle();
@@ -5193,7 +5508,8 @@ export async function createFeedback({
         const localId = novoFeedback.id;
         novoFeedback.id = dbSaved.id;
         const atual = getLocalData('feedbacks_lista', []);
-        setLocalData('feedbacks_lista', atual.map((f) => (f.id === localId ? { ...f, id: dbSaved.id } : f)));
+        if (dbSaved.numero != null) novoFeedback.numero = dbSaved.numero;
+        setLocalData('feedbacks_lista', atual.map((f) => (f.id === localId ? { ...f, id: dbSaved.id, numero: dbSaved.numero ?? f.numero } : f)));
       }
     } catch (e) {
       console.warn('Aviso ao salvar feedback no Supabase:', e);
@@ -5239,7 +5555,15 @@ export async function updateFeedbackStatus(feedbackId, newStatus, userEmail = 'a
 
     let res;
     if (isCloudId(feedbackId)) {
-      res = await supabase.from('feedbacks').update({ status: newStatus }).eq('id', feedbackId).select('id');
+      // Histórico de etapas (quem moveu e quando); sem a coluna no banco, grava só a etapa
+      const historico = [...(Array.isArray(fbAnterior?.historico) ? fbAnterior.historico : []), { etapa: newStatus, por: userEmail, em: agora }].slice(-100);
+      res = await supabase.from('feedbacks').update({ status: newStatus, historico, updated_at: agora }).eq('id', feedbackId).select('id');
+      if (res.error && /historico|updated_at|schema cache/i.test(res.error.message || '')) {
+        res = await supabase.from('feedbacks').update({ status: newStatus }).eq('id', feedbackId).select('id');
+      } else if (!res.error && idx !== -1) {
+        const lista = getLocalData('feedbacks_lista', []);
+        setLocalData('feedbacks_lista', lista.map((f) => (f.id === feedbackId ? { ...f, historico } : f)));
+      }
     } else if (fbAnterior?.titulo) {
       // Feedback criado offline: localiza pelo título exato
       res = await supabase.from('feedbacks').update({ status: newStatus }).eq('titulo', fbAnterior.titulo).select('id');
@@ -5276,6 +5600,41 @@ export async function updateFeedbackStatus(feedbackId, newStatus, userEmail = 'a
     window.dispatchEvent(new Event('feedbacks_updated'));
   }
   return true;
+}
+
+/**
+ * Atualiza prazo e subtarefas de um feedback (área de desenvolvimento).
+ * Otimista: aplica na hora e desfaz se o banco recusar.
+ */
+export async function atualizarDetalhesFeedback(feedbackId, { prazo, subtarefas }, userEmail = '') {
+  const patch = {};
+  if (prazo !== undefined) patch.prazo = prazo || null;
+  if (subtarefas !== undefined) patch.subtarefas = validarSubtarefas(subtarefas);
+  if (!Object.keys(patch).length) return null;
+
+  const lista = getLocalData('feedbacks_lista', []);
+  const anterior = lista.find((f) => f.id === feedbackId) || null;
+  setLocalData('feedbacks_lista', lista.map((f) => (f.id === feedbackId ? { ...f, ...patch } : f)));
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('feedbacks_updated'));
+
+  if (isSupabaseConfigured && supabase && isCloudId(feedbackId)) {
+    const { data, error } = await supabase
+      .from('feedbacks')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('id', feedbackId)
+      .select('id');
+    if (error || !data?.length) {
+      if (anterior) setLocalData('feedbacks_lista', getLocalData('feedbacks_lista', []).map((f) => (f.id === feedbackId ? anterior : f)));
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('feedbacks_updated'));
+      if (error && /subtarefas|prazo/.test(error.message || '')) {
+        throw new Error('O banco ainda não tem prazo e subtarefas. Rode supabase/migration_feedbacks_subtarefas.sql no Supabase.');
+      }
+      throw new Error(error?.message || 'Seu perfil não pode alterar este feedback.');
+    }
+  }
+
+  logAuditoria({ usuarioEmail: userEmail, acao: 'atualizou_feedback', detalhes: { feedbackId, campos: Object.keys(patch) } }).catch(() => {});
+  return patch;
 }
 
 // ==============================================================================
@@ -5386,7 +5745,7 @@ export function saveAgendaEventos(eventos) {
   }
 }
 
-const CAMPOS_AGENDA = ['titulo', 'empresa', 'data', 'hora_inicio', 'hora_fim', 'responsavel_email', 'responsavel_nome', 'link_reuniao', 'status', 'tipo', 'observacoes', 'chamado_id', 'google_calendar_id'];
+const CAMPOS_AGENDA = ['titulo', 'empresa', 'empresa_id', 'participante_tipo', 'participante_nome', 'departamento', 'data', 'hora_inicio', 'hora_fim', 'responsavel_email', 'responsavel_nome', 'link_reuniao', 'status', 'tipo', 'observacoes', 'chamado_id', 'google_calendar_id', 'cliente_telefone', 'lembrete_minutos', 'lembrete_enviado_em'];
 
 function linhaAgenda(evento) {
   const linha = {};
@@ -5524,16 +5883,23 @@ async function sessaoAgendaOk() {
 }
 
 const mensagemErroAgenda = (error, acao) =>
-  error?.code === '42501' || /permission denied/i.test(error?.message || '')
+  isErroColunaInexistente(error) && /cliente_telefone|lembrete_/.test(error?.message || '')
+    ? 'Para guardar o WhatsApp do cliente e o lembrete, rode supabase/migration_whatsapp_agenda.sql no Supabase.'
+    : isErroColunaInexistente(error) && /departamento|participante_tipo|participante_nome|empresa_id/.test(error?.message || '')
+    ? 'A agenda precisa de uma atualização no banco. Peça ao administrador para aplicar a atualização da agenda e tente novamente.'
+    : error?.code === '42501' || /permission denied/i.test(error?.message || '')
     ? 'Sua conexão com o banco expirou. Saia e entre novamente para continuar.'
     : `Não foi possível ${acao}: ${error?.message || 'sem permissão'}`;
 
 export async function addAgendaEvento(eventoData, { gerarMeet = false } = {}) {
-  const eventos = getAgendaEventos();
   let novo = {
     id: 'evt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
     titulo: (eventoData.titulo || 'Nova Reunião').trim(),
     empresa: (eventoData.empresa || '').trim(),
+    departamento: (eventoData.departamento || '').trim() || null,
+    empresa_id: eventoData.empresa_id || null,
+    participante_tipo: eventoData.participante_tipo || null,
+    participante_nome: eventoData.participante_nome || null,
     data: eventoData.data || new Date().toISOString().split('T')[0],
     hora_inicio: eventoData.hora_inicio || '09:00',
     hora_fim: eventoData.hora_fim || '10:00',
@@ -5546,6 +5912,8 @@ export async function addAgendaEvento(eventoData, { gerarMeet = false } = {}) {
     tipo: eventoData.tipo || 'cliente',
     observacoes: (eventoData.observacoes || '').trim(),
     chamado_id: eventoData.chamado_id || null,
+    ...(eventoData.cliente_telefone ? { cliente_telefone: eventoData.cliente_telefone } : {}),
+    ...(eventoData.lembrete_minutos ? { lembrete_minutos: eventoData.lembrete_minutos } : {}),
     created_at: new Date().toISOString(),
   };
   if (podeUsarTabelas()) {
@@ -5561,8 +5929,11 @@ export async function addAgendaEvento(eventoData, { gerarMeet = false } = {}) {
     if (!g.ok) novo.aviso_google = g.mensagem;
     if (g.link_reuniao) novo.link_reuniao = g.link_reuniao;
   }
-  eventos.push(novo);
-  saveAgendaEventos(eventos);
+  const atuais = getAgendaEventos();
+  const posicao = atuais.findIndex((e) => e.id === novo.id);
+  if (posicao >= 0) atuais[posicao] = { ...atuais[posicao], ...novo };
+  else atuais.push(novo);
+  saveAgendaEventos(atuais);
   return novo;
 }
 
@@ -5585,9 +5956,12 @@ export async function updateAgendaEvento(id, dados, { gerarMeet = false } = {}) 
     if (!g.ok) atualizado.aviso_google = g.mensagem;
     if (g.link_reuniao) atualizado.link_reuniao = g.link_reuniao;
   }
-  eventos[idx] = atualizado;
-  saveAgendaEventos(eventos);
-  return eventos[idx];
+  const atuais = getAgendaEventos();
+  const posicao = atuais.findIndex((e) => e.id === id);
+  if (posicao >= 0) atuais[posicao] = { ...atuais[posicao], ...atualizado };
+  else atuais.push(atualizado);
+  saveAgendaEventos(atuais);
+  return atualizado;
 }
 
 export async function deleteAgendaEvento(id) {

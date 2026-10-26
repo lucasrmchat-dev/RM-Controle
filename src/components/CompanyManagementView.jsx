@@ -73,8 +73,15 @@ import {
 } from '@/lib/storage';
 import RegisterSupportModal from './RegisterSupportModal';
 import ExcluirEmpresaModal from './ExcluirEmpresaModal';
+import EmpresaRecorrencias from './EmpresaRecorrencias';
+import EmpresaContratos from './EmpresaContratos';
+import { fetchChamadosFila, fetchHistoricoChamados, getPermissoesAtuais } from '@/lib/storage';
+import { podeVerDemanda } from '@/lib/perfis';
 
 export default function CompanyManagementView({ empresa, onBack, onUpdated, userEmail, voltarRotulo = 'Voltar para a lista de empresas' }) {
+  const [historicoCarregando, setHistoricoCarregando] = useState(true);
+  const [historicoErro, setHistoricoErro] = useState('');
+  const [, atualizarHistorico] = useState(0);
   const [activeTab, setActiveTab] = useState('cockpit'); // 'como_resolver' | 'canais' | 'credenciais' | 'servidor' | 'observacoes' | 'chamados'
   const [catalogoCanais, setCatalogoCanais] = useState([]);
   const [servidoresConfig, setServidoresConfigState] = useState(getServidoresConfig() || {});
@@ -226,6 +233,19 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
     const creds = getEmpresaCredenciais(empresa.id);
     setCredenciaisList(creds);
   };
+
+  useEffect(() => {
+    let ativo = true;
+    setHistoricoCarregando(true);
+    setHistoricoErro('');
+    Promise.all([fetchChamadosFila(), fetchHistoricoChamados()])
+      .catch(() => { if (ativo) setHistoricoErro('Não foi possível atualizar o histórico. Reabra a empresa para tentar novamente.'); })
+      .finally(() => { if (ativo) { atualizarHistorico((v) => v + 1); setHistoricoCarregando(false); } });
+    const atualizar = () => atualizarHistorico((v) => v + 1);
+    const eventos = ['suporte_updated', 'perfis_updated', 'user_role_updated'];
+    eventos.forEach((e) => window.addEventListener(e, atualizar));
+    return () => { ativo = false; eventos.forEach((e) => window.removeEventListener(e, atualizar)); };
+  }, [empresa.id]);
 
   const verificarChamadoAtivo = () => {
     const ativo = getChamadoAtivo(empresa.id, userEmail);
@@ -819,6 +839,8 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
               { id: 'cockpit', label: 'Cockpit de Atendimento', highlight: true },
               { id: 'canais', label: 'Canais de Atendimento', count: empresa.canais?.length || 0 },
               { id: 'servidor', label: 'Configurações do Servidor', count: `${concluidosChecklist}/${totalChecklist}` },
+              { id: 'recorrencias', label: 'Problemas recorrentes' },
+              { id: 'contrato', label: 'Contrato' },
               { id: 'chamados', label: 'Histórico de Atendimentos', count: chamadosEmpresa.length },
             ].map((tab) => {
               const isActive = activeTab === tab.id;
@@ -2234,6 +2256,13 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
           {/* ============================================================================== */}
           {/* ABA 5: HISTÓRICO DE SUPORTE */}
           {/* ============================================================================== */}
+          {/* Quem pode gravar ou excluir é decidido pelo banco (suporte e administradores gravam; só administradores excluem) */}
+          {activeTab === 'contrato' && <EmpresaContratos empresa={empresa} userEmail={userEmail} />}
+
+          {activeTab === 'recorrencias' && (
+            <EmpresaRecorrencias chamados={chamadosEmpresa.filter((c) => podeVerDemanda(getPermissoesAtuais(userEmail), c))} carregando={historicoCarregando} erro={historicoErro} />
+          )}
+
           {activeTab === 'chamados' && (
             <div className="space-y-4">
               <div className="rounded-3xl p-6 border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] shadow-sm">
@@ -2319,6 +2348,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                             )}
                           </div>
 
+                          {ch.observacao_inicial && <p className="text-sm text-slate-700 dark:text-zinc-200 whitespace-pre-wrap pt-2"><span className="block text-xs font-medium text-slate-500 dark:text-zinc-400 mb-1">Relato do problema</span>{ch.observacao_inicial}</p>}
                           {(ch.observacoes || ch.resolucao) && (
                             <p className="text-xs text-slate-600 dark:text-zinc-300 italic pt-1 border-t border-black/[0.04] dark:border-white/[0.09]">
                               Resolução: &ldquo;{ch.observacoes || ch.resolucao}&rdquo;

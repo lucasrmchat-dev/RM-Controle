@@ -13,20 +13,21 @@ export const MODULOS = [
   { id: 'fila', rotulo: 'Fila de Demandas', descricao: 'Ver, assumir e concluir demandas' },
   { id: 'empresas', rotulo: 'Empresas', descricao: 'Cadastro, acessos e servidores das empresas' },
   { id: 'agenda', rotulo: 'Agenda', descricao: 'Reuniões e Google Agenda' },
+  { id: 'comercial', rotulo: 'Comercial', descricao: 'Reuniões e acompanhamento por colaborador' },
   { id: 'dashboard', rotulo: 'Dashboard', descricao: 'Métricas de atendimento' },
   { id: 'feedbacks', rotulo: 'Feedbacks', descricao: 'Feedbacks dos clientes' },
   { id: 'configuracoes', rotulo: 'Configurações básicas', descricao: 'Alertas, visualização e regras' },
 ];
 const IDS_MODULOS = MODULOS.map((m) => m.id);
 
-// Abas exclusivas de quem administra (Configurações Avançadas)
+// Módulos exclusivos de administradores, fora do catálogo dos perfis comuns.
 export const ABAS_ADMIN = ['canais', 'servidores', 'auditoria'];
 
 // Acesso atual (antes dos perfis) por papel fixo
 const ABAS_POR_PAPEL = {
   administrador: [...IDS_MODULOS, ...ABAS_ADMIN],
-  suporte: IDS_MODULOS,
-  vendas: IDS_MODULOS,
+  suporte: IDS_MODULOS.filter((id) => id !== 'comercial'),
+  vendas: IDS_MODULOS.filter((id) => id !== 'comercial'),
 };
 
 const norm = (s) => String(s || '').toLowerCase().trim();

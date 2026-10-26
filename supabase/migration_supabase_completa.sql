@@ -16,6 +16,13 @@
 --   7. Dados iniciais e Realtime
 -- ==============================================================================
 
+-- Banco já multiempresa: este arquivo recriaria as regras de acesso SEM a separação por empresa.
+DO $$ BEGIN
+  IF to_regclass('public.organizacoes') IS NOT NULL THEN
+    RAISE EXCEPTION 'Este banco já usa migration_multiempresa.sql. Não rode a migração completa antiga: ela removeria a separação entre empresas.';
+  END IF;
+END $$;
+
 -- 0. EXTENSÕES ------------------------------------------------------------------
 CREATE SCHEMA IF NOT EXISTS extensions;
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;

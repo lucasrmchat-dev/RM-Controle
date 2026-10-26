@@ -74,10 +74,12 @@ function googleFalso() {
     const agenda = agendas[decodeURIComponent(m[1])];
     const id = m[2] && decodeURIComponent(m[2]);
     const metodo = opts.method || 'GET';
-    if (metodo === 'GET') return resposta(200, { items: [...agenda.values()] });
+    if (metodo === 'GET') return id ? (agenda.has(id) ? resposta(200, agenda.get(id)) : resposta(404, { error: { message: 'Not found' } })) : resposta(200, { items: [...agenda.values()] });
     if (metodo === 'POST') {
       const corpo = JSON.parse(opts.body);
-      const ev = { ...corpo, id: `g${++seq}`, iCalUID: `g${seq}@google.com`, updated: new Date().toISOString() };
+      const eid = corpo.id || `g${++seq}`;
+      if (agenda.has(eid)) return resposta(409, { error: { message: 'The requested identifier already exists' } });
+      const ev = { ...corpo, id: eid, iCalUID: `${eid}@google.com`, updated: new Date().toISOString() };
       agenda.set(ev.id, ev);
       return resposta(200, ev);
     }
@@ -351,4 +353,101 @@ test('agenda lida pelo servidor: só com login, e traz os eventos da equipe', as
   const json = await r.json();
   assert.equal(r.status, 200);
   assert.ok(json.eventos.some((e) => e.titulo === 'Reunião da equipe'));
+});
+
+test('departamento acompanha a reunião entre RM Controle e Google, inclusive ao limpar ou editar eventos antigos', () => {
+  const linha = { id: 'dep-1', titulo: 'Demonstração', data: '2026-10-23', hora_inicio: '10:00', hora_fim: '10:30', departamento: 'Vendas', observacoes: 'Apresentar proposta' };
+  const corpo = linhaParaGoogle(linha);
+  assert.equal(corpo.extendedProperties.private.rm_departamento, 'Vendas');
+  assert.match(corpo.description, /Departamento: Vendas/);
+  const evento = { ...corpo, id: 'g-dep-1' };
+  assert.equal(googleParaLinha(evento, CONTA).departamento, 'Vendas');
+  assert.equal(googleParaLinha(evento, CONTA).observacoes, 'Apresentar proposta');
+  const semMetadados = { ...evento, extendedProperties: {}, description: 'Pauta original' };
+  assert.equal(googleParaLinha(semMetadados, CONTA, { departamento: 'Comercial' }).departamento, 'Comercial');
+  assert.equal(googleParaLinha(semMetadados, CONTA).departamento, null);
+  assert.equal(googleParaLinha({ ...semMetadados, description: 'Pauta\n\n— RM Controle —\nDepartamento: Financeiro' }, CONTA).departamento, 'Financeiro');
+  const limpo = linhaParaGoogle({ ...linha, departamento: null });
+  assert.equal(googleParaLinha({ ...limpo, id: evento.id }, CONTA, linha).departamento, null);
+});
+
+import { dadosParticipanteAgenda, ordenarDepartamentosAgenda } from '../src/lib/participantesAgenda.js';
+test('reunião distingue empresa cadastrada, cliente novo e parceiro sem inventar vínculos', () => {
+  const empresa = { id: uuid(), nome: 'Empresa Azul' };
+  assert.equal(dadosParticipanteAgenda({ tipo: 'empresa', empresa }).empresa_id, empresa.id);
+  assert.throws(() => dadosParticipanteAgenda({ tipo: 'empresa', nome: 'Empresa não cadastrada' }), /Selecione uma empresa cadastrada/);
+  for (const tipo of ['cliente_novo', 'parceiro']) {
+    const externo = dadosParticipanteAgenda({ tipo, nome: 'Nome externo', empresa });
+    assert.equal(externo.empresa, '');
+    assert.equal(externo.empresa_id, null);
+    assert.equal(externo.participante_nome, 'Nome externo');
+    assert.equal(externo.participante_tipo, tipo);
+  }
+  assert.throws(() => dadosParticipanteAgenda({ tipo: 'parceiro', nome: '' }), /Informe o nome/);
+});
+
+test('empresa vinculada e participantes externos são preservados na sincronização com Google', () => {
+  for (const tipo of ['empresa', 'cliente_novo', 'parceiro']) {
+    const participante = dadosParticipanteAgenda({ tipo, empresa: { id: uuid(), nome: 'Empresa Azul' }, nome: 'Contato externo' });
+    const linha = { id: uuid(), ...participante, titulo: 'Reunião', data: '2026-10-23', hora_inicio: '15:00', hora_fim: '15:30', departamento: 'Vendas' };
+    const google = linhaParaGoogle(linha);
+    const retorno = googleParaLinha({ ...google, id: 'evento-google' }, CONTA);
+    for (const campo of ['empresa', 'empresa_id', 'participante_tipo', 'participante_nome']) assert.equal(retorno[campo], linha[campo]);
+    if (tipo === 'parceiro') assert.match(google.description, /Parceiro: Contato externo/);
+    if (tipo === 'cliente_novo') assert.match(google.description, /Cliente: Contato externo/);
+  }
+});
+
+test('departamentos mais usados nas reuniões vêm primeiro sem contar cancelamentos, prazos ou duplicatas', () => {
+  const catalogo = ['Suporte', 'Vendas', 'Financeiro', 'Implantação'];
+  const eventos = [{ id: '1', departamento: 'Vendas' }, { id: '2', departamento: ' vendas ' }, { id: '2', departamento: 'Vendas' }, { id: '3', departamento: 'Suporte' }, { id: '4', departamento: 'Financeiro', status: 'cancelada' }, { id: '5', departamento: 'Financeiro', chamado_id: 'prazo' }];
+  assert.deepEqual(ordenarDepartamentosAgenda(catalogo, eventos), ['Vendas', 'Suporte', 'Financeiro', 'Implantação']);
+  assert.deepEqual(catalogo, ['Suporte', 'Vendas', 'Financeiro', 'Implantação']);
+  assert.deepEqual(ordenarDepartamentosAgenda(catalogo, []), catalogo);
+});
+
+
+test('três envios concorrentes da mesma reunião criam um único evento no Google', async () => {
+  const g = googleFalso();
+  const id = uuid();
+  db.tables.agenda_eventos.push({ id, titulo: 'Uma única reunião', data: new Date().toISOString().slice(0, 10), hora_inicio: '10:00', hora_fim: '10:30', google_calendar_id: CONTA.calendar_id, status: 'agendada' });
+  await Promise.all([espelharEvento(id, g.fetchImpl), espelharEvento(id, g.fetchImpl), sincronizarTodas({ fetchImpl: g.fetchImpl })]);
+  const google = [...g.agendas[CONTA.calendar_id].values()];
+  assert.equal(google.length, 1);
+  assert.match(google[0].id, /^[a-v0-9]{5,1024}$/);
+  assert.equal(db.tables.agenda_eventos.find((e) => e.id === id).google_event_id, google[0].id);
+});
+
+test('timeout após criação no Google recupera o mesmo evento na tentativa seguinte', async () => {
+  const g = googleFalso();
+  const id = uuid();
+  db.tables.agenda_eventos.push({ id, titulo: 'Com timeout', data: new Date().toISOString().slice(0, 10), hora_inicio: '11:00', hora_fim: '11:30', google_calendar_id: CONTA.calendar_id });
+  let falhar = true;
+  const comTimeout = async (url, opts) => {
+    const res = await g.fetchImpl(url, opts);
+    if (falhar && opts?.method === 'POST' && new URL(url).pathname.endsWith('/events')) { falhar = false; throw new Error('Timeout'); }
+    return res;
+  };
+  await assert.rejects(espelharEvento(id, comTimeout), /Timeout/);
+  assert.equal(g.agendas[CONTA.calendar_id].size, 1);
+  await espelharEvento(id, comTimeout);
+  assert.equal(g.agendas[CONTA.calendar_id].size, 1);
+  assert.ok(db.tables.agenda_eventos.find((e) => e.id === id).google_event_id);
+});
+
+test('importação iniciada antes da conclusão não desfaz o status realizada', async () => {
+  const g = googleFalso();
+  const id = uuid();
+  const linha = { id, titulo: 'Realizada durante sincronização', data: new Date().toISOString().slice(0, 10), hora_inicio: '12:00', hora_fim: '12:30', google_calendar_id: CONTA.calendar_id, status: 'agendada' };
+  db.tables.agenda_eventos.push(linha);
+  await espelharEvento(id, g.fetchImpl);
+  const google = g.agendas[CONTA.calendar_id].get(linha.google_event_id);
+  google.summary = 'Título atualizado'; google.updated = new Date(Date.now() + 10000).toISOString();
+  db.atraso.update = 30;
+  const sync = sincronizarTodas({ fetchImpl: g.fetchImpl });
+  // Permite que o pull fotografe a versão agendada e depois conclui no banco.
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  linha.status = 'concluida';
+  await sync;
+  assert.equal(db.tables.agenda_eventos.find((e) => e.id === id).status, 'concluida');
 });

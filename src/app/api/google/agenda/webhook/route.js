@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
-import { googleConfigurado, contaDoCanal, sincronizarConta, tokenWebhook } from '@/lib/server/googleAgenda';
+import { googleConfigurado, contaDoCanal, empresaDoCanal, sincronizarConta, tokenWebhook } from '@/lib/server/googleAgenda';
+import { executarNaEmpresa } from '@/lib/server/organizacao';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -21,12 +22,17 @@ export async function POST(request) {
   // "sync" é só a confirmação de que o canal foi aberto
   if (request.headers.get('x-goog-resource-state') === 'sync') return new NextResponse(null, { status: 200 });
 
-  const conta = await contaDoCanal(request.headers.get('x-goog-channel-id'));
-  if (!conta) return new NextResponse(null, { status: 200 });
-  try {
-    await sincronizarConta(conta);
-  } catch (e) {
-    console.warn('Google Agenda: falha ao reconciliar após aviso', conta.email_google, e.message);
-  }
+  // O aviso chega sem usuário logado: a empresa vem do canal (cada assinante tem os próprios canais)
+  const canalId = request.headers.get('x-goog-channel-id');
+  const empresa = await empresaDoCanal(canalId);
+  await executarNaEmpresa(empresa, async () => {
+    const conta = await contaDoCanal(canalId);
+    if (!conta) return;
+    try {
+      await sincronizarConta(conta);
+    } catch (e) {
+      console.warn('Google Agenda: falha ao reconciliar após aviso', conta.email_google, e.message);
+    }
+  });
   return new NextResponse(null, { status: 200 });
 }

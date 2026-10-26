@@ -281,3 +281,231 @@ test('demanda antiga duplicada localmente é descartada quando a nuvem já a tem
   assert.deepEqual(fila.map((c) => c.id), [nuvem.id]);
   assert.equal(db.tables.suporte_chamados.length, 1);
 });
+
+test('navegação mantém Comercial para o administrador mesmo após perder a referência interna do usuário', () => {
+  storage.definirUsuarioAtual('');
+  assert.equal(storage.getAbasPermitidas().includes('comercial'), false, 'sem identificação não concede administração');
+  assert.equal(storage.getAbasPermitidas('lucas@rmchat.com').includes('comercial'), true, 'a sessão explícita mantém a aba após recarregar módulos');
+  assert.equal(storage.getPermissoesAtuais('lucas@rmchat.com').administrador, true);
+  storage.definirUsuarioAtual('lucas@rmchat.com');
+  assert.equal(storage.getAbasPermitidas('membro@rmchat.com').includes('comercial'), false, 'a sessão explícita prevalece sobre uma referência antiga');
+  storage.definirUsuarioAtual('');
+});
+
+test('configurações avançadas usam a sessão explícita e respeitam a simulação de perfil', async () => {
+  const { podeVerConfiguracoesAvancadas, podeAcessarAbaConfiguracao } = await import('../src/lib/roles.js');
+  storage.definirUsuarioAtual('');
+  const papel = (email) => storage.getPermissoesAtuais(email).administrador ? 'administrador' : 'suporte';
+  assert.equal(podeVerConfiguracoesAvancadas(papel('lucas@rmchat.com')), true);
+  for (const aba of ['departamentos', 'perfis', 'canais', 'servidores', 'auditoria']) {
+    assert.equal(podeAcessarAbaConfiguracao(papel('lucas@rmchat.com'), aba), true);
+    assert.equal(podeAcessarAbaConfiguracao(papel('membro@rmchat.com'), aba), false);
+  }
+  localStorage.setItem('rm_perfis_acesso', JSON.stringify([{ id: 'restrito', nome: 'Suporte', administrador: false, modulos: ['fila', 'configuracoes'], todos_departamentos: true }]));
+  storage.setVerComoPerfil('restrito');
+  assert.equal(podeVerConfiguracoesAvancadas(papel('lucas@rmchat.com')), false, 'simular suporte continua ocultando administração');
+  storage.setVerComoPerfil(null);
+  assert.equal(podeVerConfiguracoesAvancadas(papel('lucas@rmchat.com')), true, 'sair da simulação restaura a administração');
+});
+
+test('histórico não classifica demandas abertas como concluídas, inclusive depois de limpar o navegador', async () => {
+  const ch = await adicionarChamadoFila({ empresa_nome: 'Empresa mesma', observacao_inicial: 'Mensagens não chegam', userEmail: USER });
+  localStorage.clear();
+  assert.equal((await fetchHistoricoChamados()).length, 0);
+  assert.equal((await fetchChamadosFila()).some((c) => c.id === ch.id), true);
+  // Limpa um histórico incorreto produzido pela versão antiga.
+  localStorage.setItem('rm_historico_chamados', JSON.stringify([{ ...ch, status: 'finalizado' }]));
+  localStorage.removeItem('rm_chamados_suporte');
+  assert.equal((await fetchHistoricoChamados()).length, 0);
+});
+
+test('segunda demanda da mesma empresa permanece durante um envio lento e sincroniza sem recarregar', async () => {
+  const primeira = await adicionarChamadoFila({ empresa_nome: 'Empresa repetida', userEmail: USER });
+  db.atraso.insert = 40;
+  const criando = adicionarChamadoFila({ empresa_nome: 'Empresa repetida', userEmail: USER });
+  await esperar(5);
+  await fetchHistoricoChamados();
+  const duranteEnvio = await fetchChamadosFila();
+  assert.equal(duranteEnvio.length, 2, 'não confunde o envio com a primeira demanda parecida');
+  await criando;
+  db.atraso.insert = 0;
+  const fila = await fetchChamadosFila();
+  assert.equal(fila.length, 2);
+  assert.equal(new Set(fila.map((c) => c.id)).size, 2);
+  assert.ok(fila.some((c) => c.id === primeira.id));
+});
+
+test('relato e resolução sobrevivem à conclusão e à leitura por outro navegador', async () => {
+  const ch = await adicionarChamadoFila({ empresa_nome: 'Empresa relato', observacao_inicial: 'Relato do cliente: mensagens desconectadas', categorias: ['Suporte'], userEmail: USER });
+  await finalizarSuporte({ chamado_id: ch.id, motivo: 'Instância desconectada', observacoes: 'Pareamento refeito', userEmail: USER, catalogarSolucao: false });
+  localStorage.clear();
+  const h = (await fetchHistoricoChamados()).find((c) => c.id === ch.id);
+  assert.equal(h.observacao_inicial, 'Relato do cliente: mensagens desconectadas');
+  assert.equal(h.resolucao, 'Pareamento refeito');
+  assert.equal(h.status_resolucao, 'resolvido');
+  assert.deepEqual(h.categorias, ['Suporte']);
+});
+
+test('conclusão sem procedimento preserva o relato, inclusive quando preenchido apenas ao concluir', async () => {
+  const ch = await adicionarChamadoFila({ empresa_nome: 'Empresa relato final', userEmail: USER });
+  await finalizarSuporte({ chamado_id: ch.id, motivo: 'Senha', observacao_inicial: 'Cliente perdeu acesso', userEmail: USER, catalogarSolucao: false });
+  localStorage.clear();
+  const h = (await fetchHistoricoChamados())[0];
+  assert.equal(h.observacao_inicial, 'Cliente perdeu acesso');
+  assert.equal(h.resolucao, '');
+});
+
+import { analisarRecorrencias } from '../src/lib/recorrencias.js';
+test('recorrências contam atendimentos únicos no período, sem confundir resolução com relato', () => {
+  const base = { status: 'finalizado', motivo: 'Desconexão', finalizado_em: '2026-10-23T12:00:00', observacao_inicial: 'Mensagens mensagens desconectadas' };
+  const atendimentos = [
+    ...Array.from({ length: 4 }, (_, n) => ({ ...base, id: `r${n}` })),
+    { ...base, id: 'r0' },
+    { ...base, id: 'fora', finalizado_em: '2026-09-01T12:00:00' },
+    { ...base, id: 'ativo', status: 'em_andamento' },
+    { ...base, id: 'lembrete', is_lembrete: true },
+    { ...base, id: 'sem-relato', motivo: 'Senha', observacao_inicial: '', resolucao: 'Mensagens corrigidas' },
+  ];
+  const r = analisarRecorrencias(atendimentos, { inicio: '2026-10-20', fim: '2026-10-23' });
+  assert.equal(r.totalPeriodo, 5);
+  assert.equal(r.semRelato, 1);
+  assert.equal(r.categorias.find((c) => c.nome === 'Desconexão').total, 4);
+  assert.equal(r.termos.find((t) => t.termo === 'mensagens').total, 4);
+  assert.equal(analisarRecorrencias(atendimentos, { inicio: '2026-10-20', fim: '2026-10-23', busca: 'MENSAGENS' }).atendimentos.length, 4);
+  assert.equal(analisarRecorrencias(atendimentos, { inicio: '2026-10-20', fim: '2026-10-23', categoria: 'senha' }).atendimentos.length, 1);
+});
+
+test('envios distintos com o mesmo relato e solicitante não são descartados por proximidade de horário', async () => {
+  const dados = { empresa_nome: 'Empresa repetida com relato', solicitante_nome: 'Ana', observacao_inicial: 'Mesma falha', userEmail: USER };
+  const primeira = await adicionarChamadoFila(dados);
+  const segunda = await adicionarChamadoFila(dados);
+  assert.notEqual(primeira.id, segunda.id);
+  assert.equal((await fetchChamadosFila()).length, 2);
+});
+
+test('histórico de recorrências lê mais de mil atendimentos sem truncar a contagem', async () => {
+  db.tables.suporte_chamados = Array.from({ length: 1005 }, (_, n) => ({ id: `historico-${n}`, empresa_nome: 'Empresa anual', status: 'finalizado', motivo: 'Falha recorrente', observacao_inicial: 'Mensagens não chegam', created_at: '2026-10-23T10:00:00Z', finalizado_em: '2026-10-23T11:00:00Z' }));
+  const historico = await fetchHistoricoChamados();
+  assert.equal(historico.length, 1005);
+  assert.equal(analisarRecorrencias(historico).totalPeriodo, 1005);
+});
+
+test('sem migração, conclusão não apaga o relato silenciosamente', async () => {
+  const ch = await adicionarChamadoFila({ empresa_nome: 'Empresa migração relato', observacao_inicial: 'Falha importante', userEmail: USER });
+  db.columns.suporte_chamados = [...Object.keys(db.tables.suporte_chamados[0]).filter((c) => c !== 'observacao_inicial'), 'duracao_segundos'];
+  await assert.rejects(() => finalizarSuporte({ chamado_id: ch.id, motivo: 'Falha', observacoes: 'Resolvido', userEmail: USER }), /migration_relato_atendimentos/);
+  assert.equal(getChamadosSuporte()[0].observacao_inicial, 'Falha importante');
+  assert.notEqual(db.tables.suporte_chamados[0].status, 'finalizado');
+});
+
+test('histórico local antigo incorreto não oculta uma demanda que a nuvem confirma aberta', async () => {
+  const ch = await adicionarChamadoFila({ empresa_nome: 'Empresa histórico antigo', userEmail: USER });
+  localStorage.setItem('rm_historico_chamados', JSON.stringify([{ ...ch, status: 'finalizado' }]));
+  localStorage.removeItem('rm_chamados_suporte');
+  assert.equal((await fetchChamadosFila()).some((c) => c.id === ch.id), true);
+});
+
+import { randomUUID } from 'node:crypto';
+test('editar motivo salva para a equipe e preserva os nomes registrados em atendimentos anteriores', async () => {
+  const id = randomUUID();
+  db.tables.suporte_motivos = [{ id, nome: 'Motivo anterior', descricao: 'Descrição antiga' }];
+  db.tables.suporte_chamados = [{ id: randomUUID(), motivo: 'Motivo anterior', status: 'finalizado' }];
+  await storage.fetchMotivosSuporte();
+  await storage.updateMotivoSuporte(id, { nome: '  Motivo   separado  ', descricao: 'Descrição revisada' });
+  assert.equal(db.tables.suporte_motivos[0].nome, 'Motivo separado');
+  assert.equal(db.tables.suporte_chamados[0].motivo, 'Motivo anterior');
+  localStorage.clear();
+  const lista = await storage.fetchMotivosSuporte();
+  assert.equal(lista.find((m) => m.id === id).nome, 'Motivo separado');
+  assert.equal(lista.find((m) => m.id === id).descricao, 'Descrição revisada');
+});
+
+test('editar motivo valida nome vazio ou repetido e não confirma escrita recusada', async () => {
+  const id = randomUUID();
+  db.tables.suporte_motivos = [{ id, nome: 'Primeiro' }, { id: randomUUID(), nome: 'Instância' }];
+  await storage.fetchMotivosSuporte();
+  await assert.rejects(() => storage.updateMotivoSuporte(id, { nome: '  ' }), /Informe o nome/);
+  await assert.rejects(() => storage.updateMotivoSuporte(id, { nome: 'instancia' }), /Já existe/);
+  db.rls.updateAllowed = false;
+  await assert.rejects(() => storage.updateMotivoSuporte(id, { nome: 'Alterado' }), /recusou/);
+  assert.equal(storage.getMotivosSuporte().find((m) => m.id === id).nome, 'Primeiro');
+});
+
+test('remover motivo funciona com banco sem coluna ativo e mantém atendimentos antigos', async () => {
+  const id = randomUUID();
+  db.tables.suporte_motivos = [{ id, nome: 'Motivo removível', descricao: '' }];
+  db.columns.suporte_motivos = ['id', 'nome', 'descricao'];
+  db.tables.suporte_chamados = [{ id: randomUUID(), motivo: 'Motivo removível', status: 'finalizado' }];
+  await storage.fetchMotivosSuporte();
+  await storage.removeMotivoSuporte(id);
+  assert.equal(db.tables.suporte_motivos.length, 0);
+  assert.equal(storage.getMotivosSuporte().length, 0);
+  assert.equal(db.tables.suporte_chamados[0].motivo, 'Motivo removível');
+});
+
+test('leituras simultâneas da fila compartilham uma única consulta ao Supabase', async () => {
+  db.atraso.select = 20;
+  const a = fetchChamadosFila();
+  const b = fetchChamadosFila();
+  assert.equal(a, b);
+  await Promise.all([a, b]);
+  assert.equal(db.leituras.suporte_chamados, 1);
+});
+
+test('histórico no polling reutiliza a leitura recente e invalida após concluir demanda', async () => {
+  const ch = await adicionarChamadoFila({ empresa_nome: 'Empresa cache', userEmail: USER });
+  const a = fetchHistoricoChamados();
+  const b = fetchHistoricoChamados();
+  assert.equal(a, b);
+  await Promise.all([a, b]);
+  const leituras = db.leituras.suporte_chamados;
+  assert.equal((await fetchHistoricoChamados({ usarCache: true })).length, 0);
+  assert.equal(db.leituras.suporte_chamados, leituras);
+  await finalizarSuporte({ chamado_id: ch.id, motivo: 'Resolvido', userEmail: USER, catalogarSolucao: false });
+  const apos = db.leituras.suporte_chamados;
+  assert.equal((await fetchHistoricoChamados({ usarCache: true })).length, 1);
+  assert.equal(db.leituras.suporte_chamados, apos + 1);
+});
+
+test('agendar para cliente novo ou parceiro guarda somente o participante da reunião, sem cadastrar empresa', async () => {
+  const { dadosParticipanteAgenda } = await import('../src/lib/participantesAgenda.js');
+  for (const tipo of ['cliente_novo', 'parceiro']) {
+    const evento = await storage.addAgendaEvento({ titulo: 'Conversa inicial', data: '2026-10-23', departamento: 'Vendas', ...dadosParticipanteAgenda({ tipo, nome: 'Contato externo' }) });
+    assert.equal(evento.participante_nome, 'Contato externo');
+    assert.equal(evento.empresa_id, null);
+    assert.equal(db.tables.agenda_eventos.find((e) => e.id === evento.id).participante_tipo, tipo);
+  }
+  assert.equal(db.tables.empresas.length, 0);
+});
+
+test('agenda sem migração informa atualização necessária e não finge ter salvo', async () => {
+  db.columns.agenda_eventos = ['titulo', 'empresa', 'data', 'hora_inicio', 'hora_fim', 'responsavel_email', 'responsavel_nome', 'google_calendar_id', 'link_reuniao', 'status', 'tipo', 'observacoes', 'chamado_id', 'criado_por'];
+  await assert.rejects(() => storage.addAgendaEvento({ titulo: 'Teste da migração', departamento: 'Vendas' }), /agenda precisa de uma atualização no banco/);
+  assert.equal(db.tables.agenda_eventos?.length || 0, 0);
+  assert.equal(storage.getAgendaEventos().length, 0);
+});
+
+test('descrição da demanda não some quando o banco recusa outra coluna do cadastro', async () => {
+  const { descricaoDaLinha, colunaDoErro } = storage;
+  // Banco sem a coluna "categorias": antes, a recusa derrubava todos os extras (descrição inclusive)
+  db.columns.suporte_chamados = [
+    'empresa_id', 'empresa_nome', 'tecnico_email', 'atendente', 'colaborador_solicitante', 'status', 'observacoes', 'motivo', 'iniciado_em',
+    'etiquetas', 'prazo_limite', 'is_lembrete', 'criador_email', 'observacao_inicial', 'atribuido_a',
+  ];
+  await adicionarChamadoFila({ empresa_nome: 'RM Chat', observacao_inicial: 'Relato do cliente: Criar o ticket casa viana', prazo_limite: '2026-10-30T10:00', userEmail: USER });
+  const linha = db.tables.suporte_chamados.at(-1);
+  assert.equal(linha.observacao_inicial, 'Relato do cliente: Criar o ticket casa viana');
+  assert.ok(linha.prazo_limite, 'prazo também preservado');
+  assert.equal('categorias' in linha, false);
+
+  // Outro navegador lê do banco: a descrição continua lá
+  trocarDeNavegador();
+  const fila = await fetchChamadosFila();
+  assert.equal(fila.find((c) => c.empresa_nome === 'RM Chat').observacao_inicial, 'Relato do cliente: Criar o ticket casa viana');
+
+  // Linhas antigas: texto só em "observacoes" e "observacao_inicial" vazio
+  assert.equal(descricaoDaLinha({ observacoes: 'Vender automação', observacao_inicial: '' }), 'Vender automação');
+  assert.equal(descricaoDaLinha({ observacoes: 'antigo', observacao_inicial: 'Reconectar API' }), 'Reconectar API');
+  assert.equal(colunaDoErro({ message: "Could not find the 'categorias' column of 'suporte_chamados' in the schema cache" }), 'categorias');
+  assert.equal(colunaDoErro({ message: 'column "categorias" of relation "suporte_chamados" does not exist' }), 'categorias');
+});

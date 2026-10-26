@@ -1,5 +1,6 @@
 'use client';
 
+import { SESSION_DURATION_SECONDS } from '@/lib/sessionPolicy';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -33,9 +34,14 @@ import {
   getChamadosSuporte,
   updateEquipeUsuario,
   getAgendaConfig,
-  getAgendaEventos
+  getAgendaEventos,
+  definirOrganizacaoAtual
 } from '@/lib/storage';
-import { triggerSupportNotification, stopSupportNotificationLoop, playMeetingAlertTone } from '@/lib/audioNotifications';
+import { triggerSupportNotification, stopSupportNotificationLoop, playMeetingAlertTone, deveNotificarChamado, getAudioConfig } from '@/lib/audioNotifications';
+import { definirDonoNotificacoes, notificar } from '@/lib/notificacoes';
+import { iniciarVigiaNotificacoes } from '@/lib/vigiaNotificacoes';
+import CentralNotificacoes from '@/components/CentralNotificacoes';
+import PlataformaView, { BarraSuporte } from '@/components/PlataformaView';
 import FirstAccessSetupView from '@/components/FirstAccessSetupView';
 import { lerPreferenciaTema, aplicarTema, salvarPreferenciaTema } from '@/lib/tema';
 import Navbar from '@/components/Navbar';
@@ -55,6 +61,7 @@ import SupportCompletionModal from '@/components/SupportCompletionModal';
 import SupportQueueView from '@/components/SupportQueueView';
 import FeedbacksView from '@/components/FeedbacksView';
 import AgendaView from '@/components/AgendaView';
+import ComercialView from '@/components/ComercialView';
 import { 
   MessageChannelIcon, 
   ViewGridIcon, 
@@ -130,8 +137,8 @@ export default function Home() {
   const [loginSubmitting, setLoginSubmitting] = useState(false);
   const [honeypot, setHoneypot] = useState('');
 
-  // Inatividade (30 minutos = 1800 segundos)
-  const [inactivityTimeLeft, setInactivityTimeLeft] = useState(1800);
+  // Inatividade: 9 horas.
+  const [inactivityTimeLeft, setInactivityTimeLeft] = useState(SESSION_DURATION_SECONDS);
 
   // Controle de Dados Simulados (Mock Dev) - Desativado por padrão
   const [showMockData, setShowMockData] = useState(false);
@@ -141,6 +148,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('fila');
   // Módulos liberados pelo perfil de acesso (atualiza quando perfil/equipe mudam)
   const [abasPermitidas, setAbasPermitidas] = useState([]);
+  const [organizacao, setOrganizacao] = useState(null);
   const [settingsSubTab, setSettingsSubTab] = useState('audio');
   const [isRegistrarModalGlobalOpen, setIsRegistrarModalGlobalOpen] = useState(false);
   const [empresaParaRegistrar, setEmpresaParaRegistrar] = useState(null);
@@ -231,7 +239,7 @@ export default function Home() {
   };
 
   // ==============================================================================
-  // TIMER DE INATIVIDADE (30 MINUTOS COM DESCONEXÃO AUTOMÁTICA LGPD)
+  // TIMER DE INATIVIDADE (9 HORAS)
   // Baseado em carimbo de relógio real (wall-clock timestamp) para não pausar com Mac/aba suspensa
   // ==============================================================================
   useEffect(() => {
@@ -257,13 +265,13 @@ export default function Home() {
       const lastActiveStr = localStorage.getItem('rm_last_active_timestamp');
       const lastActive = lastActiveStr ? parseInt(lastActiveStr, 10) : Date.now();
       const elapsedSec = Math.floor((Date.now() - lastActive) / 1000);
-      const remainingSec = Math.max(0, 1800 - elapsedSec);
+      const remainingSec = Math.max(0, SESSION_DURATION_SECONDS - elapsedSec);
 
       setInactivityTimeLeft(remainingSec);
 
       if (remainingSec <= 0) {
         handleLogout();
-        showToast('Sessão encerrada por inatividade de 30 minutos (Proteção LGPD).', 'warning');
+        showToast('Sessão encerrada após 9 horas de inatividade.', 'warning');
       }
     };
 
@@ -305,24 +313,23 @@ export default function Home() {
   useEffect(() => {
     async function checkSession() {
       try {
-        // Validação estrita de inatividade persistida (LGPD - 30 minutos)
+        // Mantém o limite de 9 horas mesmo após recarregar a página.
         const lastActiveStr = localStorage.getItem('rm_last_active_timestamp');
         if (lastActiveStr) {
           const lastActive = parseInt(lastActiveStr, 10);
-          if (!isNaN(lastActive) && (Date.now() - lastActive) > 1800 * 1000) {
+          if (!isNaN(lastActive) && (Date.now() - lastActive) > SESSION_DURATION_SECONDS * 1000) {
             await handleLogout();
             setAuthLoading(false);
             return;
           }
         }
 
-        try {
-          await fetchEquipeUsuarios();
-        } catch (e) {}
-
         // 1. Validação prioritária por Cookie HTTP-Only seguro (/api/auth/session)
         try {
-          const res = await fetch('/api/auth/session', { cache: 'no-store' });
+          const [res] = await Promise.all([
+            fetch('/api/auth/session', { cache: 'no-store' }),
+            fetchEquipeUsuarios().catch(() => {}),
+          ]);
           if (res.status === 403) {
             // Fora da equipe: encerra também a sessão do Supabase e explica o motivo no login
             const dataBloqueio = await res.json().catch(() => ({}));
@@ -334,6 +341,12 @@ export default function Home() {
           if (res.ok) {
             const data = await res.json();
             if (data.authenticated && data.user?.email) {
+              // Outra empresa neste navegador (outro login, entrou ou saiu do suporte): apaga os dados da anterior e recarrega
+              if (definirOrganizacaoAtual(data.organizacao, data.gestao)) {
+                window.location.reload();
+                return;
+              }
+              setOrganizacao(data.organizacao || null);
               // O cookie sozinho não basta: sem sessão válida do banco (ou com a sessão de outra conta
               // neste navegador) a tela abria, mas toda gravação era recusada ("não foi possível assumir").
               if (isSupabaseConfigured && supabase) {
@@ -435,11 +448,11 @@ export default function Home() {
     // Só lê o papel já definido pelo servidor; regravá-lo aqui disparava 'user_role_updated'
     // dentro do próprio ouvinte (recursão) e trocava o papel do servidor pela regra local
     const checkRoleAndTab = () => {
-      const permitidas = getAbasPermitidas();
+      const permitidas = getAbasPermitidas(userEmail);
       setAbasPermitidas(permitidas);
       if (!permitidas.includes(activeTab)) {
         // Vai para o primeiro módulo que o perfil permite (nem todo perfil tem a Fila)
-        setActiveTab(['fila', 'agenda', 'dashboard', 'feedbacks', 'empresas', 'configuracoes'].find((m) => permitidas.includes(m)) || 'fila');
+        setActiveTab(['fila', 'agenda', 'comercial', 'dashboard', 'feedbacks', 'empresas', 'configuracoes'].find((m) => permitidas.includes(m)) || 'fila');
       }
     };
     // Papel alterado em Equipe & Senhas: pergunta ao servidor e aplica
@@ -460,6 +473,13 @@ export default function Home() {
       window.removeEventListener('equipe_updated', atualizarPapelDoServidor);
     };
   }, [isAuthenticated, userEmail, activeTab]);
+
+  // Central de notificações: histórico por pessoa + vigia de SLA, prazos e feedbacks
+  useEffect(() => {
+    if (!isAuthenticated || !userEmail) return;
+    definirDonoNotificacoes(userEmail);
+    return iniciarVigiaNotificacoes(userEmail);
+  }, [isAuthenticated, userEmail]);
 
   // Monitora alternador de dados mock
   useEffect(() => {
@@ -496,6 +516,19 @@ export default function Home() {
       }
     };
     document.addEventListener('visibilitychange', sincronizarAoVoltar);
+
+    // Nova demanda vai para a central de notificações de quem ela importa (mesmo com o som desligado)
+    const notificarNovaDemanda = (ch) => {
+      if (!ch || !deveNotificarChamado({ status: 'aguardando_visualizacao', ...ch }, userEmail, { ...getAudioConfig(), habilitado: true })) return;
+      const direta = (ch.tecnico_email || '').toLowerCase().trim() === (userEmail || '').toLowerCase().trim();
+      notificar({
+        id: `demanda_${ch.id}`,
+        tipo: 'demanda',
+        titulo: `${direta ? 'Demanda para você' : 'Nova demanda'} · ${ch.empresa_nome || 'Empresa'}`,
+        detalhe: [ch.motivo, ch.solicitante_nome].filter(Boolean).join(' · ') || 'Aguardando alguém assumir.',
+        aba: 'fila',
+      });
+    };
 
     // Sincronização inicial global da fila de demandas
     fetchChamadosFila().then(() => {
@@ -534,6 +567,7 @@ export default function Home() {
                   const empresaNome = item.empresa_nome || 'Empresa';
                   const motivoNome = item.motivo || 'Demanda Geral';
                   showToast(`🔔 Nova demanda na fila: ${empresaNome} (${motivoNome})`, 'info');
+                  notificarNovaDemanda(normalizado);
 
                   // Dispara Notificação Nativa do Sistema Operacional (Mac / Windows / Chrome)
                   if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
@@ -579,6 +613,7 @@ Solicitante: ${item.colaborador_solicitante || 'Colaborador'} • Categoria: ${m
           novosEncontrados.forEach((novoItem) => {
             triggerSupportNotification({ chamado: novoItem, userEmail });
             showToast(`🔔 Nova demanda na fila: ${novoItem.empresa_nome || 'Empresa'} (${novoItem.motivo || 'Geral'})`, 'info');
+            notificarNovaDemanda(novoItem);
             if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
               try {
                 new Notification('RM Controle — Nova Demanda', {
@@ -635,6 +670,13 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
 
             playMeetingAlertTone();
             const tempoTexto = diffMins === 0 ? 'acontecendo agora' : `em ${diffMins} min`;
+            notificar({
+              id: `reuniao_${evt.id}_${evt.data}_${evt.hora_inicio}`,
+              tipo: 'reuniao',
+              titulo: `Reunião ${tempoTexto}`,
+              detalhe: `${evt.titulo}${evt.empresa ? ` · ${evt.empresa}` : ''} às ${evt.hora_inicio}`,
+              aba: 'agenda',
+            });
             showToast(`📅 Reunião ${tempoTexto}: "${evt.titulo}" (${evt.empresa || 'Cliente'})`, 'info');
 
             if ('Notification' in window && Notification.permission === 'granted') {
@@ -805,6 +847,19 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
           throw new Error('Login validado, mas a conexão com o banco falhou. Tente novamente em instantes.');
         }
       }
+
+      // Empresa da conta que acabou de entrar: dados de outra empresa guardados neste navegador são apagados
+      try {
+        const sessaoRes = await fetch('/api/auth/session', { cache: 'no-store' });
+        const sessao = sessaoRes.ok ? await sessaoRes.json() : null;
+        if (sessao?.authenticated) {
+          if (definirOrganizacaoAtual(sessao.organizacao, sessao.gestao)) {
+            window.location.reload();
+            return;
+          }
+          setOrganizacao(sessao.organizacao || null);
+        }
+      } catch (e) {}
 
       setIsAuthenticated(true);
       setUserEmail(emailFormal);
@@ -1645,7 +1700,15 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                 />
               )}
 
-              {/* ABA 8: AGENDA DE REUNIÕES & INTEGRAÇÃO GOOGLE */}
+              {/* PLATAFORMA: empresas assinantes, revendas, contratos e limites (só para quem gerencia) */}
+              {activeTab === 'plataforma' && abasPermitidas.includes('plataforma') && <PlataformaView />}
+
+              {/* COMERCIAL: acesso definido pelo perfil */}
+              {activeTab === 'comercial' && abasPermitidas.includes('comercial') && (
+                <ComercialView userEmail={userEmail} onAbrirAgenda={() => setActiveTab('agenda')} />
+              )}
+
+              {/* AGENDA DE REUNIÕES & INTEGRAÇÃO GOOGLE */}
               {activeTab === 'agenda' && (
                 <AgendaView
                   userEmail={userEmail}
@@ -1865,6 +1928,18 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
         variant={confirmModalData?.variant || 'danger'}
         onConfirm={confirmModalData?.onConfirm}
         onClose={() => setConfirmModalData(null)}
+      />
+
+      {/* Dono da plataforma ou revenda dentro de uma empresa para dar suporte */}
+      <BarraSuporte organizacao={organizacao} />
+
+      {/* Central de notificações flutuante, visível em todas as telas */}
+      <CentralNotificacoes
+        onAbrirAba={(aba) => {
+          if (aba !== 'fila' && !abasPermitidas.includes(aba)) return;
+          setSelectedEmpresa(null);
+          setActiveTab(aba);
+        }}
       />
 
       {/* Container Flutuante de Toasts Estilo Apple / Vercel */}

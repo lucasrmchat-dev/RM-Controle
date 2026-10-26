@@ -1,7 +1,6 @@
-import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
-import { obterPapelServidor, garantirContaAuth, removerContaAuth } from '@/lib/server/acesso';
-import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
-import { PAPEIS_VALIDOS, normalizarEmail } from '@/lib/roles';
+import { garantirContaAuth, removerContaAuth } from '@/lib/server/acesso';
+import { contextoDaRequisicao, mensagemLimite } from '@/lib/server/organizacao';
+import { PAPEIS_VALIDOS, normalizarEmail, listaAdministradores } from '@/lib/roles';
 import { sanitizeEmail, isValidUUID, SENHA_MAX } from '@/lib/sanitize';
 
 export const dynamic = 'force-dynamic';
@@ -28,15 +27,11 @@ function json(corpo, status = 200) {
   return Response.json(corpo, { status });
 }
 
+// Administrador da empresa em que está; o banco fica preso a ela (só a própria equipe)
 async function exigirAdmin(request) {
-  const sessao = await verifySessionToken(request.cookies.get(SESSION_COOKIE_NAME)?.value);
-  if (!sessao) return { erro: json({ ok: false, mensagem: 'Sessão expirada.' }, 401) };
-  if ((await obterPapelServidor(sessao.sub)) !== 'administrador') {
-    return { erro: json({ ok: false, mensagem: 'Apenas administradores podem gerenciar a equipe.' }, 403) };
-  }
-  const db = getSupabaseAdmin();
-  if (!db) return { erro: json({ ok: false, mensagem: 'Servidor sem SUPABASE_SERVICE_ROLE_KEY configurada.' }, 503) };
-  return { sessao, db };
+  const ctx = await contextoDaRequisicao(request, { exigirAdmin: true });
+  if (ctx.erro) return ctx;
+  return { ...ctx, sessao: { sub: ctx.email } };
 }
 
 // Localiza UM membro por id (uuid) ou e-mail exato; qualquer outro formato é recusado
@@ -99,7 +94,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const { erro, db } = await exigirAdmin(request);
+  const { erro, db, dbGlobal } = await exigirAdmin(request);
   if (erro) return erro;
   const body = (await request.json().catch(() => null)) || {};
   const email = sanitizeEmail(body.email);
@@ -111,8 +106,12 @@ export async function POST(request) {
   const erroPerfil = await aplicarPerfil(db, campos);
   if (erroPerfil) return json({ ok: false, mensagem: erroPerfil }, 400);
 
-  const { data: existente } = await db.from('equipe_usuarios').select('id').eq('email', email).maybeSingle();
-  if (existente) return json({ ok: false, mensagem: 'Já existe um membro cadastrado com este e-mail.' }, 409);
+  // O e-mail identifica a pessoa em TODO o sistema: conferir em todas as empresas antes de mexer no login
+  // (senão a senha de alguém de outra empresa seria trocada)
+  const { data: existente } = await dbGlobal.from('equipe_usuarios').select('id').eq('email', email).maybeSingle();
+  if (existente || listaAdministradores(process.env.RM_ADMIN_EMAILS).has(email)) {
+    return json({ ok: false, mensagem: 'Este e-mail já está cadastrado no sistema. Use outro e-mail.' }, 409);
+  }
 
   const conta = await garantirContaAuth(email, body.senha, { name: campos.nome || '', papel: campos.papel });
   if (!conta.ok) return json({ ok: false, mensagem: `Não foi possível criar o login: ${conta.erro}` }, 500);
@@ -124,7 +123,12 @@ export async function POST(request) {
       .select(cols)
       .single()
   );
-  if (error) return json({ ok: false, mensagem: error.message }, 500);
+  if (error) {
+    // O login já criado sem o cadastro correspondente não pode ficar sobrando
+    await removerContaAuth(email);
+    const limite = mensagemLimite(error);
+    return json({ ok: false, mensagem: limite || error.message }, limite ? 403 : 500);
+  }
   return json({ ok: true, membro: data }, 201);
 }
 
@@ -148,7 +152,10 @@ export async function PATCH(request) {
   }
 
   const { data, error } = await comColunas((cols) => db.from('equipe_usuarios').update(campos).eq('id', atual.id).select(cols).single());
-  if (error) return json({ ok: false, mensagem: error.message }, 500);
+  if (error) {
+    const limite = mensagemLimite(error);
+    return json({ ok: false, mensagem: limite || error.message }, limite ? 403 : 500);
+  }
   return json({ ok: true, membro: data });
 }
 

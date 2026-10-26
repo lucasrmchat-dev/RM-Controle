@@ -320,7 +320,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
       const resp = (evt.responsavel_email || '').toLowerCase();
       if (pessoa === 'eu' && resp !== meuEmail) return false;
       if (pessoa !== 'todas' && pessoa !== 'eu' && resp !== pessoa) return false;
-      if (q && ![evt.titulo, evt.empresa, evt.responsavel_nome, evt.observacoes].some((v) => (v || '').toLowerCase().includes(q))) return false;
+      if (q && ![evt.titulo, evt.empresa, evt.participante_nome, evt.responsavel_nome, evt.observacoes].some((v) => (v || '').toLowerCase().includes(q))) return false;
       return true;
     });
     // A mesma reunião vinda de duas agendas sincronizadas aparece uma vez só

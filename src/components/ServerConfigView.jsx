@@ -24,6 +24,8 @@ import {
   getMotivosSuporte,
   addMotivoSuporte,
   removeMotivoSuporte,
+  updateMotivoSuporte,
+  fetchMotivosSuporte,
   updateEquipeUsuario,
   getCategoriasDemandas,
   getEmpresas,
@@ -89,6 +91,9 @@ export default function ServerConfigView() {
   const [motivosList, setMotivosList] = useState([]);
   const [novoMotivoNome, setNovoMotivoNome] = useState('');
   const [novoMotivoDesc, setNovoMotivoDesc] = useState('');
+  const [editMotivo, setEditMotivo] = useState(null);
+  const [salvandoMotivo, setSalvandoMotivo] = useState(false);
+  const [erroMotivo, setErroMotivo] = useState('');
 
   // Configurações Gerais: Senha Padrão & Regras de Suporte
   const [senhaPadrao, setSenhaPadrao] = useState('');
@@ -110,7 +115,7 @@ export default function ServerConfigView() {
     setUserRole(getCurrentUserRole());
     setSenhaPadrao(getSenhaPadraoRedefinicao());
     setConfigSuporte(getConfiguracoesSuporte());
-    setMotivosList(getMotivosSuporte());
+    setMotivosList(await fetchMotivosSuporte());
     try {
       const resEmp = await getEmpresas({ pageSize: 1000 });
       setEmpresasLista(Array.isArray(resEmp) ? resEmp : (resEmp?.items || []));
@@ -120,6 +125,25 @@ export default function ServerConfigView() {
   useEffect(() => {
     recarregar();
   }, []);
+
+  useEffect(() => {
+    const atualizar = () => setMotivosList(getMotivosSuporte());
+    window.addEventListener('motivos_updated', atualizar);
+    return () => window.removeEventListener('motivos_updated', atualizar);
+  }, []);
+
+  const handleSalvarMotivo = async (e) => {
+    e.preventDefault();
+    if (salvandoMotivo || !editMotivo) return;
+    setErroMotivo('');
+    setSalvandoMotivo(true);
+    try {
+      await updateMotivoSuporte(editMotivo.id, editMotivo);
+      setEditMotivo(null);
+      showToast('Motivo atualizado.', 'success');
+    } catch (err) { setErroMotivo(err.message); }
+    finally { setSalvandoMotivo(false); }
+  };
 
   const showFeedbackMsg = (msg) => {
     setFeedback(msg);
@@ -268,14 +292,15 @@ export default function ServerConfigView() {
   const handleRemoverMotivo = (id) => {
     setConfirmDialog({
       title: 'Remover Motivo do Catálogo?',
-      message: 'Deseja desativar este motivo do catálogo de suporte?',
+      message: 'Retirar este motivo das próximas classificações? Os atendimentos antigos manterão o motivo registrado.',
       confirmText: 'Remover Motivo',
       variant: 'danger',
-      onConfirm: () => {
-        removeMotivoSuporte(id);
-        setMotivosList(getMotivosSuporte());
-        showToast('Motivo removido do catálogo.', 'info');
-        setConfirmDialog(null);
+      onConfirm: async () => {
+        try {
+          await removeMotivoSuporte(id);
+          showToast('Motivo removido do catálogo.', 'info');
+          setConfirmDialog(null);
+        } catch (err) { showToast(err.message, 'error'); }
       },
     });
   };
@@ -1053,26 +1078,25 @@ export default function ServerConfigView() {
 
             <div className="divide-y divide-black/[0.04] dark:divide-white/[0.09]">
               {motivosList.map((m) => (
-                <div key={m.id} className="p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors">
-                  <div>
-                    <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white">
-                      {m.nome}
-                    </h4>
-                    {m.descricao && (
-                      <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                        {m.descricao}
-                      </p>
-                    )}
-                  </div>
-
-                  {!['mot_1', 'mot_2', 'mot_3', 'mot_4'].includes(m.id) && (
-                    <button
-                      onClick={() => handleRemoverMotivo(m.id)}
-                      className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer"
-                      title="Remover motivo"
-                    >
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
+                <div key={m.id} className="p-4 sm:p-5 hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors">
+                  {editMotivo?.id === m.id ? (
+                    <form onSubmit={handleSalvarMotivo} className="space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <label className="block text-xs font-medium space-y-1.5"><span>Nome do motivo</span><input autoFocus required maxLength={120} value={editMotivo.nome} onChange={(e) => setEditMotivo({ ...editMotivo, nome: e.target.value })} disabled={salvandoMotivo} className="w-full h-11 px-3 rounded-xl border border-black/15 dark:border-white/20 bg-white dark:bg-[#242426] text-sm" /></label>
+                        <label className="block text-xs font-medium space-y-1.5"><span>Descrição (opcional)</span><input value={editMotivo.descricao} onChange={(e) => setEditMotivo({ ...editMotivo, descricao: e.target.value })} disabled={salvandoMotivo} className="w-full h-11 px-3 rounded-xl border border-black/15 dark:border-white/20 bg-white dark:bg-[#242426] text-sm" /></label>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-zinc-400">A alteração vale para novas classificações. Atendimentos antigos mantêm o nome registrado.</p>
+                      {erroMotivo && <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">{erroMotivo}</p>}
+                      <div className="flex gap-2 justify-end"><button type="button" disabled={salvandoMotivo} onClick={() => setEditMotivo(null)} className="px-4 py-2 text-sm rounded-full cursor-pointer">Cancelar</button><button type="submit" disabled={salvandoMotivo} className="px-4 py-2 text-sm font-medium rounded-full bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] cursor-pointer disabled:opacity-50">{salvandoMotivo ? 'Salvando…' : 'Salvar motivo'}</button></div>
+                    </form>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0"><h4 className="text-sm font-medium text-[#1d1d1f] dark:text-white break-words">{m.nome}</h4>{m.descricao && <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">{m.descricao}</p>}</div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button onClick={() => { setErroMotivo(''); setEditMotivo({ ...m, descricao: m.descricao || '' }); }} aria-label={`Editar motivo ${m.nome}`} className="p-2 text-slate-500 dark:text-zinc-400 hover:bg-black/[0.05] dark:hover:bg-white/[0.06] rounded-full cursor-pointer"><EditIcon className="w-4 h-4" /></button>
+                        <button onClick={() => handleRemoverMotivo(m.id)} aria-label={`Remover motivo ${m.nome}`} className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-500/10 cursor-pointer"><TrashIcon className="w-4 h-4" /></button>
+                      </div>
+                    </div>
                   )}
                 </div>
               ))}

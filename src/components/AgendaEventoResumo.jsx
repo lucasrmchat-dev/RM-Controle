@@ -2,8 +2,56 @@
 
 import React, { useState } from 'react';
 import { ModalEtapas, classeBotaoPrimario, classeBotaoTexto } from './FormularioEtapas';
+import { nomeParticipanteAgenda } from '@/lib/participantesAgenda';
 import { minutosDe } from './SeletoresTempo';
 import { CheckIcon, BuildingIcon, UserIcon, CalendarIcon } from './Icons';
+import { enviarWhatsappReuniao, getWhatsappAgenda } from '@/lib/storage';
+import { STATUS_CONFIRMACAO, formatarTelefone } from '@/lib/whatsappAgenda';
+import { showToast } from './ToastNotification';
+
+const COR_CONFIRMACAO = {
+  amber: 'bg-amber-500/12 text-amber-700 dark:text-amber-300',
+  green: 'bg-[#4d7c0f]/12 text-[#4d7c0f] dark:text-[#a3e635]',
+  violet: 'bg-violet-500/12 text-violet-700 dark:text-violet-300',
+  rose: 'bg-rose-500/12 text-rose-700 dark:text-rose-300',
+};
+
+/** O que o cliente respondeu no link do WhatsApp, e o botão para (re)enviar. */
+function ConfirmacaoCliente({ e }) {
+  const [enviando, setEnviando] = useState(false);
+  const pronto = Boolean(getWhatsappAgenda()?.pronto);
+  const st = STATUS_CONFIRMACAO[e.confirmacao_status];
+  const reenviar = async () => {
+    setEnviando(true);
+    try {
+      await enviarWhatsappReuniao(e.id, 'confirmacao');
+      showToast('Pedido de confirmação enviado pelo WhatsApp.', 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setEnviando(false);
+    }
+  };
+  return (
+    <div className="space-y-2">
+      <p className="text-[14px] font-medium tabular-nums">{formatarTelefone(e.cliente_telefone)}</p>
+      {st && <span className={`inline-flex items-center h-6 px-2.5 rounded-full text-[11.5px] font-semibold ${COR_CONFIRMACAO[st.cor]}`}>{st.rotulo}</span>}
+      {e.confirmacao_mensagem && (e.confirmacao_status === 'remarcar' || e.confirmacao_status === 'cancelada') && (
+        <p className="text-[13px] leading-relaxed text-slate-700 dark:text-zinc-200 bg-black/[0.03] dark:bg-white/[0.05] rounded-xl px-3 py-2">“{e.confirmacao_mensagem}”</p>
+      )}
+      {e.lembrete_minutos && (
+        <p className="text-[12px] text-slate-500 dark:text-zinc-400">
+          Lembrete {e.lembrete_enviado_em ? 'enviado' : `${e.lembrete_minutos >= 60 ? `${e.lembrete_minutos / 60} h` : `${e.lembrete_minutos} min`} antes`}
+        </p>
+      )}
+      {pronto && e.status !== 'cancelada' && (
+        <button type="button" onClick={reenviar} disabled={enviando} className="text-[12.5px] font-semibold underline underline-offset-4 cursor-pointer disabled:opacity-50">
+          {enviando ? 'Enviando…' : e.confirmacao_status ? 'Enviar pedido de confirmação de novo' : 'Pedir confirmação pelo WhatsApp'}
+        </button>
+      )}
+    </div>
+  );
+}
 
 const deIso = (iso) => {
   const [a, m, d] = String(iso).split('-').map(Number);
@@ -64,7 +112,8 @@ export default function AgendaEventoResumo({ evento, agendas = [], userEmail, on
   const fimMs = e.data ? deIso(e.data).getTime() + minutosDe(e.hora_fim) * 60000 : 0;
   const iniMs = e.data ? deIso(e.data).getTime() + minutosDe(e.hora_inicio) * 60000 : 0;
   const acontecendo = !cancelada && Date.now() >= iniMs && Date.now() < fimMs;
-  const empresa = e.empresa && e.empresa !== 'Cliente Geral' ? e.empresa : '';
+  const empresa = nomeParticipanteAgenda(e) !== 'Cliente Geral' ? nomeParticipanteAgenda(e) : '';
+  const rotuloParticipante = e.participante_tipo === 'parceiro' ? 'Parceiro' : e.participante_tipo === 'cliente_novo' ? 'Cliente novo' : 'Empresa';
 
   const copiar = async () => {
     try {
@@ -106,6 +155,9 @@ export default function AgendaEventoResumo({ evento, agendas = [], userEmail, on
       contexto={
         <div className="flex items-center gap-2">
           <span className={`inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-semibold ${estado.cor}`}>{estado.rotulo}</span>
+          {STATUS_CONFIRMACAO[e.confirmacao_status] && e.confirmacao_status !== 'enviada' && (
+            <span className={`inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-semibold ${COR_CONFIRMACAO[STATUS_CONFIRMACAO[e.confirmacao_status].cor]}`}>{STATUS_CONFIRMACAO[e.confirmacao_status].rotulo}</span>
+          )}
           {acontecendo && <span className="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-semibold bg-[#4d7c0f]/12 text-[#4d7c0f] dark:text-[#a3e635]">Acontecendo agora</span>}
         </div>
       }
@@ -148,9 +200,19 @@ export default function AgendaEventoResumo({ evento, agendas = [], userEmail, on
           <p className="text-[14px] font-medium">{e.responsavel_nome ? `${e.responsavel_nome}${eu ? ' (você)' : ''}` : 'Sem responsável · reunião da equipe'}</p>
         </Linha>
 
+        <Linha icone={<BuildingIcon className="w-4 h-4" />} rotulo="Departamento">
+          <p className="text-[14px] font-medium">{e.departamento || 'Não definido'}</p>
+        </Linha>
+
         {empresa && (
-          <Linha icone={<BuildingIcon className="w-4 h-4" />} rotulo="Empresa">
+          <Linha icone={<BuildingIcon className="w-4 h-4" />} rotulo={rotuloParticipante}>
             <p className="text-[14px] font-medium">{empresa}</p>
+          </Linha>
+        )}
+
+        {e.cliente_telefone && (
+          <Linha icone={<UserIcon className="w-4 h-4" />} rotulo="WhatsApp do cliente">
+            <ConfirmacaoCliente e={e} />
           </Linha>
         )}
 

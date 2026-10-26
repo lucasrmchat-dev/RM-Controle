@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { naEmpresaDaSessao, bancoDaEmpresaAtual } from '@/lib/server/organizacao';
 import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
 import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
 import { normalizarEmail } from '@/lib/roles';
@@ -20,7 +21,7 @@ export const maxDuration = 60;
 const COOKIE_OAUTH = 'rm_google_oauth';
 
 // Volta do Google depois que a pessoa autorizou (ou recusou) o acesso à agenda.
-export async function GET(request) {
+async function tratarGET(request) {
   const params = request.nextUrl.searchParams;
   const ir = (status, motivo = '') => {
     const res = NextResponse.redirect(new URL(`/?google_agenda=${status}${motivo ? `&motivo=${motivo}` : ''}`, request.url));
@@ -38,7 +39,7 @@ export async function GET(request) {
   try {
     const redirectUri = `${urlPublica(request)}/api/google/agenda/oauth/callback`;
     const { emailGoogle, refreshToken } = await trocarCodigo(params.get('code'), redirectUri);
-    const { data: membro } = await getSupabaseAdmin().from('equipe_usuarios').select('nome').eq('email', emailSistema).maybeSingle();
+    const { data: membro } = await bancoDaEmpresaAtual(getSupabaseAdmin()).from('equipe_usuarios').select('nome').eq('email', emailSistema).maybeSingle();
     await registrarConexao({ emailSistema, nome: membro?.nome || '', emailGoogle, refreshToken });
   } catch (e) {
     console.warn('Google Agenda: falha ao conectar', e.message);
@@ -61,3 +62,6 @@ export async function GET(request) {
   await sincronizarTodas({ renovarCanais: true, urlBase: urlPublica(request) }).catch(() => {});
   return ir('conectado');
 }
+
+// Tudo nesta rota acontece na empresa de quem está logado
+export const GET = (request) => naEmpresaDaSessao(request, () => tratarGET(request));

@@ -47,6 +47,7 @@ const DESTINOS = [
 
 /**
  * Formulário de nova demanda em 3 colunas: empresa e quem pediu → sobre a demanda → quem atende e prazo.
+ * Em telas médias, as duas primeiras ficam lado a lado e "quem atende" e "prazo" descem para uma faixa abaixo.
  * No celular, uma etapa abaixo da outra. Quem cria de fato é o pai (onEnviar), que recebe tudo organizado.
  */
 export default function NovaDemandaModal({
@@ -207,7 +208,7 @@ export default function NovaDemandaModal({
       subtitulo="Empresa e quem pediu, o que precisa ser feito, e quem atende."
       rodape={rodape}
     >
-      <div className="grid grid-cols-1 lg:grid-cols-3 lg:gap-x-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 md:gap-x-10">
         {/* COLUNA 1: empresa e quem pediu */}
         <div>
           <Etapa numero={1} titulo="Empresa" descricao="Busque pelo nome. Se ainda não existir, cadastre aqui mesmo." estado={etapa1Ok ? 'concluida' : 'ativa'}>
@@ -257,7 +258,7 @@ export default function NovaDemandaModal({
             titulo={<>Quem pediu <span className="font-normal text-slate-500 dark:text-zinc-400">· opcional</span></>}
             descricao="Escolha alguém da empresa ou digite um nome novo para cadastrar."
             estado={!empresa ? 'travada' : solicitante ? 'concluida' : 'ativa'}
-            fimDeColuna
+            fimDeColuna="md"
           >
             {solicitante ? (
               <Escolhido
@@ -316,7 +317,7 @@ export default function NovaDemandaModal({
         </div>
 
         {/* COLUNA 2: sobre a demanda */}
-        <div className="lg:pl-12 lg:border-l border-black/[0.06] dark:border-white/[0.11]">
+        <div className="md:pl-10 xl:pl-12 md:border-l border-black/[0.06] dark:border-white/[0.11]">
           <Etapa
             numero={3}
             titulo="Departamento"
@@ -336,7 +337,7 @@ export default function NovaDemandaModal({
             titulo="Sobre a demanda"
             descricao="Conte o que o cliente disse ou o que já se sabe que precisa ser feito."
             estado={!etapa1Ok ? 'travada' : tipoDescricao === 'nenhum' || descricao.trim() ? 'concluida' : 'ativa'}
-            fimDeColuna
+            fimDeColuna="md"
           >
             <div className="space-y-5">
               <div>
@@ -436,9 +437,15 @@ export default function NovaDemandaModal({
         </div>
 
         {/* COLUNA 3: quem atende e prazo */}
-        <div className="lg:pl-10 lg:border-l border-black/[0.06] dark:border-white/[0.11]">
-          <Etapa numero={5} titulo="Quem atende" descricao="Deixe na fila, pegue para você ou mande direto para alguém." estado={destino === 'outra' && !pessoa ? 'ativa' : 'concluida'}>
-            <div role="radiogroup" aria-label="Quem atende" className="grid grid-cols-3 gap-2">
+        <div className="md:col-span-2 xl:col-span-1 md:grid md:grid-cols-2 md:gap-x-10 xl:block md:mt-8 md:pt-8 xl:mt-0 xl:pt-0 md:border-t xl:border-t-0 xl:pl-10 xl:border-l border-black/[0.06] dark:border-white/[0.11]">
+          <Etapa
+            numero={5}
+            fimDeColuna="md-xl"
+            titulo="Quem atende"
+            descricao="Deixe na fila, pegue para você ou mande direto para alguém."
+            estado={destino === 'outra' && !pessoa ? 'ativa' : 'concluida'}
+          >
+            <div role="radiogroup" aria-label="Quem atende" className="flex flex-col gap-2">
               {DESTINOS.map((d) => {
                 const ativo = destino === d.id;
                 return (
@@ -448,12 +455,20 @@ export default function NovaDemandaModal({
                     role="radio"
                     aria-checked={ativo}
                     onClick={() => setDestino(d.id)}
-                    className={`text-left rounded-2xl px-3 py-2.5 ring-1 transition-colors cursor-pointer ${
+                    className={`w-full flex items-center gap-3 text-left rounded-2xl px-3.5 py-2.5 ring-1 transition-colors cursor-pointer ${
                       ativo ? 'ring-2 ring-[#1d1d1f] dark:ring-white bg-black/[0.03] dark:bg-white/[0.06]' : 'ring-black/[0.1] dark:ring-white/[0.12] hover:ring-black/25 dark:hover:ring-white/25'
                     }`}
                   >
-                    <span className="block text-[13px] font-semibold">{d.titulo}</span>
-                    <span className="block text-[11.5px] leading-snug text-slate-500 dark:text-zinc-400">{d.detalhe}</span>
+                    <span
+                      aria-hidden="true"
+                      className={`w-4 h-4 rounded-full flex-shrink-0 transition-all ${
+                        ativo ? 'border-[5px] border-[#1d1d1f] dark:border-white' : 'border-[1.5px] border-black/25 dark:border-white/30'
+                      }`}
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-[13px] font-semibold leading-tight">{d.titulo}</span>
+                      <span className="block text-[11.5px] leading-snug text-slate-500 dark:text-zinc-400">{d.detalhe}</span>
+                    </span>
                   </button>
                 );
               })}

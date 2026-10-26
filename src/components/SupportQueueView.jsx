@@ -371,6 +371,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
   // Sequência de carregamento: uma carga antiga e lenta nunca sobrescreve uma mais recente
   // (antes, uma demanda recém-criada podia "sumir" quando um sync anterior terminava depois)
   const cargaSeqRef = useRef(0);
+  const ultimaCargaCompletaRef = useRef(0);
   // Diagnóstico: demandas que existem no banco mas não chegaram a este usuário (e o motivo)
   const [diagnosticoVisibilidade, setDiagnosticoVisibilidade] = useState(null);
   const ultimoDiagnosticoRef = useRef(0);
@@ -407,11 +408,12 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
     });
 
     // Perfil de acesso: só as demandas dos departamentos que a pessoa enxerga
-    const perm = getPermissoesAtuais();
+    const perm = getPermissoesAtuais(userEmail);
     return Array.from(mapa.values()).filter((c) => podeVerDemanda(perm, c));
   };
 
   const carregarDados = async () => {
+    ultimaCargaCompletaRef.current = Date.now();
     const seq = ++cargaSeqRef.current;
     // Fase 1: a fila aparece assim que as demandas ativas chegam, sem esperar histórico e empresas
     const fila = fetchChamadosFila()
@@ -434,7 +436,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
       diagnosticarVisibilidadeFila().then(setDiagnosticoVisibilidade).catch(() => {});
     }
     setEquipeLista(getEquipeUsuarios());
-    setCategoriasDisponiveis(departamentosVisiveis(getPermissoesAtuais(), getCategoriasDemandas()));
+    setCategoriasDisponiveis(departamentosVisiveis(getPermissoesAtuais(userEmail), getCategoriasDemandas()));
     const resEmp = await getEmpresas({ pageSize: 1000 });
     const lista = Array.isArray(resEmp) ? resEmp : (resEmp?.items || []);
     const listaOrdenada = [...lista].sort((a, b) =>
@@ -454,10 +456,17 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
   }, []);
 
   useEffect(() => {
-    const handleUpdate = () => carregarDados();
-    const handleCatsUpdated = () => setCategoriasDisponiveis(departamentosVisiveis(getPermissoesAtuais(), getCategoriasDemandas()));
+    const handleUpdate = () => {
+      setChamados(montarListaChamados());
+      // O evento já vem da gravação local ou do polling/realtime que leu a fila.
+      // Atualiza apenas o histórico recente; não repete fila, equipe e empresas a cada evento.
+      fetchHistoricoChamados({ usarCache: true }).then(() => setChamados(montarListaChamados())).catch(() => {});
+      if (document.visibilityState !== 'hidden' && Date.now() - ultimaCargaCompletaRef.current > 60000) carregarDados().catch(() => {});
+    };
+    const handleEquipe = () => { setEquipeLista(getEquipeUsuarios()); handleUpdate(); };
+    const handleCatsUpdated = () => setCategoriasDisponiveis(departamentosVisiveis(getPermissoesAtuais(userEmail), getCategoriasDemandas()));
     window.addEventListener('suporte_updated', handleUpdate);
-    window.addEventListener('equipe_updated', handleUpdate);
+    window.addEventListener('equipe_updated', handleEquipe);
     window.addEventListener('categorias_demandas_updated', handleCatsUpdated);
     // Perfil mudou (ou "Ver o sistema como"): refiltra a fila e os departamentos
     const handlePerfil = () => {
@@ -508,7 +517,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
 
     return () => {
       window.removeEventListener('suporte_updated', handleUpdate);
-      window.removeEventListener('equipe_updated', handleUpdate);
+      window.removeEventListener('equipe_updated', handleEquipe);
       window.removeEventListener('categorias_demandas_updated', handleCatsUpdated);
       window.removeEventListener('user_role_updated', handlePerfil);
       window.removeEventListener('perfis_updated', handlePerfil);
@@ -1371,7 +1380,9 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
     }
 
     setNovaDemanda({ aberto: false, empresaInicial: null });
-    await carregarDados();
+    setFiltroStatus('ativos');
+    setBusca('');
+    setChamados(montarListaChamados());
     if (paraMim && onSelectEmpresa) {
       onSelectEmpresa({ id: empresaId, nome: empresaNome });
     }

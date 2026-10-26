@@ -1,7 +1,4 @@
-import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
-import { obterAcessoServidor } from '@/lib/server/acesso';
-import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
-import { normalizarEmail } from '@/lib/roles';
+import { contextoDaRequisicao } from '@/lib/server/organizacao';
 import { isValidUUID } from '@/lib/sanitize';
 import { MODULOS } from '@/lib/perfis';
 
@@ -12,17 +9,12 @@ const IDS_MODULOS = MODULOS.map((m) => m.id);
 
 const json = (corpo, status = 200) => Response.json(corpo, { status });
 
+// Perfis são de cada empresa assinante: o banco fica preso à empresa de quem está logado
 async function autenticar(request, { exigirAdmin = false } = {}) {
-  const sessao = await verifySessionToken(request.cookies.get(SESSION_COOKIE_NAME)?.value);
-  if (!sessao?.sub) return { erro: json({ ok: false, mensagem: 'Sessão expirada.' }, 401) };
-  const acesso = await obterAcessoServidor(normalizarEmail(sessao.sub));
-  if (!acesso.liberado) return { erro: json({ ok: false, mensagem: 'Seu acesso está desativado.' }, 403) };
-  if (exigirAdmin && !(acesso.proprietario || acesso.papel === 'administrador')) {
-    return { erro: json({ ok: false, mensagem: 'Apenas administradores gerenciam os perfis de acesso.' }, 403) };
-  }
-  const db = getSupabaseAdmin();
-  if (!db) return { erro: json({ ok: false, mensagem: 'Servidor sem SUPABASE_SERVICE_ROLE_KEY configurada.' }, 503) };
-  return { db };
+  const ctx = await contextoDaRequisicao(request);
+  if (ctx.erro) return ctx;
+  if (exigirAdmin && !ctx.admin) return { erro: json({ ok: false, mensagem: 'Apenas administradores gerenciam os perfis de acesso.' }, 403) };
+  return ctx;
 }
 
 const tabelaAusente = (error) => /perfis_acesso|relation .* does not exist|schema cache/i.test(error?.message || '');

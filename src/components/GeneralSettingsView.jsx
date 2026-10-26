@@ -16,8 +16,6 @@ import {
   getCategoriasDemandas,
   addCategoriaDemanda,
   removeCategoriaDemanda,
-  resolveUserRole,
-  getCurrentUserRole,
   getPermissoesAtuais,
   getAgendaConfig,
   setAgendaConfig
@@ -29,6 +27,10 @@ import AuditLogsView from './AuditLogsView';
 import SupportIntegrationSettings from './SupportIntegrationSettings';
 import GoogleAgendaSync from './GoogleAgendaSync';
 import PerfisAcessoView from './PerfisAcessoView';
+import ComercialSettings from './ComercialSettings';
+import TitulosReuniaoSettings from './TitulosReuniaoSettings';
+import FeedbacksSettings from './FeedbacksSettings';
+import WhatsappAgendaSettings, { PreferenciasWhatsapp } from './WhatsappAgendaSettings';
 import { podeVerConfiguracoesAvancadas, podeAcessarAbaConfiguracao, ROTULOS_PAPEL } from '@/lib/roles';
 import { 
   SparklesIcon, 
@@ -48,21 +50,19 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
   // Papel definido pelo servidor no login/sessão (mesma regra de src/lib/roles.js)
   // Administrador = perfil de acesso com acesso total (ou papel administrador para quem ainda não tem perfil).
   // "Ver o sistema como" também vale aqui, para conferir o que outro perfil enxerga.
-  const papelEfetivo = () => (getPermissoesAtuais().administrador ? 'administrador' : 'suporte');
-  const [currentRole, setCurrentRole] = useState(papelEfetivo);
+  const [, atualizarPermissoes] = useState(0);
+  const currentRole = getPermissoesAtuais(userEmail).administrador ? 'administrador' : 'suporte';
   const isAdmin = podeVerConfiguracoesAvancadas(currentRole);
   const [subTab, setSubTab] = useState(() =>
-    podeAcessarAbaConfiguracao(papelEfetivo(), initialSubTab) ? initialSubTab : 'visualizacao'
+    podeAcessarAbaConfiguracao(currentRole, initialSubTab) ? initialSubTab : 'visualizacao'
   );
 
   useEffect(() => {
-    const atualizarPapel = () => setCurrentRole(papelEfetivo());
-    window.addEventListener('user_role_updated', atualizarPapel);
-    window.addEventListener('perfis_updated', atualizarPapel);
-    return () => {
-      window.removeEventListener('user_role_updated', atualizarPapel);
-      window.removeEventListener('perfis_updated', atualizarPapel);
-    };
+    // Recalcula com o e-mail da sessão em cada render, inclusive após Fast Refresh ou troca de conta.
+    const atualizar = () => atualizarPermissoes((versao) => versao + 1);
+    const eventos = ['user_role_updated', 'perfis_updated', 'equipe_updated'];
+    eventos.forEach((evento) => window.addEventListener(evento, atualizar));
+    return () => eventos.forEach((evento) => window.removeEventListener(evento, atualizar));
   }, []);
 
   // Se o papel mudar (ou a aba inicial vier de um link), nunca deixa um não-administrador numa aba avançada
@@ -244,6 +244,15 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           icon: <CalendarIcon className="w-4 h-4" />,
         },
         {
+          id: 'whatsapp',
+          label: 'WhatsApp nas reuniões',
+          icon: (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 21l1.65-4.95A8.5 8.5 0 1 1 8 19.4L3 21z" />
+            </svg>
+          ),
+        },
+        {
           id: 'regras_suporte',
           label: 'Regras de Atendimento & Senha',
           icon: (
@@ -259,6 +268,26 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
       titulo: 'Configurações Avançadas',
       descricao: 'Gestão de departamentos, infraestrutura, servidores, equipe e conformidade',
       abas: [
+        { id: 'comercial', label: 'Comercial e pipelines', icon: <CalendarIcon className="w-4 h-4" /> },
+        { id: 'titulos_reuniao', label: 'Títulos das reuniões', icon: <CalendarIcon className="w-4 h-4" /> },
+        {
+          id: 'whatsapp_envio',
+          label: 'WhatsApp da agenda',
+          icon: (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 21l1.65-4.95A8.5 8.5 0 1 1 8 19.4L3 21z" />
+            </svg>
+          ),
+        },
+        {
+          id: 'feedbacks',
+          label: 'Feedbacks',
+          icon: (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          ),
+        },
         {
           id: 'departamentos',
           label: 'Departamentos',
@@ -1368,6 +1397,16 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           renderRestrictedNotice('Servidores & Equipe')
         )
       )}
+
+      {subTab === 'comercial' && (isAdmin ? <ComercialSettings /> : renderRestrictedNotice('Comercial'))}
+
+      {subTab === 'titulos_reuniao' && (isAdmin ? <TitulosReuniaoSettings /> : renderRestrictedNotice('Títulos das reuniões'))}
+
+      {subTab === 'feedbacks' && (isAdmin ? <FeedbacksSettings /> : renderRestrictedNotice('Feedbacks'))}
+
+      {subTab === 'whatsapp' && <PreferenciasWhatsapp />}
+
+      {subTab === 'whatsapp_envio' && (isAdmin ? <WhatsappAgendaSettings /> : renderRestrictedNotice('WhatsApp da agenda'))}
 
       {/* AVANÇADA: PERFIS DE ACESSO */}
       {subTab === 'perfis' && (isAdmin ? <PerfisAcessoView /> : renderRestrictedNotice('Perfis de acesso'))}

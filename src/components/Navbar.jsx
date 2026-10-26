@@ -7,6 +7,7 @@ import PerfilPainel from './PerfilPainel';
 import {
   getFilaChamados,
   getAbasPermitidas,
+  getGestaoAtual,
   getCurrentUserRole,
   getAgendaEventos,
   getNomeTecnico,
@@ -158,7 +159,7 @@ export default function Navbar({
 
   const checarEstado = () => {
     // Só conta o que o perfil da pessoa enxerga
-    const perm = getPermissoesAtuais();
+    const perm = getPermissoesAtuais(userEmail);
     setTotalFila((getFilaChamados ? getFilaChamados() : []).filter((c) => podeVerDemanda(perm, c)).length);
     setUserRole(getCurrentUserRole());
     try {
@@ -232,17 +233,29 @@ export default function Navbar({
     .map((p) => p[0])
     .join('')
     .toUpperCase();
-  const minutos = Math.floor(inactivityTimeLeft / 60);
-  const relogio = `${minutos}:${String(inactivityTimeLeft % 60).padStart(2, '0')}`;
 
   const todasAsAbas = [
     { id: 'fila', label: 'Fila de Demandas', curto: 'Fila', badge: totalFila || null, icon: <SupportQueueIcon className="w-[17px] h-[17px]" /> },
     { id: 'agenda', label: 'Agenda', curto: 'Agenda', badge: totalReunioesHoje || null, icon: <CalendarIcon className="w-[17px] h-[17px]" /> },
+    { id: 'comercial', label: 'Comercial', curto: 'Comercial', icon: <svg className="w-[17px] h-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17l6-6 4 3 6-9M14 5h6v6" /></svg> },
     { id: 'dashboard', label: 'Dashboard', curto: 'Métricas', icon: <IconeDashboard /> },
     { id: 'feedbacks', label: 'Feedbacks', curto: 'Feedbacks', icon: <IconeFeedbacks /> },
+    {
+      id: 'plataforma',
+      label: getGestaoAtual()?.nivel === 'revenda' ? 'Revenda' : 'Plataforma',
+      curto: getGestaoAtual()?.nivel === 'revenda' ? 'Revenda' : 'Plataforma',
+      icon: (
+        <svg className="w-[17px] h-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1.5" />
+          <rect x="14" y="3" width="7" height="7" rx="1.5" />
+          <rect x="3" y="14" width="7" height="7" rx="1.5" />
+          <path d="M17.5 14v7M14 17.5h7" />
+        </svg>
+      ),
+    },
   ];
-  const permitidas = getAbasPermitidas();
-  const permAtual = getPermissoesAtuais();
+  const permitidas = getAbasPermitidas(userEmail);
+  const permAtual = getPermissoesAtuais(userEmail);
   // Acesso real (sem a simulação de "Ver o sistema como"), para decidir quem pode simular
   const permReal = permissoesEfetivas({ email: userEmail, equipe: getEquipeUsuarios(), perfis: getPerfisAcesso() });
   const rotuloAcesso = permAtual.perfil?.nome || (permAtual.administrador ? 'Administrador' : ROTULOS_PAPEL[userRole] || 'Suporte Técnico');
@@ -297,23 +310,6 @@ export default function Navbar({
       {/* COMPUTADOR: ilha centralizada; na fila, recebe as ações ao lado ao rolar       */}
       {/* ============================================================================== */}
       <header className="hidden md:flex fixed top-3 inset-x-0 z-40 justify-center px-4 lg:px-6 pointer-events-none">
-        {/* Tempo até a sessão encerrar por inatividade, no canto (fora da ilha) */}
-        <div className="absolute right-4 lg:right-6 top-0 h-[54px] hidden lg:flex items-center">
-        <div
-          title="Tempo até a sessão encerrar por inatividade"
-          className={`h-9 flex items-center gap-1.5 px-3.5 rounded-full pointer-events-auto text-[12.5px] font-medium tabular-nums transition-colors ${
-            inactivityTimeLeft < 300
-              ? 'bg-rose-500/12 text-rose-600 dark:text-rose-400'
-              : 'bg-white/70 dark:bg-[#232326]/70 backdrop-blur-xl border border-black/[0.06] dark:border-white/[0.1] text-slate-500 dark:text-zinc-400'
-          }`}
-        >
-          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="12" cy="13" r="8" />
-            <path d="M12 9v4l2 2M9 2h6" />
-          </svg>
-          {relogio}
-        </div>
-        </div>
         <LayoutGroup>
           <div className="flex items-center justify-center gap-2 w-full max-w-[1720px]">
             <motion.div

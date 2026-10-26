@@ -1,6 +1,7 @@
 // Testes de permissões: papéis, acesso às Configurações Avançadas, login e APIs protegidas.
 // Executar: node --import ./tests/mocks/setup.js --test tests/permissoes.test.js
 import { test, beforeEach } from 'node:test';
+import { SESSION_DURATION_SECONDS, formatarTempoSessao } from '../src/lib/sessionPolicy.js';
 import assert from 'node:assert/strict';
 import { NextRequest } from 'next/server.js';
 import { db, supabase as mockSupabase } from './mocks/supabase.js';
@@ -25,7 +26,7 @@ __definirSupabaseAdmin(mockSupabase);
 // Contas do Supabase Auth simuladas
 const contasAuth = new Map([['lucas@rmchat.com', 'SenhaDoLucas#1']]);
 const sessoesEncerradas = [];
-__definirSupabaseAnon({
+const authSimulado = {
   auth: {
     async signInWithPassword({ email, password }) {
       return contasAuth.get(email) === password
@@ -37,7 +38,8 @@ __definirSupabaseAnon({
       return { error: null };
     },
   },
-});
+};
+__definirSupabaseAnon(authSimulado);
 
 const EQUIPE = [
   { email: 'maria@rmchat.com', papel: 'suporte', senha: 'maria123', ativo: true },
@@ -195,4 +197,55 @@ test('troca de senha: só altera a conta da sessão, mesmo que o corpo aponte pa
 
   const semSessao = await trocarSenha(requisicao('/api/auth/senha', { body: { novaSenha: 'OutraSenha#2026' } }));
   assert.equal(semSessao.status, 401);
+});
+
+test('login informa apenas tempos das etapas, preservando cookie seguro e sem expor credenciais', async () => {
+  const r = await login(requisicao('/api/auth/login', { body: { email: 'lucas@rmchat.com', password: 'SenhaDoLucas#1' } }));
+  assert.equal(r.status, 200);
+  const tempo = r.headers.get('server-timing');
+  for (const etapa of ['limite_ip', 'captcha', 'limite_conta', 'credenciais', 'acesso', 'total']) assert.match(tempo, new RegExp(`${etapa};dur=\\d+`));
+  assert.equal(tempo.includes('lucas'), false);
+  assert.equal(tempo.includes('SenhaDoLucas'), false);
+  assert.match(r.headers.get('set-cookie'), /HttpOnly/i);
+  assert.match(r.headers.get('set-cookie'), /Max-Age=32400/i);
+  const token = r.headers.get('set-cookie').match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`))[1];
+  const payload = await verifySessionToken(token);
+  assert.equal(payload.exp - payload.iat, 9 * 60 * 60);
+});
+
+test('login sobrepõe verificação do Auth e hash da equipe e encerra somente a sessão temporária', async () => {
+  const membro = db.tables.equipe_usuarios.find((u) => u.email === 'maria@rmchat.com');
+  membro.senha = '$2b$hash-simulado';
+  let liberarAuth;
+  let limite;
+  let rpcAntesDoAuthTerminar = false;
+  const encerramentos = [];
+  __definirSupabaseAnon({ auth: {
+    signInWithPassword: () => new Promise((resolve) => {
+      liberarAuth = () => resolve({ data: { user: { email: membro.email } }, error: null });
+      limite = setTimeout(liberarAuth, 200);
+    }),
+    signOut: async (opcoes) => { encerramentos.push(opcoes); return { error: null }; },
+  } });
+  db.rpcs.rm_verificar_senha_equipe = () => {
+    rpcAntesDoAuthTerminar = Boolean(liberarAuth);
+    liberarAuth?.();
+    return true;
+  };
+  try {
+    const r = await login(requisicao('/api/auth/login', { body: { email: membro.email, password: 'SenhaSimulada#1' } }));
+    assert.equal(r.status, 200);
+    assert.equal(rpcAntesDoAuthTerminar, true);
+    assert.deepEqual(encerramentos, [{ scope: 'local' }]);
+  } finally { clearTimeout(limite); __definirSupabaseAnon(authSimulado); }
+});
+
+ test('contador da sessão exibe nove horas e a transição para minutos sem valores negativos', () => {
+  assert.equal(SESSION_DURATION_SECONDS, 32400);
+  assert.equal(formatarTempoSessao(32400), '9:00:00');
+  assert.equal(formatarTempoSessao(32399), '8:59:59');
+  assert.equal(formatarTempoSessao(3600), '1:00:00');
+  assert.equal(formatarTempoSessao(3599), '59:59');
+  assert.equal(formatarTempoSessao(0), '0:00');
+  assert.equal(formatarTempoSessao(-1), '0:00');
 });

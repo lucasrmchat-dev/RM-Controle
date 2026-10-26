@@ -1,4 +1,4 @@
-import { autenticarIntegracao, criarChamadoIntegracao, respostaErro } from '@/lib/server/integracaoSuporte';
+import { autenticarIntegracao, naEmpresaDoToken, criarChamadoIntegracao, respostaErro } from '@/lib/server/integracaoSuporte';
 
 import { consumirLimite, ipDaRequisicao } from '@/lib/server/protecao';
 
@@ -22,10 +22,13 @@ export async function POST(request) {
     if (!(await consumirLimite(`integracao_${ipDaRequisicao(request)}`, 120, 60))) {
       return Response.json({ ok: false, erro: 'limite_excedido', mensagem: 'Muitas requisições. Tente novamente em instantes.' }, { status: 429, headers: { 'Retry-After': '60' } });
     }
-    const config = await autenticarIntegracao(request);
-    const body = await request.json().catch(() => ({}));
-    const resultado = await criarChamadoIntegracao(body, config);
-    return Response.json({ ok: true, ...resultado }, { status: resultado.criado && !resultado.duplicado ? 201 : 200 });
+    // A empresa assinante vem do token; tudo abaixo acontece só nela
+    return await naEmpresaDoToken(request, async () => {
+      const config = await autenticarIntegracao(request);
+      const body = await request.json().catch(() => ({}));
+      const resultado = await criarChamadoIntegracao(body, config);
+      return Response.json({ ok: true, ...resultado }, { status: resultado.criado && !resultado.duplicado ? 201 : 200 });
+    });
   } catch (err) {
     return respostaErro(err);
   }

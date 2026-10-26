@@ -685,6 +685,27 @@ export function ListaDemandas({ chamados, ctx, acoes, tempos, assumindoId, selec
 // CARDS: ao clicar, o card mostra os detalhes no próprio espaço (mesma altura, nada se mexe)
 // ==============================================================================
 
+// Quem está com a demanda (ou que ela está na fila) e quem pediu, na frente do card
+function PessoasDemanda({ info }) {
+  const nome = info.responsavel ? (info.meu ? 'Você' : info.responsavel) : null;
+  return (
+    <div className="flex items-center gap-2 min-w-0 text-[12px] text-slate-500 dark:text-zinc-400">
+      <span
+        aria-hidden="true"
+        className={`w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-[9px] font-semibold ${
+          nome ? 'bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f]' : 'border border-dashed border-black/25 dark:border-white/30'
+        }`}
+      >
+        {nome ? iniciais(info.responsavel) : ''}
+      </span>
+      <span className="truncate">
+        {nome ? <span className="font-medium text-[#1d1d1f] dark:text-white">{nome}</span> : 'Ninguém assumiu ainda'}
+        {info.solicitante && <> · pedido por {info.solicitante}</>}
+      </span>
+    </div>
+  );
+}
+
 function CartaoDemanda({ ch, ctx, acoes, tempos, assumindoId, aberto = false, kanban = false }) {
   const info = infoDemanda(ch, ctx);
   const altura = kanban ? 'min-h-[200px]' : 'h-[236px]';
@@ -731,7 +752,10 @@ function CartaoDemanda({ ch, ctx, acoes, tempos, assumindoId, aberto = false, ka
         <AnimatePresence initial={false} mode="popLayout">
           {!aberto ? (
             <motion.div key="frente" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }} className={`absolute inset-0 ${pad} pt-3.5 flex flex-col`}>
-              <p className={`text-[13.5px] leading-relaxed text-slate-600 dark:text-zinc-300 ${kanban ? 'line-clamp-2' : 'line-clamp-3'}`}>{info.descricao || <span className="text-slate-400">Sem descrição</span>}</p>
+              <p className="text-[13.5px] leading-relaxed text-slate-600 dark:text-zinc-300 line-clamp-2">{info.descricao || <span className="text-slate-400">Sem descrição</span>}</p>
+              <div className="mt-2.5">
+                <PessoasDemanda info={info} />
+              </div>
               <div className="mt-auto pt-3 flex items-end justify-between gap-3">
                 <div className="min-w-0 [&>span]:items-start">
                   <ChipTempo ch={ch} info={info} tempos={tempos} tamanho={kanban ? 'pequeno' : 'normal'} />

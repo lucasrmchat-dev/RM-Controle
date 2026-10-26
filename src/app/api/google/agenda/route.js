@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { naEmpresaDaSessao } from '@/lib/server/organizacao';
 import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
 import { obterAcessoServidor } from '@/lib/server/acesso';
 import { consumirLimite } from '@/lib/server/protecao';
@@ -33,7 +34,7 @@ async function autenticar(request) {
 }
 
 // Situação da integração: a minha conexão e quem da equipe já conectou (nunca devolve tokens)
-export async function GET(request) {
+async function tratarGET(request) {
   const quem = await autenticar(request);
   if (quem.erro) return quem.erro;
   if (!googleConfigurado()) return NextResponse.json({ ok: true, configurado: false });
@@ -56,7 +57,7 @@ export async function GET(request) {
   });
 }
 
-export async function POST(request) {
+async function tratarPOST(request) {
   const quem = await autenticar(request);
   if (quem.erro) return quem.erro;
   if (!googleConfigurado()) return erro('A integração com o Google Agenda ainda não foi configurada no servidor.', 503);
@@ -109,3 +110,9 @@ export async function POST(request) {
 
   return erro('Ação desconhecida.', 400);
 }
+
+// Tudo nesta rota acontece na empresa de quem está logado
+export const GET = (request) => naEmpresaDaSessao(request, () => tratarGET(request));
+
+// Tudo nesta rota acontece na empresa de quem está logado
+export const POST = (request) => naEmpresaDaSessao(request, () => tratarPOST(request));

@@ -98,10 +98,18 @@ export function ModalEtapas({ aberto, onFechar, bloqueado = false, titulo, subti
 /**
  * Etapa numerada: número → check quando concluída; travada (esmaecida e sem clique) até a anterior terminar.
  * `fimDeColuna`: última etapa da coluna no desktop (a linha some a partir de lg).
+ * Aceita também 'md' (some a partir de md) ou 'md-xl' (some só entre md e xl, quando a etapa fica lado a lado).
  */
+const FIM_DE_COLUNA = {
+  lg: { linha: 'lg:hidden', espaco: 'pb-8 lg:pb-0' },
+  md: { linha: 'md:hidden', espaco: 'pb-8 md:pb-0' },
+  'md-xl': { linha: 'md:hidden xl:block', espaco: 'pb-8 md:pb-0 xl:pb-8' },
+};
+
 export function Etapa({ numero, titulo, descricao, estado, ultima = false, fimDeColuna = false, children }) {
   const travada = estado === 'travada';
   const concluida = estado === 'concluida';
+  const fim = fimDeColuna ? FIM_DE_COLUNA[fimDeColuna === true ? 'lg' : fimDeColuna] : null;
   return (
     <section aria-disabled={travada} className={`grid grid-cols-[32px_1fr] gap-x-4 transition-opacity duration-300 ${travada ? 'opacity-45' : ''}`}>
       <div className="flex flex-col items-center">
@@ -116,9 +124,9 @@ export function Etapa({ numero, titulo, descricao, estado, ultima = false, fimDe
         >
           {concluida ? <CheckIcon className="w-4 h-4 stroke-[3]" /> : numero}
         </span>
-        {!ultima && <span className={`flex-1 w-px my-2 bg-black/[0.08] dark:bg-white/[0.1] ${fimDeColuna ? 'lg:hidden' : ''}`} />}
+        {!ultima && <span className={`flex-1 w-px my-2 bg-black/[0.08] dark:bg-white/[0.1] ${fim ? fim.linha : ''}`} />}
       </div>
-      <div className={`min-w-0 ${ultima ? '' : fimDeColuna ? 'pb-8 lg:pb-0' : 'pb-8'}`}>
+      <div className={`min-w-0 ${ultima ? '' : fim ? fim.espaco : 'pb-8'}`}>
         <h3 className="text-[15px] font-semibold text-[#1d1d1f] dark:text-white leading-8">{titulo}</h3>
         {descricao && <p className="text-[13px] text-slate-500 dark:text-zinc-400 -mt-0.5 mb-3.5">{descricao}</p>}
         <div className={travada ? 'pointer-events-none select-none' : ''}>{children}</div>
@@ -128,7 +136,7 @@ export function Etapa({ numero, titulo, descricao, estado, ultima = false, fimDe
 }
 
 /** Combobox: digita, filtra, ↑↓ Enter; opcionalmente oferece "cadastrar novo" como última opção. */
-export function Combobox({ id, placeholder, opcoes, renderOpcao, onEscolher, opcaoNova, onNova, autoFocus = false, mostrarAoFocar = true, textoVazio = 'Nada encontrado.' }) {
+export function Combobox({ id, placeholder, opcoes, renderOpcao, onEscolher, opcaoNova, onNova, autoFocus = false, mostrarAoFocar = true, textoVazio = 'Nada encontrado.', limiteResultados = 8, onTextoChange }) {
   const [termo, setTermo] = useState('');
   const [aberto, setAberto] = useState(false);
   const [destaque, setDestaque] = useState(0);
@@ -145,8 +153,8 @@ export function Combobox({ id, placeholder, opcoes, renderOpcao, onEscolher, opc
       : mostrarAoFocar
         ? opcoes
         : [];
-    return lista.slice(0, 8);
-  }, [opcoes, termo, mostrarAoFocar]);
+    return limiteResultados == null ? lista : lista.slice(0, limiteResultados);
+  }, [opcoes, termo, mostrarAoFocar, limiteResultados]);
   const existeExata = filtradas.some((o) => normalizarBusca(o.nome) === normalizarBusca(termo));
   const mostrarNova = Boolean(onNova && termo.trim().length >= 2 && !existeExata);
   const total = filtradas.length + (mostrarNova ? 1 : 0);
@@ -162,6 +170,7 @@ export function Combobox({ id, placeholder, opcoes, renderOpcao, onEscolher, opc
     if (i < filtradas.length) onEscolher(filtradas[i]);
     else if (mostrarNova) onNova(termo.trim());
     setTermo('');
+    onTextoChange?.('');
     setAberto(false);
   };
 
@@ -181,6 +190,7 @@ export function Combobox({ id, placeholder, opcoes, renderOpcao, onEscolher, opc
         onFocus={() => setAberto(true)}
         onChange={(e) => {
           setTermo(e.target.value);
+          onTextoChange?.(e.target.value);
           setAberto(true);
         }}
         onKeyDown={(e) => {
@@ -360,10 +370,9 @@ export function SeletorCategoria({ opcoes, valor, onMudar, rotuloId, visiveis = 
   }, [criando]);
 
   const termo = normalizarBusca(filtro);
-  const comFiltro = opcoes.length > 12 && todas;
   let mostradas = termo ? opcoes.filter((o) => normalizarBusca(o).includes(termo)) : todas ? opcoes : opcoes.slice(0, visiveis);
   // A escolhida continua à vista mesmo fora das mais usadas
-  if (valor?.nome && !valor.nova && !mostradas.includes(valor.nome)) mostradas = [valor.nome, ...mostradas];
+  if (!termo && valor?.nome && !valor.nova && !mostradas.includes(valor.nome)) mostradas = [valor.nome, ...mostradas];
   const ocultas = opcoes.length - visiveis;
 
   const confirmarNova = () => {
@@ -376,7 +385,7 @@ export function SeletorCategoria({ opcoes, valor, onMudar, rotuloId, visiveis = 
   };
 
   const pilula = (ativo) =>
-    `h-9 px-3.5 rounded-full text-[13px] font-medium border transition-colors cursor-pointer flex items-center gap-1.5 ${
+    `min-h-9 py-1.5 px-3.5 max-w-full leading-snug text-left rounded-full text-[13px] font-medium border transition-colors cursor-pointer flex items-center gap-1.5 ${
       ativo
         ? 'bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] border-transparent'
         : 'bg-white dark:bg-white/[0.04] border-black/[0.12] dark:border-white/[0.14] text-slate-700 dark:text-zinc-300 hover:border-black/25 dark:hover:border-white/25'
@@ -386,16 +395,14 @@ export function SeletorCategoria({ opcoes, valor, onMudar, rotuloId, visiveis = 
 
   return (
     <div className="space-y-2.5">
-      {comFiltro && (
-        <input
+      <input
           type="search"
           value={filtro}
           onChange={(e) => setFiltro(e.target.value)}
-          placeholder="Filtrar categorias"
-          aria-label="Filtrar categorias"
-          className={`${classeCampo} h-9 text-[13px]`}
+          placeholder="Buscar categoria do suporte"
+          aria-label="Buscar categoria do suporte"
+          className={`${classeCampo} h-10 text-[13px]`}
         />
-      )}
       <div role="group" aria-labelledby={rotuloId} className="flex flex-wrap gap-2">
         {mostradas.map((op) => {
           const ativo = valor?.nome === op && !valor?.nova;

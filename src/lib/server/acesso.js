@@ -13,8 +13,8 @@ function getSupabaseAnon() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const chave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !chave) return null;
-  clienteAnon = createClient(url, chave, { auth: { persistSession: false, autoRefreshToken: false } });
-  return clienteAnon;
+  // A sessão temporária de uma verificação nunca é compartilhada com outro login concorrente.
+  return createClient(url, chave, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
 // Permite injetar clientes simulados nos testes
@@ -150,26 +150,26 @@ export async function verificarCredenciais(email, senha) {
 
   if (membro && membro.ativo === false) return { ok: false, motivo: 'usuario_inativo' };
 
-  let authConfere = false;
-  if (anon) {
-    const { data, error } = await anon.auth.signInWithPassword({ email: emailNorm, password: senha });
-    if (!error && data?.user) {
-      authConfere = true;
-      // 'local' encerra só esta verificação; o padrão (global) derrubaria a sessão do usuário no navegador
-      await anon.auth.signOut({ scope: 'local' }).catch(() => {});
-    }
-  }
-
-  const equipeConfere = authConfere ? false : await senhaEquipeConfere(membro, emailNorm, senha);
+  // Ambas as conferências são necessárias para manter Auth e Equipe & Senhas alinhados.
+  // São independentes: não há motivo para somar as duas latências de rede.
+  const [resultadoAuth, equipeConfere] = await Promise.all([
+    anon ? anon.auth.signInWithPassword({ email: emailNorm, password: senha }) : Promise.resolve(null),
+    senhaEquipeConfere(membro, emailNorm, senha),
+  ]);
+  const authConfere = Boolean(resultadoAuth && !resultadoAuth.error && resultadoAuth.data?.user);
   if (!authConfere && !equipeConfere) return { ok: false, motivo: 'credenciais_invalidas' };
 
-  // Sincronização: senha de Equipe & Senhas confere mas a conta de login não existe/está diferente
-  if (equipeConfere) {
-    await garantirContaAuth(emailNorm, senha, { name: membro?.nome || '', papel: membro?.papel || 'suporte' });
-  } else if (membro && !(await senhaEquipeConfere(membro, emailNorm, senha))) {
-    // Login pelo Supabase Auth: mantém a senha de Equipe & Senhas igual (o banco grava como hash)
-    const db = getSupabaseAdmin();
-    if (db) await db.from('equipe_usuarios').update({ senha }).eq('id', membro.id);
+  // Encerra só esta sessão temporária, em paralelo ao ajuste necessário da conta.
+  const encerrarVerificacao = authConfere ? anon.auth.signOut({ scope: 'local' }).catch(() => {}) : Promise.resolve();
+  try {
+    if (!authConfere && equipeConfere) {
+      await garantirContaAuth(emailNorm, senha, { name: membro?.nome || '', papel: membro?.papel || 'suporte' });
+    } else if (membro && !equipeConfere) {
+      const db = getSupabaseAdmin();
+      if (db) await db.from('equipe_usuarios').update({ senha }).eq('id', membro.id);
+    }
+  } finally {
+    await encerrarVerificacao;
   }
 
   return { ok: true };

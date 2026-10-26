@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
 import { validarSenhaEntrada, isValidUUID } from '@/lib/sanitize';
 import { consumirLimite, ipDaRequisicao } from '@/lib/server/protecao';
-import { verificarCredenciais, obterAcessoServidor } from '@/lib/server/acesso';
-import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
+import { verificarCredenciais } from '@/lib/server/acesso';
+import { contextoDaRequisicao } from '@/lib/server/organizacao';
 import { normalizarEmail } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
@@ -38,17 +38,17 @@ export async function POST(request) {
   const empresaId = typeof body.empresaId === 'string' ? body.empresaId.trim() : '';
   if (!isValidUUID(empresaId)) return erro('Empresa inválida.', 400);
 
-  const acesso = await obterAcessoServidor(email);
-  if (!acesso.liberado) return erro('Seu acesso está desativado.', 403);
-  if (!acesso.proprietario && !PAPEIS_QUE_EXCLUEM.includes(acesso.papel)) {
+  // Banco preso à empresa assinante de quem está logado: só exclui clientes DELA
+  const ctx = await contextoDaRequisicao(request);
+  if (ctx.erro) return ctx.erro;
+  if (!PAPEIS_QUE_EXCLUEM.includes(ctx.papel)) {
     return erro('Seu perfil não pode excluir empresas.', 403);
   }
 
   const senha = validarSenhaEntrada(body.senha);
   if (!senha || !(await verificarCredenciais(email, senha)).ok) return erro('Senha incorreta.', 403);
 
-  const db = getSupabaseAdmin();
-  if (!db) return erro('Não foi possível excluir agora.', 503);
+  const { db } = ctx;
 
   const { data: empresa, error: erroEmpresa } = await db.from('empresas').select('*').eq('id', empresaId).maybeSingle();
   if (erroEmpresa) return erro('Não foi possível excluir agora.', 500);

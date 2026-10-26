@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { naEmpresaDaSessao, bancoDaEmpresaAtual } from '@/lib/server/organizacao';
 import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
 import { obterAcessoServidor } from '@/lib/server/acesso';
 import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
@@ -11,7 +12,7 @@ export const dynamic = 'force-dynamic';
 const erro = (mensagem, status) => NextResponse.json({ ok: false, mensagem }, { status });
 
 // Leva ao Google uma criação/edição feita no sistema, ou exclui nos dois lados.
-export async function POST(request) {
+async function tratarPOST(request) {
   const sessao = await verifySessionToken(request.cookies.get(SESSION_COOKIE_NAME)?.value);
   if (!sessao?.sub) return erro('Sua sessão expirou. Entre novamente.', 401);
   const email = normalizarEmail(sessao.sub);
@@ -24,7 +25,7 @@ export async function POST(request) {
   if (!googleConfigurado()) return NextResponse.json({ ok: true, configurado: false });
 
   if (body.acao === 'excluir') {
-    const { data: linha } = await getSupabaseAdmin().from('agenda_eventos').select('*').eq('id', id).maybeSingle();
+    const { data: linha } = await bancoDaEmpresaAtual(getSupabaseAdmin()).from('agenda_eventos').select('*').eq('id', id).maybeSingle();
     if (!linha) return NextResponse.json({ ok: true });
     // Mesma regra do banco: administrador, quem criou ou o responsável
     const admin = acesso.proprietario || acesso.papel === 'administrador';
@@ -45,3 +46,6 @@ export async function POST(request) {
     return erro(`Salvo no sistema, mas não foi possível atualizar o Google Agenda: ${e.message}`, 502);
   }
 }
+
+// Tudo nesta rota acontece na empresa de quem está logado
+export const POST = (request) => naEmpresaDaSessao(request, () => tratarPOST(request));

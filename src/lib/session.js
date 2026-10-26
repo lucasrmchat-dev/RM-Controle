@@ -1,3 +1,4 @@
+import { SESSION_DURATION_SECONDS } from './sessionPolicy.js';
 /**
  * Gestão Criptográfica de Sessão do RM Controle
  * Utiliza HMAC-SHA256 para assinatura de tokens em Cookies HTTP-Only com proteção SameSite=Lax/Strict e Secure.
@@ -66,13 +67,13 @@ async function sign(data, secret) {
 export async function createSessionToken({ email, role, userId = null }) {
   const header = base64UrlEncode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
   const now = Date.now();
-  // Sessão expira em 8 horas ou encerra por inatividade de 30 minutos
+  // Validade alinhada à janela de 9 horas de inatividade.
   const payloadData = {
     sub: email,
     role: role || 'suporte',
     uid: userId,
     iat: Math.floor(now / 1000),
-    exp: Math.floor((now + 8 * 60 * 60 * 1000) / 1000),
+    exp: Math.floor((now + SESSION_DURATION_SECONDS * 1000) / 1000),
   };
   const payload = base64UrlEncode(JSON.stringify(payloadData));
   const dataToSign = `${header}.${payload}`;

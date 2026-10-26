@@ -83,6 +83,7 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
   const [tituloProblema, setTituloProblema] = useState('');
   const [codigoErro, setCodigoErro] = useState('');
   const [passos, setPassos] = useState('');
+  const [relatoProblema, setRelatoProblema] = useState('');
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
 
@@ -91,6 +92,7 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
     const cfg = getConfiguracoesSuporte();
     setConfig(cfg);
     setDesfecho('resolvido');
+    setRelatoProblema(chamado.observacao_inicial || '');
     // Mais usadas primeiro, para que a escolha comum esteja sempre à vista
     const ordenarCategorias = () => {
       const uso = new Map();
@@ -98,9 +100,12 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
         String(h?.motivo || '').split(',').map((m) => normalizarBusca(m.trim())).filter(Boolean).forEach((m) => uso.set(m, (uso.get(m) || 0) + 1));
       });
       const nomes = [...new Set(getMotivosSuporte().map((m) => (m.nome || '').trim()).filter(Boolean))];
+      setCategoria((atual) => atual?.nova || nomes.includes(atual?.nome) ? atual : null);
       setCategorias(nomes.sort((a, b) => (uso.get(normalizarBusca(b)) || 0) - (uso.get(normalizarBusca(a)) || 0) || a.localeCompare(b, 'pt-BR')));
     };
     ordenarCategorias();
+    window.addEventListener('motivos_updated', ordenarCategorias);
+    window.addEventListener('storage', ordenarCategorias);
     // Categorias são da equipe: busca as atuais no banco (criadas por qualquer pessoa)
     fetchMotivosSuporte().then(ordenarCategorias).catch(() => {});
     setCategoria(null);
@@ -149,6 +154,10 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
     setPassos('');
     setErro('');
     setEnviando(false);
+    return () => {
+      window.removeEventListener('motivos_updated', ordenarCategorias);
+      window.removeEventListener('storage', ordenarCategorias);
+    };
   }, [isOpen, chamado?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const tempoTotal = acumulado + tempoSessao;
@@ -217,6 +226,7 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
         motivo: nomeCategoria || 'Atendimento Geral',
         categorias: chamado?.categorias || [],
         observacoes: passos.trim(),
+        observacao_inicial: relatoProblema.trim(),
         colaborador_solicitante: solicitante?.nome || '',
         atendente,
         userEmail,
@@ -363,6 +373,11 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
                   Categoria do suporte {config.motivo_obrigatorio && <span className="text-red-600 dark:text-red-400">*</span>}
                 </span>
                 <SeletorCategoria rotuloId="cf-categoria" opcoes={categorias} valor={categoria} onMudar={setCategoria} />
+              </div>
+              <div>
+                <label htmlFor="cf-relato" className={classeRotulo}>Relato do problema <span className="font-normal text-slate-500 dark:text-zinc-400">(opcional)</span></label>
+                <textarea id="cf-relato" rows={3} maxLength={4000} value={relatoProblema} onChange={(e) => setRelatoProblema(e.target.value)} placeholder="O que aconteceu com o cliente?" className={`${classeCampo} h-auto py-3 resize-y`} />
+                <p className="mt-1.5 text-xs text-slate-500 dark:text-zinc-400">Fica no histórico da empresa para acompanhar problemas recorrentes.</p>
               </div>
 
               <div>

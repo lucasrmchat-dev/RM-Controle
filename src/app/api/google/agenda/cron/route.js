@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
-import { googleConfigurado, sincronizarTodas, urlPublica } from '@/lib/server/googleAgenda';
+import { googleConfigurado, sincronizarTodasEmpresas, urlPublica } from '@/lib/server/googleAgenda';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -15,6 +15,7 @@ export async function GET(request) {
     return new NextResponse(null, { status: 401 });
   }
   if (!googleConfigurado()) return NextResponse.json({ ok: true, configurado: false });
-  const r = await sincronizarTodas({ renovarCanais: true, urlBase: urlPublica(request) });
-  return NextResponse.json({ ok: true, ...r });
+  // Cada empresa que conectou o Google Agenda é sincronizada com as próprias contas
+  const empresas = await sincronizarTodasEmpresas({ renovarCanais: true, urlBase: urlPublica(request) });
+  return NextResponse.json({ ok: true, empresas });
 }

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 
 export const db = {
   tables: { suporte_chamados: [], feedbacks: [], sistema_config: [], empresas: [], auditoria_logs: [], equipe_usuarios: [] },
+  leituras: {},
   // Colunas aceitas por tabela (simula schema sem a migração quando restrito)
   columns: {
     suporte_chamados: null, // null = aceita qualquer coluna
@@ -17,6 +18,7 @@ export const db = {
   // Contas do Supabase Auth simuladas
   authUsers: [],
   reset() {
+    this.leituras = {};
     this.atraso = { select: 0, insert: 0, update: 0 };
     this.rpcs = {};
     this.authUsers = [];
@@ -78,17 +80,21 @@ class Query {
   // Subconjunto do filtro "or" do PostgREST: col.eq.valor, col.eq."valor", col.is.null e and(...)
   or(expr) { this.filters.push(compilarOu(expr)); return this; }
   delete() { this.op = 'delete'; return this; }
-  select(colunas) {
+  select(colunas, opcoes = {}) {
+    this.contagem = opcoes.count ? { cabecalho: Boolean(opcoes.head) } : null;
     if (typeof colunas === 'string' && colunas.trim() !== '*' && !colunas.includes('(')) {
       this.colunas = colunas.split(',').map((c) => c.trim()).filter(Boolean);
     }
     return this;
   }
   eq(col, val) { this.filters.push((r) => r[col] === val); return this; }
+  neq(col, val) { this.filters.push((r) => r[col] !== val); return this; }
   in(col, vals) { this.filters.push((r) => vals.includes(r[col])); return this; }
   ilike(col, val) { this.filters.push((r) => String(r[col] ?? '').toLowerCase() === String(val).toLowerCase()); return this; }
   is(col, val) { this.filters.push((r) => (r[col] ?? null) === val); return this; }
+  not(col, op, val) { this.filters.push((r) => (op === 'is' ? (r[col] ?? null) !== val : r[col] !== val)); return this; }
   order() { return this; }
+  range(inicio, fim) { this.faixa = [inicio, fim]; return this; }
   limit(n) { this.limite = n; return this; }
   maybeSingle() { this.umaLinha = true; return this; }
   single() { this.umaLinha = true; this.exigeLinha = true; return this; }
@@ -96,6 +102,7 @@ class Query {
     const ms = db.atraso[this.op] || 0;
     // O SELECT "fotografa" o banco no início (como a rede real); insert/update aplicam no fim
     if (this.op === 'select') {
+      db.leituras[this.table] = (db.leituras[this.table] || 0) + 1;
       const resultado = this.run();
       return new Promise((r) => setTimeout(() => r(resultado), ms)).then(resolve, reject);
     }
@@ -103,6 +110,10 @@ class Query {
   }
 
   run() {
+    // Banco sem a migração multiempresa (padrão dos testes antigos): as tabelas novas não existem
+    if (['organizacoes', 'sessoes_suporte', 'contratos_organizacao'].includes(this.table) && !(this.table in db.tables)) {
+      return { data: null, error: { code: '42P01', message: `relation "public.${this.table}" does not exist` } };
+    }
     db.tables[this.table] ||= [];
     const rows = db.tables[this.table];
     const match = (r) => this.filters.every((f) => f(r));
@@ -111,6 +122,7 @@ class Query {
     const out = (dadosBrutos) => {
       const data = projetar(dadosBrutos);
       if (this.exigeLinha && data.length !== 1) return { data: null, error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' } };
+      if (this.contagem) return { data: this.contagem.cabecalho ? null : data, count: data.length, error: null };
       return { data: this.umaLinha ? (data[0] ?? null) : data, error: null };
     };
 
@@ -140,6 +152,10 @@ class Query {
       return out(this.payload);
     }
     if (this.op === 'update') {
+      if (cols) {
+        const bad = Object.keys(this.payload).find((k) => !cols.includes(k));
+        if (bad) return { data: null, error: { code: 'PGRST204', message: `Could not find the '${bad}' column of '${this.table}' in the schema cache` } };
+      }
       // RLS bloqueando UPDATE: nenhuma linha afetada, sem erro (comportamento real do PostgREST)
       if (!db.rls.updateAllowed) return out([]);
       const hit = rows.filter(match);
@@ -153,7 +169,8 @@ class Query {
       return out(hit);
     }
     const encontrados = rows.filter(match).map((r) => ({ ...r }));
-    return out(this.limite ? encontrados.slice(0, this.limite) : encontrados);
+    const paginados = this.faixa ? encontrados.slice(this.faixa[0], this.faixa[1] + 1) : encontrados;
+    return out(this.limite ? paginados.slice(0, this.limite) : paginados);
   }
 }
 

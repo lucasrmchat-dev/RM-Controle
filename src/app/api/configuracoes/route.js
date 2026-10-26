@@ -1,6 +1,7 @@
-import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
-import { obterPapelServidor } from '@/lib/server/acesso';
-import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
+import { validarConfigComercial } from '@/lib/comercial';
+import { contextoDaRequisicao } from '@/lib/server/organizacao';
+import { validarModelosTitulosAgenda } from '@/lib/titulosAgenda';
+import { validarConfigFeedbacks } from '@/lib/feedbacks';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +27,9 @@ function urlValida(valor) {
 
 // chave -> quem lê, quem grava e como validar
 const CHAVES = {
+  comercial: { ler: 'equipe', gravar: 'admin', validar: validarConfigComercial },
+  agenda_titulos: { ler: 'equipe', gravar: 'admin', validar: validarModelosTitulosAgenda },
+  feedbacks: { ler: 'equipe', gravar: 'admin', validar: validarConfigFeedbacks },
   servidores_urls: {
     ler: 'equipe',
     gravar: 'admin',
@@ -91,30 +95,28 @@ function json(corpo, status = 200) {
   return Response.json(corpo, { status });
 }
 
-async function contexto(request) {
-  const sessao = await verifySessionToken(request.cookies.get(SESSION_COOKIE_NAME)?.value);
-  if (!sessao) return { erro: json({ ok: false, mensagem: 'Sessão expirada.' }, 401) };
-  const db = getSupabaseAdmin();
-  if (!db) return { erro: json({ ok: false, mensagem: 'Servidor sem SUPABASE_SERVICE_ROLE_KEY configurada.' }, 503) };
-  return { db, papel: await obterPapelServidor(sessao.sub) };
-}
+// Banco preso à empresa de quem está logado: cada assinante tem as próprias configurações
+const contexto = (request) => contextoDaRequisicao(request);
 
 export async function GET(request) {
   const { erro, db, papel } = await contexto(request);
   if (erro) return erro;
 
-  const comuns = Object.keys(CHAVES).filter((k) => !CHAVES[k].segredo && permitido(papel, CHAVES[k].ler));
+  const chave = new URL(request.url).searchParams.get('chave');
+  if (chave && (!Object.hasOwn(CHAVES, chave) || !permitido(papel, CHAVES[chave].ler))) return json({ ok: false, mensagem: 'Configuração indisponível.' }, 400);
+  const selecionadas = chave ? [chave] : Object.keys(CHAVES);
+  const comuns = selecionadas.filter((k) => !CHAVES[k].segredo && permitido(papel, CHAVES[k].ler));
   const { data, error } = await db.from('sistema_config').select('chave, valor').in('chave', comuns);
   if (error) return json({ ok: false, mensagem: `Não foi possível ler as configurações: ${error.message}` }, 500);
 
   const config = Object.fromEntries((data || []).map((l) => [l.chave, l.valor]));
-  if (permitido(papel, CHAVES.senha_padrao.ler)) {
+  if ((!chave || chave === 'senha_padrao') && permitido(papel, CHAVES.senha_padrao.ler)) {
     const { data: senha, error: erroSegredo } = await db.rpc('rm_ler_segredo', { p_chave: 'senha_padrao' });
     if (!erroSegredo && senha) config.senha_padrao = senha;
   }
   // Chaves ainda não salvas no banco: o navegador pode enviar o valor local (migração inicial)
-  const ausentes = Object.keys(CHAVES).filter((k) => config[k] === undefined && permitido(papel, CHAVES[k].gravar));
-  config.servidores_urls = { ...SERVIDORES_PADRAO, ...(config.servidores_urls || {}) };
+  const ausentes = selecionadas.filter((k) => config[k] === undefined && permitido(papel, CHAVES[k].gravar));
+  if (!chave || chave === 'servidores_urls') config.servidores_urls = { ...SERVIDORES_PADRAO, ...(config.servidores_urls || {}) };
   return json({ ok: true, config, ausentes });
 }
 
@@ -122,7 +124,7 @@ export async function PUT(request) {
   const { erro, db, papel } = await contexto(request);
   if (erro) return erro;
   const body = await request.json().catch(() => ({}));
-  const def = CHAVES[body.chave];
+  const def = Object.hasOwn(CHAVES, body.chave) ? CHAVES[body.chave] : null;
   if (!def) return json({ ok: false, mensagem: 'Configuração desconhecida.' }, 400);
   if (!permitido(papel, def.gravar)) return json({ ok: false, mensagem: 'Seu perfil não pode alterar esta configuração.' }, 403);
 

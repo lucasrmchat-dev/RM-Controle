@@ -11,6 +11,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { buscarEmpresaSemelhante } from '@/lib/empresaMatcher';
+import { bancoDaEmpresaAtual, empresasComConfiguracao, executarNaEmpresa } from '@/lib/server/organizacao';
 
 export const CONFIG_CHAVE = 'integracao_suporte_automatico';
 
@@ -55,12 +56,33 @@ export class ErroIntegracao extends Error {
   }
 }
 
+// Banco preso à empresa da requisição (a assinante dona do token ou de quem está logado)
 function exigirCliente() {
   const db = getSupabaseAdmin();
   if (!db) {
     throw new ErroIntegracao(503, 'servidor_nao_configurado', 'Integração indisponível: SUPABASE_SERVICE_ROLE_KEY não configurada no servidor.');
   }
-  return db;
+  return bancoDaEmpresaAtual(db);
+}
+
+/**
+ * Chamadas externas (chatbot) chegam só com o token: ele identifica a empresa assinante dona da integração.
+ * A rota inteira roda presa a ela; token desconhecido é recusado sem dizer se existe em outra empresa.
+ */
+export async function naEmpresaDoToken(request, fn) {
+  const token = extrairToken(request);
+  if (!token) throw new ErroIntegracao(401, 'token_ausente', 'Envie o token no cabeçalho "Authorization: Bearer <token>".');
+  const db = getSupabaseAdmin();
+  if (!db) throw new ErroIntegracao(503, 'servidor_nao_configurado', 'Integração indisponível: SUPABASE_SERVICE_ROLE_KEY não configurada no servidor.');
+  const recebido = Buffer.from(hashToken(token), 'hex');
+  const empresas = await empresasComConfiguracao(db, CONFIG_CHAVE);
+  const dona = empresas.find((e) => {
+    if (e.organizacao_id === null) return true; // banco ainda sem multiempresa
+    const esperado = Buffer.from(String(e.valor?.token_hash || ''), 'hex');
+    return esperado.length === recebido.length && timingSafeEqual(recebido, esperado);
+  });
+  if (!dona) throw new ErroIntegracao(401, 'token_invalido', 'Token inválido.');
+  return executarNaEmpresa(dona.organizacao_id, fn);
 }
 
 // ------------------------------------------------------------------------------

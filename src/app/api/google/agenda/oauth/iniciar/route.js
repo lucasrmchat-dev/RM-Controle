@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
+import { naEmpresaDaSessao } from '@/lib/server/organizacao';
 import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
 import { obterAcessoServidor } from '@/lib/server/acesso';
 import { normalizarEmail } from '@/lib/roles';
@@ -11,7 +12,7 @@ const COOKIE_OAUTH = 'rm_google_oauth';
 
 // "Conectar Google Agenda": manda a pessoa logada para a tela de autorização do Google.
 // O state assinado + o cookie de uso único amarram a volta do Google a esta pessoa (contra CSRF).
-export async function GET(request) {
+async function tratarGET(request) {
   const voltar = (motivo) => NextResponse.redirect(new URL(`/?google_agenda=erro&motivo=${motivo}`, request.url));
   const sessao = await verifySessionToken(request.cookies.get(SESSION_COOKIE_NAME)?.value);
   if (!sessao?.sub) return voltar('sessao');
@@ -35,3 +36,6 @@ export async function GET(request) {
   });
   return res;
 }
+
+// Tudo nesta rota acontece na empresa de quem está logado
+export const GET = (request) => naEmpresaDaSessao(request, () => tratarGET(request));

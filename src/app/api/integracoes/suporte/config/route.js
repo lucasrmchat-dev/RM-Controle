@@ -1,3 +1,4 @@
+import { naEmpresaDaSessao } from '@/lib/server/organizacao';
 import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
 import { obterPapelServidor } from '@/lib/server/acesso';
 import {
@@ -23,7 +24,7 @@ async function exigirAdministrador(request) {
   return sessao;
 }
 
-export async function GET(request) {
+async function tratarGET(request) {
   try {
     await exigirAdministrador(request);
     return Response.json({ ok: true, config: configPublica(await carregarConfig()) });
@@ -32,7 +33,7 @@ export async function GET(request) {
   }
 }
 
-export async function PUT(request) {
+async function tratarPUT(request) {
   try {
     await exigirAdministrador(request);
     const body = await request.json().catch(() => ({}));
@@ -43,7 +44,7 @@ export async function PUT(request) {
 }
 
 /** POST { acao: 'gerar_token' } | { acao: 'testar', nome, limiar_sugestao?, limiar_automatico? } */
-export async function POST(request) {
+async function tratarPOST(request) {
   try {
     await exigirAdministrador(request);
     const body = await request.json().catch(() => ({}));
@@ -66,3 +67,12 @@ export async function POST(request) {
     return respostaErro(err);
   }
 }
+
+// Configuração da integração da empresa de quem está logado
+export const GET = (request) => naEmpresaDaSessao(request, () => tratarGET(request));
+
+// Configuração da integração da empresa de quem está logado
+export const PUT = (request) => naEmpresaDaSessao(request, () => tratarPUT(request));
+
+// Configuração da integração da empresa de quem está logado
+export const POST = (request) => naEmpresaDaSessao(request, () => tratarPOST(request));

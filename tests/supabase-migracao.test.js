@@ -322,3 +322,45 @@ test('tela de equipe mostra exatamente quem está no banco (não completa com a 
   await storage.fetchEquipeUsuarios();
   assert.deepEqual(storage.getEquipeUsuarios().map((u) => u.email), ['teste@rmchat.com']);
 });
+
+import { sugestaoTituloReuniao, resolverTituloReuniao, validarModelosTitulosAgenda } from '../src/lib/titulosAgenda.js';
+test('título sugerido usa departamento e cliente, com prioridade para o título personalizado', () => {
+  const modelos = { Vendas: 'Apresentação comercial · {cliente}', Suporte: '{departamento}: acompanhamento de {cliente}' };
+  assert.equal(sugestaoTituloReuniao('Vendas', 'Empresa Sol', modelos), 'Apresentação comercial · Empresa Sol');
+  assert.equal(resolverTituloReuniao({ titulo: '', departamento: 'Vendas', cliente: 'Empresa Sol', modelos }), 'Apresentação comercial · Empresa Sol');
+  assert.equal(resolverTituloReuniao({ titulo: 'Título já editado', departamento: 'Vendas', cliente: 'Empresa Sol', modelos }), 'Título já editado');
+  assert.equal(sugestaoTituloReuniao('Suporte', 'Ana $&', modelos), 'Suporte: acompanhamento de Ana $&');
+  assert.equal(sugestaoTituloReuniao('Financeiro', 'Empresa Sol', modelos), 'Financeiro · Reunião com Empresa Sol');
+  assert.equal(sugestaoTituloReuniao('', 'Empresa Sol', modelos), '');
+  assert.equal(sugestaoTituloReuniao('Suporte', '', modelos), '');
+  assert.equal(sugestaoTituloReuniao(' vendas ', 'Outro cliente', modelos), 'Apresentação comercial · Outro cliente');
+});
+
+test('modelos de reunião validam variáveis e deixam modelos vazios usarem o padrão', () => {
+  assert.deepEqual(validarModelosTitulosAgenda({ Suporte: '' }), {});
+  assert.throws(() => validarModelosTitulosAgenda({ Vendas: 'Sem nome de cliente' }), /Inclua/);
+  assert.throws(() => validarModelosTitulosAgenda({ Vendas: '{cliente} · {senha}' }), /apenas as variáveis/);
+  assert.throws(() => validarModelosTitulosAgenda({ Vendas: '{cliente} · {departamento' }), /apenas as variáveis/);
+  assert.throws(() => validarModelosTitulosAgenda({ Vendas: '{cliente}', vendas: '{cliente}' }), /repetidos/);
+});
+
+test('modelos de reunião são compartilhados com a equipe e só administrador pode alterar', async () => {
+  await storage.salvarModelosTitulosAgenda({ Vendas: 'Demonstração para {cliente}' });
+  trocarDeNavegador();
+  usuarioLogado = 'maria@rmchat.com';
+  assert.deepEqual(await storage.fetchModelosTitulosAgenda(), { Vendas: 'Demonstração para {cliente}' });
+  await assert.rejects(() => storage.salvarModelosTitulosAgenda({ Vendas: 'Mudança · {cliente}' }), /não pode alterar/);
+  assert.equal(storage.getModelosTitulosAgenda().Vendas, 'Demonstração para {cliente}');
+  assert.equal(db.tables.sistema_config.find((c) => c.chave === 'agenda_titulos').valor.Vendas, 'Demonstração para {cliente}');
+});
+
+test('leitura dos modelos da agenda não carrega senhas nem outras configurações', async () => {
+  db.tables.sistema_config = [{ chave: 'agenda_titulos', valor: { Vendas: 'Reunião · {cliente}' } }, { chave: 'departamentos', valor: ['Vendas'] }];
+  let acessouSegredo = false;
+  db.rpcs.rm_ler_segredo = () => { acessouSegredo = true; return 'não deve ser lido'; };
+  const r = await fetch('/api/configuracoes?chave=agenda_titulos');
+  assert.equal(r.status, 200);
+  const { config } = await r.json();
+  assert.deepEqual(Object.keys(config), ['agenda_titulos']);
+  assert.equal(acessouSegredo, false);
+});

@@ -42,6 +42,18 @@ export async function middleware(request) {
     }
   }
 
+  // 2.2 Página pública de confirmação de reunião (clientes sem login): limite próprio por IP
+  if (pathname.startsWith('/api/publico/') || pathname.startsWith('/r/')) {
+    const publicoCheck = globalRateLimiter.check(`publico_${clientIp}`, 40, 60000);
+    if (!publicoCheck.success) {
+      return new NextResponse(JSON.stringify({ ok: false, mensagem: 'Muitas tentativas. Aguarde um minuto.' }), {
+        status: 429,
+        headers: { 'Content-Type': 'application/json', 'Retry-After': Math.ceil(publicoCheck.resetMs / 1000).toString() },
+      });
+    }
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+  }
+
   // 3. Validação de Rotas Protegidas de API
   // APIs internas que exigem sessão ativa (ex: /api/calendar)
   if (pathname.startsWith('/api/calendar')) {

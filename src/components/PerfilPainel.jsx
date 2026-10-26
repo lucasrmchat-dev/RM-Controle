@@ -1,10 +1,11 @@
 'use client';
 
 import React from 'react';
+import { SESSION_DURATION_SECONDS, formatarTempoSessao } from '@/lib/sessionPolicy';
 import { motion } from 'framer-motion';
 
 const MOLA = { type: 'spring', bounce: 0.18, duration: 0.42 };
-const LIMITE_SESSAO = 30 * 60;
+const LIMITE_SESSAO = SESSION_DURATION_SECONDS;
 
 const iniciais = (nome) =>
   String(nome || '?')
@@ -104,8 +105,7 @@ export default function PerfilPainel({
   onDemo,
   onSair,
 }) {
-  const minutos = Math.floor(segundosRestantes / 60);
-  const segundos = String(segundosRestantes % 60).padStart(2, '0');
+  const relogio = formatarTempoSessao(segundosRestantes);
   const fracao = Math.max(0, Math.min(1, segundosRestantes / LIMITE_SESSAO));
   const ehAdmin = podeSimular;
   const folha = modo === 'sheet';
@@ -147,7 +147,7 @@ export default function PerfilPainel({
         <div className="flex items-center justify-between text-[12px]">
           <span className="text-slate-500 dark:text-zinc-400">Sessão encerra por inatividade em</span>
           <span className="font-medium tabular-nums">
-            {minutos}:{segundos}
+            {relogio}
           </span>
         </div>
         <div className="mt-1.5 h-1 rounded-full bg-black/[0.07] dark:bg-white/[0.1] overflow-hidden">

@@ -20,6 +20,7 @@
  */
 import crypto from 'crypto';
 import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
+import { bancoDaEmpresaAtual, empresasComConfiguracao, executarNaEmpresa } from '@/lib/server/organizacao';
 
 export const CHAVE_CONFIG = 'google_agenda';
 const CHAVE_TOKENS = 'google_agenda_tokens';
@@ -271,8 +272,8 @@ export function lerDescricao(descricao) {
     .slice(i + MARCA_RM.length)
     .split('\n')
     .forEach((linha) => {
-      const m = linha.match(/^\s*(Responsável|Empresa):\s*(.+?)\s*$/);
-      if (m) campos[m[1] === 'Responsável' ? 'responsavel' : 'empresa'] = m[2];
+      const m = linha.match(/^\s*(Responsável|Empresa|Departamento|Cliente|Parceiro):\s*(.+?)\s*$/);
+      if (m) campos[{ 'Responsável': 'responsavel', Empresa: 'empresa', Departamento: 'departamento', Cliente: 'cliente', Parceiro: 'parceiro' }[m[1]]] = m[2];
     });
   return { observacoes: texto.slice(0, i).trim(), campos };
 }
@@ -316,6 +317,10 @@ export function googleParaLinha(ev, conta, existente = null) {
   return {
     titulo: (ev.summary || '(Sem título)').trim().slice(0, 300),
     empresa: priv.rm_empresa ?? campos.empresa ?? existente?.empresa ?? (ev.location && !/^https?:\/\//.test(ev.location) ? ev.location.slice(0, 200) : ''),
+    empresa_id: (priv.rm_empresa_id ?? existente?.empresa_id) || null,
+    participante_tipo: (priv.rm_participante_tipo ?? existente?.participante_tipo ?? (campos.parceiro ? 'parceiro' : campos.cliente ? 'cliente_novo' : null)) || null,
+    participante_nome: (priv.rm_participante_nome ?? campos.parceiro ?? campos.cliente ?? existente?.participante_nome) || null,
+    departamento: (priv.rm_departamento ?? campos.departamento ?? existente?.departamento) || null,
     data,
     hora_inicio: horaInicio,
     hora_fim: horaFim,
@@ -340,6 +345,8 @@ export function googleParaLinha(ev, conta, existente = null) {
 /** Linha de agenda_eventos → corpo de evento do Google (com o responsável no fim da descrição). */
 export function linhaParaGoogle(linha, { gerarMeet = false } = {}) {
   const bloco = [
+    ['cliente_novo', 'parceiro'].includes(linha.participante_tipo) && linha.participante_nome ? `${linha.participante_tipo === 'parceiro' ? 'Parceiro' : 'Cliente'}: ${linha.participante_nome}` : '',
+    linha.departamento ? `Departamento: ${linha.departamento}` : '',
     linha.responsavel_nome || linha.responsavel_email ? `Responsável: ${linha.responsavel_nome || linha.responsavel_email}` : '',
     linha.empresa && linha.empresa !== 'Cliente Geral' ? `Empresa: ${linha.empresa}` : '',
   ].filter(Boolean);
@@ -353,6 +360,10 @@ export function linhaParaGoogle(linha, { gerarMeet = false } = {}) {
     extendedProperties: {
       private: {
         rm_id: String(linha.id),
+        rm_empresa_id: linha.empresa_id || '',
+        rm_participante_tipo: linha.participante_tipo || '',
+        rm_participante_nome: linha.participante_nome || '',
+        rm_departamento: linha.departamento || '',
         rm_responsavel_email: linha.responsavel_email || '',
         rm_responsavel_nome: linha.responsavel_nome || '',
         rm_empresa: linha.empresa && linha.empresa !== 'Cliente Geral' ? linha.empresa : '',
@@ -380,10 +391,11 @@ export function linhaParaGoogle(linha, { gerarMeet = false } = {}) {
 // ------------------------------------------------------------------------------
 const CONFIG_PADRAO = { canais: {}, ultima_sincronizacao: null, erros: {} };
 
+// Banco preso à empresa da requisição (cada assinante conecta as próprias agendas do Google)
 function db() {
   const cliente = getSupabaseAdmin();
   if (!cliente) throw new ErroGoogle('sem_banco', 'SUPABASE_SERVICE_ROLE_KEY não configurada no servidor.');
-  return cliente;
+  return bancoDaEmpresaAtual(cliente);
 }
 
 export async function carregarConfigGoogle() {
@@ -651,11 +663,15 @@ export async function sincronizarConta(conta, fetchImpl = fetch) {
     const existente = porGoogleId.get(ev.id) || (rmId && porId.get(rmId)) || null;
     if (existente) vinculados.add(String(existente.id));
     const linha = googleParaLinha(ev, conta, existente);
-    // Sem mudança no Google, só regrava se o responsável calculado mudou (ex.: regra nova de agendas da equipe)
+    // Sem mudança no Google, ainda reconcilia o responsável e o departamento calculados.
     const semMudanca = existente && existente.google_atualizado_em && ev.updated && new Date(existente.google_atualizado_em).getTime() >= new Date(ev.updated).getTime();
-    if (semMudanca && (existente.responsavel_email || null) === linha.responsavel_email) continue;
-    if (existente) atualizados.push({ id: existente.id, ...linha });
-    else novos.push(linha);
+    if (semMudanca && (existente.responsavel_email || null) === linha.responsavel_email && (existente.departamento || null) === linha.departamento) continue;
+    if (existente) {
+      // O desfecho é operacional do RM: um pull iniciado antes da conclusão não pode desfazê-la.
+      const camposGoogle = { ...linha };
+      delete camposGoogle.status;
+      atualizados.push({ id: existente.id, ...camposGoogle });
+    } else novos.push(linha);
   }
 
   // Apagados no Google (ou fora da agenda): somem do sistema
@@ -713,10 +729,22 @@ export async function sincronizarTodas({ fetchImpl = fetch, renovarCanais = fals
 // Sistema → Google
 // ------------------------------------------------------------------------------
 async function enviarParaGoogle(linha, conta, fetchImpl = fetch, { gerarMeet = false } = {}) {
-  const corpo = linhaParaGoogle(linha, { gerarMeet });
+  // Identificador derivado do registro, com caracteres aceitos pelo Google. O mesmo registro,
+  // mesmo em instâncias diferentes ou após timeout, sempre aponta ao mesmo evento.
+  const eventId = 'rm' + crypto.createHash('sha256').update(String(linha.id)).digest('hex');
+  const corpo = { ...linhaParaGoogle(linha, { gerarMeet }), id: eventId };
+  if (gerarMeet) corpo.conferenceData.createRequest.requestId = eventId;
   const caminho = `/calendars/${encodeURIComponent(conta.calendar_id)}/events`;
-  const ev = await chamarApi(conta, caminho, { metodo: 'POST', corpo, consulta: gerarMeet ? { conferenceDataVersion: 1 } : undefined }, fetchImpl);
-  await db()
+  let ev;
+  try {
+    ev = await chamarApi(conta, caminho, { metodo: 'POST', corpo, consulta: gerarMeet ? { conferenceDataVersion: 1 } : undefined }, fetchImpl);
+  } catch (e) {
+    if (e.status !== 409) throw e;
+    // Outro envio já concluiu; recupera o vínculo sem criar uma segunda reunião.
+    ev = await chamarApi(conta, `${caminho}/${eventId}`, {}, fetchImpl);
+    if (ev.extendedProperties?.private?.rm_id !== String(linha.id)) throw new ErroGoogle('conflito', 'O evento do Google não corresponde a esta reunião.');
+  }
+  const { error } = await db()
     .from('agenda_eventos')
     .update({
       google_event_id: ev.id,
@@ -726,6 +754,7 @@ async function enviarParaGoogle(linha, conta, fetchImpl = fetch, { gerarMeet = f
       ...(gerarMeet && ev.hangoutLink ? { link_reuniao: ev.hangoutLink } : {}),
     })
     .eq('id', linha.id);
+  if (error) throw new ErroGoogle('banco', 'Evento criado no Google, mas o vínculo não foi salvo. A próxima sincronização tentará recuperar o mesmo evento.');
   return ev;
 }
 
@@ -818,6 +847,31 @@ async function garantirCanal(config, conta, urlBase, fetchImpl = fetch) {
   if (atual?.id && atual?.resource_id) {
     await chamarApi(conta, '/channels/stop', { metodo: 'POST', corpo: { id: atual.id, resourceId: atual.resource_id } }, fetchImpl).catch(() => {});
   }
+}
+
+/** Sincroniza o Google Agenda de todas as empresas que o conectaram (tarefa agendada). */
+export async function sincronizarTodasEmpresas(opcoes = {}) {
+  const cliente = getSupabaseAdmin();
+  if (!cliente) throw new ErroGoogle('sem_banco', 'SUPABASE_SERVICE_ROLE_KEY não configurada no servidor.');
+  const empresas = await empresasComConfiguracao(cliente, CHAVE_TOKENS);
+  const resultado = {};
+  for (const { organizacao_id: org } of empresas) {
+    try {
+      resultado[org || 'principal'] = await executarNaEmpresa(org, () => sincronizarTodas(opcoes));
+    } catch (e) {
+      resultado[org || 'principal'] = { erro: e.message };
+    }
+  }
+  return resultado;
+}
+
+/** Empresa dona de um canal de avisos do Google (o aviso chega sem usuário logado). */
+export async function empresaDoCanal(canalId) {
+  const cliente = getSupabaseAdmin();
+  if (!cliente) return null;
+  const empresas = await empresasComConfiguracao(cliente, CHAVE_CONFIG);
+  const dona = empresas.find((e) => Object.values(e.valor?.canais || {}).some((c) => c?.id === canalId));
+  return dona ? dona.organizacao_id : null;
 }
 
 /** Qual conta um aviso do Google se refere (pelo id do canal). */

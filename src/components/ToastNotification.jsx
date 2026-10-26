@@ -77,7 +77,7 @@ export default function ToastContainer() {
     <div
       aria-live="polite"
       aria-relevant="additions"
-      className="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-sm pointer-events-none"
+      className="fixed bottom-[152px] right-4 md:bottom-[92px] md:right-6 z-50 flex flex-col gap-2.5 max-w-sm pointer-events-none"
     >
       <AnimatePresence>
         {toasts.map((toast) => {
