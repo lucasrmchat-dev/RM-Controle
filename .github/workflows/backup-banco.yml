@@ -1,0 +1,77 @@
+name: 💾 Cópia diária do banco
+
+# Cópia completa do banco do Supabase, cifrada com uma senha que só o dono tem.
+# Como configurar e como restaurar: docs/backup-banco.md
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # todo dia às 03:00 de Brasília
+  workflow_dispatch: # e quando quiser, pelo botão "Run workflow"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-banco
+  cancel-in-progress: false
+
+jobs:
+  copia:
+    name: Copiar e cifrar
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SENHA: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - name: Conferir os segredos
+        run: |
+          test -n "$DB_URL" || { echo "::error::Falta o segredo SUPABASE_DB_URL (veja docs/backup-banco.md)"; exit 1; }
+          test ${#SENHA} -ge 16 || { echo "::error::O segredo BACKUP_PASSPHRASE precisa ter pelo menos 16 caracteres"; exit 1; }
+
+      - name: Instalar o cliente do Postgres 17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17 > /dev/null
+
+      - name: Copiar o banco
+        run: |
+          set -euo pipefail
+          umask 077
+          PG=/usr/lib/postgresql/17/bin
+          mkdir copia
+
+          echo "Banco: $($PG/psql "$DB_URL" -At -c 'show server_version')"
+
+          # Todo o sistema: tabelas, regras de acesso, funções e dados (restaura com pg_restore)
+          $PG/pg_dump "$DB_URL" --schema=public --format=custom --no-owner --file=copia/sistema.dump
+
+          # Contas de login (Supabase Auth): só os dados
+          if ! $PG/pg_dump "$DB_URL" --data-only --table=auth.users --table=auth.identities --format=custom --file=copia/logins.dump; then
+            echo "::warning::Não foi possível copiar as contas de login; o resto da cópia continua."
+            rm -f copia/logins.dump
+          fi
+
+          # Chave que cifra as senhas das empresas clientes: sem ela, essas senhas não abrem num banco novo
+          if ! $PG/psql "$DB_URL" -At -c "select decrypted_secret from vault.decrypted_secrets where name = 'rm_chave_dados'" > copia/chave_dados.txt; then
+            echo "::warning::Não foi possível copiar a chave das senhas das empresas."
+            rm -f copia/chave_dados.txt
+          fi
+
+          date -u +%FT%TZ > copia/gerada_em.txt
+          tar -czf copia.tar.gz copia
+          printf '%s' "$SENHA" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 --output rm-controle-banco.tar.gz.gpg copia.tar.gz
+          rm -rf copia copia.tar.gz
+          echo "Cópia cifrada: $(du -h rm-controle-banco.tar.gz.gpg | cut -f1)"
+
+      - name: Guardar por 30 dias
+        uses: actions/upload-artifact@v4
+        with:
+          name: banco-${{ github.run_number }}-${{ github.run_attempt }}
+          path: rm-controle-banco.tar.gz.gpg
+          retention-days: 30
+          if-no-files-found: error

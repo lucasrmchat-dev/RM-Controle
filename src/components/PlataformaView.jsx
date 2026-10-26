@@ -556,7 +556,9 @@ export default function PlataformaView() {
                       ))}
                     </div>
                     <div className="mt-4 pt-3 border-t border-black/[0.06] dark:border-white/[0.08] flex items-center gap-2">
-                      {o.tipo === 'assinante' && o.status === 'ativa' && (
+                      {o.id === dados.minhaOrganizacao ? (
+                        <span className="h-9 px-3.5 rounded-full text-[13px] font-medium bg-[#4d7c0f]/10 text-[#4d7c0f] dark:text-[#a3e635] inline-flex items-center">Sua empresa</span>
+                      ) : o.tipo === 'assinante' && o.status === 'ativa' && (
                         <button type="button" onClick={() => setSuporte(o)} className="h-9 px-3.5 rounded-full text-[13px] font-semibold bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] cursor-pointer">
                           Entrar para suporte
                         </button>

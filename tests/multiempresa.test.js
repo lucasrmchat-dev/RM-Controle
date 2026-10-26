@@ -203,3 +203,13 @@ test('regras de plano e contrato', () => {
   const c = consumo({ usuarios: 3 }, { usuarios: 3 });
   assert.equal(c[0].esgotado, true);
 });
+
+test('ninguém suspende a própria empresa', async () => {
+  const r = await acaoPlataforma(await req('POST', '/api/plataforma', 'rui@agencia.com', { acao: 'status', id: C, status: 'suspensa' }));
+  assert.equal(r.status, 200, 'revenda suspende a assinante dela');
+  db.tables.organizacoes.find((o) => o.id === C).status = 'ativa';
+  db.tables.rm_admins_proprietarios = [{ email: 'lucas@rmchat.com', organizacao_id: A }];
+  const propria = await acaoPlataforma(await req('POST', '/api/plataforma', 'lucas@rmchat.com', { acao: 'status', id: A, status: 'suspensa' }));
+  assert.equal(propria.status, 400);
+  assert.equal(db.tables.organizacoes.find((o) => o.id === A).status, 'ativa');
+});

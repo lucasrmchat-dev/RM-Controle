@@ -2,7 +2,7 @@ import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
 import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
 import { garantirContaAuth, removerContaAuth } from '@/lib/server/acesso';
 import { consumirLimite, ipDaRequisicao } from '@/lib/server/protecao';
-import { escopo, mensagemLimite, perfilDeGestao, podeGerir, ORG_PLATAFORMA } from '@/lib/server/organizacao';
+import { escopo, mensagemLimite, organizacaoAtual, perfilDeGestao, podeGerir, ORG_PLATAFORMA } from '@/lib/server/organizacao';
 import { listaAdministradores, normalizarEmail } from '@/lib/roles';
 import { isValidUUID, sanitizeEmail, SENHA_MAX } from '@/lib/sanitize';
 import { validarContrato, validarLimites, validarOrganizacao } from '@/lib/plataforma';
@@ -76,7 +76,9 @@ export async function GET(request) {
     }))
   );
   const { data: sessao } = await db.from('sessoes_suporte').select('organizacao_id, expira_em').eq('email', email).maybeSingle();
-  return json({ ok: true, gestao: { nivel: gestao.nivel }, organizacoes, suporte: sessao && new Date(sessao.expira_em) > new Date() ? sessao : null });
+  // Empresa em que a pessoa trabalha (não faz sentido "entrar para suporte" nela)
+  const atual = await organizacaoAtual(db, email).catch(() => null);
+  return json({ ok: true, gestao: { nivel: gestao.nivel }, organizacoes, minhaOrganizacao: atual?.origem || atual?.id || null, suporte: sessao && new Date(sessao.expira_em) > new Date() ? sessao : null });
 }
 
 function validarSenhaInicial(senha) {
@@ -166,6 +168,11 @@ export async function POST(request) {
 
     if (body.acao === 'status') {
       if (!['ativa', 'suspensa', 'cancelada'].includes(body.status)) return json({ ok: false, mensagem: 'Situação inválida.' }, 400);
+      // A própria empresa não pode ser suspensa por quem está nela (cortaria o acesso da própria equipe)
+      const atual = await organizacaoAtual(db, email).catch(() => null);
+      if (body.status !== 'ativa' && [atual?.origem, atual?.id].includes(org.id)) {
+        return json({ ok: false, mensagem: 'Você não pode suspender ou cancelar a empresa em que trabalha.' }, 400);
+      }
       const motivo = String(body.motivo || '').trim().slice(0, 300) || null;
       const { data, error } = await db.from('organizacoes').update({ status: body.status, motivo_status: motivo, atualizado_em: new Date().toISOString() }).eq('id', org.id).select('*').single();
       if (error) return json({ ok: false, mensagem: error.message }, 400);
