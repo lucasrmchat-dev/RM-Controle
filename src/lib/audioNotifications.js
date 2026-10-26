@@ -1,6 +1,6 @@
 /**
  * Sistema de Notificações Sonoras com Web Audio API
- * Sem dependência de arquivos externos (100% autônomo, confiável e nativo do navegador)
+ * Sem dependência de arqudssdivos externos (100% autônomo, confiável e nativo do navegador)
  */
 import { permissoesEfetivas, podeVerDemanda } from './perfis';
 
