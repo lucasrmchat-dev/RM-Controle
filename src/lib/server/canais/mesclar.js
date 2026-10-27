@@ -2,7 +2,7 @@
  * Mesclar canais: o histórico de um canal antigo (que deu problema e foi refeito) passa para o canal novo
  * do MESMO número. Nada se perde: as conversas mudam de canal e, quando o mesmo contato tem conversa
  * aberta nos dois, as mensagens da antiga entram na nova (a antiga, vazia, sai; a auditoria dela continua
- * na linha do tempo da nova, pelo registro "chat_mesclou").
+ * na linha do tempo da nova, pelo registro "chat_mesclou"). O canal antigo é excluído no fim.
  */
 import { telefoneCanonico } from '@/lib/canais';
 import { auditarChat } from './chat';
@@ -63,22 +63,12 @@ export async function mesclarCanais(db, perm, origem, destino) {
     juntadas += 1;
   }
 
-  // Conexão antiga ainda aberta no WhatsApp: desliga (sem isso ela seguiria recebendo em paralelo)
-  let status = origem.status;
-  if (origem.status === 'conectado') {
-    await provedorDo(origem)
-      .desconectar(origem, segredosDo(origem))
-      .then(() => {
-        status = 'desconectado';
-      })
-      .catch(() => {});
+  // O canal antigo, já vazio, sai de vez (com a conexão dele no WhatsApp); a mescla fica no histórico do novo
+  await provedorDo(origem).remover?.(origem, segredosDo(origem)).catch(() => {});
+  const { error: erroExcluir } = await db.from('canais').delete().eq('id', origem.id);
+  if (erroExcluir) {
+    // Se algo ainda prender o canal, ao menos fica desativado
+    await db.from('canais').update({ ativo: false, config: { ...(origem.config || {}), mesclado_em: destino.id, desativado_em: new Date().toISOString() } }).eq('id', origem.id);
   }
-  // O canal antigo fica desativado e vazio (pode ser excluído depois)
-  const { data: antigo } = await db
-    .from('canais')
-    .update({ ativo: false, status, config: { ...(origem.config || {}), mesclado_em: destino.id }, atualizado_em: new Date().toISOString() })
-    .eq('id', origem.id)
-    .select('*')
-    .single();
-  return { movidas, juntadas, origem: antigo || origem };
+  return { movidas, juntadas, excluido: !erroExcluir };
 }

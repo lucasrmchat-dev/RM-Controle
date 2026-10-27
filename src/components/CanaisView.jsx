@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { acaoCanal, criarCanal, editarCanal, excluirCanal, fetchCanais, getCategoriasDemandas } from '@/lib/storage';
+import { acaoCanal, criarCanal, editarCanal, excluirCanal, fetchCanais, fetchHistoricoCanal, getCategoriasDemandas, salvarLimpezaCanais } from '@/lib/storage';
 import { STATUS_CANAL, TIPOS_CANAL, telefoneCanonico } from '@/lib/canais';
 import { formatarTelefone } from '@/lib/whatsappAgenda';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -443,7 +443,7 @@ function MesclarCanalModal({ canal, canais, onFechar, onMesclado }) {
     setErro('');
     try {
       const r = await acaoCanal(canal.id, { acao: 'mesclar', origem });
-      onMesclado(r.origem);
+      onMesclado(origem);
       showToast(`Histórico trazido: ${r.movidas + r.juntadas} conversa${r.movidas + r.juntadas === 1 ? '' : 's'}${r.juntadas ? ` (${r.juntadas} juntada${r.juntadas === 1 ? '' : 's'} com a conversa aberta)` : ''}.`, 'success');
       onFechar();
     } catch (e) {
@@ -497,7 +497,7 @@ function MesclarCanalModal({ canal, canais, onFechar, onMesclado }) {
             <ul className="text-[12.5px] leading-relaxed text-slate-500 dark:text-zinc-400 list-disc pl-4 space-y-1">
               <li>As conversas do canal antigo passam para {canal?.nome}, com todas as mensagens, arquivos e responsáveis.</li>
               <li>Se o mesmo contato tem conversa aberta nos dois, as mensagens viram uma conversa só.</li>
-              <li>O canal antigo fica desativado e vazio; depois você pode excluí-lo. Isso não pode ser desfeito.</li>
+              <li>O canal antigo some da lista (a conexão dele é removida) e a mescla fica registrada no histórico deste canal. Isso não pode ser desfeito.</li>
             </ul>
           </>
         )}
@@ -506,10 +506,77 @@ function MesclarCanalModal({ canal, canais, onFechar, onMesclado }) {
   );
 }
 
+const ROTULO_HISTORICO = {
+  canal_criou: 'criou o canal',
+  canal_editou: 'editou o canal',
+  canal_conectou: 'conectou (QR Code / token)',
+  canal_desconectou: 'desconectou',
+  canal_reiniciou: 'reiniciou a conexão',
+  canal_ativou: 'ativou o canal',
+  canal_desativou: 'desativou o canal',
+  canal_mesclou: 'mesclou um canal antigo',
+};
+const COR_HISTORICO = { canal_mesclou: 'bg-teal-500', canal_desativou: 'bg-rose-500', canal_desconectou: 'bg-rose-400', canal_ativou: 'bg-emerald-500', canal_conectou: 'bg-emerald-500', canal_criou: 'bg-rm-acento' };
+
+function detalheHistorico(e) {
+  const d = e.detalhes || {};
+  if (e.acao === 'canal_mesclou') return `De "${d.de}"${d.de_numero ? ` (${formatarTelefone(d.de_numero)})` : ''}: ${d.movidas || 0} conversa${d.movidas === 1 ? '' : 's'} trazida${d.movidas === 1 ? '' : 's'}${d.juntadas ? `, ${d.juntadas} juntada${d.juntadas === 1 ? '' : 's'} com a conversa aberta` : ''}.`;
+  if (e.acao === 'canal_editou' && d.mudancas) {
+    return Object.entries(d.mudancas)
+      .map(([campo, v]) => (typeof v === 'string' ? `Grupos: ${v}` : `${campo === 'nome' ? 'Nome' : 'Departamento'}: ${v.de} → ${v.para}`))
+      .join(' · ');
+  }
+  if (e.acao === 'canal_criou') return d.nome ? `Como "${d.nome}"` : '';
+  return '';
+}
+
+/** Linha do tempo do canal: quem fez o quê e quando (inclui as mesclas com canais antigos). */
+function HistoricoCanalModal({ canal, onFechar }) {
+  const [eventos, setEventos] = useState(null);
+  const [erro, setErro] = useState('');
+  useEffect(() => {
+    if (!canal) return;
+    setEventos(null);
+    setErro('');
+    fetchHistoricoCanal(canal.id)
+      .then((r) => setEventos(r.historico))
+      .catch((e) => setErro(e.message));
+  }, [canal]);
+  return (
+    <ModalEtapas aberto={Boolean(canal)} onFechar={onFechar} largura="max-w-md" idTitulo="historico-canal-titulo" titulo="Histórico do canal" subtitulo={canal ? `${canal.nome}${canal.numero ? ` · ${formatarTelefone(canal.numero)}` : ''}` : ''}>
+      {erro ? (
+        <p className="text-[13px] text-rose-600">{erro}</p>
+      ) : !eventos ? (
+        <div className="py-8 flex justify-center text-slate-400">
+          <Spinner />
+        </div>
+      ) : eventos.length === 0 ? (
+        <p className="py-6 text-center text-[13px] text-slate-500 dark:text-zinc-400">Nada registrado ainda. As próximas mudanças aparecem aqui.</p>
+      ) : (
+        <ol className="relative">
+          {eventos.map((e, i) => (
+            <li key={e.id} className="relative flex gap-3 pb-4 last:pb-0">
+              {i < eventos.length - 1 && <span className="absolute left-[5px] top-4 bottom-0 w-px bg-black/[0.08] dark:bg-white/[0.1]" />}
+              <span className={`relative mt-1.5 w-[11px] h-[11px] rounded-full flex-shrink-0 ${COR_HISTORICO[e.acao] || 'bg-slate-400'}`} />
+              <div className="min-w-0">
+                <p className="text-[13.5px]">
+                  <span className="font-semibold">{e.quem}</span> {ROTULO_HISTORICO[e.acao] || e.acao}
+                </p>
+                {detalheHistorico(e) && <p className="text-[12.5px] text-slate-500 dark:text-zinc-400">{detalheHistorico(e)}</p>}
+                <p className="text-[11.5px] text-slate-400 dark:text-zinc-500 mt-0.5">{new Date(e.em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </ModalEtapas>
+  );
+}
+
 // ------------------------------------------------------------------------------
 // Tela
 // ------------------------------------------------------------------------------
-function CartaoCanal({ canal, admin, onConectar, onAtualizado, onTestar, onRemovido, onEditar, onMesclar, podeMesclar }) {
+function CartaoCanal({ canal, admin, onConectar, onAtualizado, onTestar, onRemovido, onEditar, onMesclar, onHistorico, podeMesclar }) {
   const [ocupado, setOcupado] = useState(null);
   const st = STATUS_CANAL[canal.status] || STATUS_CANAL.desconectado;
   const oficial = canal.tipo === 'whatsapp_oficial';
@@ -578,6 +645,11 @@ function CartaoCanal({ canal, admin, onConectar, onAtualizado, onTestar, onRemov
         )}
       </dl>
       {canal.status === 'erro' && canal.status_detalhe && <p className="mt-3 text-[12.5px] text-rose-600 dark:text-rose-400 line-clamp-2">{canal.status_detalhe}</p>}
+      {!canal.ativo && canal.config?.desativado_em && (
+        <p className="mt-3 text-[12.5px] text-slate-500 dark:text-zinc-400">
+          Desativado em {new Date(canal.config.desativado_em).toLocaleDateString('pt-BR')}. Dá para mesclar com o canal novo do mesmo número.
+        </p>
+      )}
 
       {admin && (
         <div className="mt-4 pt-3 border-t border-black/[0.06] dark:border-white/[0.08] flex flex-wrap items-center gap-2">
@@ -608,6 +680,9 @@ function CartaoCanal({ canal, admin, onConectar, onAtualizado, onTestar, onRemov
               Mesclar
             </BotaoAcao>
           )}
+          <BotaoAcao onClick={() => onHistorico(canal)} titulo="O que foi feito neste canal: conexões, edições, mesclas">
+            Histórico
+          </BotaoAcao>
           <BotaoAcao onClick={() => onEditar(canal)} desabilitado={Boolean(ocupado)}>
             Editar
           </BotaoAcao>
@@ -627,7 +702,7 @@ function CartaoCanal({ canal, admin, onConectar, onAtualizado, onTestar, onRemov
               Excluir
             </BotaoAcao>
           )}
-          <BotaoAcao perigo={canal.ativo} onClick={() => fazer('ativo', () => editarCanal({ id: canal.id, ativo: !canal.ativo }), canal.ativo ? 'Canal desativado.' : 'Canal ativado.')} desabilitado={Boolean(ocupado)}>
+          <BotaoAcao perigo={canal.ativo} onClick={() => fazer('ativo', () => editarCanal({ id: canal.id, ativo: !canal.ativo }), canal.ativo ? 'Canal desativado. Ele está agora em Inativos.' : 'Canal ativado.')} desabilitado={Boolean(ocupado)}>
             {canal.ativo ? 'Desativar' : 'Ativar'}
           </BotaoAcao>
         </div>
@@ -646,7 +721,10 @@ export default function CanaisView() {
   const [testando, setTestando] = useState(null);
   const [editando, setEditando] = useState(null);
   const [mesclando, setMesclando] = useState(null);
+  const [vendoHistorico, setVendoHistorico] = useState(null);
   const [servidorQr, setServidorQr] = useState(false);
+  const [aba, setAba] = useState('ativos');
+  const [limpezaDias, setLimpezaDias] = useState(60);
 
   const carregar = () =>
     fetchCanais()
@@ -654,6 +732,7 @@ export default function CanaisView() {
         setCanais(r.canais);
         setAdmin(r.admin);
         setServidorQr(Boolean(r.servidorQr));
+        if (r.limpezaDias !== undefined) setLimpezaDias(r.limpezaDias);
         setErro('');
       })
       .catch((e) => setErro(e.message));
@@ -674,12 +753,39 @@ export default function CanaisView() {
 
   const atualizar = (c) => setCanais((lista) => (lista || []).map((x) => (x.id === c.id ? { ...x, ...c } : x)));
   const conectados = (canais || []).filter((c) => c.ativo && c.status === 'conectado').length;
+  const ativos = (canais || []).filter((c) => c.ativo);
+  const inativos = (canais || []).filter((c) => !c.ativo);
+  const daAba = aba === 'inativos' ? inativos : ativos;
+  const mudarLimpeza = async (dias) => {
+    const anterior = limpezaDias;
+    setLimpezaDias(dias);
+    try {
+      await salvarLimpezaCanais(dias);
+      showToast(dias ? `Canais inativos há mais de ${dias} dias saem da lista.` : 'Canais inativos ficam na lista até você excluir.', 'success');
+    } catch (e) {
+      setLimpezaDias(anterior);
+      showToast(e.message, 'error');
+    }
+  };
 
   return (
     <div className="space-y-8 text-[#1d1d1f] dark:text-[#f5f5f7]">
       <header className={`flex flex-wrap items-center justify-between gap-3 ${LINHA_TITULO}`}>
         {/* O nome da tela já está no cabeçalho */}
-        <p className="text-[13.5px] text-slate-500 dark:text-zinc-400 lg:h-12 flex items-center">{canais ? `${conectados} de ${canais.length} conectado${canais.length === 1 ? '' : 's'}` : ''}</p>
+        <div className="flex items-center gap-3 lg:h-12">
+          <div className="flex p-1 rounded-full bg-black/[0.04] dark:bg-white/[0.06]" role="tablist" aria-label="Canais ativos e inativos">
+            {[
+              ['ativos', 'Ativos', ativos.length],
+              ['inativos', 'Inativos', inativos.length],
+            ].map(([id, rotulo, qtd]) => (
+              <button key={id} type="button" role="tab" aria-selected={aba === id} onClick={() => setAba(id)} className={`h-8 px-3.5 rounded-full text-[13px] font-medium cursor-pointer transition-colors ${aba === id ? 'bg-white dark:bg-rm-elevado-escuro shadow-sm text-[#1d1d1f] dark:text-white' : 'text-slate-500 dark:text-zinc-400 hover:text-[#1d1d1f] dark:hover:text-white'}`}>
+                {rotulo}
+                <span className="ml-1.5 tabular-nums opacity-60">{qtd}</span>
+              </button>
+            ))}
+          </div>
+          {aba === 'ativos' && canais && <span className="text-[13px] text-slate-500 dark:text-zinc-400 whitespace-nowrap">{conectados} conectado{conectados === 1 ? '' : 's'}</span>}
+        </div>
         <EncaixeCabecalho />
         {admin && (
           <div className={`relative ${ACOES_TITULO}`}>
@@ -721,6 +827,8 @@ export default function CanaisView() {
         <div className="p-5 rounded-[22px] bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.09]">
           <ListSkeleton linhas={3} />
         </div>
+      ) : canais?.length > 0 && aba === 'inativos' && daAba.length === 0 ? (
+        <p className="py-16 text-center text-[13.5px] text-slate-500 dark:text-zinc-400">Nenhum canal inativo.</p>
       ) : canais?.length === 0 ? (
         <div className="py-16 flex flex-col items-center text-center">
           <span className="w-14 h-14 rounded-full bg-rm-acento/10 text-rm-acento dark:text-rm-acento-vivo flex items-center justify-center">
@@ -730,13 +838,27 @@ export default function CanaisView() {
           <p className="mt-1 text-[13px] text-slate-500 dark:text-zinc-400 max-w-sm">{admin ? 'Conecte o primeiro número de WhatsApp em “Adicionar canal”.' : 'Peça a um administrador para conectar um número.'}</p>
         </div>
       ) : (
+        <>
+        {aba === 'inativos' && admin && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[18px] bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.09] px-4 py-3 text-[13px]">
+            <span className="text-slate-600 dark:text-zinc-300">Remover da lista canais inativos há mais de</span>
+            <select value={limpezaDias} onChange={(e) => mudarLimpeza(Number(e.target.value))} aria-label="Prazo para remover canais inativos" className="h-8 px-2.5 rounded-full bg-black/[0.04] dark:bg-white/[0.07] text-[13px] font-medium outline-none cursor-pointer">
+              <option value={30}>30 dias</option>
+              <option value={60}>60 dias</option>
+              <option value={90}>90 dias</option>
+              <option value={0}>Nunca remover</option>
+            </select>
+            <span className="text-[12px] text-slate-400 dark:text-zinc-500">Sem conversas, o canal é excluído; com conversas, ele só sai da lista e as conversas continuam guardadas.</span>
+          </div>
+        )}
         <motion.ul layout className="grid gap-3 grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3">
           <AnimatePresence initial={false}>
-            {(canais || []).map((c) => (
-              <CartaoCanal key={c.id} canal={c} admin={admin} onConectar={setConectando} onAtualizado={atualizar} onTestar={setTestando} onRemovido={(id) => setCanais((l) => (l || []).filter((x) => x.id !== id))} onEditar={setEditando} onMesclar={setMesclando} podeMesclar={mesmoNumero(c, canais).length > 0} />
+            {daAba.map((c) => (
+              <CartaoCanal key={c.id} canal={c} admin={admin} onConectar={setConectando} onAtualizado={atualizar} onTestar={setTestando} onRemovido={(id) => setCanais((l) => (l || []).filter((x) => x.id !== id))} onEditar={setEditando} onMesclar={setMesclando} onHistorico={setVendoHistorico} podeMesclar={mesmoNumero(c, canais).length > 0} />
             ))}
           </AnimatePresence>
         </motion.ul>
+        </>
       )}
 
       <NovoCanalModal
@@ -751,7 +873,8 @@ export default function CanaisView() {
       <QrModal canal={conectando} onFechar={() => setConectando(null)} onAtualizado={atualizar} />
       <TesteModal canal={testando} onFechar={() => setTestando(null)} />
       <EditarCanalModal canal={editando} onFechar={() => setEditando(null)} onSalvo={atualizar} />
-      <MesclarCanalModal canal={mesclando} canais={canais} onFechar={() => setMesclando(null)} onMesclado={atualizar} />
+      <MesclarCanalModal canal={mesclando} canais={canais} onFechar={() => setMesclando(null)} onMesclado={(id) => setCanais((l) => (l || []).filter((x) => x.id !== id))} />
+      <HistoricoCanalModal canal={vendoHistorico} onFechar={() => setVendoHistorico(null)} />
     </div>
   );
 }

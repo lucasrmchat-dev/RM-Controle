@@ -3408,6 +3408,8 @@ export const criarCanal = (dados) => chamarCanais('/api/canais', 'POST', dados);
 export const editarCanal = (dados) => chamarCanais('/api/canais', 'PATCH', dados);
 export const excluirCanal = (id) => chamarCanais('/api/canais', 'DELETE', { id });
 export const acaoCanal = (id, corpo) => chamarCanais(`/api/canais/${id}`, 'POST', corpo);
+export const fetchHistoricoCanal = (id) => chamarCanais(`/api/canais/${id}`, 'GET');
+export const salvarLimpezaCanais = (limpezaDias) => chamarCanais('/api/canais', 'PUT', { limpezaDias });
 
 // Chat (conversas do WhatsApp): leitura e ações passam pelo servidor, que confere quem pode ver cada conversa
 export const fetchConversas = (aba = 'abertas') => chamarCanais(`/api/chat?aba=${aba === 'resolvidas' ? 'resolvidas' : 'abertas'}`, 'GET');

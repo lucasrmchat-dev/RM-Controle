@@ -7,6 +7,7 @@ import { getNomeEquipe } from '@/lib/server/canais/equipe';
 import { isValidUUID } from '@/lib/sanitize';
 import { canalRecebeGrupos } from '@/lib/canais';
 import { mesclarCanais } from '@/lib/server/canais/mesclar';
+import { historicoDoCanal, registrarHistoricoCanal } from '@/lib/server/canais/historico';
 import { avisarAoVivo } from '@/lib/server/canais/aoVivo';
 
 export const dynamic = 'force-dynamic';
@@ -18,7 +19,8 @@ export const dynamic = 'force-dynamic';
  *  { acao: 'desconectar' } | { acao: 'reiniciar' }
  *  { acao: 'testar', telefone, texto }  envia uma mensagem de teste (abre a conversa)
  *  { acao: 'novo_token' }               Meta: novo token de verificação do webhook (mostrado uma vez)
- *  { acao: 'mesclar', origem }          traz para este canal o histórico de um canal antigo do mesmo número
+ *  { acao: 'mesclar', origem }          traz para este canal o histórico de um canal antigo do mesmo número (o antigo é excluído)
+ *  GET                                  histórico do canal
  */
 const json = (corpo, status = 200) => Response.json(corpo, { status, headers: { 'Cache-Control': 'no-store' } });
 
@@ -34,6 +36,8 @@ export async function POST(request, { params }) {
   if (!canal) return json({ ok: false, mensagem: 'Canal não encontrado.' }, 404);
   const provedor = provedorDo(canal);
   const segredos = segredosDo(canal);
+  const quem = { email: ctx.email, nome: await getNomeEquipe(db, ctx.email) };
+  const historico = (acao, extra) => registrarHistoricoCanal(db, quem, canal.id, acao, extra);
   const atualizar = async (campos) => {
     const { data } = await db.from('canais').update({ ...campos, atualizado_em: new Date().toISOString() }).eq('id', canal.id).select('*').single();
     return data;
@@ -48,6 +52,7 @@ export async function POST(request, { params }) {
       if (canal.provedor === 'evolution') campos.webhook_token_hash = hashToken(token);
       if (r.numero) campos.numero = r.numero;
       const salvo = await atualizar(campos);
+      await historico('canal_conectou', { situacao: r.status });
       return json({ ok: true, canal: canalPublico(salvo), qr: r.qr || null });
     }
 
@@ -69,6 +74,7 @@ export async function POST(request, { params }) {
       }
       const r = await provedor[body.acao](canal, segredos);
       const salvo = await atualizar({ status: r.status, qr_codigo: null });
+      await historico(body.acao === 'reiniciar' ? 'canal_reiniciou' : 'canal_desconectou');
       return json({ ok: true, canal: canalPublico(salvo) });
     }
 
@@ -82,9 +88,10 @@ export async function POST(request, { params }) {
       if (!isValidUUID(body.origem)) return json({ ok: false, mensagem: 'Escolha o canal antigo.' }, 400);
       const { data: origem } = await db.from('canais').select('*').eq('id', body.origem).maybeSingle();
       try {
-        const r = await mesclarCanais(db, { email: ctx.email, nome: await getNomeEquipe(db, ctx.email) }, origem, canal);
+        const r = await mesclarCanais(db, quem, origem, canal);
+        await historico('canal_mesclou', { de: origem.nome, de_numero: origem.numero, movidas: r.movidas, juntadas: r.juntadas });
         await avisarAoVivo(canal.organizacao_id || null);
-        return json({ ok: true, movidas: r.movidas, juntadas: r.juntadas, origem: canalPublico(r.origem) });
+        return json({ ok: true, movidas: r.movidas, juntadas: r.juntadas, removido: origem.id });
       } catch (e) {
         return json({ ok: false, mensagem: e.message }, e.status || 500);
       }
@@ -101,4 +108,14 @@ export async function POST(request, { params }) {
     if (body.acao === 'conectar' || body.acao === 'situacao') await atualizar({ status: 'erro', status_detalhe: String(e.message).slice(0, 300) }).catch(() => {});
     return json({ ok: false, mensagem: e.message }, 502);
   }
+}
+
+/** GET: histórico do canal (administradores). */
+export async function GET(request, { params }) {
+  const ctx = await contextoDaRequisicao(request, { exigirAdmin: true });
+  if (ctx.erro) return ctx.erro;
+  if (!isValidUUID(params.id)) return json({ ok: false, mensagem: 'Canal inválido.' }, 400);
+  const { data: canal } = await ctx.db.from('canais').select('id').eq('id', params.id).maybeSingle();
+  if (!canal) return json({ ok: false, mensagem: 'Canal não encontrado.' }, 404);
+  return json({ ok: true, historico: await historicoDoCanal(ctx.db, canal.id) });
 }

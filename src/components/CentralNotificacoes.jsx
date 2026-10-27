@@ -55,7 +55,7 @@ const FILTROS = [
   { id: 'outros', rotulo: 'Outros', tipos: ['feedback', 'sistema'] },
 ];
 
-function ItemNotificacao({ n, onAbrir, onRemover }) {
+function ItemNotificacao({ n, onAbrir, onRemover, onLida }) {
   const tipo = TIPOS[n.tipo] || TIPOS.sistema;
   const Icone = tipo.icone;
   return (
@@ -63,7 +63,7 @@ function ItemNotificacao({ n, onAbrir, onRemover }) {
       <button
         type="button"
         onClick={() => onAbrir(n)}
-        className="w-full text-left flex items-start gap-2.5 px-2.5 py-2 pr-9 rounded-xl hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors cursor-pointer"
+        className="w-full text-left flex items-start gap-2.5 px-2.5 py-2 pr-16 rounded-xl hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors cursor-pointer"
       >
         <span className={`mt-0.5 w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${tipo.cor}`}>
           <Icone className="w-3.5 h-3.5" />
@@ -77,14 +77,31 @@ function ItemNotificacao({ n, onAbrir, onRemover }) {
         </span>
         {!n.lida && <span className="absolute left-1 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-rm-acento dark:bg-rm-acento-vivo" aria-label="Não lida" />}
       </button>
-      <button
-        type="button"
-        onClick={() => onRemover(n.id)}
-        aria-label={`Apagar notificação: ${n.titulo}`}
-        className="absolute top-1/2 -translate-y-1/2 right-1.5 w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-[#1d1d1f] dark:hover:text-white hover:bg-black/[0.06] dark:hover:bg-white/[0.1] cursor-pointer md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
-      >
-        <XMarkIcon className="w-3.5 h-3.5" />
-      </button>
+      {/* Ações ao passar o mouse: marcar como lida (sem abrir) e apagar */}
+      <span className="absolute top-1/2 -translate-y-1/2 right-1.5 flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+        {!n.lida && (
+          <button
+            type="button"
+            onClick={() => onLida(n.id)}
+            aria-label={`Marcar como lida: ${n.titulo}`}
+            title="Marcar como lida"
+            className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-rm-acento dark:hover:text-rm-acento-vivo hover:bg-black/[0.06] dark:hover:bg-white/[0.1] cursor-pointer"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => onRemover(n.id)}
+          aria-label={`Apagar notificação: ${n.titulo}`}
+          title="Apagar"
+          className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-[#1d1d1f] dark:hover:text-white hover:bg-black/[0.06] dark:hover:bg-white/[0.1] cursor-pointer"
+        >
+          <XMarkIcon className="w-3.5 h-3.5" />
+        </button>
+      </span>
     </motion.li>
   );
 }
@@ -127,10 +144,8 @@ export default function CentralNotificacoes({ onAbrirAba, embutido = false, soCe
     totalAnterior.current = pendentes;
   }, [pendentes, sino]);
 
-  const fechar = () => {
-    setAberto(false);
-    marcarTodasLidas();
-  };
+  // Fechar não marca tudo como lido: cada aviso fica não lido até ser aberto, marcado (✓) ou "Marcar lidas"
+  const fechar = () => setAberto(false);
 
   useEffect(() => {
     if (!aberto) return;
@@ -173,9 +188,9 @@ export default function CentralNotificacoes({ onAbrirAba, embutido = false, soCe
             exit={{ opacity: 0, y: embutido ? -6 : 8, scale: 0.97, transition: { duration: 0.15 } }}
             transition={{ type: 'spring', bounce: 0.16, duration: 0.42 }}
             style={{ transformOrigin: embutido ? 'top right' : 'bottom right' }}
-            className={`absolute right-0 ${embutido ? 'top-[calc(100%+16px)] -mr-2' : 'bottom-[calc(100%+12px)]'} w-[min(380px,calc(100vw-32px))] max-h-[min(560px,70vh)] flex flex-col rounded-[24px] bg-white/95 dark:bg-rm-elevado-escuro/95 backdrop-blur-2xl ring-1 ring-black/[0.08] dark:ring-white/[0.12] shadow-[0_30px_70px_-20px_rgba(0,0,0,0.35)] dark:shadow-[0_30px_70px_-20px_rgba(0,0,0,0.8)] text-[#1d1d1f] dark:text-[#f5f5f7] overflow-hidden`}
+            className={`absolute right-0 ${embutido ? 'top-[calc(100%+16px)] -mr-2' : 'bottom-[calc(100%+12px)]'} w-[min(380px,calc(100vw-32px))] max-h-[min(560px,70vh)] flex flex-col rounded-[24px] bg-white dark:bg-rm-elevado-escuro ring-1 ring-black/[0.08] dark:ring-white/[0.12] shadow-[0_30px_70px_-20px_rgba(0,0,0,0.35)] dark:shadow-[0_30px_70px_-20px_rgba(0,0,0,0.8)] text-[#1d1d1f] dark:text-[#f5f5f7] overflow-hidden`}
           >
-            <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-3">
+            <div className="flex-shrink-0 flex items-center justify-between gap-3 px-5 pt-4 pb-3">
               <div>
                 <h2 className="text-[16px] font-semibold tracking-tight">Notificações</h2>
                 <p className="text-[12px] text-slate-500 dark:text-zinc-400">
@@ -197,12 +212,12 @@ export default function CentralNotificacoes({ onAbrirAba, embutido = false, soCe
             </div>
 
             {filtrosVisiveis.length > 1 && (
-              <div className="flex gap-1 px-4 pb-3 overflow-x-auto [scrollbar-width:none]" role="tablist" aria-label="Filtrar notificações">
+              <div className="flex-shrink-0 flex flex-wrap gap-1 px-4 pb-3" role="tablist" aria-label="Filtrar notificações">
                 {[{ id: 'todas', rotulo: 'Todas' }, ...filtrosVisiveis].map((f) => {
                   const qtd = f.id === 'todas' ? pendentes : lista.filter((n) => !n.lida && f.tipos.includes(n.tipo)).length;
                   const sel = (ativo?.id || 'todas') === f.id;
                   return (
-                    <button key={f.id} type="button" role="tab" aria-selected={sel} onClick={() => setFiltro(f.id)} className={`h-7 px-3 rounded-full text-[12px] font-medium whitespace-nowrap cursor-pointer transition-colors ${sel ? 'bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f]' : 'bg-black/[0.04] dark:bg-white/[0.07] text-slate-600 dark:text-zinc-300 hover:bg-black/[0.07]'}`}>
+                    <button key={f.id} type="button" role="tab" aria-selected={sel} onClick={() => setFiltro(f.id)} className={`h-7 px-2.5 rounded-full text-[12px] font-medium whitespace-nowrap cursor-pointer transition-colors ${sel ? 'bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f]' : 'bg-black/[0.04] dark:bg-white/[0.07] text-slate-600 dark:text-zinc-300 hover:bg-black/[0.07]'}`}>
                       {f.rotulo}
                       {qtd > 0 && <span className="ml-1.5 tabular-nums opacity-70">{qtd}</span>}
                     </button>
@@ -211,7 +226,7 @@ export default function CentralNotificacoes({ onAbrirAba, embutido = false, soCe
               </div>
             )}
 
-            <div className="h-px bg-black/[0.06] dark:bg-white/[0.08]" />
+            <div className="flex-shrink-0 h-px bg-black/[0.06] dark:bg-white/[0.08]" />
 
             {lista.length === 0 ? (
               <div className="px-6 py-12 flex flex-col items-center text-center">
@@ -229,10 +244,10 @@ export default function CentralNotificacoes({ onAbrirAba, embutido = false, soCe
                 </p>
               </div>
             ) : (
-              <ul className="overflow-y-auto overscroll-contain px-1.5 py-1.5">
+              <ul className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-1.5 py-1.5">
                 <AnimatePresence initial={false}>
                   {visiveis.map((n) => (
-                    <ItemNotificacao key={n.id} n={n} onAbrir={abrirNotificacao} onRemover={removerNotificacao} />
+                    <ItemNotificacao key={n.id} n={n} onAbrir={abrirNotificacao} onRemover={removerNotificacao} onLida={marcarLida} />
                   ))}
                 </AnimatePresence>
               </ul>

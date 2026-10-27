@@ -1645,11 +1645,20 @@ const PERIODOS_BUSCA = [
 ];
 
 /** Uma conversa na lista ou no card do Kanban. */
-function ItemConversa({ c, ativa, eu, onAbrir, cartao = false }) {
+function ItemConversa({ c, ativa, eu, onAbrir, cartao = false, arrastavel = false }) {
   return (
     <button
       type="button"
       onClick={() => onAbrir(c.id)}
+      draggable={arrastavel || undefined}
+      onDragStart={
+        arrastavel
+          ? (e) => {
+              e.dataTransfer.setData('text/rm-conversa', c.id);
+              e.dataTransfer.effectAllowed = 'move';
+            }
+          : undefined
+      }
       className={
         cartao
           ? `w-full flex items-start gap-2.5 p-3 rounded-2xl text-left cursor-pointer transition-all bg-white dark:bg-rm-elevado-escuro ring-1 ${ativa ? 'ring-2 ring-rm-acento-medio' : 'ring-black/[0.06] dark:ring-white/[0.06] hover:ring-black/[0.14] dark:hover:ring-white/[0.16] hover:shadow-sm'}`
@@ -1727,12 +1736,13 @@ export default function ChatView() {
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const [contatosAbertos, setContatosAbertos] = useState(false);
   // Busca: nas conversas (nome, número) ou em todas as mensagens, num período
-  const [modoBusca, setModoBusca] = useState('conversas');
   const [periodo, setPeriodo] = useState(30);
   const [resultados, setResultados] = useState(null);
   const [buscando, setBuscando] = useState(false);
   const escolhidaPorPadrao = useRef(false);
   const gruposAParte = config.grupos === 'aba';
+  /** Aba (e coluna do Kanban) onde a conversa aparece. */
+  const abaDaConversa = (c) => (c.status === 'resolvida' ? 'resolvidas' : gruposAParte && ehConversaDeGrupo(c) ? 'grupos' : !c.responsavel_email ? 'pendentes' : 'ativos');
 
   useEffect(() => {
     const salvo = lerFiltrosSalvos();
@@ -1845,25 +1855,85 @@ export default function ChatView() {
     if (qual === 'ativos') l = l.filter((c) => c.responsavel_email && doEscopo(c));
     if (qual === 'resolvidas') l = l.filter((c) => doEscopo(c) || ehConversaDeGrupo(c));
     l = l.filter(comportamento);
-    const b = modoBusca === 'conversas' ? busca.trim().toLowerCase() : '';
+    // A busca tem a própria lista (conversas e mensagens); as abas e o Kanban não são filtrados por ela
+    const b = '';
     if (b) {
       const digitos = b.replace(/\D/g, '');
       l = l.filter((c) => semAcento(c.contato?.nome).includes(semAcento(b)) || (digitos && String(c.contato?.telefone || '').includes(digitos)) || semAcento(c.ultima_mensagem_texto).includes(semAcento(b)));
     }
     const quando = (c) => new Date(c.ultima_mensagem_em || c.criado_em).getTime();
     return [...l].sort((x, y) => (filtros.ordem === 'antigos' ? quando(x) - quando(y) : quando(y) - quando(x)));
-  }, [abertas, resolvidas, busca, modoBusca, gruposAParte, doEscopo, comportamento, filtros.ordem]);
+  }, [abertas, resolvidas, gruposAParte, doEscopo, comportamento, filtros.ordem]);
   const lista = useMemo(() => filtrar(aba), [filtrar, aba]);
   const colunasKanban = ABAS.filter((a) => a.id !== 'grupos' || gruposAParte);
+  // Kanban: arrastar um cartão para outra coluna muda o estado da conversa
+  const [colunaAlvo, setColunaAlvo] = useState(null);
+  const moverConversa = async (id, destino) => {
+    const c = (abertas || []).find((x) => x.id === id) || (resolvidas || []).find((x) => x.id === id);
+    if (!c) return;
+    const origem = abaDaConversa(c);
+    if (origem === destino) return;
+    if (destino === 'grupos' || (origem === 'grupos' && destino !== 'resolvidas')) {
+      showToast('Grupos ficam na coluna Grupos (só dá para resolver).', 'info');
+      return;
+    }
+    const passos =
+      destino === 'resolvidas' ? ['resolver'] : destino === 'ativos' ? (origem === 'resolvidas' ? ['reabrir'] : ['assumir']) : origem === 'resolvidas' ? ['reabrir', 'devolver'] : ['devolver'];
+    try {
+      let r = null;
+      for (const acao of passos) r = await acaoConversa(id, { acao });
+      if (r?.conversa) atualizada(r.conversa);
+      carregar();
+      if (destino === 'resolvidas' || origem === 'resolvidas') carregarResolvidas();
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  };
+  // Kanban: a coluna da conversa aberta vem para a vista (Pendentes no centro, Ativos à esquerda,
+  // Resolvidas à direita); com o quadro estreito (telas médias), é isso que mostra onde a conversa está
+  const quadroKanban = useRef(null);
+  useEffect(() => {
+    if (visao !== 'kanban' || !selecionada) return;
+    const c = (abertas || []).find((x) => x.id === selecionada) || (resolvidas || []).find((x) => x.id === selecionada);
+    if (!c) return;
+    const coluna = abaDaConversa(c);
+    const quadro = quadroKanban.current;
+    const el = quadro?.querySelector(`[data-coluna="${coluna}"]`);
+    if (!el) return;
+    // Espera o quadro encolher (abre o painel da conversa) antes de rolar
+    const t = setTimeout(() => {
+      // Posição da coluna dentro do quadro (independe de quem é o "pai posicionado")
+      const inicio = quadro.scrollLeft + el.getBoundingClientRect().left - quadro.getBoundingClientRect().left;
+      const alvo = coluna === 'ativos' ? inicio - 12 : coluna === 'resolvidas' ? inicio + el.offsetWidth - quadro.clientWidth + 12 : inicio - (quadro.clientWidth - el.offsetWidth) / 2;
+      quadro.scrollTo({ left: Math.max(0, alvo), behavior: 'smooth' });
+    }, 520);
+    return () => clearTimeout(t);
+  }, [selecionada, visao]); // eslint-disable-line react-hooks/exhaustive-deps
   const kanban = visao === 'kanban';
   // O Kanban mostra a coluna Resolvidas desde o início
   useEffect(() => {
     if (kanban && resolvidas === null) carregarResolvidas();
   }, [kanban, resolvidas, carregarResolvidas]);
 
-  // Busca nas mensagens (só quando pedida, com período, para não pesar)
+  // Busca única (como no WhatsApp): conversas pelo nome, número ou última mensagem, e mensagens com o termo
+  const termoBusca = busca.trim();
+  const emBusca = termoBusca.length > 0;
+  const conversasEncontradas = useMemo(() => {
+    if (!emBusca) return [];
+    const q = semAcento(termoBusca);
+    const digitos = termoBusca.replace(/\D/g, '');
+    const vistas = new Set();
+    return [...(abertas || []), ...(resolvidas || [])]
+      .filter((c) => !vistas.has(c.id) && vistas.add(c.id))
+      .filter((c) => semAcento(c.contato?.nome).includes(q) || (digitos.length >= 3 && String(c.contato?.telefone || '').includes(digitos)) || semAcento(c.ultima_mensagem_texto).includes(q))
+      .sort((x, y) => new Date(y.ultima_mensagem_em || y.criado_em) - new Date(x.ultima_mensagem_em || x.criado_em))
+      .slice(0, 40);
+  }, [emBusca, termoBusca, abertas, resolvidas]);
   useEffect(() => {
-    if (modoBusca !== 'mensagens') return undefined;
+    if (emBusca && resolvidas === null) carregarResolvidas();
+  }, [emBusca]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Mensagens: a partir de 2 letras, com período (para não pesar)
+  useEffect(() => {
     const termo = busca.trim();
     if (termo.length < 2) {
       setResultados(null);
@@ -1881,7 +1951,7 @@ export default function ChatView() {
       vivo = false;
       clearTimeout(t);
     };
-  }, [modoBusca, busca, periodo]);
+  }, [busca, periodo]);
 
   // Fotos: busca no WhatsApp a de quem ainda não tem (2 por vez; cada contato no máximo 1 vez por dia)
   const buscandoFotos = useRef(false);
@@ -1932,16 +2002,29 @@ export default function ChatView() {
   useEffect(() => {
     if (selecionada) removerGrupo(`chat-${selecionada}`);
   }, [selecionada]);
-  // Clique num aviso do Chat na central: abre a conversa
+  // Clique num aviso do Chat na central: abre a conversa na aba em que ela está
+  const [pedidoAbrir, setPedidoAbrir] = useState(null);
   useEffect(() => {
-    const abrir = (e) => e.detail?.conversaId && setSelecionada(e.detail.conversaId);
-    window.addEventListener('rm_chat_abrir', abrir);
+    const pedir = (e) => e.detail?.conversaId && setPedidoAbrir(e.detail.conversaId);
+    window.addEventListener('rm_chat_abrir', pedir);
     if (window.__rmChatAbrirPendente) {
-      setSelecionada(window.__rmChatAbrirPendente);
+      setPedidoAbrir(window.__rmChatAbrirPendente);
       window.__rmChatAbrirPendente = null;
     }
-    return () => window.removeEventListener('rm_chat_abrir', abrir);
+    return () => window.removeEventListener('rm_chat_abrir', pedir);
   }, []);
+  useEffect(() => {
+    if (!pedidoAbrir || abertas === null) return;
+    const aberta = abertas.find((c) => c.id === pedidoAbrir);
+    if (aberta) setAba(abaDaConversa(aberta));
+    else if (resolvidas === null) {
+      // Pode estar entre as resolvidas: carrega e decide depois
+      carregarResolvidas();
+      return;
+    } else if (resolvidas.some((c) => c.id === pedidoAbrir)) setAba('resolvidas');
+    setSelecionada(pedidoAbrir);
+    setPedidoAbrir(null);
+  }, [pedidoAbrir, abertas, resolvidas]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     window.__rmChatAberta = selecionada;
     return () => {
@@ -1978,7 +2061,7 @@ export default function ChatView() {
   };
 
   const carregando = aba === 'resolvidas' ? resolvidas === null : abertas === null;
-  const mostrandoBuscaMensagens = modoBusca === 'mensagens' && busca.trim().length >= 2;
+  const mostrandoBuscaMensagens = emBusca;
   const vazio = {
     pendentes: ['Ninguém esperando', 'Clientes sem atendente aparecem aqui.'],
     ativos: ['Nenhum atendimento ativo', eu?.admin && !filtros.verTodos ? 'Conversas que você assumir aparecem aqui. Para ver as da equipe, use os filtros.' : 'Conversas que você assumir aparecem aqui.'],
@@ -2040,29 +2123,10 @@ export default function ChatView() {
             <input
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder={modoBusca === 'mensagens' ? 'Buscar em todas as mensagens' : 'Pesquisar nome ou número'}
-              aria-label={modoBusca === 'mensagens' ? 'Buscar em todas as mensagens' : 'Pesquisar conversas'}
+              placeholder="Pesquisar nome, número ou mensagem"
+              aria-label="Pesquisar conversas e mensagens"
               className="w-full h-9 rounded-lg pl-10 pr-3 text-[14px] bg-rm-fundo dark:bg-rm-elevado-escuro text-[#111b21] dark:text-[#e9edef] placeholder:text-[#667781] dark:placeholder:text-[#8696a0] outline-none focus:ring-2 focus:ring-rm-acento-medio/40"
             />
-          </div>
-          <div className="flex items-center gap-1 mt-2 text-[12px]">
-            {[
-              ['conversas', 'Conversas'],
-              ['mensagens', 'Mensagens'],
-            ].map(([id, rotulo]) => (
-              <button key={id} type="button" onClick={() => setModoBusca(id)} aria-pressed={modoBusca === id} className={`h-6 px-2.5 rounded-full font-medium cursor-pointer ${modoBusca === id ? 'bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f]' : 'text-[#54656f] dark:text-[#8696a0] hover:bg-black/[0.05] dark:hover:bg-white/[0.06]'}`}>
-                {rotulo}
-              </button>
-            ))}
-            {modoBusca === 'mensagens' && (
-              <select value={periodo} onChange={(e) => setPeriodo(Number(e.target.value))} aria-label="Período da busca" className="ml-auto h-6 rounded-full px-2 bg-rm-fundo dark:bg-rm-elevado-escuro text-[12px] cursor-pointer outline-none">
-                {PERIODOS_BUSCA.map((p) => (
-                  <option key={p.dias} value={p.dias}>
-                    Últimos {p.rotulo}
-                  </option>
-                ))}
-              </select>
-            )}
           </div>
           {!mostrandoBuscaMensagens && !kanban && (
             <div className="flex gap-1 mt-2.5 overflow-x-auto pb-0.5 [scrollbar-width:none]" role="tablist">
@@ -2085,13 +2149,49 @@ export default function ChatView() {
 
         <div className={`flex-1 ${kanban && !mostrandoBuscaMensagens ? 'min-h-0 overflow-hidden' : 'overflow-y-auto'}`}>
           {mostrandoBuscaMensagens ? (
-            buscando && !resultados ? (
-              <div className="flex justify-center py-10 text-slate-400">
-                <Spinner />
+            <div className="pb-4">
+              {/* Conversas: nome, número ou última mensagem */}
+              <h3 className="px-4 pt-2 pb-1 text-[12.5px] font-semibold text-rm-acento dark:text-rm-acento-vivo">Conversas</h3>
+              {conversasEncontradas.length === 0 ? (
+                <p className="px-4 pb-3 text-[13px] text-[#667781] dark:text-[#8696a0]">Nenhuma conversa com “{termoBusca}”.</p>
+              ) : (
+                <ul>
+                  {conversasEncontradas.map((c) => (
+                    <li key={c.id}>
+                      <ItemConversa
+                        c={c}
+                        ativa={c.id === selecionada}
+                        eu={eu}
+                        onAbrir={(id) => {
+                          setAba(abaDaConversa(c));
+                          abrir(id);
+                        }}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Mensagens com o termo, no período escolhido */}
+              <div className="flex items-center gap-2 px-4 pt-4 pb-1">
+                <h3 className="text-[12.5px] font-semibold text-rm-acento dark:text-rm-acento-vivo">Mensagens</h3>
+                <select value={periodo} onChange={(e) => setPeriodo(Number(e.target.value))} aria-label="Período da busca de mensagens" className="ml-auto h-6 rounded-full px-2 bg-rm-fundo dark:bg-rm-elevado-escuro text-[12px] cursor-pointer outline-none">
+                  {PERIODOS_BUSCA.map((p) => (
+                    <option key={p.dias} value={p.dias}>
+                      Últimos {p.rotulo}
+                    </option>
+                  ))}
+                </select>
               </div>
-            ) : !resultados?.length ? (
-              <p className="px-6 py-14 text-center text-[13.5px] text-[#667781] dark:text-[#8696a0]">Nenhuma mensagem com “{busca.trim()}” nos últimos {PERIODOS_BUSCA.find((p) => p.dias === periodo)?.rotulo}.</p>
-            ) : (
+              {termoBusca.length < 2 ? (
+                <p className="px-4 text-[13px] text-[#667781] dark:text-[#8696a0]">Digite ao menos 2 letras para buscar nas mensagens.</p>
+              ) : buscando && !resultados ? (
+                <div className="flex justify-center py-6 text-slate-400">
+                  <Spinner />
+                </div>
+              ) : !resultados?.length ? (
+                <p className="px-4 text-[13px] text-[#667781] dark:text-[#8696a0]">Nenhuma mensagem com “{termoBusca}” nos últimos {PERIODOS_BUSCA.find((p) => p.dias === periodo)?.rotulo}.</p>
+              ) : (
               <ul>
                 {resultados.map((m) => (
                   <li key={m.id}>
@@ -2119,19 +2219,36 @@ export default function ChatView() {
                   </li>
                 ))}
               </ul>
-            )
+              )}
+            </div>
           ) : erro ? (
             <p className="m-4 rounded-2xl bg-amber-500/10 text-amber-800 dark:text-amber-300 px-4 py-3 text-[13.5px]">{erro}</p>
           ) : kanban ? (
-            <div className="h-full flex gap-3 overflow-x-auto px-3 pb-3 pt-2 bg-[#f4f5f7] dark:bg-[#0d1418]">
+            <div ref={quadroKanban} className="h-full flex gap-3 overflow-x-auto px-3 pb-3 pt-2 bg-[#f4f5f7] dark:bg-[#0d1418] snap-x snap-mandatory md:snap-none scroll-px-3">
               {colunasKanban.map((col) => {
                 const itens = filtrar(col.id);
                 const carregandoColuna = col.id === 'resolvidas' ? resolvidas === null : abertas === null;
                 return (
                   <section
                     key={col.id}
+                    data-coluna={col.id}
                     aria-label={col.rotulo}
-                    className={`${selecionada ? 'w-[280px]' : 'flex-1 min-w-[260px]'} flex-shrink-0 flex flex-col min-h-0 rounded-2xl bg-white/70 dark:bg-white/[0.03] ring-1 ring-black/[0.05] dark:ring-white/[0.05] overflow-hidden`}
+                    onDragOver={(e) => {
+                      if (!e.dataTransfer.types.includes('text/rm-conversa')) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      if (colunaAlvo !== col.id) setColunaAlvo(col.id);
+                    }}
+                    onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget) && setColunaAlvo(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setColunaAlvo(null);
+                      const id = e.dataTransfer.getData('text/rm-conversa');
+                      if (id) moverConversa(id, col.id);
+                    }}
+                    className={`${selecionada ? 'w-[280px]' : 'w-[85%] sm:w-auto sm:flex-1 sm:min-w-[260px]'} snap-center flex-shrink-0 flex flex-col min-h-0 rounded-2xl transition-colors ${
+                      colunaAlvo === col.id ? 'bg-rm-acento/[0.06] dark:bg-rm-acento-escuro/[0.08] ring-2 ring-rm-acento-medio' : 'bg-white/70 dark:bg-white/[0.03] ring-1 ring-black/[0.05] dark:ring-white/[0.05]'
+                    } overflow-hidden`}
                   >
                     <div className={`h-[3px] ${{ ativos: 'bg-sky-500', pendentes: 'bg-amber-500', grupos: 'bg-violet-500', resolvidas: 'bg-rm-acento' }[col.id]}`} />
                     <header className="flex items-center gap-2 px-3.5 pt-3 pb-2.5">
@@ -2156,7 +2273,7 @@ export default function ChatView() {
                           <p className="text-[12.5px]">Nada por aqui</p>
                         </div>
                       ) : (
-                        itens.map((c) => <ItemConversa key={c.id} c={c} ativa={c.id === selecionada} eu={eu} onAbrir={(id) => abrir(id)} cartao />)
+                        itens.map((c) => <ItemConversa key={c.id} c={c} ativa={c.id === selecionada} eu={eu} onAbrir={(id) => abrir(id)} cartao arrastavel />)
                       )}
                     </div>
                   </section>

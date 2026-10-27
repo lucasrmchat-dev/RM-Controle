@@ -15,6 +15,47 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-10-27-chat-busca-unica-arrastar',
+    data: '2026-10-27',
+    titulo: 'Busca única no Chat e arrastar conversas no Kanban',
+    resumo: 'Uma busca só encontra conversas (nome, número ou última mensagem) e, logo abaixo, as mensagens, como no WhatsApp. No Kanban, arraste a conversa para mudar de etapa.',
+    itens: [
+      'Digite no campo de busca: primeiro aparecem as Conversas, depois as Mensagens (com o período escolhido).',
+      'Kanban: arraste de Pendentes para Ativos para assumir, de Ativos para Pendentes para devolver à fila, para Resolvidas para resolver, e de Resolvidas de volta para reabrir.',
+      'Devolver à fila fica registrado na linha do tempo da conversa.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
+    id: '2026-10-27-notificacoes-e-kanban-chat',
+    data: '2026-10-27',
+    titulo: 'Notificações marcadas uma a uma e Chat abrindo na aba certa',
+    resumo: 'Cada notificação pode ser marcada como lida sem abrir, e abrir um aviso do Chat leva à aba e à coluna onde a conversa está.',
+    itens: [
+      'Passe o mouse numa notificação: ✓ marca como lida, × apaga. Fechar o painel não marca mais tudo como lido.',
+      'Abrir um aviso do Chat leva para Pendentes, Ativos, Grupos ou Resolvidas, conforme onde a conversa está.',
+      'No Kanban do Chat, a coluna da conversa aberta vem para a vista: Pendentes no centro, Ativos à esquerda, Resolvidas à direita.',
+      'Em telas menores, o Kanban do Chat desliza coluna por coluna.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
+    id: '2026-10-27-canais-inativos-historico',
+    data: '2026-10-27',
+    titulo: 'Canais ativos e inativos, histórico e mescla que limpa o canal antigo',
+    resumo: 'Canais desativados ficam numa aba própria, cada canal tem um histórico do que foi feito e, ao mesclar, o canal antigo sai da lista.',
+    itens: [
+      'Em Canais, use as abas Ativos e Inativos; desativar leva o canal para Inativos, de onde ele pode ser mesclado ao canal novo do mesmo número.',
+      'Ao mesclar, as conversas passam para o canal novo, o canal antigo é removido e a mescla fica registrada no histórico do canal novo.',
+      'Botão Histórico em cada canal: quem criou, editou, conectou, desconectou, reiniciou, ativou, desativou ou mesclou, e quando.',
+      'Canais inativos há mais de 30, 60 ou 90 dias (você escolhe, ou nunca) saem da lista: sem conversas são excluídos; com conversas, as conversas continuam guardadas.',
+    ],
+    modulo: 'Canais',
+    tickets: [],
+  },
+  {
     id: '2026-10-27-cores-e-kanban',
     data: '2026-10-27',
     titulo: 'Cores do sistema e Kanban da Fila por estado',
@@ -42,6 +83,7 @@ export const NOVIDADES = [
       'As telas não repetem mais o nome e a explicação: o nome já está no cabeçalho.',
       'Na Fila, Ver empresas, Suporte retroativo e Nova demanda ficam sempre no mesmo lugar, sem animação ao rolar.',
       'Notificações: filtros por Chat, Demandas e Agenda, um aviso só por conversa, e abrir a conversa tira os avisos dela.',
+      'Novidades do sistema chegam num aviso só (ex.: “3 novidades no RM Controle”), e o painel de notificações tem fundo sólido e filtros inteiros.',
       'Clicar num aviso do Chat abre a conversa certa.',
       'O som passa a funcionar desde o primeiro clique na página, e dá para ligar o aviso de mensagens de grupos.',
       'Alertas sonoros: Chat, Fila de Demandas e Reuniões com as mesmas opções, cada um com a sua configuração.',

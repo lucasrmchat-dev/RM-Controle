@@ -57,6 +57,11 @@ export function notificar(n) {
   if (lista.some((x) => x.id === n.id) || foiDescartada(n.id)) return false;
   // `grupo`: um aviso só por assunto (ex.: uma conversa do Chat) — o novo substitui o anterior
   if (n.grupo) lista = lista.filter((x) => x.grupo !== n.grupo);
+  // Novidades: os avisos antigos, um por novidade, dão lugar ao aviso agrupado
+  if (n.grupo === 'novidades' || n.grupo === 'novidades_pendentes') {
+    const prefixo = n.grupo === 'novidades' ? /^novidade_(?!pendente_)/ : /^novidade_pendente_/;
+    lista = lista.filter((x) => !prefixo.test(x.id));
+  }
   lista.unshift({ id: n.id, tipo: n.tipo || 'sistema', titulo: n.titulo, detalhe: n.detalhe || '', aba: n.aba || null, grupo: n.grupo || null, alvo: n.alvo || null, em: new Date().toISOString(), lida: false });
   gravar(lista);
   return true;

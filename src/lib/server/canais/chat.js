@@ -238,7 +238,7 @@ export function validarResposta(valor, { admin }) {
 // ------------------------------------------------------------------------------
 // Auditoria da conversa (tabela auditoria_logs, imutável): quem viu, assumiu, transferiu, fechou, excluiu
 // ------------------------------------------------------------------------------
-export const ACOES_AUDITORIA_CHAT = ['chat_iniciou', 'chat_visualizou', 'chat_assumiu', 'chat_transferiu', 'chat_resolveu', 'chat_reabriu', 'chat_apagou_mensagem', 'chat_editou_mensagem', 'chat_excluiu', 'chat_mesclou'];
+export const ACOES_AUDITORIA_CHAT = ['chat_iniciou', 'chat_visualizou', 'chat_assumiu', 'chat_transferiu', 'chat_resolveu', 'chat_reabriu', 'chat_apagou_mensagem', 'chat_editou_mensagem', 'chat_excluiu', 'chat_mesclou', 'chat_devolveu'];
 const JANELA_VISUALIZACAO_MS = 10 * 60 * 1000;
 
 export async function auditarChat(db, perm, acao, conversa, extra = {}) {

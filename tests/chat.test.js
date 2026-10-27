@@ -597,8 +597,63 @@ test('mesclar canais: só do mesmo número e desconectado; conversas passam e a 
   assert.equal(juntada.nao_lidas, 3);
   assert.equal(juntada.criado_em, ontem, 'a conversa começa quando começou a antiga');
   assert.deepEqual(db.tables.mensagens.filter((m) => m.conversa_id === convVendas.id).map((m) => m.conteudo).sort(), ['Oi, quero um orçamento', 'mensagem antiga']);
-  assert.equal(db.tables.canais.find((c) => c.id === antigo.id).ativo, false);
-  assert.equal(db.tables.canais.find((c) => c.id === antigo.id).status, 'desconectado');
-  assert.ok(enviados.some((e) => e.url.includes('/instance/logout/')), 'desconecta a conexão antiga');
+  assert.equal(db.tables.canais.some((c) => c.id === antigo.id), false, 'o canal antigo some depois de mesclar');
+  assert.ok(enviados.some((e) => e.url.includes(`/instance/delete/`)), 'remove a conexão antiga do WhatsApp');
+  const mescla = db.tables.auditoria_logs.find((l) => l.acao === 'canal_mesclou');
+  assert.equal(mescla.detalhes.canal_id, canal.id, 'a mescla fica no histórico do canal novo');
+  assert.deepEqual([mescla.detalhes.de, mescla.detalhes.movidas, mescla.detalhes.juntadas], ['Antigo', 1, 1]);
+  const { GET: historico } = await import('../src/app/api/canais/[id]/route.js');
+  const h = await ler(await historico(await como('ana@a.com', `/api/canais/${canal.id}`), { params: { id: canal.id } }));
+  assert.equal(h.historico[0].acao, 'canal_mesclou');
   assert.equal(db.tables.auditoria_logs.some((l) => l.acao === 'chat_mesclou' && l.detalhes.de_conversa_id === velhaMesmoContato.id), true);
+});
+
+test('canais inativos: desativar marca a data; depois do prazo, sem conversas é excluído e com conversas sai da lista', async () => {
+  const { GET: listarCanais, PATCH, PUT } = await import('../src/app/api/canais/route.js');
+  db.tables.auditoria_logs = [];
+  db.tables.sistema_config = [];
+  const vazio = { ...canal, id: crypto.randomUUID(), nome: 'Vazio', status: 'desconectado', webhook_token_hash: hashToken('t5'), config: {} };
+  const comConversa = { ...canal, id: crypto.randomUUID(), nome: 'Com conversa', status: 'desconectado', webhook_token_hash: hashToken('t6'), config: {} };
+  db.tables.canais.push(vazio, comConversa);
+  db.tables.conversas.push({ id: crypto.randomUUID(), organizacao_id: A, canal_id: comConversa.id, contato_id: contato.id, status: 'resolvida', nao_lidas: 0 });
+
+  for (const c of [vazio, comConversa]) {
+    const r = await ler(await PATCH(await como('ana@a.com', '/api/canais', 'PATCH', { id: c.id, ativo: false })));
+    assert.equal(r.canal.ativo, false);
+    assert.ok(r.canal.config.desativado_em, 'guarda quando foi desativado');
+  }
+  assert.equal(db.tables.auditoria_logs.filter((l) => l.acao === 'canal_desativou').length, 2, 'desativar entra no histórico');
+
+  // Ainda dentro do prazo: continuam na lista (aba Inativos)
+  let lista = await ler(await listarCanais(await como('ana@a.com', '/api/canais')));
+  assert.equal(lista.limpezaDias, 60);
+  assert.ok(lista.canais.some((c) => c.id === vazio.id) && lista.canais.some((c) => c.id === comConversa.id));
+
+  // Passaram 61 dias
+  const velho = new Date(Date.now() - 61 * 86400000).toISOString();
+  db.tables.canais.filter((c) => [vazio.id, comConversa.id].includes(c.id)).forEach((c) => (c.config = { ...c.config, desativado_em: velho }));
+  lista = await ler(await listarCanais(await como('ana@a.com', '/api/canais')));
+  assert.equal(db.tables.canais.some((c) => c.id === vazio.id), false, 'sem conversas: excluído');
+  assert.equal(db.tables.canais.find((c) => c.id === comConversa.id).config.arquivado, true, 'com conversas: arquivado, conversas guardadas');
+  assert.equal(lista.canais.some((c) => c.id === comConversa.id), false, 'arquivado some da lista');
+  assert.equal(db.tables.conversas.some((c) => c.canal_id === comConversa.id), true);
+
+  // Prazo configurável (0 = nunca)
+  assert.equal((await ler(await PUT(await como('ana@a.com', '/api/canais', 'PUT', { limpezaDias: 0 })))).limpezaDias, 0);
+  assert.equal((await PUT(await como('ana@a.com', '/api/canais', 'PUT', { limpezaDias: 7 }))).status, 400);
+  assert.equal((await PUT(await como('bia@a.com', '/api/canais', 'PUT', { limpezaDias: 30 }))).status, 403);
+});
+
+test('devolver para a fila (Kanban: Ativos → Pendentes): só quem está com a conversa ou administrador', async () => {
+  const agir2 = async (email, corpo) => ler(await agir(await como(email, `/api/chat/${convVendas.id}`, 'POST', corpo), { params: { id: convVendas.id } }));
+  assert.equal((await agir2('bia@a.com', { acao: 'assumir' })).ok, true);
+  assert.equal(db.tables.conversas.find((c) => c.id === convVendas.id).responsavel_email, 'bia@a.com');
+  const r = await agir2('bia@a.com', { acao: 'devolver' });
+  assert.equal(r.ok, true);
+  const conv = db.tables.conversas.find((c) => c.id === convVendas.id);
+  assert.deepEqual([conv.responsavel_email, conv.status], [null, 'aguardando']);
+  // Com outra pessoa: quem não está com ela nem a enxerga (sem "ver tickets de outros"); o administrador devolve
+  await agir2('ana@a.com', { acao: 'assumir' });
+  assert.equal((await agir2('bia@a.com', { acao: 'devolver' })).status, 404);
+  assert.equal((await agir2('ana@a.com', { acao: 'devolver' })).ok, true);
 });

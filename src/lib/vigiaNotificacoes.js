@@ -96,14 +96,15 @@ function verificarRespostasClientes(email) {
 async function verificarNovidades() {
   const { publicacao, desenvolvimento } = await fetchPublicacaoNovidades();
   const semana = Date.now() - 7 * 86400000;
-  for (const n of NOVIDADES) {
-    const pub = publicacao[n.id];
-    if (!pub && desenvolvimento) {
-      notificar({ id: `novidade_pendente_${n.id}`, tipo: 'feedback', titulo: 'Novidade aguardando sua aprovação', detalhe: n.titulo, aba: 'feedbacks' });
-    }
-    if (pub?.publicada && new Date(pub.em).getTime() >= semana) {
-      notificar({ id: `novidade_${n.id}`, tipo: 'sistema', titulo: 'Novidade no RM Controle', detalhe: n.titulo, aba: 'feedbacks' });
-    }
+  const pendentes = desenvolvimento ? NOVIDADES.filter((n) => !publicacao[n.id]) : [];
+  const publicadas = NOVIDADES.filter((n) => publicacao[n.id]?.publicada && new Date(publicacao[n.id].em).getTime() >= semana);
+  // Um aviso só para cada tipo (o mais novo substitui o anterior), em vez de um por novidade
+  const resumo = (lista) => (lista.length === 1 ? lista[0].titulo : `${lista[0].titulo} e mais ${lista.length - 1}`);
+  if (pendentes.length) {
+    notificar({ id: `novidades_pendentes_${pendentes.length}_${pendentes[0].id}`, grupo: 'novidades_pendentes', tipo: 'feedback', titulo: pendentes.length === 1 ? 'Novidade aguardando sua aprovação' : `${pendentes.length} novidades aguardando sua aprovação`, detalhe: resumo(pendentes), aba: 'feedbacks' });
+  }
+  if (publicadas.length) {
+    notificar({ id: `novidades_${publicadas.length}_${publicadas[0].id}`, grupo: 'novidades', tipo: 'sistema', titulo: publicadas.length === 1 ? 'Novidade no RM Controle' : `${publicadas.length} novidades no RM Controle`, detalhe: resumo(publicadas), aba: 'feedbacks' });
   }
 }
 

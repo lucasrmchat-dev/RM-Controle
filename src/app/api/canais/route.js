@@ -4,6 +4,8 @@ import { validarUrlWebhook } from '@/lib/server/whatsappAgenda';
 import { cifrarSegredos, hashToken, novoToken } from '@/lib/server/canais/cofre';
 import { canalPublico, configDoChat, enderecoWebhook, provedorDo, segredosDo, servidorQrDaPlataforma } from '@/lib/server/canais/index';
 import { canalRecebeGrupos, validarCanal } from '@/lib/canais';
+import { CHAVE_LIMPEZA_CANAIS, OPCOES_LIMPEZA, diasLimpezaCanais, limparCanaisInativos, registrarHistoricoCanal } from '@/lib/server/canais/historico';
+import { getNomeEquipe } from '@/lib/server/canais/equipe';
 import { isValidUUID } from '@/lib/sanitize';
 
 export const dynamic = 'force-dynamic';
@@ -21,9 +23,14 @@ export async function GET(request) {
   const ctx = await contextoDaRequisicao(request);
   if (ctx.erro) return ctx.erro;
   if (!moduloContratado(ctx.org, 'conexoes')) return json({ ok: false, mensagem: 'Canais não fazem parte do plano da sua empresa.' }, 403);
+  // Limpeza dos inativos antigos acontece aqui mesmo (administrador abrindo a tela), sem tarefa agendada
+  const dias = await diasLimpezaCanais(ctx.db);
+  if (ctx.admin) await limparCanaisInativos(ctx.db, dias).catch(() => {});
   const { data, error } = await ctx.db.from('canais').select('*').order('criado_em');
   if (error) return json({ ok: false, mensagem: /canais/.test(error.message) ? 'Rode supabase/migration_canais_chat.sql no Supabase.' : error.message }, 500);
-  return json({ ok: true, canais: (data || []).map(canalPublico), admin: ctx.admin, servidorQr: Boolean(servidorQrDaPlataforma()) });
+  // Arquivados (inativos há muito tempo, com conversas guardadas) não aparecem mais na lista
+  const visiveis = (data || []).filter((c) => !c.config?.arquivado);
+  return json({ ok: true, canais: visiveis.map(canalPublico), admin: ctx.admin, servidorQr: Boolean(servidorQrDaPlataforma()), limpezaDias: dias });
 }
 
 export async function POST(request) {
@@ -49,6 +56,7 @@ export async function POST(request) {
     const limite = mensagemLimite(error);
     return json({ ok: false, mensagem: limite || error.message }, limite ? 403 : 500);
   }
+  await registrarHistoricoCanal(ctx.db, { email: ctx.email, nome: await getNomeEquipe(ctx.db, ctx.email) }, data.id, 'canal_criou', { nome: data.nome, tipo: data.tipo });
   // Oficial: confere token e número na hora (e já mostra nome verificado e qualidade)
   if (data.provedor === 'meta') {
     try {
@@ -85,18 +93,30 @@ export async function PATCH(request) {
   }
   if (body.departamento_padrao !== undefined) campos.departamento_padrao = String(body.departamento_padrao || '').trim().slice(0, 60) || null;
   if (body.ativo !== undefined) campos.ativo = Boolean(body.ativo);
-  let antes = null;
-  if (body.ignorarGrupos !== undefined) {
-    ({ data: antes } = await ctx.db.from('canais').select('*').eq('id', body.id).maybeSingle());
-    if (!antes) return json({ ok: false, mensagem: 'Canal não encontrado.' }, 404);
-    campos.config = { ...(antes.config || {}), ignorarGrupos: Boolean(body.ignorarGrupos) };
+  const { data: antes } = await ctx.db.from('canais').select('*').eq('id', body.id).maybeSingle();
+  if (!antes) return json({ ok: false, mensagem: 'Canal não encontrado.' }, 404);
+  const config = { ...(antes.config || {}) };
+  if (body.ignorarGrupos !== undefined) config.ignorarGrupos = Boolean(body.ignorarGrupos);
+  // Quando foi desativado: base da limpeza automática dos inativos
+  if (body.ativo !== undefined && Boolean(body.ativo) !== antes.ativo) {
+    if (body.ativo) delete config.desativado_em;
+    else config.desativado_em = new Date().toISOString();
   }
+  if (body.ignorarGrupos !== undefined || body.ativo !== undefined) campos.config = config;
   const { data, error } = await ctx.db.from('canais').update(campos).eq('id', body.id).select('*').maybeSingle();
   if (error) return json({ ok: false, mensagem: error.message }, 500);
   if (!data) return json({ ok: false, mensagem: 'Canal não encontrado.' }, 404);
+  // Histórico do canal: o que mudou
+  const quem = { email: ctx.email, nome: await getNomeEquipe(ctx.db, ctx.email) };
+  if (body.ativo !== undefined && Boolean(body.ativo) !== antes.ativo) await registrarHistoricoCanal(ctx.db, quem, data.id, body.ativo ? 'canal_ativou' : 'canal_desativou');
+  const mudancas = {};
+  if (campos.nome !== undefined && campos.nome !== antes.nome) mudancas.nome = { de: antes.nome, para: campos.nome };
+  if (campos.departamento_padrao !== undefined && (campos.departamento_padrao || null) !== (antes.departamento_padrao || null)) mudancas.departamento = { de: antes.departamento_padrao || 'Todos', para: campos.departamento_padrao || 'Todos' };
+  if (body.ignorarGrupos !== undefined && Boolean(body.ignorarGrupos) !== Boolean(antes.config?.ignorarGrupos)) mudancas.grupos = body.ignorarGrupos ? 'não recebe grupos' : 'recebe grupos';
+  if (Object.keys(mudancas).length) await registrarHistoricoCanal(ctx.db, quem, data.id, 'canal_editou', { mudancas });
   // Grupos ligados/desligados neste número: avisa o WhatsApp (QR Code) para nem mandar as mensagens de grupo
   let aviso = null;
-  if (antes && Boolean(antes.config?.ignorarGrupos) !== Boolean(data.config?.ignorarGrupos) && data.provedor === 'evolution' && data.status === 'conectado') {
+  if (body.ignorarGrupos !== undefined && Boolean(antes.config?.ignorarGrupos) !== Boolean(data.config?.ignorarGrupos) && data.provedor === 'evolution' && data.status === 'conectado') {
     await provedorDo(data)
       .ajustarGrupos(data, segredosDo(data), canalRecebeGrupos(data, await configDoChat(ctx.db)))
       .catch(() => {
@@ -104,6 +124,18 @@ export async function PATCH(request) {
       });
   }
   return json({ ok: true, canal: canalPublico(data), ...(aviso ? { aviso } : {}) });
+}
+
+/** PUT { limpezaDias }: depois de quantos dias inativo o canal sai da lista (0 = nunca). Administradores. */
+export async function PUT(request) {
+  const ctx = await contextoDaRequisicao(request, { exigirAdmin: true });
+  if (ctx.erro) return ctx.erro;
+  const body = (await request.json().catch(() => null)) || {};
+  const dias = Number(body.limpezaDias);
+  if (!OPCOES_LIMPEZA.includes(dias)) return json({ ok: false, mensagem: 'Prazo inválido.' }, 400);
+  const { error } = await ctx.db.from('sistema_config').upsert([{ chave: CHAVE_LIMPEZA_CANAIS, valor: { dias } }], { onConflict: 'chave' });
+  if (error) return json({ ok: false, mensagem: error.message }, 500);
+  return json({ ok: true, limpezaDias: dias });
 }
 
 export async function DELETE(request) {

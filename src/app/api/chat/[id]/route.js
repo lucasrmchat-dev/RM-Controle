@@ -112,6 +112,17 @@ async function processar(request, params, aviso) {
       return json({ ok: true, conversa: salvo });
     }
 
+    // Devolver para a fila (Kanban: arrastar de Ativos para Pendentes): só quem está com ela ou administrador
+    if (body.acao === 'devolver') {
+      if (conversa.status === 'resolvida') return json({ ok: false, mensagem: 'Reabra a conversa antes.' }, 409);
+      if (conversa.responsavel_email && conversa.responsavel_email !== autor.email && !perm.administrador) return json({ ok: false, mensagem: `Esta conversa está com ${conversa.responsavel_nome || 'outra pessoa'}.` }, 403);
+      if (!conversa.responsavel_email) return json({ ok: true, conversa: (await juntarDetalhes(db, [conversa]))[0] });
+      const salvo = await atualizar({ responsavel_email: null, responsavel_nome: null, status: 'aguardando' });
+      await registrarSistema(db, conversa.id, `${autor.nome} devolveu a conversa para a fila`, autor);
+      await auditarChat(db, perm, 'chat_devolveu', conversa);
+      return json({ ok: true, conversa: salvo });
+    }
+
     if (body.acao === 'resolver') {
       const salvo = await atualizar({ status: 'resolvida', resolvida_em: new Date().toISOString(), nao_lidas: 0 });
       await registrarSistema(db, conversa.id, `${autor.nome} resolveu a conversa`, autor);
