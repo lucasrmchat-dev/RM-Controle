@@ -15,7 +15,8 @@ async function chamar(segredos, caminho, { metodo = 'GET', corpo, fetchImpl = fe
   try {
     const res = await fetchImpl(`${segredos.url}${caminho}`, {
       method: metodo,
-      headers: { apikey: segredos.apikey, 'Content-Type': 'application/json' },
+      // ngrok-skip-browser-warning: com a Evolution atrás de um túnel do ngrok, evita a página de aviso dele
+      headers: { apikey: segredos.apikey, 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
       body: corpo ? JSON.stringify(corpo) : undefined,
       signal: controle.signal,
       redirect: 'error',
