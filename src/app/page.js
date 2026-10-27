@@ -60,6 +60,8 @@ import LoginView from '@/components/LoginView';
 import SupportCompletionModal from '@/components/SupportCompletionModal';
 import SupportQueueView from '@/components/SupportQueueView';
 import FeedbacksView from '@/components/FeedbacksView';
+import CanaisView from '@/components/CanaisView';
+import ChatView from '@/components/ChatView';
 import AgendaView from '@/components/AgendaView';
 import ComercialView from '@/components/ComercialView';
 import { 
@@ -452,7 +454,7 @@ export default function Home() {
       setAbasPermitidas(permitidas);
       if (!permitidas.includes(activeTab)) {
         // Vai para o primeiro módulo que o perfil permite (nem todo perfil tem a Fila)
-        setActiveTab(['fila', 'agenda', 'comercial', 'dashboard', 'feedbacks', 'empresas', 'configuracoes'].find((m) => permitidas.includes(m)) || 'fila');
+        setActiveTab(['fila', 'chat', 'agenda', 'comercial', 'dashboard', 'feedbacks', 'empresas', 'configuracoes'].find((m) => permitidas.includes(m)) || 'fila');
       }
     };
     // Papel alterado em Equipe & Senhas: pergunta ao servidor e aplica
@@ -1700,6 +1702,12 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                 />
               )}
 
+              {/* CHAT: conversas do WhatsApp */}
+              {activeTab === 'chat' && abasPermitidas.includes('chat') && <ChatView />}
+
+              {/* CANAIS: números de WhatsApp (QR Code / API oficial) */}
+              {activeTab === 'conexoes' && abasPermitidas.includes('conexoes') && <CanaisView />}
+
               {/* PLATAFORMA: empresas assinantes, revendas, contratos e limites (só para quem gerencia) */}
               {activeTab === 'plataforma' && abasPermitidas.includes('plataforma') && <PlataformaView />}
 
@@ -1935,6 +1943,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
 
       {/* Central de notificações flutuante, visível em todas as telas */}
       <CentralNotificacoes
+        soCelular
         onAbrirAba={(aba) => {
           if (aba !== 'fila' && !abasPermitidas.includes(aba)) return;
           setSelectedEmpresa(null);

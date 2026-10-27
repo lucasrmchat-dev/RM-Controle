@@ -4,6 +4,8 @@ import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { BrandMark } from './BrandMark';
 import PerfilPainel from './PerfilPainel';
+import CentralNotificacoes from './CentralNotificacoes';
+import { EVENTO_NOTIFICACOES, listarNotificacoes } from '@/lib/notificacoes';
 import {
   getFilaChamados,
   getAbasPermitidas,
@@ -16,7 +18,9 @@ import {
   getEquipeUsuarios,
   getVerComoPerfil,
   setVerComoPerfil,
+  fetchConversas,
 } from '@/lib/storage';
+import { contarConversasNovas } from '@/lib/canais';
 import { permissoesEfetivas, podeVerDemanda } from '@/lib/perfis';
 import { ROTULOS_PAPEL } from '@/lib/roles';
 import { SupportQueueIcon, CalendarIcon, BuildingIcon } from './Icons';
@@ -149,8 +153,38 @@ export default function Navbar({
   acoesFila = false,
 }) {
   const [perfilAberto, setPerfilAberto] = useState(false);
+  // Cabeçalho recolhido (computador): a ilha encolhe para símbolo, sino e conta, e a tela ganha a altura toda
+  const [recolhido, setRecolhido] = useState(false);
+  // Recolhido, a ilha sobe e some (como a barra de menus do Mac em tela cheia); o mouse no topo traz de volta
+  const [revelado, setRevelado] = useState(false);
+  const esconder = useRef(null);
+  const revelar = () => {
+    clearTimeout(esconder.current);
+    setRevelado(true);
+  };
+  const agendarEsconder = () => {
+    clearTimeout(esconder.current);
+    esconder.current = setTimeout(() => setRevelado(false), 650);
+  };
+  const preferenciaLida = useRef(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('rm_cabecalho_recolhido') === 'sim') setRecolhido(true);
+    } catch {}
+    preferenciaLida.current = true;
+  }, []);
+  useEffect(() => {
+    document.documentElement.style.setProperty('--rm-cabecalho', recolhido ? '0px' : '78px');
+    if (!preferenciaLida.current) return;
+    try {
+      localStorage.setItem('rm_cabecalho_recolhido', recolhido ? 'sim' : 'nao');
+    } catch {}
+  }, [recolhido]);
   const [totalFila, setTotalFila] = useState(0);
   const [totalReunioesHoje, setTotalReunioesHoje] = useState(0);
+  // Conversas do Chat com mensagens novas e notificações não lidas (aparecem também com o cabeçalho recolhido)
+  const [totalChat, setTotalChat] = useState(0);
+  const [notificacoesNovas, setNotificacoesNovas] = useState(0);
   const [userRole, setUserRole] = useState('administrador');
   const [encaixado, setEncaixado] = useState(false);
   const encaixadoRef = useRef(false);
@@ -167,6 +201,35 @@ export default function Navbar({
       setTotalReunioesHoje((getAgendaEventos() || []).filter((e) => e.data === hojeIso && e.status !== 'cancelada').length);
     } catch (e) {}
   };
+
+  useEffect(() => {
+    const contar = () => setNotificacoesNovas(listarNotificacoes().filter((n) => !n.lida).length);
+    contar();
+    window.addEventListener(EVENTO_NOTIFICACOES, contar);
+    window.addEventListener('storage', contar);
+    return () => {
+      window.removeEventListener(EVENTO_NOTIFICACOES, contar);
+      window.removeEventListener('storage', contar);
+    };
+  }, []);
+
+  // Chat: a tela do Chat avisa na hora; fora dela, consulta a cada 30 s
+  useEffect(() => {
+    if (!getAbasPermitidas(userEmail).includes('chat')) return undefined;
+    const aoContar = (e) => setTotalChat(Number(e.detail) || 0);
+    window.addEventListener('rm_chat_contagem', aoContar);
+    const consultar = () =>
+      document.visibilityState === 'visible' &&
+      fetchConversas('abertas')
+        .then((r) => setTotalChat(contarConversasNovas(r.conversas, r.config)))
+        .catch(() => {});
+    consultar();
+    const t = setInterval(consultar, 30000);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener('rm_chat_contagem', aoContar);
+    };
+  }, [userEmail]);
 
   useEffect(() => {
     checarEstado();
@@ -235,11 +298,34 @@ export default function Navbar({
     .toUpperCase();
 
   const todasAsAbas = [
+    {
+      id: 'chat',
+      label: 'Chat',
+      curto: 'Chat',
+      badge: totalChat || null,
+      icon: (
+        <svg className="w-[17px] h-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M7 9h10M7 13h6" />
+          <path d="M4 5h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H9l-5 3.5V6a1 1 0 0 1 1-1z" />
+        </svg>
+      ),
+    },
     { id: 'fila', label: 'Fila de Demandas', curto: 'Fila', badge: totalFila || null, icon: <SupportQueueIcon className="w-[17px] h-[17px]" /> },
     { id: 'agenda', label: 'Agenda', curto: 'Agenda', badge: totalReunioesHoje || null, icon: <CalendarIcon className="w-[17px] h-[17px]" /> },
     { id: 'comercial', label: 'Comercial', curto: 'Comercial', icon: <svg className="w-[17px] h-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17l6-6 4 3 6-9M14 5h6v6" /></svg> },
     { id: 'dashboard', label: 'Dashboard', curto: 'Métricas', icon: <IconeDashboard /> },
     { id: 'feedbacks', label: 'Feedbacks', curto: 'Feedbacks', icon: <IconeFeedbacks /> },
+    {
+      id: 'conexoes',
+      label: 'Canais',
+      curto: 'Canais',
+      icon: (
+        <svg className="w-[17px] h-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 21l1.65-4.95A8.5 8.5 0 1 1 8 19.4L3 21z" />
+          <path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 1c-1-.5-2-1.5-2.5-2.5l1-1-1-2L9 9.5z" />
+        </svg>
+      ),
+    },
     {
       id: 'plataforma',
       label: getGestaoAtual()?.nivel === 'revenda' ? 'Revenda' : 'Plataforma',
@@ -269,7 +355,8 @@ export default function Navbar({
   };
 
 
-  const mostrarAcoes = acoesFila && encaixado;
+  const mostrarAcoes = acoesFila && encaixado && !recolhido;
+  const ilhaEscondida = recolhido && !revelado && !perfilAberto;
   // Com as ações encaixadas, as abas inativas viram só ícone para abrir espaço
   const rotulosCompletos = largura >= 1024 && !mostrarAcoes;
   const acoesComRotulo = largura >= 1280;
@@ -310,13 +397,70 @@ export default function Navbar({
       {/* COMPUTADOR: ilha centralizada; na fila, recebe as ações ao lado ao rolar       */}
       {/* ============================================================================== */}
       <header className="hidden md:flex fixed top-3 inset-x-0 z-40 justify-center px-4 lg:px-6 pointer-events-none">
+        {/* Recolhido: faixa sensível no topo e puxador que trazem a ilha de volta */}
+        {recolhido && (
+          <>
+            <div className="pointer-events-auto fixed top-0 left-1/2 -translate-x-1/2 w-[320px] h-[10px]" onMouseEnter={revelar} aria-hidden="true" />
+            {(() => {
+              // Avisos que não podem sumir com o cabeçalho recolhido
+              const avisos = [
+                ...abas.filter((t) => t.badge).map((t) => ({ id: t.id, icone: t.icon, valor: t.badge, rotulo: t.label, cor: t.id === 'fila' ? 'text-amber-700 dark:text-amber-300' : 'text-slate-600 dark:text-zinc-300' })),
+                ...(notificacoesNovas ? [{ id: 'notificacoes', valor: notificacoesNovas, rotulo: 'Notificações', cor: 'text-rose-600 dark:text-rose-400', sino: true }] : []),
+              ];
+              return (
+                <motion.button
+                  type="button"
+                  onClick={() => {
+                    // Clicar no puxador já expande o cabeçalho de vez
+                    setRevelado(false);
+                    setRecolhido(false);
+                  }}
+                  onMouseEnter={revelar}
+                  aria-label={`Expandir o cabeçalho${avisos.length ? ` (${avisos.map((a) => `${a.rotulo}: ${a.valor}`).join(', ')})` : ''}`}
+                  title="Clique para expandir o cabeçalho"
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: ilhaEscondida ? 1 : 0, y: ilhaEscondida ? 0 : -8 }}
+                  transition={MOLA}
+                  className={`pointer-events-auto fixed top-1.5 left-1/2 -translate-x-1/2 flex items-center justify-center cursor-pointer ${
+                    avisos.length ? 'h-7 px-2.5 gap-2.5 rounded-full bg-white/90 dark:bg-[#232326]/90 backdrop-blur-xl ring-1 ring-black/[0.07] dark:ring-white/[0.1] shadow-[0_6px_20px_-8px_rgba(0,0,0,0.3)]' : 'w-16 h-4'
+                  }`}
+                >
+                  {avisos.length ? (
+                    avisos.map((a) => (
+                      <span key={a.id} className={`flex items-center gap-1 text-[11.5px] font-semibold tabular-nums ${a.cor}`}>
+                        {a.sino ? (
+                          <svg className="w-[13px] h-[13px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                          </svg>
+                        ) : (
+                          <span className="[&_svg]:w-[13px] [&_svg]:h-[13px] flex">{a.icone}</span>
+                        )}
+                        {a.valor > 99 ? '99+' : a.valor}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="w-10 h-[5px] rounded-full bg-black/20 dark:bg-white/25" />
+                  )}
+                </motion.button>
+              );
+            })()}
+          </>
+        )}
         <LayoutGroup>
-          <div className="flex items-center justify-center gap-2 w-full max-w-[1720px]">
+          <motion.div
+            animate={{ y: ilhaEscondida ? -80 : 0 }}
+            transition={MOLA}
+            onMouseEnter={recolhido ? revelar : undefined}
+            onMouseLeave={recolhido ? agendarEsconder : undefined}
+            onFocusCapture={recolhido ? revelar : undefined}
+            className="flex items-center justify-center gap-2 w-full max-w-[1720px]"
+          >
             <motion.div
               layout
               transition={MOLA}
               style={{ borderRadius: 999 }}
-              className={`${ilha} h-[54px] flex items-center gap-1 pl-2 pr-2`}
+              className={`${ilha} ${recolhido ? 'h-[48px]' : 'h-[54px]'} flex items-center gap-1 pl-1.5 pr-1.5`}
             >
               {/* Marca: só o símbolo */}
               <motion.button
@@ -327,14 +471,14 @@ export default function Navbar({
                 aria-label="RM Controle — ir para a Fila de Demandas"
                 className="h-10 w-10 flex items-center justify-center rounded-full cursor-pointer flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4d7c0f]/40"
               >
-                <BrandMark size={36} />
+                <BrandMark size={recolhido ? 34 : 36} />
               </motion.button>
 
-              {/* Abas */}
+              {/* Abas (recolhido: só os ícones) */}
               <motion.nav layout="position" transition={MOLA} aria-label="Seções" className="flex items-center gap-0.5 ml-1">
                 {abas.map((tab) => {
                   const ativa = activeTab === tab.id;
-                  const comRotulo = ativa || rotulosCompletos;
+                  const comRotulo = !recolhido && (ativa || rotulosCompletos);
                   return (
                     <button
                       key={tab.id}
@@ -382,8 +526,27 @@ export default function Navbar({
                 })}
               </motion.nav>
 
-              {/* Conta */}
-              <motion.div layout="position" transition={MOLA} className="flex items-center gap-1.5 flex-shrink-0 ml-1">
+              {/* Notificações, recolher/expandir e conta */}
+              <motion.div layout="position" transition={MOLA} className="flex items-center gap-0.5 flex-shrink-0 ml-1">
+                <CentralNotificacoes embutido onAbrirAba={(aba) => (aba === 'fila' || permitidas.includes(aba)) && irPara(aba)} />
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => {
+                    setPerfilAberto(false);
+                    setRevelado(false);
+                    setRecolhido((v) => !v);
+                  }}
+                  aria-label={recolhido ? 'Expandir o cabeçalho' : 'Recolher o cabeçalho'}
+                  aria-expanded={!recolhido}
+                  title={recolhido ? 'Expandir o cabeçalho' : 'Recolher o cabeçalho (tela cheia)'}
+                  className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer text-slate-500 dark:text-zinc-400 hover:text-[#1d1d1f] dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.08] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4d7c0f]/40"
+                >
+                  <motion.svg animate={{ rotate: recolhido ? 180 : 0 }} transition={MOLA} className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M7 14l5-5 5 5" />
+                    <path d="M5 19h14" />
+                  </motion.svg>
+                </motion.button>
 
                 <div className="relative" ref={perfilRef}>
                   <button
@@ -408,12 +571,12 @@ export default function Navbar({
             <AnimatePresence mode="popLayout">
               {mostrarAcoes && <IlhaAcoesFila key="acoes-fila" classeIlha={ilha} comRotulo={acoesComRotulo} />}
             </AnimatePresence>
-          </div>
+          </motion.div>
         </LayoutGroup>
       </header>
 
       {/* Espaço reservado para o cabeçalho fixo */}
-      <div className="hidden md:block h-[78px]" aria-hidden="true" />
+      <div className="hidden md:block transition-[height] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]" style={{ height: 'var(--rm-cabecalho, 78px)' }} aria-hidden="true" />
 
       {/* ============================================================================== */}
       {/* CELULAR: barra superior simples + dock inferior                                 */}

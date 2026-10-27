@@ -10,8 +10,11 @@ export async function middleware(request) {
   const forwarded = request.headers.get('x-forwarded-for');
   const clientIp = forwarded ? forwarded.split(',')[0].trim() : '127.0.0.1';
 
-  // 2. Rate Limiting Geral (150 requisições por minuto por IP)
-  const globalCheck = globalRateLimiter.check(`global_${clientIp}`, 150, 60000);
+  // 2. Rate Limiting Geral (150 requisições por minuto por IP).
+  // Avisos do WhatsApp ficam de fora: um servidor da Evolution manda TODAS as mensagens de um único IP.
+  // Eles têm limite próprio por canal e só são aceitos com token/assinatura válidos (api/canais/webhook).
+  const ehAvisoWhatsapp = pathname.startsWith('/api/canais/webhook/');
+  const globalCheck = ehAvisoWhatsapp ? { success: true } : globalRateLimiter.check(`global_${clientIp}`, 150, 60000);
   if (!globalCheck.success) {
     return new NextResponse(
       JSON.stringify({ error: 'Limite de tráfego excedido. Aguarde alguns instantes.' }),
@@ -99,6 +102,7 @@ export async function middleware(request) {
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
     font-src 'self' https://fonts.gstatic.com data:;
     img-src 'self' data: blob: https://images.unsplash.com https://*.supabase.co;
+    media-src 'self' blob: https://*.supabase.co;
     connect-src 'self' https://*.supabase.co wss://*.supabase.co https://calendar.google.com https://challenges.cloudflare.com;
     frame-src https://challenges.cloudflare.com;
     frame-ancestors 'none';

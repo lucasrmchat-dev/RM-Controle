@@ -82,10 +82,11 @@ function ItemNotificacao({ n, onAbrir, onRemover }) {
 }
 
 /**
- * Botão flutuante com as últimas notificações do sistema, visível em todas as telas.
- * No celular fica acima da barra de navegação inferior.
+ * Central com as últimas notificações do sistema.
+ *  embutido: sino dentro do cabeçalho (computador), painel abre para baixo
+ *  soCelular: botão flutuante só no celular, acima da barra de navegação inferior
  */
-export default function CentralNotificacoes({ onAbrirAba }) {
+export default function CentralNotificacoes({ onAbrirAba, embutido = false, soCelular = false }) {
   const [lista, setLista] = useState([]);
   const [aberto, setAberto] = useState(false);
   const raiz = useRef(null);
@@ -145,18 +146,18 @@ export default function CentralNotificacoes({ onAbrirAba }) {
   const anteriores = lista.filter((n) => n.lida);
 
   return (
-    <div ref={raiz} className="fixed z-40 right-4 bottom-[88px] md:right-6 md:bottom-6">
+    <div ref={raiz} className={embutido ? 'relative' : `fixed z-40 right-4 bottom-[88px] md:right-6 md:bottom-6 ${soCelular ? 'md:hidden' : ''}`}>
       <AnimatePresence>
         {aberto && (
           <motion.div
             role="dialog"
             aria-label="Notificações"
-            initial={{ opacity: 0, y: 12, scale: 0.96 }}
+            initial={{ opacity: 0, y: embutido ? -10 : 12, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.97, transition: { duration: 0.15 } }}
+            exit={{ opacity: 0, y: embutido ? -6 : 8, scale: 0.97, transition: { duration: 0.15 } }}
             transition={{ type: 'spring', bounce: 0.16, duration: 0.42 }}
-            style={{ transformOrigin: 'bottom right' }}
-            className="absolute right-0 bottom-[calc(100%+12px)] w-[min(380px,calc(100vw-32px))] max-h-[min(560px,70vh)] flex flex-col rounded-[24px] bg-white/95 dark:bg-[#232326]/95 backdrop-blur-2xl ring-1 ring-black/[0.08] dark:ring-white/[0.12] shadow-[0_30px_70px_-20px_rgba(0,0,0,0.35)] dark:shadow-[0_30px_70px_-20px_rgba(0,0,0,0.8)] text-[#1d1d1f] dark:text-[#f5f5f7] overflow-hidden"
+            style={{ transformOrigin: embutido ? 'top right' : 'bottom right' }}
+            className={`absolute right-0 ${embutido ? 'top-[calc(100%+16px)] -mr-2' : 'bottom-[calc(100%+12px)]'} w-[min(380px,calc(100vw-32px))] max-h-[min(560px,70vh)] flex flex-col rounded-[24px] bg-white/95 dark:bg-[#232326]/95 backdrop-blur-2xl ring-1 ring-black/[0.08] dark:ring-white/[0.12] shadow-[0_30px_70px_-20px_rgba(0,0,0,0.35)] dark:shadow-[0_30px_70px_-20px_rgba(0,0,0,0.8)] text-[#1d1d1f] dark:text-[#f5f5f7] overflow-hidden`}
           >
             <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-3">
               <div>
@@ -227,14 +228,20 @@ export default function CentralNotificacoes({ onAbrirAba }) {
         whileHover={{ scale: 1.06 }}
         whileTap={{ scale: 0.94 }}
         transition={MOLA}
-        className={`relative w-[52px] h-[52px] rounded-full flex items-center justify-center cursor-pointer backdrop-blur-2xl ring-1 transition-colors shadow-[0_14px_34px_-10px_rgba(0,0,0,0.35)] dark:shadow-[0_14px_34px_-10px_rgba(0,0,0,0.8)] ${
-          aberto
-            ? 'bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] ring-transparent'
-            : 'bg-white/85 dark:bg-[#26262a]/85 text-[#1d1d1f] dark:text-white ring-black/[0.08] dark:ring-white/[0.12]'
-        }`}
+        className={
+          embutido
+            ? `relative w-10 h-10 rounded-full flex items-center justify-center cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4d7c0f]/40 ${
+                aberto ? 'bg-black/[0.06] dark:bg-white/[0.12] text-[#1d1d1f] dark:text-white' : 'text-slate-500 dark:text-zinc-400 hover:text-[#1d1d1f] dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.08]'
+              }`
+            : `relative w-[52px] h-[52px] rounded-full flex items-center justify-center cursor-pointer backdrop-blur-2xl ring-1 transition-colors shadow-[0_14px_34px_-10px_rgba(0,0,0,0.35)] dark:shadow-[0_14px_34px_-10px_rgba(0,0,0,0.8)] ${
+                aberto
+                  ? 'bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] ring-transparent'
+                  : 'bg-white/85 dark:bg-[#26262a]/85 text-[#1d1d1f] dark:text-white ring-black/[0.08] dark:ring-white/[0.12]'
+              }`
+        }
       >
         <motion.span animate={sino} style={{ originY: 0.15 }} className="flex">
-          <Sino className="w-[22px] h-[22px]" />
+          <Sino className={embutido ? 'w-[19px] h-[19px]' : 'w-[22px] h-[22px]'} />
         </motion.span>
         <AnimatePresence>
           {pendentes > 0 && (
@@ -244,7 +251,7 @@ export default function CentralNotificacoes({ onAbrirAba }) {
               animate={{ scale: 1 }}
               exit={{ scale: 0 }}
               transition={MOLA}
-              className="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[11px] font-semibold flex items-center justify-center ring-2 ring-[#f5f5f7] dark:ring-[#141416] tabular-nums"
+              className={`absolute ${embutido ? 'top-0.5 right-0.5 min-w-[16px] h-4 px-1 text-[10px] ring-white dark:ring-[#232326]' : '-top-0.5 -right-0.5 min-w-[20px] h-5 px-1.5 text-[11px] ring-[#f5f5f7] dark:ring-[#141416]'} rounded-full bg-rose-500 text-white font-semibold flex items-center justify-center ring-2 tabular-nums`}
             >
               {pendentes > 99 ? '99+' : pendentes}
             </motion.span>

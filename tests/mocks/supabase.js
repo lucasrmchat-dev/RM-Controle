@@ -26,6 +26,7 @@ export const db = {
     this.tables = { suporte_chamados: [], feedbacks: [], sistema_config: [], empresas: [], auditoria_logs: [], equipe_usuarios: [] };
     this.columns = { suporte_chamados: null, feedbacks: null };
     this.rls = { deleteAllowed: true, updateAllowed: true };
+    this.unicos = {};
   },
 };
 
@@ -93,6 +94,8 @@ class Query {
   ilike(col, val) { this.filters.push((r) => String(r[col] ?? '').toLowerCase() === String(val).toLowerCase()); return this; }
   is(col, val) { this.filters.push((r) => (r[col] ?? null) === val); return this; }
   not(col, op, val) { this.filters.push((r) => (op === 'is' ? (r[col] ?? null) !== val : r[col] !== val)); return this; }
+  lt(col, val) { this.filters.push((r) => r[col] < val); return this; }
+  gt(col, val) { this.filters.push((r) => r[col] > val); return this; }
   order() { return this; }
   range(inicio, fim) { this.faixa = [inicio, fim]; return this; }
   limit(n) { this.limite = n; return this; }
@@ -127,6 +130,13 @@ class Query {
     };
 
     if (this.op === 'insert') {
+      // Restrições UNIQUE simuladas: db.unicos[tabela] = [['col_a', 'col_b'], ...] (colunas nulas não contam, como no Postgres)
+      for (const p of this.payload) {
+        for (const cols of db.unicos?.[this.table] || []) {
+          const repetida = rows.some((r) => cols.every((c) => p[c] != null && r[c] === p[c]));
+          if (repetida) return { data: null, error: { code: '23505', message: `duplicate key value violates unique constraint (${cols.join(', ')})` } };
+        }
+      }
       for (const p of this.payload) {
         if (cols) {
           const bad = Object.keys(p).find((k) => !cols.includes(k));
@@ -219,5 +229,21 @@ export const supabase = {
   },
   channel: () => ({ on() { return this; }, subscribe() { return this; } }),
   removeChannel: () => {},
+  // Storage: arquivos em db.arquivos[pasta/caminho]
+  storage: {
+    async getBucket(nome) { return { data: db.pastas?.includes(nome) ? { id: nome } : null, error: null }; },
+    async createBucket(nome) { db.pastas = [...(db.pastas || []), nome]; return { data: { name: nome }, error: null }; },
+    from(pasta) {
+      return {
+        async list(pastaInterna) { const prefixo = `${pasta}/${pastaInterna}/`; return { data: Object.keys(db.arquivos || {}).filter((k) => k.startsWith(prefixo)).map((k) => ({ name: k.slice(prefixo.length) })), error: null }; },
+        async remove(caminhos) { caminhos.forEach((c) => delete db.arquivos[`${pasta}/${c}`]); return { data: [], error: null }; },
+        async upload(caminho, dados, op) { db.arquivos = { ...(db.arquivos || {}), [`${pasta}/${caminho}`]: { dados, tipo: op?.contentType } }; return { data: { path: caminho }, error: null }; },
+        async createSignedUrl(caminho, segundos, op) {
+          if (!db.arquivos?.[`${pasta}/${caminho}`]) return { data: null, error: { message: 'Object not found' } };
+          return { data: { signedUrl: `https://teste.supabase.co/storage/v1/object/sign/${pasta}/${caminho}?token=x${op?.download ? '&download=' + encodeURIComponent(op.download) : ''}` }, error: null };
+        },
+      };
+    },
+  },
 };
 export const isSupabaseConfigured = true;

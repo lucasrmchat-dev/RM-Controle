@@ -3386,6 +3386,62 @@ async function chamarPlataforma(metodo, corpo) {
   return json;
 }
 export const fetchPlataforma = () => chamarPlataforma('GET');
+
+// Canais de WhatsApp (o servidor guarda os segredos; a tela recebe só dados públicos)
+async function chamarCanais(url, metodo, corpo) {
+  const res = await fetch(url, {
+    method: metodo,
+    credentials: 'same-origin',
+    cache: 'no-store',
+    ...(corpo ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) } : {}),
+  }).catch(() => null);
+  const json = res ? await res.json().catch(() => ({})) : {};
+  if (!res || !res.ok || !json.ok) throw new Error(json.mensagem || 'Sem conexão com o servidor.');
+  return json;
+}
+export const fetchCanais = () => chamarCanais('/api/canais', 'GET');
+export const criarCanal = (dados) => chamarCanais('/api/canais', 'POST', dados);
+export const editarCanal = (dados) => chamarCanais('/api/canais', 'PATCH', dados);
+export const excluirCanal = (id) => chamarCanais('/api/canais', 'DELETE', { id });
+export const acaoCanal = (id, corpo) => chamarCanais(`/api/canais/${id}`, 'POST', corpo);
+
+// Chat (conversas do WhatsApp): leitura e ações passam pelo servidor, que confere quem pode ver cada conversa
+export const fetchConversas = (aba = 'abertas') => chamarCanais(`/api/chat?aba=${aba === 'resolvidas' ? 'resolvidas' : 'abertas'}`, 'GET');
+export const iniciarConversa = (dados) => chamarCanais('/api/chat', 'POST', dados);
+export const fetchConversa = (id, antes, { abrir = false } = {}) => {
+  const q = new URLSearchParams();
+  if (antes) q.set('antes', antes);
+  if (abrir) q.set('abrir', '1');
+  return chamarCanais(`/api/chat/${id}${q.toString() ? `?${q}` : ''}`, 'GET');
+};
+export const fetchAuditoriaConversa = (id) => chamarCanais(`/api/chat/${id}/auditoria`, 'GET');
+export const acaoConversa = (id, corpo) => chamarCanais(`/api/chat/${id}`, 'POST', corpo);
+export const fetchRespostasRapidas = () => chamarCanais('/api/chat/respostas', 'GET');
+export const criarRespostaRapida = (dados) => chamarCanais('/api/chat/respostas', 'POST', dados);
+export const excluirRespostaRapida = (id) => chamarCanais('/api/chat/respostas', 'DELETE', { id });
+/** Configuração do Chat (grupos...). A gravação ajusta os números por QR Code; `aviso` diz se algum falhou. */
+export async function fetchConfigChat() {
+  const res = await fetch('/api/configuracoes?chave=chat', { cache: 'no-store', credentials: 'same-origin' }).catch(() => null);
+  const json = res ? await res.json().catch(() => ({})) : {};
+  if (!res || !res.ok || !json.ok) throw new Error(json.mensagem || 'Sem conexão com o servidor.');
+  return { grupos: 'desligado', ...(json.config?.chat || {}) };
+}
+export async function salvarConfigChat(valor) {
+  const res = await fetch('/api/configuracoes', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ chave: 'chat', valor }) }).catch(() => null);
+  const json = res ? await res.json().catch(() => ({})) : {};
+  if (!res || !res.ok || !json.ok) throw new Error(json.mensagem || 'Sem conexão com o servidor.');
+  return json;
+}
+export const fetchContatoChat = (id) => chamarCanais(`/api/chat/contatos?id=${encodeURIComponent(id)}`, 'GET');
+export const salvarContatoChat = (dados) => chamarCanais('/api/chat/contatos', 'PATCH', dados);
+export const atualizarFotoContato = (id) => chamarCanais('/api/chat/contatos', 'POST', { id, acao: 'foto' });
+/** Envia foto, vídeo, documento ou áudio gravado (FormData com "arquivo", "legenda", "segundos", "assinar"). */
+export async function enviarArquivoConversa(id, formulario) {
+  const res = await fetch(`/api/chat/${id}/midia`, { method: 'POST', credentials: 'same-origin', body: formulario }).catch(() => null);
+  const json = res ? await res.json().catch(() => ({})) : {};
+  if (!res || !res.ok || !json.ok) throw new Error(json.mensagem || (res?.status === 413 ? 'Arquivo grande demais (máximo de 4 MB).' : 'Sem conexão com o servidor.'));
+  return json;
+}
 export const acaoPlataforma = (corpo) => chamarPlataforma('POST', corpo);
 
 // Contratos da assinante com os clientes dela (gravados direto: o banco confere a empresa pela RLS)

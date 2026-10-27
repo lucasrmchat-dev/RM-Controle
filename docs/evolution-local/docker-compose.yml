@@ -1,0 +1,44 @@
+# Evolution API para TESTES no seu computador (WhatsApp por QR Code).
+# Uso: veja docs/evolution-local/LEIA-ME.md
+# A chave fica no arquivo .env desta pasta (ignorado pelo git) — nunca escreva a chave aqui.
+name: rm-evolution
+
+services:
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.7
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080" # só o próprio Mac acessa
+    environment:
+      SERVER_URL: http://localhost:8080
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:?Crie o arquivo .env com EVOLUTION_API_KEY}
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution:evolution@postgres:5432/evolution?schema=public
+      DATABASE_CONNECTION_CLIENT_NAME: rm_local
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true" # o RM Controle busca fotos e áudios recebidos
+      CACHE_REDIS_ENABLED: "false"
+      CACHE_LOCAL_ENABLED: "true"
+      CONFIG_SESSION_PHONE_CLIENT: RM Controle
+      CONFIG_SESSION_PHONE_NAME: Chrome
+      QRCODE_LIMIT: "30"
+      LOG_LEVEL: ERROR,WARN
+      DEL_INSTANCE: "false"
+    volumes:
+      - evolution_instancias:/evolution/instances
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: evolution # banco interno do Docker, sem porta aberta para fora
+      POSTGRES_DB: evolution
+    volumes:
+      - evolution_banco:/var/lib/postgresql/data
+
+volumes:
+  evolution_instancias:
+  evolution_banco:

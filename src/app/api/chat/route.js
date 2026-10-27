@@ -1,0 +1,51 @@
+import { contextoDaRequisicao } from '@/lib/server/organizacao';
+import { consumirLimite } from '@/lib/server/protecao';
+import { configDoChat, enviarTextoParaNumero } from '@/lib/server/canais/index';
+import { auditarChat, juntarDetalhes, listarConversas, permissaoDoChat } from '@/lib/server/canais/chat';
+import { isValidUUID } from '@/lib/sanitize';
+
+export const dynamic = 'force-dynamic';
+
+/**
+ * Conversas do WhatsApp que a pessoa pode ver.
+ *  GET ?aba=abertas|resolvidas
+ *  POST { canal_id, telefone, texto }   inicia uma conversa mandando a primeira mensagem (só canais por QR Code)
+ */
+const json = (corpo, status = 200) => Response.json(corpo, { status, headers: { 'Cache-Control': 'no-store' } });
+
+export async function GET(request) {
+  const ctx = await contextoDaRequisicao(request);
+  if (ctx.erro) return ctx.erro;
+  const perm = await permissaoDoChat(ctx.db, ctx.email);
+  if (!perm.administrador && !perm.modulos.includes('chat')) return json({ ok: false, mensagem: 'Seu perfil não tem acesso ao Chat.' }, 403);
+  const aba = new URL(request.url).searchParams.get('aba') === 'resolvidas' ? 'resolvidas' : 'abertas';
+  try {
+    const conversas = await listarConversas(ctx.db, perm, { aba });
+    return json({ ok: true, conversas, eu: { email: perm.email, nome: perm.nome, admin: perm.administrador }, config: await configDoChat(ctx.db) });
+  } catch (e) {
+    return json({ ok: false, mensagem: /conversas/.test(e.message) ? 'Rode supabase/migration_canais_chat.sql no Supabase.' : e.message }, 500);
+  }
+}
+
+export async function POST(request) {
+  const ctx = await contextoDaRequisicao(request);
+  if (ctx.erro) return ctx.erro;
+  const perm = await permissaoDoChat(ctx.db, ctx.email);
+  if (!perm.administrador && !perm.modulos.includes('chat')) return json({ ok: false, mensagem: 'Seu perfil não tem acesso ao Chat.' }, 403);
+  if (!(await consumirLimite(`chat_novo_${perm.email}`, 20, 60))) return json({ ok: false, mensagem: 'Muitas conversas novas seguidas. Aguarde um minuto.' }, 429);
+  const body = (await request.json().catch(() => null)) || {};
+  if (!isValidUUID(body.canal_id)) return json({ ok: false, mensagem: 'Escolha o canal.' }, 400);
+  const { data: canal } = await ctx.db.from('canais').select('*').eq('id', body.canal_id).maybeSingle();
+  if (!canal || !canal.ativo) return json({ ok: false, mensagem: 'Canal não disponível.' }, 404);
+  if (canal.status !== 'conectado') return json({ ok: false, mensagem: 'Este canal não está conectado.' }, 409);
+  // API oficial: primeiro contato só por template aprovado (entra com os templates)
+  if (canal.tipo === 'whatsapp_oficial') return json({ ok: false, mensagem: 'Pela API oficial, a primeira mensagem precisa ser um template aprovado pela Meta.' }, 409);
+  try {
+    const mensagem = await enviarTextoParaNumero(ctx.db, { canal, telefone: body.telefone, texto: body.texto, autor: { email: perm.email, nome: perm.nome }, assinar: body.assinar !== false });
+    const { data } = await ctx.db.from('conversas').select('*').eq('id', mensagem.conversa_id).single();
+    await auditarChat(ctx.db, perm, 'chat_iniciou', data);
+    return json({ ok: true, conversa: (await juntarDetalhes(ctx.db, [data]))[0] }, 201);
+  } catch (e) {
+    return json({ ok: false, mensagem: e.message }, 502);
+  }
+}

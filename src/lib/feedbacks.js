@@ -34,6 +34,8 @@ export const MODULOS_FEEDBACK = [
   'Comercial',
   'Dashboard',
   'Feedbacks',
+  'Chat',
+  'Canais',
   'Empresas',
   'Configurações',
   'Notificações',

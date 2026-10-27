@@ -2,6 +2,8 @@ import { validarConfigComercial } from '@/lib/comercial';
 import { contextoDaRequisicao } from '@/lib/server/organizacao';
 import { validarModelosTitulosAgenda } from '@/lib/titulosAgenda';
 import { validarConfigFeedbacks } from '@/lib/feedbacks';
+import { validarConfigChat } from '@/lib/canais';
+import { aplicarGruposNosCanais } from '@/lib/server/canais/index';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +32,7 @@ const CHAVES = {
   comercial: { ler: 'equipe', gravar: 'admin', validar: validarConfigComercial },
   agenda_titulos: { ler: 'equipe', gravar: 'admin', validar: validarModelosTitulosAgenda },
   feedbacks: { ler: 'equipe', gravar: 'admin', validar: validarConfigFeedbacks },
+  chat: { ler: 'equipe', gravar: 'admin', validar: validarConfigChat },
   servidores_urls: {
     ler: 'equipe',
     gravar: 'admin',
@@ -139,5 +142,10 @@ export async function PUT(request) {
     ? await db.rpc('rm_gravar_segredo', { p_chave: body.chave, p_valor: valor })
     : await db.from('sistema_config').upsert({ chave: body.chave, valor, updated_at: new Date().toISOString() }, { onConflict: 'chave' });
   if (error) return json({ ok: false, mensagem: `Não foi possível salvar: ${error.message}` }, 500);
+  // Chat: os números por QR Code passam a mandar (ou não) as mensagens de grupo
+  if (body.chave === 'chat') {
+    const falhas = await aplicarGruposNosCanais(db, valor);
+    if (falhas.length) return json({ ok: true, valor, aviso: `Salvo, mas não foi possível ajustar: ${falhas.join('; ')}. Reconecte o canal em Canais.` });
+  }
   return json({ ok: true, valor: def.segredo ? undefined : valor });
 }

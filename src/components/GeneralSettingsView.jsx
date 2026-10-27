@@ -30,6 +30,7 @@ import PerfisAcessoView from './PerfisAcessoView';
 import ComercialSettings from './ComercialSettings';
 import TitulosReuniaoSettings from './TitulosReuniaoSettings';
 import FeedbacksSettings from './FeedbacksSettings';
+import ChatSettings from './ChatSettings';
 import WhatsappAgendaSettings, { PreferenciasWhatsapp } from './WhatsappAgendaSettings';
 import { podeVerConfiguracoesAvancadas, podeAcessarAbaConfiguracao, ROTULOS_PAPEL } from '@/lib/roles';
 import { 
@@ -276,6 +277,16 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           icon: (
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 21l1.65-4.95A8.5 8.5 0 1 1 8 19.4L3 21z" />
+            </svg>
+          ),
+        },
+        {
+          id: 'chat',
+          label: 'Chat do WhatsApp',
+          icon: (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M7 9h10M7 13h6" />
+              <path d="M4 5h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H9l-5 3.5V6a1 1 0 0 1 1-1z" />
             </svg>
           ),
         },
@@ -1403,6 +1414,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
       {subTab === 'titulos_reuniao' && (isAdmin ? <TitulosReuniaoSettings /> : renderRestrictedNotice('Títulos das reuniões'))}
 
       {subTab === 'feedbacks' && (isAdmin ? <FeedbacksSettings /> : renderRestrictedNotice('Feedbacks'))}
+      {subTab === 'chat' && (isAdmin ? <ChatSettings /> : renderRestrictedNotice('Chat do WhatsApp'))}
 
       {subTab === 'whatsapp' && <PreferenciasWhatsapp />}
 

@@ -1,0 +1,167 @@
+import { consumirLimite } from '@/lib/server/protecao';
+import { enviarTextoNaConversa } from '@/lib/server/canais/index';
+import { isValidUUID } from '@/lib/sanitize';
+import { auditarChat, carregarConversa, juntarDetalhes, listarMensagens, prepararMensagem, registrarSistema, registrarVisualizacao } from '@/lib/server/canais/chat';
+import { apagarArquivosDaConversa } from '@/lib/server/canais/midia';
+import { apagarMensagem, editarMensagem, favoritarMensagem, fixarMensagem, reagirMensagem } from '@/lib/server/canais/acoes';
+
+export const dynamic = 'force-dynamic';
+
+/**
+ * Uma conversa.
+ *  GET ?antes=ISO                               mensagens (as 60 mais recentes, ou anteriores a `antes`)
+ *  POST { acao: 'enviar', texto, assinar }      responde o cliente pelo WhatsApp (assume a conversa se estava na fila);
+ *                                               assinar (padrão): o cliente recebe *Nome:* na primeira linha
+ *  POST { acao: 'nota', texto }                 nota interna (o cliente não vê)
+ *  POST { acao: 'assumir' | 'resolver' | 'reabrir' | 'lida' }
+ *  POST { acao: 'transferir', departamento?, responsavel_email? }
+ *  POST { acao: 'reagir', mensagem_id, emoji }        emoji vazio tira a reação
+ *  POST { acao: 'editar', mensagem_id, texto, assinar } até 15 minutos (QR Code)
+ *  POST { acao: 'apagar', mensagem_id, para: 'mim' | 'todos' }
+ *  POST { acao: 'favoritar' | 'fixar', mensagem_id, valor }
+ *  POST { acao: 'excluir' }                           apaga a conversa inteira e os arquivos (administradores)
+ *  GET ?abrir=1                                       primeira abertura: registra a visualização na auditoria
+ */
+const json = (corpo, status = 200) => Response.json(corpo, { status, headers: { 'Cache-Control': 'no-store' } });
+
+const carregar = (request, params) => carregarConversa(request, params.id);
+
+export async function GET(request, { params }) {
+  const r = await carregar(request, params);
+  if (r.erro) return r.erro;
+  const busca = new URL(request.url).searchParams;
+  const antes = busca.get('antes');
+  if (busca.get('abrir')) await registrarVisualizacao(r.ctx.db, r.perm, r.conversa);
+  const { data: canal } = await r.ctx.db.from('canais').select('*').eq('id', r.conversa.canal_id).maybeSingle();
+  const lista = await listarMensagens(r.ctx.db, r.conversa, { antes: antes && !Number.isNaN(Date.parse(antes)) ? antes : null, perm: r.perm, canal });
+  const [conversa] = await juntarDetalhes(r.ctx.db, [r.conversa]);
+  return json({ ok: true, conversa, ...lista });
+}
+
+export async function POST(request, { params }) {
+  const r = await carregar(request, params);
+  if (r.erro) return r.erro;
+  const { ctx, perm, conversa } = r;
+  const { db } = ctx;
+  if (!(await consumirLimite(`chat_${perm.email}`, 120, 60))) return json({ ok: false, mensagem: 'Muitas ações seguidas. Aguarde um instante.' }, 429);
+  const body = (await request.json().catch(() => null)) || {};
+  const autor = { email: perm.email, nome: perm.nome };
+  const atualizar = async (campos) => {
+    const { data } = await db.from('conversas').update(campos).eq('id', conversa.id).select('*').single();
+    return (await juntarDetalhes(db, [data || { ...conversa, ...campos }]))[0];
+  };
+
+  try {
+    if (body.acao === 'enviar') {
+      if (conversa.status === 'resolvida') return json({ ok: false, mensagem: 'Reabra a conversa para responder.' }, 409);
+      const mensagem = await enviarTextoNaConversa(db, { conversa, texto: body.texto, autor, assinar: body.assinar !== false, respondeA: isValidUUID(body.responde_a) ? body.responde_a : null });
+      const [{ data }, { data: canal }] = await Promise.all([db.from('conversas').select('*').eq('id', conversa.id).single(), db.from('canais').select('*').eq('id', conversa.canal_id).maybeSingle()]);
+      return json({ ok: true, mensagem: prepararMensagem(mensagem, perm, canal), conversa: (await juntarDetalhes(db, [data]))[0] });
+    }
+
+    if (body.acao === 'nota') {
+      const texto = String(body.texto || '').trim().slice(0, 4000);
+      if (!texto) return json({ ok: false, mensagem: 'Escreva a nota.' }, 400);
+      const { data: mensagem, error } = await db
+        .from('mensagens')
+        .insert([{ conversa_id: conversa.id, direcao: 'nota', tipo: 'texto', conteudo: texto, status: 'enviada', autor_email: autor.email, autor_nome: autor.nome }])
+        .select('*')
+        .single();
+      if (error) throw new Error(error.message);
+      return json({ ok: true, mensagem: prepararMensagem(mensagem, perm, null) });
+    }
+
+    if (body.acao === 'lida') {
+      if (conversa.nao_lidas) await db.from('conversas').update({ nao_lidas: 0 }).eq('id', conversa.id);
+      return json({ ok: true });
+    }
+
+    if (body.acao === 'assumir') {
+      if (conversa.status === 'resolvida') return json({ ok: false, mensagem: 'Reabra a conversa para assumir.' }, 409);
+      if (conversa.responsavel_email === autor.email) return json({ ok: true, conversa: (await juntarDetalhes(db, [conversa]))[0] });
+      const salvo = await atualizar({ responsavel_email: autor.email, responsavel_nome: autor.nome, status: conversa.status === 'aguardando' ? 'em_atendimento' : conversa.status });
+      await registrarSistema(db, conversa.id, `${autor.nome} assumiu a conversa`, autor);
+      await auditarChat(db, perm, 'chat_assumiu', conversa);
+      return json({ ok: true, conversa: salvo });
+    }
+
+    if (body.acao === 'resolver') {
+      const salvo = await atualizar({ status: 'resolvida', resolvida_em: new Date().toISOString(), nao_lidas: 0 });
+      await registrarSistema(db, conversa.id, `${autor.nome} resolveu a conversa`, autor);
+      await auditarChat(db, perm, 'chat_resolveu', conversa);
+      return json({ ok: true, conversa: salvo });
+    }
+
+    if (body.acao === 'reabrir') {
+      if (conversa.status !== 'resolvida') return json({ ok: true, conversa: (await juntarDetalhes(db, [conversa]))[0] });
+      const { data: aberta } = await db.from('conversas').select('id').eq('canal_id', conversa.canal_id).eq('contato_id', conversa.contato_id).neq('status', 'resolvida').maybeSingle();
+      if (aberta) return json({ ok: false, mensagem: 'Este contato já tem outra conversa aberta neste canal.', conversa_aberta: aberta.id }, 409);
+      const salvo = await atualizar({ status: 'em_atendimento', resolvida_em: null, responsavel_email: autor.email, responsavel_nome: autor.nome });
+      await registrarSistema(db, conversa.id, `${autor.nome} reabriu a conversa`, autor);
+      await auditarChat(db, perm, 'chat_reabriu', conversa);
+      return json({ ok: true, conversa: salvo });
+    }
+
+    if (body.acao === 'transferir') {
+      const campos = {};
+      let texto = '';
+      if (body.departamento !== undefined) {
+        campos.departamento = String(body.departamento || '').trim().slice(0, 60) || null;
+        texto = `Transferida para ${campos.departamento || 'todos os departamentos'}`;
+      }
+      if (body.responsavel_email !== undefined) {
+        const email = String(body.responsavel_email || '').trim().toLowerCase();
+        if (email) {
+          const { data: membro } = await db.from('equipe_usuarios').select('email, nome, ativo').eq('email', email).maybeSingle();
+          if (!membro || membro.ativo === false) return json({ ok: false, mensagem: 'Pessoa não encontrada na equipe.' }, 400);
+          Object.assign(campos, { responsavel_email: membro.email, responsavel_nome: membro.nome || membro.email.split('@')[0] });
+          texto = `${texto ? `${texto} · ` : 'Transferida para '}${campos.responsavel_nome}`;
+        } else {
+          // Volta para a fila do departamento
+          Object.assign(campos, { responsavel_email: null, responsavel_nome: null, status: conversa.status === 'resolvida' ? 'resolvida' : 'aguardando' });
+          texto = texto || 'Devolvida para a fila';
+        }
+      }
+      if (!texto) return json({ ok: false, mensagem: 'Escolha o departamento ou a pessoa.' }, 400);
+      const salvo = await atualizar(campos);
+      await registrarSistema(db, conversa.id, `${texto} por ${autor.nome}`, autor);
+      await auditarChat(db, perm, 'chat_transferiu', conversa, { para: texto });
+      return json({ ok: true, conversa: salvo });
+    }
+
+    if (['reagir', 'editar', 'apagar', 'favoritar', 'fixar'].includes(body.acao)) {
+      if (!isValidUUID(body.mensagem_id)) return json({ ok: false, mensagem: 'Mensagem inválida.' }, 400);
+      const base = { conversa, mensagemId: body.mensagem_id, autor };
+      const feito =
+        body.acao === 'reagir'
+          ? await reagirMensagem(db, { ...base, emoji: body.emoji })
+          : body.acao === 'editar'
+            ? await editarMensagem(db, { ...base, texto: body.texto, assinar: body.assinar !== false })
+            : body.acao === 'apagar'
+              ? await apagarMensagem(db, { ...base, para: body.para === 'todos' ? 'todos' : 'mim' })
+              : body.acao === 'favoritar'
+                ? await favoritarMensagem(db, { ...base, valor: Boolean(body.valor) })
+                : await fixarMensagem(db, { ...base, valor: Boolean(body.valor) });
+      if (body.acao === 'apagar' && body.para === 'todos') await auditarChat(db, perm, 'chat_apagou_mensagem', conversa, { mensagem_id: body.mensagem_id });
+      if (body.acao === 'editar') await auditarChat(db, perm, 'chat_editou_mensagem', conversa, { mensagem_id: body.mensagem_id });
+      if (body.acao === 'fixar') await registrarSistema(db, conversa.id, `${autor.nome} ${body.valor ? 'fixou' : 'desafixou'} uma mensagem`, autor);
+      const { data: canal } = await db.from('canais').select('*').eq('id', conversa.canal_id).maybeSingle();
+      return json({ ok: true, mensagem: feito ? prepararMensagem(feito, perm, canal) : null });
+    }
+
+    if (body.acao === 'excluir') {
+      if (!perm.administrador) return json({ ok: false, mensagem: 'Só administradores podem excluir conversas.' }, 403);
+      const { count } = await db.from('mensagens').select('id', { count: 'exact', head: true }).eq('conversa_id', conversa.id);
+      await apagarArquivosDaConversa(conversa.organizacao_id, conversa.id);
+      const { error } = await db.from('conversas').delete().eq('id', conversa.id);
+      if (error) throw new Error(`Não foi possível excluir: ${error.message}`);
+      // O registro fica na auditoria (imutável) mesmo com a conversa apagada
+      await auditarChat(db, perm, 'chat_excluiu', conversa, { mensagens: count || 0 });
+      return json({ ok: true });
+    }
+
+    return json({ ok: false, mensagem: 'Ação desconhecida.' }, 400);
+  } catch (e) {
+    return json({ ok: false, mensagem: e.message }, e.status || 502);
+  }
+}

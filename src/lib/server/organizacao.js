@@ -27,6 +27,7 @@ export const TABELAS_DA_EMPRESA = new Set([
   'agenda_eventos', 'agenda_confirmacoes', 'whatsapp_envios',
   'canais_catalogo', 'checklist_catalogo', 'servidor_checklist_template',
   'comercial_integracoes', 'comercial_leads', 'comercial_webhook_eventos',
+  'canais', 'contatos', 'conversas', 'mensagens', 'respostas_rapidas',
 ]);
 
 // Upserts cuja chave de conflito passou a incluir a empresa
