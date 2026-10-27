@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import ConfirmModal from './ConfirmModal';
+import AcessoChatUsuario from './AcessoChatUsuario';
 import { showToast } from './ToastNotification';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -984,6 +985,9 @@ export default function ServerConfigView() {
                           className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono focus:outline-none text-[#1d1d1f] dark:text-white"
                         />
                       </div>
+
+                      {/* Acesso ao Chat (salva na hora, independente do botão abaixo) */}
+                      <AcessoChatUsuario email={usuarioEditando.email} administrador={editPapel === 'administrador' || Boolean(perfis.find((p) => p.id === editPerfil)?.administrador)} />
 
                       <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-black/[0.06] dark:border-white/[0.11]">
                         <button

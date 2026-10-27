@@ -91,8 +91,9 @@ export const evolution = {
   },
 
   /** Texto; com `citada` ({ idExterno, chave, conteudo }) sai como resposta à mensagem. */
-  async enviarTexto(canal, segredos, telefone, texto, { fetchImpl, citada, mencionados = [] } = {}) {
+  async enviarTexto(canal, segredos, telefone, texto, { fetchImpl, citada, mencionados = [], mencionarTodos = false } = {}) {
     const corpo = { number: telefone, text: texto };
+    if (mencionarTodos) corpo.mentionsEveryOne = true;
     // Identificador completo (…@lid ou número@s.whatsapp.net): a Evolution repassa como está
     if (mencionados.length) corpo.mentioned = mencionados;
     if (citada?.idExterno) corpo.quoted = { key: { id: citada.idExterno, ...(citada.chave || {}) }, message: { conversation: citada.conteudo || '' } };

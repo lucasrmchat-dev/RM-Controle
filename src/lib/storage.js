@@ -3415,9 +3415,11 @@ export const fetchConversa = (id, antes, { abrir = false } = {}) => {
   return chamarCanais(`/api/chat/${id}${q.toString() ? `?${q}` : ''}`, 'GET');
 };
 export const fetchAuditoriaConversa = (id) => chamarCanais(`/api/chat/${id}/auditoria`, 'GET');
+export const fetchAcessoChat = (email) => chamarCanais(`/api/chat/acesso?email=${encodeURIComponent(email)}`, 'GET');
+export const salvarAcessoChat = (dados) => chamarCanais('/api/chat/acesso', 'PUT', dados);
 export const fetchParticipantesConversa = (id) => chamarCanais(`/api/chat/${id}/participantes`, 'GET');
 export const buscarMensagensChat = (q, dias = 30) => chamarCanais(`/api/chat/busca?q=${encodeURIComponent(q)}&dias=${dias}`, 'GET');
-export const fetchListaContatos = (q = '', pagina = 0) => chamarCanais(`/api/chat/contatos?lista=1&pagina=${pagina}${q ? `&q=${encodeURIComponent(q)}` : ''}`, 'GET');
+export const fetchListaContatos = (q = '', pagina = 0, { limite } = {}) => chamarCanais(`/api/chat/contatos?lista=1&pagina=${pagina}${limite ? `&limite=${limite}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`, 'GET');
 export const acaoConversa = (id, corpo) => chamarCanais(`/api/chat/${id}`, 'POST', corpo);
 export const fetchRespostasRapidas = () => chamarCanais('/api/chat/respostas', 'GET');
 export const criarRespostaRapida = (dados) => chamarCanais('/api/chat/respostas', 'POST', dados);
@@ -3437,6 +3439,7 @@ export async function salvarConfigChat(valor) {
 }
 export const fetchContatoChat = (id) => chamarCanais(`/api/chat/contatos?id=${encodeURIComponent(id)}`, 'GET');
 export const salvarContatoChat = (dados) => chamarCanais('/api/chat/contatos', 'PATCH', dados);
+export const criarContatoChat = (dados) => chamarCanais('/api/chat/contatos', 'POST', { acao: 'criar', ...dados });
 export const atualizarFotoContato = (id) => chamarCanais('/api/chat/contatos', 'POST', { id, acao: 'foto' });
 /** Envia foto, vídeo, documento ou áudio gravado (FormData com "arquivo", "legenda", "segundos", "assinar"). */
 export async function enviarArquivoConversa(id, formulario) {

@@ -6,7 +6,7 @@
 import { permissoesEfetivas, podeVerDepartamento } from '@/lib/perfis';
 import { normalizarEmail } from '@/lib/roles';
 import { canalPublico } from '@/lib/server/canais/index';
-import { ehGrupo, nomePeloEmail, trocarMencoes } from '@/lib/canais';
+import { ACESSO_CHAT_PADRAO, CHAVE_ACESSO_CHAT, ehGrupo, nomePeloEmail, trocarMencoes, validarAcessoChat } from '@/lib/canais';
 import { nomesDoGrupo } from '@/lib/server/canais/grupos';
 import { formatarTelefone } from '@/lib/whatsappAgenda';
 import { contextoDaRequisicao } from '@/lib/server/organizacao';
@@ -41,7 +41,9 @@ export async function podeVerContato(db, perm, contatoId) {
     const { data } = await db.from('contatos').select('id').eq('id', contatoId).maybeSingle();
     return Boolean(data);
   }
-  const { data } = await db.from('conversas').select('*').eq('contato_id', contatoId);
+  const [{ data }, { data: existe }] = await Promise.all([db.from('conversas').select('*').eq('contato_id', contatoId), db.from('contatos').select('id').eq('id', contatoId).maybeSingle()]);
+  // Contato sem nenhuma conversa (da agenda ou dos grupos): é da empresa toda
+  if (existe && !(data || []).length) return true;
   return (data || []).some((c) => podeVerConversa(perm, c));
 }
 
@@ -63,17 +65,27 @@ export async function permissaoDoChat(db, email) {
 
 async function permissaoDoBanco(db, email) {
   const alvo = normalizarEmail(email);
-  const [equipe, perfis] = await Promise.all([db.from('equipe_usuarios').select('*'), db.from('perfis_acesso').select('*')]);
+  const [equipe, perfis, acesso] = await Promise.all([
+    db.from('equipe_usuarios').select('*'),
+    db.from('perfis_acesso').select('*'),
+    db.from('sistema_config').select('valor').eq('chave', CHAVE_ACESSO_CHAT).maybeSingle(),
+  ]);
   const linhas = (equipe.data || []).map(({ senha, ...resto }) => resto);
   const perm = permissoesEfetivas({ email: alvo, equipe: linhas, perfis: perfis.data || [], adminsExtras: process.env.RM_ADMIN_EMAILS });
   const membro = linhas.find((u) => normalizarEmail(u.email) === alvo);
-  return { ...perm, email: alvo, nome: membro?.nome || nomePeloEmail(alvo) };
+  const chat = { ...ACESSO_CHAT_PADRAO, ...validarAcessoChat(acesso.data?.valor?.[alvo] || {}) };
+  return { ...perm, email: alvo, nome: membro?.nome || nomePeloEmail(alvo), chat };
 }
 
 export function podeVerConversa(perm, conversa) {
   if (!conversa) return false;
   if (perm.administrador) return true;
   if (normalizarEmail(conversa.responsavel_email) === perm.email) return true;
+  const acesso = perm.chat || ACESSO_CHAT_PADRAO;
+  // Controle de canais: só os canais liberados à pessoa (vale mais que o departamento)
+  if (acesso.controleCanais && !acesso.canais.includes(conversa.canal_id)) return false;
+  // Conversa que um colega já assumiu: só com "ver tickets de outros usuários dos seus departamentos"
+  if (conversa.responsavel_email && !acesso.verOutros) return false;
   if (!String(conversa.departamento || '').trim()) return true;
   return podeVerDepartamento(perm, conversa.departamento);
 }

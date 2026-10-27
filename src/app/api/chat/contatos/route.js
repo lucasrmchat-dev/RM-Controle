@@ -1,7 +1,8 @@
 import { acessoAoChat, juntarDetalhes, podeVerContato, podeVerConversa } from '@/lib/server/canais/chat';
 import { provedorDo, segredosDo } from '@/lib/server/canais/index';
 import { guardarArquivo } from '@/lib/server/canais/midia';
-import { ehGrupo } from '@/lib/canais';
+import { ehGrupo, formasDoTelefone, telefoneCanonico } from '@/lib/canais';
+import { normalizarTelefone } from '@/lib/whatsappAgenda';
 import { isValidUUID } from '@/lib/sanitize';
 
 export const dynamic = 'force-dynamic';
@@ -9,9 +10,10 @@ export const dynamic = 'force-dynamic';
 /**
  * Perfil do contato no Chat.
  *  GET ?id=                                            dados, empresa ligada e conversas que a pessoa pode ver
- *  GET ?lista=1&q=&pagina=                             lista de contatos (pessoas; grupos ficam de fora)
+ *  GET ?lista=1&q=&pagina=&limite=                     lista de contatos (pessoas; grupos ficam de fora; limite até 500)
  *  PATCH { id, nome, observacoes, etiquetas, empresa_id }
  *  POST { id, acao: 'foto' }                           busca a foto do perfil no WhatsApp (guardada na pasta da empresa)
+ *  POST { acao: 'criar', nome, telefone }              novo contato (número com código do país)
  */
 const json = (corpo, status = 200) => Response.json(corpo, { status, headers: { 'Cache-Control': 'no-store' } });
 
@@ -68,6 +70,7 @@ export async function PATCH(request) {
 
 export async function POST(request) {
   const body = (await request.json().catch(() => null)) || {};
+  if (body.acao === 'criar') return criar(request, body);
   const r = await inicio(request, body.id);
   if (r.erro) return r.erro;
   if (body.acao !== 'foto') return json({ ok: false, mensagem: 'Ação desconhecida.' }, 400);
@@ -93,14 +96,13 @@ export async function POST(request) {
   }
 }
 
-const POR_PAGINA = 40;
-
 /** Lista de contatos da empresa (como a agenda do RM Chat), com busca por nome ou número. */
 async function listar(request, busca) {
   const r = await acessoAoChat(request);
   if (r.erro) return r.erro;
   const termo = String(busca.get('q') || '').trim().slice(0, 80);
   const pagina = Math.max(0, Math.min(500, Number(busca.get('pagina')) || 0));
+  const POR_PAGINA = Math.max(1, Math.min(500, Number(busca.get('limite')) || 40));
   let q = r.ctx.db.from('contatos').select('id, telefone, nome, foto_url, empresa_id, etiquetas').not('telefone', 'like', '%@g.us');
   if (termo) {
     const digitos = termo.replace(/\D/g, '');
@@ -111,4 +113,19 @@ async function listar(request, busca) {
   if (error) return json({ ok: false, mensagem: error.message }, 500);
   const lista = (data || []).slice(0, POR_PAGINA).map(({ foto_url, ...c }) => ({ ...c, tem_foto: Boolean(foto_url) }));
   return json({ ok: true, contatos: lista, temMais: (data || []).length > POR_PAGINA });
+}
+
+/** Novo contato: nome e número (com código do país). Não duplica: devolve o existente, nas duas formas do número. */
+async function criar(request, body) {
+  const r = await acessoAoChat(request);
+  if (r.erro) return r.erro;
+  const telefone = telefoneCanonico(normalizarTelefone(body.telefone) || '');
+  if (!telefone || telefone.length < 10) return json({ ok: false, mensagem: 'Informe o número com DDD (e o código do país, se não for do Brasil).' }, 400);
+  const nome = String(body.nome || '').trim().slice(0, 120) || null;
+  const { db } = r.ctx;
+  const { data: existentes } = await db.from('contatos').select('id').in('telefone', formasDoTelefone(telefone));
+  if (existentes?.length) return json({ ok: true, contato: { id: existentes[0].id }, ja_existia: true });
+  const { data, error } = await db.from('contatos').insert([{ telefone, nome }]).select('id, telefone, nome').single();
+  if (error) return json({ ok: false, mensagem: error.message }, 500);
+  return json({ ok: true, contato: { ...data, tem_foto: false } }, 201);
 }

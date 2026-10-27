@@ -1,6 +1,6 @@
 import { contextoDaRequisicao } from '@/lib/server/organizacao';
 import { consumirLimite } from '@/lib/server/protecao';
-import { configDoChat, enviarTextoParaNumero } from '@/lib/server/canais/index';
+import { abrirConversaComNumero, configDoChat, enviarTextoParaNumero } from '@/lib/server/canais/index';
 import { auditarChat, juntarDetalhes, listarConversas, permissaoDoChat } from '@/lib/server/canais/chat';
 import { isValidUUID } from '@/lib/sanitize';
 
@@ -9,7 +9,8 @@ export const dynamic = 'force-dynamic';
 /**
  * Conversas do WhatsApp que a pessoa pode ver.
  *  GET ?aba=abertas|resolvidas
- *  POST { canal_id, telefone, texto }   inicia uma conversa mandando a primeira mensagem (só canais por QR Code)
+ *  POST { canal_id, telefone, texto, departamento? }   inicia uma conversa mandando a primeira mensagem (só canais por QR Code)
+ *  POST { canal_id, telefone, departamento?, sem_mensagem: true }   só abre a conversa (nada vai ao cliente)
  */
 const json = (corpo, status = 200) => Response.json(corpo, { status, headers: { 'Cache-Control': 'no-store' } });
 
@@ -37,14 +38,29 @@ export async function POST(request) {
   if (!isValidUUID(body.canal_id)) return json({ ok: false, mensagem: 'Escolha o canal.' }, 400);
   const { data: canal } = await ctx.db.from('canais').select('*').eq('id', body.canal_id).maybeSingle();
   if (!canal || !canal.ativo) return json({ ok: false, mensagem: 'Canal não disponível.' }, 404);
+  const autor = { email: perm.email, nome: perm.nome };
+  const departamento = String(body.departamento || '').trim().slice(0, 60);
+  const finalizar = async (conversaId) => {
+    if (departamento) await ctx.db.from('conversas').update({ departamento }).eq('id', conversaId);
+    const { data } = await ctx.db.from('conversas').select('*').eq('id', conversaId).single();
+    await auditarChat(ctx.db, perm, 'chat_iniciou', data);
+    return json({ ok: true, conversa: (await juntarDetalhes(ctx.db, [data]))[0] }, 201);
+  };
+  // Só abrir: não manda nada ao cliente (vale também para a API oficial)
+  if (body.sem_mensagem) {
+    try {
+      const conversa = await abrirConversaComNumero(ctx.db, { canal, telefone: body.telefone, autor });
+      return await finalizar(conversa.id);
+    } catch (e) {
+      return json({ ok: false, mensagem: e.message }, 400);
+    }
+  }
   if (canal.status !== 'conectado') return json({ ok: false, mensagem: 'Este canal não está conectado.' }, 409);
   // API oficial: primeiro contato só por template aprovado (entra com os templates)
   if (canal.tipo === 'whatsapp_oficial') return json({ ok: false, mensagem: 'Pela API oficial, a primeira mensagem precisa ser um template aprovado pela Meta.' }, 409);
   try {
-    const mensagem = await enviarTextoParaNumero(ctx.db, { canal, telefone: body.telefone, texto: body.texto, autor: { email: perm.email, nome: perm.nome }, assinar: body.assinar !== false });
-    const { data } = await ctx.db.from('conversas').select('*').eq('id', mensagem.conversa_id).single();
-    await auditarChat(ctx.db, perm, 'chat_iniciou', data);
-    return json({ ok: true, conversa: (await juntarDetalhes(ctx.db, [data]))[0] }, 201);
+    const mensagem = await enviarTextoParaNumero(ctx.db, { canal, telefone: body.telefone, texto: body.texto, autor, assinar: body.assinar !== false });
+    return await finalizar(mensagem.conversa_id);
   } catch (e) {
     return json({ ok: false, mensagem: e.message }, 502);
   }

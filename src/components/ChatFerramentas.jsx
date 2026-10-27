@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { fetchListaContatos, getEquipeUsuarios } from '@/lib/storage';
+import { criarContatoChat, fetchListaContatos, getEquipeUsuarios, salvarContatoChat } from '@/lib/storage';
+import { PAISES } from '@/lib/paises';
+import { showToast } from './ToastNotification';
 import { formatarTelefone } from '@/lib/whatsappAgenda';
 import { ModalEtapas, Spinner, classeBotaoPrimario, classeBotaoTexto } from './FormularioEtapas';
 import { classeCampo, classeRotulo } from './NovaEmpresaCampos';
@@ -137,7 +139,112 @@ export function FiltrosAvancados({ aberto, onFechar, admin, valor, lembrarInicia
 // ------------------------------------------------------------------------------
 // Lista de contatos
 // ------------------------------------------------------------------------------
+/** Uma pessoa na lista de contatos: conversar ou editar o nome ali mesmo. */
+function LinhaContato({ c, Avatar, onConversar, onSalvo }) {
+  const [editando, setEditando] = useState(false);
+  const [nome, setNome] = useState(c.nome || '');
+  const [ocupado, setOcupado] = useState(false);
+  const salvar = async () => {
+    setOcupado(true);
+    try {
+      const r = await salvarContatoChat({ id: c.id, nome });
+      onSalvo({ ...c, nome: r.contato?.nome ?? nome });
+      setEditando(false);
+      showToast('Contato salvo.', 'success');
+    } catch (e) {
+      showToast(e.message, 'error');
+    } finally {
+      setOcupado(false);
+    }
+  };
+  return (
+    <li className="group flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-black/[0.03] dark:hover:bg-white/[0.05]">
+      <Avatar conversa={{ contato: c }} tamanho="w-10 h-10 text-[13px]" />
+      {editando ? (
+        <form
+          className="flex-1 flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            salvar();
+          }}
+        >
+          <input value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} autoFocus placeholder="Nome" className="flex-1 h-9 rounded-lg px-3 bg-black/[0.04] dark:bg-white/[0.06] outline-none text-[14px]" />
+          <button type="submit" disabled={ocupado} className="h-9 px-3 rounded-lg bg-[#4d7c0f] text-white text-[13px] font-semibold cursor-pointer disabled:opacity-50">
+            Salvar
+          </button>
+          <button type="button" onClick={() => setEditando(false)} className="h-9 px-2 text-[13px] text-slate-500 cursor-pointer">
+            Cancelar
+          </button>
+        </form>
+      ) : (
+        <>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[14.5px] font-medium truncate">{c.nome || 'Sem nome'}</span>
+            <span className="block text-[12.5px] text-slate-500 dark:text-zinc-400 tabular-nums">{formatarTelefone(c.telefone)}</span>
+          </span>
+          <button type="button" onClick={() => setEditando(true)} className="h-8 px-3 rounded-full text-[12.5px] font-medium text-slate-600 dark:text-zinc-300 ring-1 ring-black/[0.1] dark:ring-white/[0.14] hover:bg-black/[0.04] cursor-pointer md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100">
+            Editar
+          </button>
+          <button type="button" onClick={() => onConversar(c)} disabled={ocupado} className="h-8 px-3 rounded-full text-[12.5px] font-semibold text-white bg-[#00a884] hover:bg-[#019774] cursor-pointer">
+            Conversar
+          </button>
+        </>
+      )}
+    </li>
+  );
+}
+
+function NovoContato({ onCriado, onCancelar }) {
+  const [nome, setNome] = useState('');
+  const [ddi, setDdi] = useState('55');
+  const [numero, setNumero] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+  const criar = async () => {
+    setOcupado(true);
+    try {
+      const r = await criarContatoChat({ nome, telefone: `${ddi}${numero.replace(/\D/g, '')}` });
+      showToast(r.ja_existia ? 'Esse número já estava nos contatos.' : 'Contato criado.', 'success');
+      onCriado();
+    } catch (e) {
+      showToast(e.message, 'error');
+    } finally {
+      setOcupado(false);
+    }
+  };
+  return (
+    <form
+      className="rounded-2xl ring-1 ring-black/[0.08] dark:ring-white/[0.1] p-3 space-y-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        criar();
+      }}
+    >
+      <input value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} autoFocus placeholder="Nome" aria-label="Nome do contato" className={classeCampo} />
+      <div className="flex gap-2">
+        <select value={ddi} onChange={(e) => setDdi(e.target.value)} aria-label="Código do país" className={`${classeCampo} w-[118px] cursor-pointer`}>
+          {PAISES.map((p) => (
+            <option key={p.ddi + p.nome} value={p.ddi}>
+              {p.bandeira} +{p.ddi}
+            </option>
+          ))}
+        </select>
+        <input type="tel" value={numero} onChange={(e) => setNumero(e.target.value)} placeholder={ddi === '55' ? 'DDD + número' : 'Número'} aria-label="Número" className={`${classeCampo} flex-1`} />
+      </div>
+      <div className="flex justify-end gap-2">
+        <button type="button" onClick={onCancelar} className={classeBotaoTexto}>
+          Cancelar
+        </button>
+        <button type="submit" disabled={ocupado || numero.replace(/\D/g, '').length < 8} className={classeBotaoPrimario}>
+          {ocupado && <Spinner />}
+          Salvar contato
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export function ContatosModal({ aberto, onFechar, Avatar, onEscolher }) {
+  const [criando, setCriando] = useState(false);
   const [termo, setTermo] = useState('');
   const [lista, setLista] = useState(null);
   const [pagina, setPagina] = useState(0);
@@ -167,9 +274,25 @@ export function ContatosModal({ aberto, onFechar, Avatar, onEscolher }) {
   }, [aberto, termo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <ModalEtapas aberto={aberto} onFechar={onFechar} largura="max-w-lg" idTitulo="contatos-titulo" titulo="Contatos" subtitulo="Pessoas que já falaram com a empresa pelo WhatsApp (inclusive nos grupos)." rodape={null}>
+    <ModalEtapas aberto={aberto} onFechar={onFechar} largura="max-w-xl" idTitulo="contatos-titulo" titulo="Contatos" subtitulo="Pessoas que já falaram com a empresa pelo WhatsApp (inclusive nos grupos) e as que você cadastrar." rodape={null}>
       <div className="space-y-3">
-        <input value={termo} onChange={(e) => setTermo(e.target.value)} placeholder="Buscar por nome ou número" aria-label="Buscar contato" className={classeCampo} autoFocus />
+        <div className="flex gap-2">
+          <input value={termo} onChange={(e) => setTermo(e.target.value)} placeholder="Buscar por nome ou número" aria-label="Buscar contato" className={`${classeCampo} flex-1`} autoFocus autoComplete="off" name="rm-busca-contatos" spellCheck={false} />
+          {!criando && (
+            <button type="button" onClick={() => setCriando(true)} className="h-11 px-4 rounded-xl bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] text-[13px] font-semibold whitespace-nowrap cursor-pointer">
+              + Novo contato
+            </button>
+          )}
+        </div>
+        {criando && (
+          <NovoContato
+            onCancelar={() => setCriando(false)}
+            onCriado={() => {
+              setCriando(false);
+              carregar(termo.trim(), 0);
+            }}
+          />
+        )}
         {erro ? (
           <p className="text-[13px] text-rose-600">{erro}</p>
         ) : lista === null ? (
@@ -181,28 +304,7 @@ export function ContatosModal({ aberto, onFechar, Avatar, onEscolher }) {
         ) : (
           <ul className="max-h-[52vh] overflow-y-auto -mx-2">
             {lista.map((c) => (
-              <li key={c.id}>
-                <button
-                  type="button"
-                  disabled={Boolean(abrindo)}
-                  onClick={async () => {
-                    setAbrindo(c.id);
-                    try {
-                      await onEscolher(c);
-                    } finally {
-                      setAbrindo(null);
-                    }
-                  }}
-                  className="w-full flex items-center gap-3 px-2 py-2 rounded-xl text-left hover:bg-black/[0.04] dark:hover:bg-white/[0.06] cursor-pointer disabled:opacity-60"
-                >
-                  <Avatar conversa={{ contato: c }} tamanho="w-10 h-10 text-[13px]" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[14.5px] font-medium truncate">{c.nome || formatarTelefone(c.telefone)}</span>
-                    <span className="block text-[12.5px] text-slate-500 dark:text-zinc-400 tabular-nums">{formatarTelefone(c.telefone)}</span>
-                  </span>
-                  {abrindo === c.id && <Spinner />}
-                </button>
-              </li>
+              <LinhaContato key={c.id} c={c} Avatar={Avatar} onConversar={async (x) => { setAbrindo(x.id); try { await onEscolher(x); } finally { setAbrindo(null); } }} onSalvo={(novo) => setLista((l) => l.map((y) => (y.id === novo.id ? novo : y)))} />
             ))}
             {temMais && (
               <li className="pt-2 flex justify-center">

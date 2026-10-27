@@ -81,6 +81,18 @@ export function validarConfigChat(valor) {
   return { ...CONFIG_CHAT_PADRAO, grupos };
 }
 
+/**
+ * Acesso de cada pessoa ao Chat (Configurações › Servidores e equipe › editar usuário):
+ *  verOutros:      vê as conversas que colegas do mesmo departamento já assumiram
+ *  controleCanais: só vê conversas dos canais liberados a ela (o canal vale mais que o departamento)
+ */
+export const CHAVE_ACESSO_CHAT = 'chat_acesso_usuarios';
+export const ACESSO_CHAT_PADRAO = { verOutros: false, controleCanais: false, canais: [] };
+export function validarAcessoChat(valor) {
+  const canais = Array.isArray(valor?.canais) ? [...new Set(valor.canais.map(String).filter((id) => /^[0-9a-f-]{36}$/i.test(id)))].slice(0, 100) : [];
+  return { verOutros: Boolean(valor?.verOutros), controleCanais: Boolean(valor?.controleCanais), canais };
+}
+
 /** Conversas com mensagens novas (o número da aba Chat). Grupos numa aba própria não entram. */
 export function contarConversasNovas(conversas = [], config = CONFIG_CHAT_PADRAO) {
   return (conversas || []).filter((c) => c.nao_lidas > 0 && c.status !== 'resolvida' && !(config?.grupos === 'aba' && ehGrupo(c.contato?.telefone))).length;

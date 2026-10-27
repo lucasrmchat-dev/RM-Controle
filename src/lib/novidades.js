@@ -245,6 +245,22 @@ export const NOVIDADES = [
     modulo: 'Chat',
     tickets: [],
   },
+  {
+    id: '2026-10-27-chat-acesso-contatos-nova-conversa',
+    data: '2026-10-27',
+    titulo: 'Chat: acesso por pessoa, @todos, contatos editáveis e criar atendimento',
+    resumo: 'Cada pessoa pode ter canais liberados e a opção de ver as conversas dos colegas; o Chat ganhou @todos, contatos editáveis e um novo criar atendimento.',
+    itens: [
+      'Em Servidores e equipe › editar usuário: "Visualizar tickets de outros usuários dos seus departamentos" e "Fluxo de controle de canais", com os canais liberados à pessoa.',
+      '@todos menciona todos os participantes do grupo; na nota interna, chama a equipe toda.',
+      'Contatos: criar contato novo, editar o nome e começar a conversa direto da lista.',
+      'Criar atendimento: escolha o canal, o departamento e o contato (pela busca ou pelo número com código do país); a busca do contato é instantânea.',
+      'Abrir conversa sem mensagem: abre o atendimento sem mandar nada ao cliente.',
+      'Kanban com colunas ocupando a tela toda, faixa de cor e contador por fila.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
 ];
 
 /** Uma novidade está visível para a equipe quando foi publicada (e não ocultada depois). */

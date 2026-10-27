@@ -209,6 +209,8 @@ test('ações na mensagem: responder citando, reagir, editar no prazo, apagar pa
   const agir2 = async (email, corpo) => ler(await agir(await como(email, `/api/chat/${id}`, 'POST', corpo), { params: { id } }));
   const cliente = db.tables.mensagens[0];
   cliente.id_externo = 'CLI-1';
+  // A Bia acompanha conversas que colegas do departamento assumiram
+  db.tables.sistema_config = [{ organizacao_id: A, chave: 'chat_acesso_usuarios', valor: { 'bia@a.com': { verOutros: true } } }];
   await agir2('ana@a.com', { acao: 'assumir' });
 
   // Responder citando a mensagem do cliente
@@ -457,4 +459,68 @@ test('grupo: quem escreve só com o código interno vira contato pelo número da
   assert.ok(nomes.includes('Rayane 5583999133015'), `participante com nome conhecido vira contato: ${nomes.join(' | ')}`);
   assert.equal(nomes.some((c) => c.includes('5584977770000')), false, 'sem nome conhecido não vira contato');
   assert.equal(db.tables.contatos.some((c) => /111222333444555|999888777666555/.test(c.telefone)), false, 'código interno nunca vira telefone');
+});
+
+test('acesso ao chat por pessoa: ver tickets de colegas e controle de canais (o canal vale mais que o departamento)', async () => {
+  const { PUT: salvarAcesso } = await import('../src/app/api/chat/acesso/route.js');
+  const canal2 = { id: crypto.randomUUID(), organizacao_id: A, nome: 'Suporte', tipo: 'whatsapp_qr', provedor: 'evolution', status: 'conectado', ativo: true, config: {} };
+  db.tables.canais.push(canal2);
+  const assumidaPorAna = { ...convVendas, id: crypto.randomUUID(), contato_id: crypto.randomUUID(), status: 'em_atendimento', responsavel_email: 'ana@a.com', responsavel_nome: 'Ana Souza' };
+  const doCanal2 = { ...convVendas, id: crypto.randomUUID(), contato_id: crypto.randomUUID(), canal_id: canal2.id };
+  db.tables.conversas.push(assumidaPorAna, doCanal2);
+  db.tables.sistema_config = [];
+  const ids = async () => (await ler(await listar(await como('bia@a.com', '/api/chat')))).conversas.map((c) => c.id).sort();
+
+  // Padrão: vê as pendentes do departamento, não as que colegas assumiram
+  assert.deepEqual(await ids(), [convVendas.id, doCanal2.id].sort());
+  assert.equal((await abrir(await como('bia@a.com', `/api/chat/${assumidaPorAna.id}`), { params: { id: assumidaPorAna.id } })).status, 404);
+
+  // Só administrador configura
+  assert.equal((await salvarAcesso(await como('bia@a.com', '/api/chat/acesso', 'PUT', { email: 'bia@a.com', verOutros: true }))).status, 403);
+  await salvarAcesso(await como('ana@a.com', '/api/chat/acesso', 'PUT', { email: 'bia@a.com', verOutros: true }));
+  assert.deepEqual(await ids(), [convVendas.id, doCanal2.id, assumidaPorAna.id].sort());
+
+  // Controle de canais: só o canal liberado, mesmo sendo do mesmo departamento
+  await salvarAcesso(await como('ana@a.com', '/api/chat/acesso', 'PUT', { email: 'bia@a.com', verOutros: true, controleCanais: true, canais: [canal.id, crypto.randomUUID()] }));
+  assert.deepEqual(await ids(), [convVendas.id, assumidaPorAna.id].sort());
+  const salvo = db.tables.sistema_config.find((c) => c.chave === 'chat_acesso_usuarios').valor['bia@a.com'];
+  assert.deepEqual(salvo.canais, [canal.id], 'canal que não é da empresa é descartado');
+});
+
+test('@todos no grupo menciona todos os participantes', async () => {
+  const grupo = { id: crypto.randomUUID(), organizacao_id: A, telefone: '120363888@g.us', nome: 'Equipe' };
+  db.tables.contatos.push(grupo);
+  const conv = { id: crypto.randomUUID(), organizacao_id: A, canal_id: canal.id, contato_id: grupo.id, status: 'aguardando', departamento: null, nao_lidas: 0 };
+  db.tables.conversas.push(conv);
+  db.tables.participantes_grupo = [];
+  const r = await ler(await agir(await como('ana@a.com', `/api/chat/${conv.id}`, 'POST', { acao: 'enviar', texto: 'Bom dia @todos', assinar: false, mencoes: [{ jid: 'todos', nome: 'todos' }] }), { params: { id: conv.id } }));
+  assert.equal(r.status, 200, r.mensagem);
+  const envio = enviados.find((e) => e.url.includes('sendText'));
+  assert.equal(envio.corpo.mentionsEveryOne, true);
+  assert.equal(envio.corpo.text, 'Bom dia @todos');
+});
+
+test('contatos: criar sem duplicar (9º dígito), editar contato sem conversa; nova conversa com departamento', async () => {
+  const { POST: contatos, PATCH: editarContato } = await import('../src/app/api/chat/contatos/route.js');
+  const novo = await ler(await contatos(await como('bia@a.com', '/api/chat/contatos', 'POST', { acao: 'criar', nome: 'Jose', telefone: '+55 84 9814-3510' })));
+  assert.equal(novo.status, 201, novo.mensagem);
+  assert.equal(db.tables.contatos.find((c) => c.id === novo.contato.id).telefone, '5584998143510');
+  const repetido = await ler(await contatos(await como('bia@a.com', '/api/chat/contatos', 'POST', { acao: 'criar', nome: 'José', telefone: '5584998143510' })));
+  assert.equal(repetido.ja_existia, true);
+  const editado = await ler(await editarContato(await como('bia@a.com', '/api/chat/contatos', 'PATCH', { id: novo.contato.id, nome: 'José Silva' })));
+  assert.equal(editado.contato.nome, 'José Silva', 'contato sem conversa é da empresa toda');
+
+  const r = await ler(await iniciar(await como('bia@a.com', '/api/chat', 'POST', { canal_id: canal.id, telefone: '5584998143510', texto: 'Olá', departamento: 'Vendas' })));
+  assert.equal(r.status, 201, r.mensagem);
+  assert.equal(r.conversa.departamento, 'Vendas');
+});
+
+test('abrir conversa sem mensagem: nada vai ao cliente e quem abriu fica responsável', async () => {
+  enviados.length = 0;
+  const r = await ler(await iniciar(await como('bia@a.com', '/api/chat', 'POST', { canal_id: canal.id, telefone: '(84) 99555-1234', sem_mensagem: true, departamento: 'Vendas' })));
+  assert.equal(r.status, 201, r.mensagem);
+  assert.equal(enviados.length, 0, 'nenhuma mensagem enviada');
+  assert.equal(r.conversa.responsavel_email, 'bia@a.com');
+  assert.equal(r.conversa.departamento, 'Vendas');
+  assert.equal(r.conversa.contato.telefone, '5584995551234');
 });

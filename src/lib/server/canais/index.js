@@ -311,10 +311,11 @@ export async function enviarTextoNaConversa(db, { conversa, texto, autor, assina
   try {
     // A tela guarda o texto puro (o nome já aparece no balão); o cliente recebe com a assinatura
     // Grupo: "@Maria" vira "@5585..." no WhatsApp e a pessoa é notificada; a tela guarda com o nome
-    const { texto: paraWhatsapp, mencionados } = ehGrupo(contato.telefone) ? await prepararMencoes(db, conversa.contato_id, conteudo, mencoes) : { texto: conteudo, mencionados: [] };
+    const { texto: paraWhatsapp, mencionados, todos } = ehGrupo(contato.telefone) ? await prepararMencoes(db, conversa.contato_id, conteudo, mencoes) : { texto: conteudo, mencionados: [], todos: false };
     const r = await provedorDo(canal).enviarTexto(canal, segredosDo(canal), contato.telefone, assinar ? assinarMensagem(paraWhatsapp, autor.nome) : paraWhatsapp, {
       fetchImpl,
       mencionados,
+      mencionarTodos: todos,
       citada: citada?.id_externo ? { idExterno: citada.id_externo, chave: citada.chave_externa || chavePadrao(contato.telefone, citada.direcao === 'saida'), conteudo: citada.conteudo } : null,
     });
     await db.from('mensagens').update({ status: 'enviada', id_externo: r.idExterno }).eq('id', msg.id);
@@ -379,4 +380,18 @@ export async function enviarMidiaNaConversa(db, { conversa, arquivo, tipo, legen
     await db.from('mensagens').update({ status: 'falhou', erro: String(e.message).slice(0, 300) }).eq('id', msg.id);
     throw e;
   }
+}
+
+/** Abre (ou reaproveita) a conversa com um número sem mandar nada ao cliente; quem abre fica responsável. */
+export async function abrirConversaComNumero(db, { canal, telefone, autor }) {
+  const numero = normalizarTelefone(telefone);
+  if (!numero) throw new Error('Telefone inválido. Use DDD + número.');
+  const contatoId = await contatoPorTelefone(db, numero, null);
+  const conversa = await conversaAberta(db, canal, contatoId);
+  if (!conversa.responsavel_email) {
+    const campos = { responsavel_email: autor.email, responsavel_nome: autor.nome, status: 'em_atendimento' };
+    await db.from('conversas').update(campos).eq('id', conversa.id);
+    return { ...conversa, ...campos };
+  }
+  return conversa;
 }

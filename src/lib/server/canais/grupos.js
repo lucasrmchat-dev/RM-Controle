@@ -74,7 +74,9 @@ export async function sincronizarParticipantes(db, { canal, provedor, segredos, 
  * de quem notificar. Só vale para participantes deste grupo.
  */
 export async function prepararMencoes(db, grupoId, texto, mencoes = []) {
-  if (!Array.isArray(mencoes) || !mencoes.length) return { texto, mencionados: [] };
+  if (!Array.isArray(mencoes) || !mencoes.length) return { texto, mencionados: [], todos: false };
+  // @todos: o WhatsApp menciona todos os participantes do grupo
+  const todos = mencoes.some((m) => m?.jid === 'todos') && /@todos\b/i.test(String(texto));
   const participantes = await participantesDoGrupo(db, grupoId);
   const porJid = new Map(participantes.map((p) => [p.jid, p]));
   let saida = String(texto);
@@ -89,7 +91,7 @@ export async function prepararMencoes(db, grupoId, texto, mencoes = []) {
     if (nome && saida.includes(`@${nome}`)) saida = saida.split(`@${nome}`).join(`@${id}`);
     mencionados.push(p.jid);
   }
-  return { texto: saida, mencionados: [...new Set(mencionados)] };
+  return { texto: saida, mencionados: [...new Set(mencionados)], todos };
 }
 
 /** Número de verdade de um participante (pela lista do grupo), quando a mensagem veio só com o código interno. */

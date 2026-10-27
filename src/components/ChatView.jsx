@@ -26,6 +26,7 @@ import { ACEITOS, LIMITE_ENVIO, MidiaMensagem, PreviaArquivo, comprimirFoto, tip
 import ChatPerfilContato from './ChatPerfilContato';
 import { fotoGuardada, linkDaFoto } from '@/lib/fotosContatos';
 import { BarraReacao, DadosMensagem, MenuMensagem } from './ChatAcoesMensagem';
+import ChatNovaConversa from './ChatNovaConversa';
 import { ContatosModal, FILTROS_PADRAO, FiltrosAvancados, filtrosAtivos, lerFiltrosSalvos, naoRespondida } from './ChatFerramentas';
 import { formatarTelefone } from '@/lib/whatsappAgenda';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -632,9 +633,14 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
   const antesDoCursor = texto.slice(0, cursor);
   const termoMencao = /(?:^|\s)@([^@\n]{0,30})$/.exec(antesDoCursor)?.[1];
   const fonteMencao = nota ? pessoasDaEquipe : participantes;
+  // "@todos" vem primeiro: no grupo menciona todos os participantes; na nota, a equipe toda
+  const opcaoTodos = { chave: 'todos', jid: 'todos', nome: 'todos', detalhe: nota ? 'Toda a equipe' : 'Menciona todos do grupo', todos: true };
   const sugestoesMencao =
     termoMencao !== undefined && !sugestoes.length && fonteMencao.length
-      ? fonteMencao.filter((p) => !termoMencao || semAcento(p.nome).includes(semAcento(termoMencao)) || String(p.telefone || '').includes(termoMencao.replace(/\D/g, '') || '§')).slice(0, 8)
+      ? [
+          ...('todos'.startsWith(semAcento(termoMencao).trim()) ? [opcaoTodos] : []),
+          ...fonteMencao.filter((p) => !termoMencao || semAcento(p.nome).includes(semAcento(termoMencao)) || String(p.telefone || '').includes(termoMencao.replace(/\D/g, '') || '§')),
+        ].slice(0, 9)
       : [];
   const listaAberta = sugestoes.length ? sugestoes : sugestoesMencao;
   const mencionar = (p) => {
@@ -780,8 +786,8 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
             {sugestoesMencao.map((p, i) => (
               <li key={p.chave || p.jid || p.nome} role="option" aria-selected={i === indice}>
                 <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => mencionar(p)} onMouseEnter={() => setIndice(i)} className={`w-full flex items-center gap-2.5 text-left px-2.5 py-1.5 rounded-xl cursor-pointer ${i === indice ? 'bg-black/[0.05] dark:bg-white/[0.07]' : ''}`}>
-                  <span className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[12px] font-semibold flex-shrink-0" style={{ background: corDe(p.telefone || p.nome) }}>
-                    {iniciais(p.nome)}
+                  <span className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[12px] font-semibold flex-shrink-0" style={{ background: p.todos ? '#00a884' : corDe(p.telefone || p.nome) }}>
+                    {p.todos ? '@' : iniciais(p.nome)}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-[14px] font-medium truncate">{p.nome}</span>
@@ -1580,90 +1586,6 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
 // ------------------------------------------------------------------------------
 // Nova conversa
 // ------------------------------------------------------------------------------
-function NovaConversaModal({ aberto, onFechar, onCriada, telefoneInicial = '' }) {
-  const [canais, setCanais] = useState([]);
-  const [dados, setDados] = useState({ canal_id: '', telefone: '', texto: '' });
-  const [erro, setErro] = useState('');
-  const [enviando, setEnviando] = useState(false);
-  useEffect(() => {
-    if (!aberto) return;
-    setErro('');
-    setDados({ canal_id: '', telefone: telefoneInicial, texto: '' });
-    fetchCanais()
-      .then((r) => {
-        const prontos = r.canais.filter((c) => c.ativo && c.status === 'conectado' && c.tipo === 'whatsapp_qr');
-        setCanais(prontos);
-        if (prontos.length) setDados((d) => ({ ...d, canal_id: prontos[0].id }));
-      })
-      .catch((e) => setErro(e.message));
-  }, [aberto]);
-  const enviar = async () => {
-    setEnviando(true);
-    setErro('');
-    try {
-      const r = await iniciarConversa(dados);
-      onCriada(r.conversa);
-      onFechar();
-    } catch (e) {
-      setErro(e.message);
-    } finally {
-      setEnviando(false);
-    }
-  };
-  return (
-    <ModalEtapas
-      aberto={aberto}
-      onFechar={onFechar}
-      bloqueado={enviando}
-      largura="max-w-md"
-      idTitulo="nova-conversa-titulo"
-      titulo="Nova conversa"
-      subtitulo="Manda a primeira mensagem para um número pelo WhatsApp."
-      rodape={
-        <>
-          <ErroRodape erro={erro} />
-          <div className="flex justify-end gap-2.5">
-            <button type="button" onClick={onFechar} className={classeBotaoTexto}>
-              Cancelar
-            </button>
-            <button type="button" onClick={enviar} disabled={enviando || !dados.canal_id || !dados.telefone.trim() || !dados.texto.trim()} className={classeBotaoPrimario}>
-              {enviando && <Spinner />}
-              Enviar
-            </button>
-          </div>
-        </>
-      }
-    >
-      {canais.length === 0 && !erro ? (
-        <p className="text-[13.5px] text-slate-500 dark:text-zinc-400">Nenhum canal por QR Code conectado. Pela API oficial, a primeira mensagem precisa ser um template aprovado pela Meta.</p>
-      ) : (
-        <div className="space-y-3">
-          {canais.length > 1 && (
-            <label className="block">
-              <span className={classeRotulo}>Canal</span>
-              <select value={dados.canal_id} onChange={(e) => setDados({ ...dados, canal_id: e.target.value })} className={`${classeCampo} cursor-pointer`}>
-                {canais.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nome}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <label className="block">
-            <span className={classeRotulo}>WhatsApp</span>
-            <input type="tel" value={dados.telefone} onChange={(e) => setDados({ ...dados, telefone: e.target.value })} placeholder="(85) 99999-0000" className={classeCampo} autoFocus />
-          </label>
-          <label className="block">
-            <span className={classeRotulo}>Mensagem</span>
-            <textarea value={dados.texto} onChange={(e) => setDados({ ...dados, texto: e.target.value })} rows={3} maxLength={4096} className={`${classeCampo} h-auto py-3 resize-none`} />
-          </label>
-        </div>
-      )}
-    </ModalEtapas>
-  );
-}
-
 // ------------------------------------------------------------------------------
 // Tela
 // ------------------------------------------------------------------------------
@@ -2117,16 +2039,25 @@ export default function ChatView() {
           ) : erro ? (
             <p className="m-4 rounded-2xl bg-amber-500/10 text-amber-800 dark:text-amber-300 px-4 py-3 text-[13.5px]">{erro}</p>
           ) : kanban ? (
-            <div className="h-full flex gap-3 overflow-x-auto px-3 pb-3 pt-1 bg-[#f7f8fa] dark:bg-[#0d1418]">
+            <div className="h-full flex gap-3 overflow-x-auto px-3 pb-3 pt-2 bg-[#f4f5f7] dark:bg-[#0d1418]">
               {colunasKanban.map((col) => {
                 const itens = filtrar(col.id);
                 const carregandoColuna = col.id === 'resolvidas' ? resolvidas === null : abertas === null;
                 return (
-                  <section key={col.id} aria-label={col.rotulo} className="w-[290px] flex-shrink-0 flex flex-col min-h-0 rounded-2xl bg-black/[0.03] dark:bg-white/[0.03]">
-                    <header className="flex items-center gap-2 px-3.5 pt-3 pb-2">
-                      <span className={`w-2 h-2 rounded-full ${{ ativos: 'bg-sky-500', pendentes: 'bg-amber-500', grupos: 'bg-violet-500', resolvidas: 'bg-[#4d7c0f]' }[col.id]}`} />
-                      <h2 className="text-[13.5px] font-semibold text-[#111b21] dark:text-[#e9edef]">{col.rotulo}</h2>
-                      <span className="ml-auto text-[12px] tabular-nums text-[#667781] dark:text-[#8696a0]">{carregandoColuna ? '' : itens.length}</span>
+                  <section
+                    key={col.id}
+                    aria-label={col.rotulo}
+                    className={`${selecionada ? 'w-[280px]' : 'flex-1 min-w-[260px]'} flex-shrink-0 flex flex-col min-h-0 rounded-2xl bg-white/70 dark:bg-white/[0.03] ring-1 ring-black/[0.05] dark:ring-white/[0.05] overflow-hidden`}
+                  >
+                    <div className={`h-[3px] ${{ ativos: 'bg-sky-500', pendentes: 'bg-amber-500', grupos: 'bg-violet-500', resolvidas: 'bg-[#4d7c0f]' }[col.id]}`} />
+                    <header className="flex items-center gap-2 px-3.5 pt-3 pb-2.5">
+                      <h2 className="text-[14px] font-semibold text-[#111b21] dark:text-[#e9edef]">{col.rotulo}</h2>
+                      {!carregandoColuna && (
+                        <span className={`min-w-[22px] h-[22px] px-1.5 rounded-full text-[11.5px] font-semibold tabular-nums flex items-center justify-center ${{ ativos: 'bg-sky-500/12 text-sky-700 dark:text-sky-300', pendentes: 'bg-amber-500/14 text-amber-700 dark:text-amber-300', grupos: 'bg-violet-500/12 text-violet-700 dark:text-violet-300', resolvidas: 'bg-[#4d7c0f]/12 text-[#4d7c0f] dark:text-[#a3e635]' }[col.id]}`}>
+                          {itens.length}
+                        </span>
+                      )}
+                      {col.id === 'pendentes' && itens.some((c) => c.nao_lidas > 0) && <span className="ml-auto text-[11px] text-amber-700 dark:text-amber-300 font-medium">esperando atendimento</span>}
                     </header>
                     <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2 space-y-2">
                       {carregandoColuna ? (
@@ -2134,7 +2065,12 @@ export default function ChatView() {
                           <Spinner />
                         </div>
                       ) : itens.length === 0 ? (
-                        <p className="py-6 text-center text-[12.5px] text-[#8696a0]">Nada por aqui</p>
+                        <div className="py-10 flex flex-col items-center gap-2 text-[#8696a0]">
+                          <svg className="w-7 h-7 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 12a8.5 8.5 0 0 1-12.6 7.45L3 21l1.55-5.4A8.5 8.5 0 1 1 21 12z" />
+                          </svg>
+                          <p className="text-[12.5px]">Nada por aqui</p>
+                        </div>
                       ) : (
                         itens.map((c) => <ItemConversa key={c.id} c={c} ativa={c.id === selecionada} eu={eu} onAbrir={(id) => abrir(id)} cartao />)
                       )}
@@ -2220,7 +2156,7 @@ export default function ChatView() {
         }}
       />
       <ContatosModal aberto={contatosAbertos} onFechar={() => setContatosAbertos(false)} Avatar={Avatar} onEscolher={abrirContato} />
-      <NovaConversaModal
+      <ChatNovaConversa
         aberto={Boolean(novaConversa)}
         telefoneInicial={novaConversa?.telefone || ''}
         onFechar={() => setNovaConversa(null)}
