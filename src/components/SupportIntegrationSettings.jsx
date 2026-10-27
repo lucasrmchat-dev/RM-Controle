@@ -48,10 +48,10 @@ function BotaoCopiar({ texto, rotulo = 'Copiar' }) {
 
 function Cartao({ titulo, descricao, children, rotulo }) {
   return (
-    <section className="rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-sm space-y-4">
+    <section className="rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro shadow-sm space-y-4">
       <div>
         {rotulo && (
-          <span className="text-[10px] font-bold uppercase tracking-wider text-[#4d7c0f] dark:text-[#84cc16]">{rotulo}</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-rm-acento dark:text-rm-acento-escuro">{rotulo}</span>
         )}
         <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">{titulo}</h4>
         {descricao && <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5 leading-relaxed">{descricao}</p>}
@@ -159,7 +159,7 @@ export default function SupportIntegrationSettings() {
 
   if (estado === 'carregando') {
     return (
-      <div role="status" className="rounded-3xl p-8 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-xs text-slate-500 dark:text-zinc-400">
+      <div role="status" className="rounded-3xl p-8 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro text-xs text-slate-500 dark:text-zinc-400">
         Carregando configuração do suporte automático…
       </div>
     );
@@ -189,7 +189,7 @@ export default function SupportIntegrationSettings() {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="space-y-6">
       {/* Estado geral */}
-      <section className="rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <section className="rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
           <h3 className="text-lg font-bold text-[#1d1d1f] dark:text-white">Suporte Automático via API</h3>
           <p className="text-xs text-slate-500 dark:text-zinc-400 max-w-2xl leading-relaxed">
@@ -209,7 +209,7 @@ export default function SupportIntegrationSettings() {
             onChange={(e) => atualizar('ativo', e.target.checked)}
             aria-label="Ativar suporte automático via API"
           />
-          <span className="w-14 h-8 bg-slate-200 dark:bg-zinc-800 rounded-full relative peer-checked:bg-[#4d7c0f] dark:peer-checked:bg-[#84cc16] after:content-[''] after:absolute after:top-1 after:left-1 after:w-6 after:h-6 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-6 peer-focus-visible:ring-2 peer-focus-visible:ring-[#4d7c0f]" />
+          <span className="w-14 h-8 bg-slate-200 dark:bg-rm-campo-escuro rounded-full relative peer-checked:bg-rm-acento dark:peer-checked:bg-rm-acento-escuro after:content-[''] after:absolute after:top-1 after:left-1 after:w-6 after:h-6 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-6 peer-focus-visible:ring-2 peer-focus-visible:ring-rm-acento" />
         </label>
       </section>
 
@@ -271,7 +271,7 @@ export default function SupportIntegrationSettings() {
             <div className="h-2.5 rounded-full overflow-hidden flex">
               <div className="bg-slate-300 dark:bg-zinc-700" style={{ width: `${sug}%` }} />
               <div className="bg-amber-400" style={{ width: `${Math.max(0, auto - sug)}%` }} />
-              <div className="bg-[#4d7c0f] dark:bg-[#84cc16]" style={{ width: `${100 - auto}%` }} />
+              <div className="bg-rm-acento dark:bg-rm-acento-escuro" style={{ width: `${100 - auto}%` }} />
             </div>
             <div className="flex justify-between text-[10px] text-slate-500 dark:text-zinc-400 font-mono">
               <span>0%</span>
@@ -296,7 +296,7 @@ export default function SupportIntegrationSettings() {
                 value={form[campo]}
                 onChange={(e) => atualizar(campo, Number(e.target.value))}
                 aria-describedby={`${campo}_ajuda`}
-                className="w-full accent-[#4d7c0f] dark:accent-[#84cc16] cursor-pointer"
+                className="w-full accent-rm-acento dark:accent-rm-acento-escuro cursor-pointer"
               />
               <p id={`${campo}_ajuda`} className="text-[11px] text-slate-500 dark:text-zinc-400">{ajuda}</p>
             </div>
@@ -378,7 +378,7 @@ export default function SupportIntegrationSettings() {
                 key={valor}
                 className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-colors ${
                   form.quando_nao_encontrar === valor
-                    ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10'
+                    ? 'border-rm-acento dark:border-rm-acento-escuro bg-rm-acento/5 dark:bg-rm-acento-escuro/10'
                     : 'border-black/[0.06] dark:border-white/[0.11] hover:border-black/20'
                 }`}
               >
@@ -387,7 +387,7 @@ export default function SupportIntegrationSettings() {
                   name="quando_nao_encontrar"
                   checked={form.quando_nao_encontrar === valor}
                   onChange={() => atualizar('quando_nao_encontrar', valor)}
-                  className="mt-0.5 accent-[#4d7c0f]"
+                  className="mt-0.5 accent-rm-acento"
                 />
                 <span>
                   <span className="block text-xs font-semibold">{titulo}</span>
@@ -460,7 +460,7 @@ Content-Type: application/json
       </div>
 
       {/* Barra de salvar */}
-      <div className="sticky bottom-4 p-4 rounded-3xl bg-white/95 dark:bg-[#1e1e21]/95 backdrop-blur border border-black/[0.08] dark:border-white/[0.1] shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="sticky bottom-4 p-4 rounded-3xl bg-white/95 dark:bg-rm-cartao-escuro/95 backdrop-blur border border-black/[0.08] dark:border-white/[0.1] shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <span className="text-xs text-slate-600 dark:text-zinc-300" aria-live="polite">
           {alterado ? 'Há alterações não salvas.' : 'Tudo salvo.'}
         </span>
@@ -478,7 +478,7 @@ Content-Type: application/json
             type="button"
             onClick={handleSalvar}
             disabled={!alterado || salvando || limiaresInvalidos || (form.ativo && !salva.token_configurado)}
-            className="px-6 py-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md disabled:opacity-40 cursor-pointer transition-transform active:scale-[0.98]"
+            className="px-6 py-2 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-md disabled:opacity-40 cursor-pointer transition-transform active:scale-[0.98]"
           >
             {salvando ? 'Salvando…' : 'Salvar suporte automático'}
           </button>

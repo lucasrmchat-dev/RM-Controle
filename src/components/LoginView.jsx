@@ -140,9 +140,9 @@ function PreviaFila({ pausado }) {
                 <span
                   className={`relative flex-shrink-0 w-[18px] h-[18px] rounded-full border transition-colors duration-500 flex items-center justify-center ${
                     d.status === 'resolvida'
-                      ? 'bg-[#a3e635] border-[#a3e635]'
+                      ? 'bg-rm-acento-vivo border-rm-acento-vivo'
                       : d.status === 'atendimento'
-                        ? 'border-[#a3e635]/70'
+                        ? 'border-rm-acento-vivo/70'
                         : 'border-[#f4f2ec]/20'
                   }`}
                 >
@@ -161,7 +161,7 @@ function PreviaFila({ pausado }) {
                       />
                     </svg>
                   )}
-                  {d.status === 'atendimento' && <span className="w-1.5 h-1.5 rounded-full bg-[#a3e635]" />}
+                  {d.status === 'atendimento' && <span className="w-1.5 h-1.5 rounded-full bg-rm-acento-vivo" />}
                 </span>
 
                 <div className="min-w-0 flex-1">
@@ -178,7 +178,7 @@ function PreviaFila({ pausado }) {
                 <span
                   className={`hidden sm:inline-flex flex-shrink-0 text-[10.5px] px-2 py-0.5 rounded-full border transition-colors duration-500 ${
                     d.status === 'resolvida'
-                      ? 'text-[#c5f07a] border-[#a3e635]/30 bg-[#a3e635]/10'
+                      ? 'text-[#c5f07a] border-rm-acento-vivo/30 bg-rm-acento-vivo/10'
                       : d.status === 'atendimento'
                         ? 'text-[#f4f2ec]/80 border-[#f4f2ec]/15'
                         : 'text-[#f4f2ec]/40 border-[#f4f2ec]/10'
@@ -275,10 +275,10 @@ export default function LoginView({
     'border border-[#14160f]/[0.12] dark:border-[#f4f2ec]/[0.10] placeholder:text-[#14160f]/30 dark:placeholder:text-[#f4f2ec]/25 ' +
     'shadow-[0_1px_0_rgba(20,22,15,0.03)] transition-[border-color,box-shadow] duration-200 ' +
     'hover:border-[#14160f]/25 dark:hover:border-[#f4f2ec]/20 ' +
-    'focus:outline-none focus:border-[#4d7c0f] dark:focus:border-[#a3e635]/70 focus:ring-4 focus:ring-[#4d7c0f]/10 dark:focus:ring-[#a3e635]/10';
+    'focus:outline-none focus:border-rm-acento dark:focus:border-rm-acento-vivo/70 focus:ring-4 focus:ring-rm-acento/10 dark:focus:ring-rm-acento-vivo/10';
 
   return (
-    <div className="min-h-[100dvh] w-full grid lg:grid-cols-[minmax(0,1.08fr)_minmax(0,1fr)] bg-[#f7f6f2] dark:bg-[#0b0d09] text-[#14160f] dark:text-[#f4f2ec] selection:bg-[#a3e635]/30">
+    <div className="min-h-[100dvh] w-full grid lg:grid-cols-[minmax(0,1.08fr)_minmax(0,1fr)] bg-[#f7f6f2] dark:bg-[#0b0d09] text-[#14160f] dark:text-[#f4f2ec] selection:bg-rm-acento-vivo/30">
       {/* ============================================================================== */}
       {/* PAINEL DE APRESENTAÇÃO (desktop)                                               */}
       {/* ============================================================================== */}

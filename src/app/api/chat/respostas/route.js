@@ -1,5 +1,5 @@
 import { contextoDaRequisicao } from '@/lib/server/organizacao';
-import { permissaoDoChat, podeVerResposta, validarResposta } from '@/lib/server/canais/chat';
+import { permissaoDoChat, semModulo, podeVerResposta, validarResposta } from '@/lib/server/canais/chat';
 import { isValidUUID } from '@/lib/sanitize';
 
 export const dynamic = 'force-dynamic';
@@ -16,7 +16,7 @@ async function inicio(request) {
   const ctx = await contextoDaRequisicao(request);
   if (ctx.erro) return { erro: ctx.erro };
   const perm = await permissaoDoChat(ctx.db, ctx.email);
-  if (!perm.administrador && !perm.modulos.includes('chat')) return { erro: json({ ok: false, mensagem: 'Seu perfil não tem acesso ao Chat.' }, 403) };
+  if (semModulo(perm, 'chat', 'ao Chat')) return { erro: json({ ok: false, mensagem: semModulo(perm, 'chat', 'ao Chat') }, 403) };
   return { ctx, perm };
 }
 

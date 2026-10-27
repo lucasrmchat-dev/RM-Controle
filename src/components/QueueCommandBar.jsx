@@ -134,9 +134,9 @@ export default function QueueCommandBar({
   return (
     <div ref={caixaRef} className="relative z-40 w-full">
       <div
-        className={`flex items-center gap-3 h-12 px-4 rounded-2xl border bg-white dark:bg-[#1e1e21] transition-all ${
+        className={`flex items-center gap-3 h-12 px-4 rounded-2xl border bg-white dark:bg-rm-cartao-escuro transition-all ${
           mostrarPainel
-            ? 'border-[#4d7c0f]/50 dark:border-[#84cc16]/50 ring-4 ring-[#4d7c0f]/10 dark:ring-[#84cc16]/10'
+            ? 'border-rm-acento/50 dark:border-rm-acento-escuro/50 ring-4 ring-rm-acento/10 dark:ring-rm-acento-escuro/10'
             : 'border-black/[0.08] dark:border-white/[0.1] hover:border-black/20 dark:hover:border-white/20 shadow-sm'
         }`}
       >
@@ -160,7 +160,7 @@ export default function QueueCommandBar({
           autoComplete="off"
         />
         {ocupado ? (
-          <span className="w-4 h-4 rounded-full border-2 border-[#4d7c0f] dark:border-[#84cc16] border-t-transparent animate-spin flex-shrink-0" />
+          <span className="w-4 h-4 rounded-full border-2 border-rm-acento dark:border-rm-acento-escuro border-t-transparent animate-spin flex-shrink-0" />
         ) : termo ? (
           <button
             type="button"
@@ -187,7 +187,7 @@ export default function QueueCommandBar({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.15 }}
-            className="absolute left-0 right-0 top-full mt-2 rounded-2xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-[#1e1e21] shadow-2xl overflow-hidden"
+            className="absolute left-0 right-0 top-full mt-2 rounded-2xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-rm-cartao-escuro shadow-2xl overflow-hidden"
           >
             {resultados.length === 0 && !podeCriar && (
               <p className="px-4 py-5 text-sm text-slate-500 dark:text-zinc-400 text-center">Nenhuma empresa encontrada.</p>
@@ -249,7 +249,7 @@ export default function QueueCommandBar({
                         <button
                           type="button"
                           onClick={() => acaoPrincipal(emp)}
-                          className="h-8 px-3 rounded-lg text-xs font-bold bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 hover:opacity-90 flex items-center gap-1.5 cursor-pointer"
+                          className="h-8 px-3 rounded-lg text-xs font-bold bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 hover:opacity-90 flex items-center gap-1.5 cursor-pointer"
                           title={esperando.length > 0 ? 'Assume a demanda que já está aguardando e abre a empresa' : 'Cria a demanda no seu nome, inicia o atendimento e abre a empresa'}
                         >
                           <PlayIcon className="w-2.5 h-2.5 fill-current" />
@@ -268,10 +268,10 @@ export default function QueueCommandBar({
                 onMouseEnter={() => setDestaque(resultados.length)}
                 onClick={() => executar(onCriarEmpresa, termo.trim())}
                 className={`w-full flex items-center gap-3 px-4 py-3 text-left border-t border-black/[0.06] dark:border-white/[0.11] cursor-pointer transition-colors ${
-                  destaque === resultados.length ? 'bg-[#4d7c0f]/[0.06] dark:bg-[#84cc16]/[0.08]' : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.04]'
+                  destaque === resultados.length ? 'bg-rm-acento/[0.06] dark:bg-rm-acento-escuro/[0.08]' : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.04]'
                 }`}
               >
-                <span className="w-9 h-9 rounded-xl bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] flex items-center justify-center text-lg font-semibold flex-shrink-0">
+                <span className="w-9 h-9 rounded-xl bg-rm-acento/10 dark:bg-rm-acento-escuro/15 text-rm-acento dark:text-rm-acento-escuro flex items-center justify-center text-lg font-semibold flex-shrink-0">
                   +
                 </span>
                 <span className="min-w-0">
@@ -293,7 +293,7 @@ export default function QueueCommandBar({
                 <button
                   type="button"
                   onClick={() => executar(onVerTodas, '')}
-                  className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 -mr-1 rounded-lg text-xs font-semibold text-[#4d7c0f] dark:text-[#84cc16] hover:bg-[#4d7c0f]/[0.08] dark:hover:bg-[#84cc16]/[0.1] cursor-pointer"
+                  className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 -mr-1 rounded-lg text-xs font-semibold text-rm-acento dark:text-rm-acento-escuro hover:bg-rm-acento/[0.08] dark:hover:bg-rm-acento-escuro/[0.1] cursor-pointer"
                 >
                   <BuildingIcon className="w-3.5 h-3.5" />
                   Ver todas as empresas

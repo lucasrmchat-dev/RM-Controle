@@ -127,7 +127,7 @@ function AgendasCompartilhadas({ escolhidas = [], onSalvo }) {
                       return n;
                     })
                   }
-                  className="w-4 h-4 accent-[#4d7c0f] dark:accent-[#84cc16]"
+                  className="w-4 h-4 accent-rm-acento dark:accent-rm-acento-escuro"
                 />
                 <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: a.cor || '#8e8e93' }} aria-hidden="true" />
                 <span className="min-w-0">
@@ -232,7 +232,7 @@ export default function GoogleAgendaSync() {
   const outras = (st.contas || []).filter((c) => c.email_sistema !== minha?.email_sistema);
 
   return (
-    <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] space-y-5 shadow-sm">
+    <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro space-y-5 shadow-sm">
       <div>
         <h3 className="text-lg font-semibold text-[#1d1d1f] dark:text-white">Sincronização com o Google Agenda</h3>
         <p className="text-[13px] text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">

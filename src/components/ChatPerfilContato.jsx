@@ -9,11 +9,11 @@ import { Spinner } from './FormularioEtapas';
 import { showToast } from './ToastNotification';
 
 const ACOES_AUDITORIA = {
-  chat_iniciou: { texto: 'iniciou a conversa', cor: 'bg-[#00a884]' },
+  chat_iniciou: { texto: 'iniciou a conversa', cor: 'bg-rm-acento-medio' },
   chat_visualizou: { texto: 'abriu a conversa', cor: 'bg-slate-400' },
   chat_assumiu: { texto: 'assumiu', cor: 'bg-sky-500' },
   chat_transferiu: { texto: 'transferiu', cor: 'bg-violet-500' },
-  chat_resolveu: { texto: 'resolveu (fechou)', cor: 'bg-[#4d7c0f]' },
+  chat_resolveu: { texto: 'resolveu (fechou)', cor: 'bg-rm-acento' },
   chat_reabriu: { texto: 'reabriu', cor: 'bg-amber-500' },
   chat_editou_mensagem: { texto: 'editou uma mensagem', cor: 'bg-slate-500' },
   chat_apagou_mensagem: { texto: 'apagou uma mensagem para todos', cor: 'bg-rose-500' },
@@ -57,7 +57,7 @@ function Auditoria({ conversaId }) {
         })}
       </ol>
       {eventos.length > 8 && (
-        <button type="button" onClick={() => setTodos((v) => !v)} className="mt-2 text-[12.5px] text-[#008069] dark:text-[#00d4a4] font-medium cursor-pointer">
+        <button type="button" onClick={() => setTodos((v) => !v)} className="mt-2 text-[12.5px] text-rm-acento dark:text-rm-acento-vivo font-medium cursor-pointer">
           {todos ? 'Ver menos' : `Ver tudo (${eventos.length})`}
         </button>
       )}
@@ -86,11 +86,11 @@ function Participantes({ conversaId }) {
   const mostrados = todos || f ? filtrados : filtrados.slice(0, 12);
   return (
     <div>
-      {lista.length > 8 && <input value={filtro} onChange={(e) => setFiltro(e.target.value)} placeholder="Buscar participante" aria-label="Buscar participante" className="w-full h-9 mb-2 rounded-lg px-3 bg-[#f0f2f5] dark:bg-[#202c33] outline-none text-[13.5px]" />}
+      {lista.length > 8 && <input value={filtro} onChange={(e) => setFiltro(e.target.value)} placeholder="Buscar participante" aria-label="Buscar participante" className="w-full h-9 mb-2 rounded-lg px-3 bg-rm-fundo dark:bg-rm-elevado-escuro outline-none text-[13.5px]" />}
       <ul className="space-y-0.5">
         {mostrados.map((p) => (
           <li key={p.jid} className="flex items-center gap-2.5 py-1.5">
-            <span className="w-8 h-8 rounded-full bg-[#dfe5e7] dark:bg-[#2a3942] text-[#54656f] dark:text-[#aebac1] flex items-center justify-center text-[11px] font-semibold flex-shrink-0">
+            <span className="w-8 h-8 rounded-full bg-[#dfe5e7] dark:bg-rm-campo-escuro text-[#54656f] dark:text-[#aebac1] flex items-center justify-center text-[11px] font-semibold flex-shrink-0">
               {String(p.nome || '#')
                 .split(/\s+/)
                 .slice(0, 2)
@@ -102,12 +102,12 @@ function Participantes({ conversaId }) {
               <span className="block text-[13.5px] font-medium truncate">{p.nome || (p.telefone ? formatarTelefone(p.telefone) : 'Participante')}</span>
               <span className="block text-[12px] text-[#667781] dark:text-[#8696a0] tabular-nums">{p.telefone ? formatarTelefone(p.telefone) : 'Número oculto pelo WhatsApp'}</span>
             </span>
-            {p.admin && <span className="text-[10.5px] font-semibold text-[#008069] dark:text-[#00d4a4] bg-[#00a884]/12 rounded-md px-1.5 py-0.5">Admin</span>}
+            {p.admin && <span className="text-[10.5px] font-semibold text-rm-acento dark:text-rm-acento-vivo bg-rm-acento-medio/12 rounded-md px-1.5 py-0.5">Admin</span>}
           </li>
         ))}
       </ul>
       {!f && filtrados.length > 12 && (
-        <button type="button" onClick={() => setTodos((v) => !v)} className="mt-1.5 text-[12.5px] text-[#008069] dark:text-[#00d4a4] font-medium cursor-pointer">
+        <button type="button" onClick={() => setTodos((v) => !v)} className="mt-1.5 text-[12.5px] text-rm-acento dark:text-rm-acento-vivo font-medium cursor-pointer">
           {todos ? 'Ver menos' : `Ver todos (${filtrados.length})`}
         </button>
       )}
@@ -216,10 +216,10 @@ export default function ChatPerfilContato({ contatoId, conversaAtualId, Avatar, 
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: 24, opacity: 0 }}
       transition={{ type: 'spring', bounce: 0.1, duration: 0.35 }}
-      className="absolute xl:static inset-y-0 right-0 z-20 w-full sm:w-[370px] xl:w-[360px] flex-shrink-0 flex flex-col bg-white dark:bg-[#111b21] border-l border-black/[0.07] dark:border-white/[0.06] shadow-[-20px_0_40px_-24px_rgba(0,0,0,0.25)] xl:shadow-none"
+      className="absolute xl:static inset-y-0 right-0 z-20 w-full sm:w-[370px] xl:w-[360px] flex-shrink-0 flex flex-col bg-white dark:bg-rm-cartao-escuro border-l border-black/[0.07] dark:border-white/[0.06] shadow-[-20px_0_40px_-24px_rgba(0,0,0,0.25)] xl:shadow-none"
       aria-label="Perfil do contato"
     >
-      <header className="h-[60px] flex-shrink-0 flex items-center gap-3 px-4 bg-[#f0f2f5] dark:bg-[#202c33]">
+      <header className="h-[60px] flex-shrink-0 flex items-center gap-3 px-4 bg-rm-fundo dark:bg-rm-elevado-escuro">
         <button type="button" onClick={onFechar} aria-label="Fechar perfil" className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-black/[0.05] dark:hover:bg-white/[0.06] cursor-pointer">
           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <path d="M6 6l12 12M18 6L6 18" />
@@ -246,8 +246,8 @@ export default function ChatPerfilContato({ contatoId, conversaAtualId, Avatar, 
                   if (await salvar({ nome }, 'Nome salvo.')) setEditandoNome(false);
                 }}
               >
-                <input value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} autoFocus placeholder="Nome" className="flex-1 h-10 rounded-lg px-3 bg-[#f0f2f5] dark:bg-[#202c33] outline-none focus:ring-2 focus:ring-[#00a884]/40 text-[15px]" />
-                <button type="submit" className="h-10 px-4 rounded-lg bg-[#00a884] text-white text-[13px] font-semibold cursor-pointer">
+                <input value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} autoFocus placeholder="Nome" className="flex-1 h-10 rounded-lg px-3 bg-rm-fundo dark:bg-rm-elevado-escuro outline-none focus:ring-2 focus:ring-rm-acento-medio/40 text-[15px]" />
+                <button type="submit" className="h-10 px-4 rounded-lg bg-rm-acento-medio text-white text-[13px] font-semibold cursor-pointer">
                   Salvar
                 </button>
               </form>
@@ -282,7 +282,7 @@ export default function ChatPerfilContato({ contatoId, conversaAtualId, Avatar, 
           <Secao titulo="Empresa">
             {escolhendoEmpresa ? (
               <div>
-                <input value={buscaEmpresa} onChange={(e) => setBuscaEmpresa(e.target.value)} autoFocus placeholder="Buscar empresa" className="w-full h-9 rounded-lg px-3 bg-[#f0f2f5] dark:bg-[#202c33] outline-none text-[14px]" />
+                <input value={buscaEmpresa} onChange={(e) => setBuscaEmpresa(e.target.value)} autoFocus placeholder="Buscar empresa" className="w-full h-9 rounded-lg px-3 bg-rm-fundo dark:bg-rm-elevado-escuro outline-none text-[14px]" />
                 <ul className="mt-1.5 max-h-[220px] overflow-y-auto">
                   {empresasFiltradas.map((e) => (
                     <li key={e.id}>
@@ -307,7 +307,7 @@ export default function ChatPerfilContato({ contatoId, conversaAtualId, Avatar, 
             ) : dados.empresa ? (
               <div className="flex items-center gap-2">
                 <span className="flex-1 text-[14.5px] font-medium truncate">{dados.empresa.nome}</span>
-                <button type="button" onClick={() => setEscolhendoEmpresa(true)} className="text-[13px] text-[#008069] dark:text-[#00d4a4] cursor-pointer">
+                <button type="button" onClick={() => setEscolhendoEmpresa(true)} className="text-[13px] text-rm-acento dark:text-rm-acento-vivo cursor-pointer">
                   Trocar
                 </button>
                 <button type="button" onClick={() => salvar({ empresa_id: null }, 'Empresa desligada.')} className="text-[13px] text-rose-600 dark:text-rose-400 cursor-pointer">
@@ -315,7 +315,7 @@ export default function ChatPerfilContato({ contatoId, conversaAtualId, Avatar, 
                 </button>
               </div>
             ) : (
-              <button type="button" onClick={() => setEscolhendoEmpresa(true)} className="text-[14px] text-[#008069] dark:text-[#00d4a4] font-medium cursor-pointer">
+              <button type="button" onClick={() => setEscolhendoEmpresa(true)} className="text-[14px] text-rm-acento dark:text-rm-acento-vivo font-medium cursor-pointer">
                 + Ligar a uma empresa cliente
               </button>
             )}
@@ -324,7 +324,7 @@ export default function ChatPerfilContato({ contatoId, conversaAtualId, Avatar, 
           <Secao titulo="Etiquetas">
             <div className="flex flex-wrap gap-1.5">
               {etiquetas.map((t) => (
-                <span key={t} className="h-7 pl-2.5 pr-1 rounded-full bg-[#00a884]/12 text-[#00694f] dark:text-[#00d4a4] text-[12.5px] font-medium inline-flex items-center gap-1">
+                <span key={t} className="h-7 pl-2.5 pr-1 rounded-full bg-rm-acento-medio/12 text-[#00694f] dark:text-rm-acento-vivo text-[12.5px] font-medium inline-flex items-center gap-1">
                   {t}
                   <button type="button" onClick={() => salvar({ etiquetas: etiquetas.filter((x) => x !== t) })} aria-label={`Tirar etiqueta ${t}`} className="w-5 h-5 rounded-full hover:bg-black/10 flex items-center justify-center cursor-pointer">
                     ×
@@ -340,7 +340,7 @@ export default function ChatPerfilContato({ contatoId, conversaAtualId, Avatar, 
                   salvar({ etiquetas: [...etiquetas, t] });
                 }}
               >
-                <input value={novaEtiqueta} onChange={(e) => setNovaEtiqueta(e.target.value)} maxLength={30} placeholder="+ etiqueta" aria-label="Nova etiqueta" className="h-7 w-[110px] rounded-full px-3 bg-[#f0f2f5] dark:bg-[#202c33] outline-none text-[12.5px] focus:w-[150px] transition-all" />
+                <input value={novaEtiqueta} onChange={(e) => setNovaEtiqueta(e.target.value)} maxLength={30} placeholder="+ etiqueta" aria-label="Nova etiqueta" className="h-7 w-[110px] rounded-full px-3 bg-rm-fundo dark:bg-rm-elevado-escuro outline-none text-[12.5px] focus:w-[150px] transition-all" />
               </form>
             </div>
           </Secao>
@@ -353,7 +353,7 @@ export default function ChatPerfilContato({ contatoId, conversaAtualId, Avatar, 
               rows={4}
               maxLength={2000}
               placeholder="Anotações sobre o contato (só a equipe vê)"
-              className="w-full rounded-lg px-3 py-2.5 bg-[#f0f2f5] dark:bg-[#202c33] outline-none focus:ring-2 focus:ring-[#00a884]/40 text-[14px] resize-none"
+              className="w-full rounded-lg px-3 py-2.5 bg-rm-fundo dark:bg-rm-elevado-escuro outline-none focus:ring-2 focus:ring-rm-acento-medio/40 text-[14px] resize-none"
             />
           </Secao>
 
@@ -364,13 +364,13 @@ export default function ChatPerfilContato({ contatoId, conversaAtualId, Avatar, 
                   <button
                     type="button"
                     onClick={() => c.id !== conversaAtualId && onAbrirConversa?.(c.id)}
-                    className={`w-full text-left px-2.5 py-2 rounded-lg text-[13px] ${c.id === conversaAtualId ? 'bg-[#00a884]/10' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.06] cursor-pointer'}`}
+                    className={`w-full text-left px-2.5 py-2 rounded-lg text-[13px] ${c.id === conversaAtualId ? 'bg-rm-acento-medio/10' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.06] cursor-pointer'}`}
                   >
                     <span className="flex items-center gap-2">
                       <span className="font-medium">{ROTULO_STATUS[c.status]}</span>
                       <span className="text-[#8696a0]">·</span>
                       <span className="text-[#667781] dark:text-[#8696a0]">{new Date(c.criado_em).toLocaleDateString('pt-BR')}</span>
-                      {c.id === conversaAtualId && <span className="ml-auto text-[11px] text-[#008069] dark:text-[#00d4a4] font-semibold">atual</span>}
+                      {c.id === conversaAtualId && <span className="ml-auto text-[11px] text-rm-acento dark:text-rm-acento-vivo font-semibold">atual</span>}
                     </span>
                     <span className="block text-[12px] text-[#8696a0] truncate">
                       {c.canal?.nome}

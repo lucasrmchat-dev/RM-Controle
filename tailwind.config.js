@@ -27,6 +27,18 @@ export default {
         ],
       },
       colors: {
+        // Paleta escolhida em Configurações › Visualização (variáveis em globals.css, uma por paleta)
+        rm: {
+          acento: 'rgb(var(--rm-acento) / <alpha-value>)',
+          'acento-medio': 'rgb(var(--rm-acento-medio) / <alpha-value>)',
+          'acento-escuro': 'rgb(var(--rm-acento-escuro) / <alpha-value>)',
+          'acento-vivo': 'rgb(var(--rm-acento-vivo) / <alpha-value>)',
+          fundo: 'rgb(var(--rm-fundo) / <alpha-value>)',
+          'fundo-escuro': 'rgb(var(--rm-fundo-escuro) / <alpha-value>)',
+          'cartao-escuro': 'rgb(var(--rm-cartao-escuro) / <alpha-value>)',
+          'elevado-escuro': 'rgb(var(--rm-elevado-escuro) / <alpha-value>)',
+          'campo-escuro': 'rgb(var(--rm-campo-escuro) / <alpha-value>)',
+        },
         apple: {
           canvas: {
             light: '#f5f5f7',

@@ -1,4 +1,5 @@
 import { contextoDaRequisicao, mensagemLimite } from '@/lib/server/organizacao';
+import { moduloContratado } from '@/lib/plataforma';
 import { validarUrlWebhook } from '@/lib/server/whatsappAgenda';
 import { cifrarSegredos, hashToken, novoToken } from '@/lib/server/canais/cofre';
 import { canalPublico, configDoChat, enderecoWebhook, provedorDo, segredosDo, servidorQrDaPlataforma } from '@/lib/server/canais/index';
@@ -19,6 +20,7 @@ const json = (corpo, status = 200) => Response.json(corpo, { status, headers: { 
 export async function GET(request) {
   const ctx = await contextoDaRequisicao(request);
   if (ctx.erro) return ctx.erro;
+  if (!moduloContratado(ctx.org, 'conexoes')) return json({ ok: false, mensagem: 'Canais não fazem parte do plano da sua empresa.' }, 403);
   const { data, error } = await ctx.db.from('canais').select('*').order('criado_em');
   if (error) return json({ ok: false, mensagem: /canais/.test(error.message) ? 'Rode supabase/migration_canais_chat.sql no Supabase.' : error.message }, 500);
   return json({ ok: true, canais: (data || []).map(canalPublico), admin: ctx.admin, servidorQr: Boolean(servidorQrDaPlataforma()) });
@@ -27,6 +29,7 @@ export async function GET(request) {
 export async function POST(request) {
   const ctx = await contextoDaRequisicao(request, { exigirAdmin: true });
   if (ctx.erro) return ctx.erro;
+  if (!moduloContratado(ctx.org, 'conexoes')) return json({ ok: false, mensagem: 'Canais não fazem parte do plano da sua empresa.' }, 403);
   const body = (await request.json().catch(() => null)) || {};
   let dados;
   try {
@@ -71,6 +74,7 @@ export async function POST(request) {
 export async function PATCH(request) {
   const ctx = await contextoDaRequisicao(request, { exigirAdmin: true });
   if (ctx.erro) return ctx.erro;
+  if (!moduloContratado(ctx.org, 'conexoes')) return json({ ok: false, mensagem: 'Canais não fazem parte do plano da sua empresa.' }, 403);
   const body = (await request.json().catch(() => null)) || {};
   if (!isValidUUID(body.id)) return json({ ok: false, mensagem: 'Canal inválido.' }, 400);
   const campos = { atualizado_em: new Date().toISOString() };
@@ -105,6 +109,7 @@ export async function PATCH(request) {
 export async function DELETE(request) {
   const ctx = await contextoDaRequisicao(request, { exigirAdmin: true });
   if (ctx.erro) return ctx.erro;
+  if (!moduloContratado(ctx.org, 'conexoes')) return json({ ok: false, mensagem: 'Canais não fazem parte do plano da sua empresa.' }, 403);
   const body = (await request.json().catch(() => null)) || {};
   if (!isValidUUID(body.id)) return json({ ok: false, mensagem: 'Canal inválido.' }, 400);
   const { data: canal } = await ctx.db.from('canais').select('*').eq('id', body.id).maybeSingle();

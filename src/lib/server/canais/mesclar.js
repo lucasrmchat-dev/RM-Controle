@@ -6,6 +6,7 @@
  */
 import { telefoneCanonico } from '@/lib/canais';
 import { auditarChat } from './chat';
+import { provedorDo, segredosDo } from './index';
 
 /** Motivo para não mesclar (ou null se pode). */
 export function motivoParaNaoMesclar(origem, destino) {
@@ -13,7 +14,8 @@ export function motivoParaNaoMesclar(origem, destino) {
   if (origem.id === destino.id) return 'Escolha outro canal para mesclar.';
   if (!origem.numero || !destino.numero) return 'Só dá para mesclar canais com número conhecido (conecte o canal ao menos uma vez).';
   if (telefoneCanonico(origem.numero) !== telefoneCanonico(destino.numero)) return 'Só dá para mesclar canais do mesmo número de WhatsApp.';
-  if (origem.status === 'conectado') return `Desconecte "${origem.nome}" antes de mesclar, para ele não receber mensagens durante a mudança.`;
+  // Desativado já não entra no atendimento: mescla mesmo que a conexão ainda conste como ativa
+  if (origem.status === 'conectado' && origem.ativo !== false) return `Desconecte ou desative "${origem.nome}" antes de mesclar, para ele não receber mensagens durante a mudança.`;
   return null;
 }
 
@@ -61,10 +63,20 @@ export async function mesclarCanais(db, perm, origem, destino) {
     juntadas += 1;
   }
 
+  // Conexão antiga ainda aberta no WhatsApp: desliga (sem isso ela seguiria recebendo em paralelo)
+  let status = origem.status;
+  if (origem.status === 'conectado') {
+    await provedorDo(origem)
+      .desconectar(origem, segredosDo(origem))
+      .then(() => {
+        status = 'desconectado';
+      })
+      .catch(() => {});
+  }
   // O canal antigo fica desativado e vazio (pode ser excluído depois)
   const { data: antigo } = await db
     .from('canais')
-    .update({ ativo: false, config: { ...(origem.config || {}), mesclado_em: destino.id }, atualizado_em: new Date().toISOString() })
+    .update({ ativo: false, status, config: { ...(origem.config || {}), mesclado_em: destino.id }, atualizado_em: new Date().toISOString() })
     .eq('id', origem.id)
     .select('*')
     .single();

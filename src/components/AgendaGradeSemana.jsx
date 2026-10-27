@@ -152,21 +152,21 @@ export default function AgendaGradeSemana({ dias, porDia, hojeIso, agora, corDaA
   const temTopo = dias.some((d) => noTopo[d].length);
 
   return (
-    <div className="rounded-3xl bg-white dark:bg-[#1e1e21] ring-1 ring-black/[0.06] dark:ring-white/[0.09] overflow-hidden select-none">
+    <div className="rounded-3xl bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.09] overflow-hidden select-none">
       <div ref={rolagemRef} className="relative overflow-y-auto overflow-x-auto max-h-[calc(100vh-260px)] min-h-[480px]">
         <div className="min-w-[760px]">
           {/* Cabeçalho dos dias (+ faixa de dia inteiro e prazos) */}
-          <div className="sticky top-0 z-20 bg-white/95 dark:bg-[#1e1e21]/95 backdrop-blur border-b border-black/[0.06] dark:border-white/[0.09]">
+          <div className="sticky top-0 z-20 bg-white/95 dark:bg-rm-cartao-escuro/95 backdrop-blur border-b border-black/[0.06] dark:border-white/[0.09]">
             <div className="grid grid-cols-[52px_repeat(7,minmax(0,1fr))]">
               <div />
               {dias.map((dia, i) => {
                 const hoje = dia === hojeIso;
                 return (
                   <div key={dia} className="py-2.5 flex flex-col items-center gap-0.5">
-                    <span className={`text-[11px] font-medium uppercase tracking-wide ${hoje ? 'text-[#4d7c0f] dark:text-[#a3e635]' : 'text-slate-500 dark:text-zinc-400'}`}>{NOMES_DIA[i]}</span>
+                    <span className={`text-[11px] font-medium uppercase tracking-wide ${hoje ? 'text-rm-acento dark:text-rm-acento-vivo' : 'text-slate-500 dark:text-zinc-400'}`}>{NOMES_DIA[i]}</span>
                     <span
                       className={`w-8 h-8 rounded-full flex items-center justify-center text-[16px] font-semibold tabular-nums ${
-                        hoje ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950' : 'text-[#1d1d1f] dark:text-white'
+                        hoje ? 'bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950' : 'text-[#1d1d1f] dark:text-white'
                       }`}
                     >
                       {deIso(dia).getDate()}
@@ -218,7 +218,7 @@ export default function AgendaGradeSemana({ dias, porDia, hojeIso, agora, corDaA
                   key={dia}
                   ref={diaIdx === 0 ? colunaRef : undefined}
                   onClick={(e) => criarNoClique(e, dia)}
-                  className={`relative border-l border-black/[0.05] dark:border-white/[0.07] cursor-cell ${hoje ? 'bg-[#4d7c0f]/[0.025] dark:bg-[#84cc16]/[0.03]' : ''}`}
+                  className={`relative border-l border-black/[0.05] dark:border-white/[0.07] cursor-cell ${hoje ? 'bg-rm-acento/[0.025] dark:bg-rm-acento-escuro/[0.03]' : ''}`}
                   style={{
                     height: alturaTotal,
                     backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent ${HORA_PX - 1}px, var(--linha-grade) ${HORA_PX - 1}px, var(--linha-grade) ${HORA_PX}px)`,

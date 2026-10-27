@@ -46,7 +46,7 @@ export default function SeletorMes({ valor, onMudar }) {
           setAno(Number(valor.slice(0, 4)));
           setAberto(!aberto);
         }}
-        className="h-11 px-4 rounded-xl bg-white dark:bg-[#242426] border border-black/10 dark:border-white/15 text-sm font-medium cursor-pointer"
+        className="h-11 px-4 rounded-xl bg-white dark:bg-rm-elevado-escuro border border-black/10 dark:border-white/15 text-sm font-medium cursor-pointer"
       >
         {MESES[Number(valor.slice(5)) - 1]} de {valor.slice(0, 4)} <span aria-hidden="true">⌄</span>
       </button>
@@ -54,7 +54,7 @@ export default function SeletorMes({ valor, onMudar }) {
         <div
           role="dialog"
           aria-label="Escolher mês"
-          className="absolute top-full left-0 mt-2 z-30 w-72 max-w-[calc(100vw-3rem)] rounded-2xl bg-white dark:bg-[#2b2b2f] border border-black/10 dark:border-white/15 shadow-xl p-4"
+          className="absolute top-full left-0 mt-2 z-30 w-72 max-w-[calc(100vw-3rem)] rounded-2xl bg-white dark:bg-rm-elevado-escuro border border-black/10 dark:border-white/15 shadow-xl p-4"
         >
           <div className="flex items-center justify-between mb-4">
             <button

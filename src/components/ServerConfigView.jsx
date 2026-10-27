@@ -339,7 +339,7 @@ export default function ServerConfigView() {
 
   if (userRole !== 'administrador') {
     return (
-      <div className="rounded-3xl p-12 border border-black/[0.06] dark:border-white/[0.11] bg-white/80 dark:bg-[#1e1e21]/85 backdrop-blur-xl text-center space-y-3 shadow-sm">
+      <div className="rounded-3xl p-12 border border-black/[0.06] dark:border-white/[0.11] bg-white/80 dark:bg-rm-cartao-escuro/85 backdrop-blur-xl text-center space-y-3 shadow-sm">
         <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto">
           <ShieldCheckIcon className="w-6 h-6" />
         </div>
@@ -430,7 +430,7 @@ export default function ServerConfigView() {
           </div>
 
           {/* Formulário Estilo Apple para Cadastrar Novo Requisito */}
-          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
+          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro space-y-4 shadow-sm">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
                 Cadastrar Novo Requisito para o Checklist de Servidores
@@ -466,7 +466,7 @@ export default function ServerConfigView() {
                     className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium cursor-pointer"
                   >
                     {categoriasChecklist.map((cat) => (
-                      <option key={cat} value={cat} className="dark:bg-[#1e1e21]">{cat}</option>
+                      <option key={cat} value={cat} className="dark:bg-rm-cartao-escuro">{cat}</option>
                     ))}
                   </select>
                 </div>
@@ -491,14 +491,14 @@ export default function ServerConfigView() {
                     type="checkbox"
                     checked={novoObrigatorio}
                     onChange={(e) => setNovoObrigatorio(e.target.checked)}
-                    className="w-4 h-4 accent-[#4d7c0f] dark:accent-[#84cc16] rounded cursor-pointer"
+                    className="w-4 h-4 accent-rm-acento dark:accent-rm-acento-escuro rounded cursor-pointer"
                   />
                   <span className="font-semibold">Requisito Obrigatório para Ativação do Servidor</span>
                 </label>
 
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-sm hover:opacity-90 flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="px-5 py-2.5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-sm hover:opacity-90 flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <span>+ Adicionar ao Modelo de Checklist</span>
                 </button>
@@ -513,7 +513,7 @@ export default function ServerConfigView() {
             </h3>
 
             {checklistItems.length === 0 ? (
-              <div className="rounded-3xl p-10 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] text-center text-xs text-slate-500">
+              <div className="rounded-3xl p-10 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro text-center text-xs text-slate-500">
                 Nenhum requisito cadastrado no checklist. Adicione o primeiro no formulário acima.
               </div>
             ) : (
@@ -521,7 +521,7 @@ export default function ServerConfigView() {
                 {checklistItems.map((item, idx) => (
                   <div
                     key={item.id}
-                    className="rounded-2xl p-4 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] flex items-center justify-between gap-3 shadow-xs hover:shadow-apple-hover transition-all"
+                    className="rounded-2xl p-4 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro flex items-center justify-between gap-3 shadow-xs hover:shadow-apple-hover transition-all"
                   >
                     <div className="flex items-start gap-3 min-w-0">
                       <span className="w-6 h-6 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] font-mono text-xs font-bold flex items-center justify-center text-slate-700 dark:text-zinc-300 mt-0.5 flex-shrink-0">
@@ -581,7 +581,7 @@ export default function ServerConfigView() {
         <div className="space-y-6 animate-fade-in">
           
           {/* Cadastro de Novo Usuário na Equipe */}
-          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
+          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro space-y-4 shadow-sm">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
                 Cadastrar Novo Membro da Equipe com Senha
@@ -632,7 +632,7 @@ export default function ServerConfigView() {
                       <button
                         type="button"
                         onClick={() => setNovoUsuarioSenha(generateSecurePassword(14))}
-                        className="text-[10px] text-[#4d7c0f] dark:text-[#84cc16] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                        className="text-[10px] text-rm-acento dark:text-rm-acento-escuro font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                       >
                         <SparklesIcon className="w-3 h-3" />
                         <span>Gerar Segura</span>
@@ -665,9 +665,9 @@ export default function ServerConfigView() {
                       onChange={(e) => setNovoUsuarioPerfil(e.target.value)}
                       className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium cursor-pointer"
                     >
-                      <option value="" className="dark:bg-[#1e1e21]">Sem perfil (acesso padrão de Suporte)</option>
+                      <option value="" className="dark:bg-rm-cartao-escuro">Sem perfil (acesso padrão de Suporte)</option>
                       {perfis.map((p) => (
-                        <option key={p.id} value={p.id} className="dark:bg-[#1e1e21]">
+                        <option key={p.id} value={p.id} className="dark:bg-rm-cartao-escuro">
                           {p.nome}
                           {p.administrador ? ' · administrador' : ''}
                         </option>
@@ -680,9 +680,9 @@ export default function ServerConfigView() {
                         onChange={(e) => setNovoUsuarioPapel(e.target.value)}
                         className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white font-medium cursor-pointer"
                       >
-                        <option value="suporte" className="dark:bg-[#1e1e21]">Suporte Técnico</option>
-                        <option value="vendas" className="dark:bg-[#1e1e21]">Comercial & Vendas</option>
-                        <option value="administrador" className="dark:bg-[#1e1e21]">Administrador Geral</option>
+                        <option value="suporte" className="dark:bg-rm-cartao-escuro">Suporte Técnico</option>
+                        <option value="vendas" className="dark:bg-rm-cartao-escuro">Comercial & Vendas</option>
+                        <option value="administrador" className="dark:bg-rm-cartao-escuro">Administrador Geral</option>
                       </select>
                       <p className="text-[11px] text-slate-500 dark:text-zinc-400 pl-1">Crie perfis personalizados em Configurações › Perfis de acesso.</p>
                     </>
@@ -693,7 +693,7 @@ export default function ServerConfigView() {
               <div className="flex justify-end pt-1">
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs rounded-full shadow-sm hover:opacity-90 flex items-center gap-1.5 cursor-pointer"
+                  className="px-5 py-2.5 bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs rounded-full shadow-sm hover:opacity-90 flex items-center gap-1.5 cursor-pointer"
                 >
                   <span>+ Cadastrar Membro da Equipe</span>
                 </button>
@@ -702,7 +702,7 @@ export default function ServerConfigView() {
           </div>
 
           {/* Lista de Membros da Equipe */}
-          <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] overflow-hidden shadow-sm">
+          <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro overflow-hidden shadow-sm">
             <div className="p-5 border-b border-black/[0.05] dark:border-white/[0.09] flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-zinc-300">
               <span>Membros Cadastrados ({equipe.length})</span>
               <span className="text-[10px] text-slate-400 font-mono">Gestão de acessos, papéis e permissões da equipe</span>
@@ -713,7 +713,7 @@ export default function ServerConfigView() {
                 return (
                   <div key={u.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-[#4d7c0f]/15 to-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-xs flex items-center justify-center border border-[#4d7c0f]/20 flex-shrink-0">
+                      <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-rm-acento/15 to-rm-acento-escuro/20 text-rm-acento dark:text-rm-acento-escuro font-bold text-xs flex items-center justify-center border border-rm-acento/20 flex-shrink-0">
                         {u.nome.charAt(0)}
                       </div>
                       <div>
@@ -780,7 +780,7 @@ export default function ServerConfigView() {
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 10 }}
                     transition={{ duration: 0.2 }}
-                    className="w-full max-w-lg rounded-3xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] p-6 sm:p-7 shadow-2xl space-y-5 my-auto text-[#1d1d1f] dark:text-[#f5f5f7] relative max-h-[92vh] overflow-y-auto"
+                    className="w-full max-w-lg rounded-3xl bg-white dark:bg-rm-cartao-escuro border border-black/[0.08] dark:border-white/[0.1] p-6 sm:p-7 shadow-2xl space-y-5 my-auto text-[#1d1d1f] dark:text-[#f5f5f7] relative max-h-[92vh] overflow-y-auto"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.11] pb-3.5">
@@ -837,7 +837,7 @@ export default function ServerConfigView() {
                             id="edit-perfil"
                             value={editPerfil}
                             onChange={(e) => setEditPerfil(e.target.value)}
-                            className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white font-medium cursor-pointer"
+                            className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white font-medium cursor-pointer"
                           >
                             <option value="">Sem perfil (acesso padrão de {editPapel === 'administrador' ? 'Administrador' : editPapel === 'vendas' ? 'Vendas' : 'Suporte'})</option>
                             {perfis.map((p) => (
@@ -868,7 +868,7 @@ export default function ServerConfigView() {
                         <select
                           value={editPapel}
                           onChange={(e) => setEditPapel(e.target.value)}
-                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white font-medium cursor-pointer"
+                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white font-medium cursor-pointer"
                         >
                           <option value="suporte">Suporte Técnico (Acesso a Empresas, Atendimento & Dashboard)</option>
                           <option value="vendas">Comercial & Vendas (Acesso a Empresas & Dashboard)</option>
@@ -907,7 +907,7 @@ export default function ServerConfigView() {
                                 }}
                                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                                   isAtribuido
-                                    ? 'bg-[#4d7c0f] text-white dark:bg-[#84cc16] dark:text-zinc-950 font-bold shadow-xs'
+                                    ? 'bg-rm-acento text-white dark:bg-rm-acento-escuro dark:text-zinc-950 font-bold shadow-xs'
                                     : 'bg-black/[0.03] dark:bg-white/[0.05] text-slate-600 dark:text-zinc-300 hover:bg-black/[0.06]'
                                 }`}
                               >
@@ -972,7 +972,7 @@ export default function ServerConfigView() {
                           <button
                             type="button"
                             onClick={() => setEditSenha(generateSecurePassword(14))}
-                            className="text-[10px] text-[#4d7c0f] dark:text-[#84cc16] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                            className="text-[10px] text-rm-acento dark:text-rm-acento-escuro font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                           >
                             <SparklesIcon className="w-3 h-3" />
                             <span>Gerar Nova Senha</span>
@@ -1005,7 +1005,7 @@ export default function ServerConfigView() {
                         </button>
                         <button
                           type="submit"
-                          className="px-5 py-2 bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs rounded-full shadow-sm hover:opacity-90 cursor-pointer"
+                          className="px-5 py-2 bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs rounded-full shadow-sm hover:opacity-90 cursor-pointer"
                         >
                           Salvar Alterações
                         </button>
@@ -1028,7 +1028,7 @@ export default function ServerConfigView() {
         <div className="space-y-6 animate-fade-in">
           
           {/* Cadastro de Novo Motivo */}
-          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
+          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro space-y-4 shadow-sm">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
                 Cadastrar Novo Motivo de Atendimento
@@ -1071,7 +1071,7 @@ export default function ServerConfigView() {
               <div className="flex justify-end pt-1">
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-sm hover:opacity-90 flex items-center gap-1.5 cursor-pointer"
+                  className="px-5 py-2.5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-sm hover:opacity-90 flex items-center gap-1.5 cursor-pointer"
                 >
                   <span>+ Cadastrar Motivo no Catálogo</span>
                 </button>
@@ -1080,7 +1080,7 @@ export default function ServerConfigView() {
           </div>
 
           {/* Lista de Motivos Ativos */}
-          <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] overflow-hidden shadow-sm">
+          <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro overflow-hidden shadow-sm">
             <div className="p-5 border-b border-black/[0.05] dark:border-white/[0.09] flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-zinc-300">
               <span>Motivos Ativos no Sistema ({motivosList.length})</span>
               <span className="text-[10px] text-slate-400 font-mono">Utilizados no encerramento de chamados</span>
@@ -1092,8 +1092,8 @@ export default function ServerConfigView() {
                   {editMotivo?.id === m.id ? (
                     <form onSubmit={handleSalvarMotivo} className="space-y-3">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <label className="block text-xs font-medium space-y-1.5"><span>Nome do motivo</span><input autoFocus required maxLength={120} value={editMotivo.nome} onChange={(e) => setEditMotivo({ ...editMotivo, nome: e.target.value })} disabled={salvandoMotivo} className="w-full h-11 px-3 rounded-xl border border-black/15 dark:border-white/20 bg-white dark:bg-[#242426] text-sm" /></label>
-                        <label className="block text-xs font-medium space-y-1.5"><span>Descrição (opcional)</span><input value={editMotivo.descricao} onChange={(e) => setEditMotivo({ ...editMotivo, descricao: e.target.value })} disabled={salvandoMotivo} className="w-full h-11 px-3 rounded-xl border border-black/15 dark:border-white/20 bg-white dark:bg-[#242426] text-sm" /></label>
+                        <label className="block text-xs font-medium space-y-1.5"><span>Nome do motivo</span><input autoFocus required maxLength={120} value={editMotivo.nome} onChange={(e) => setEditMotivo({ ...editMotivo, nome: e.target.value })} disabled={salvandoMotivo} className="w-full h-11 px-3 rounded-xl border border-black/15 dark:border-white/20 bg-white dark:bg-rm-elevado-escuro text-sm" /></label>
+                        <label className="block text-xs font-medium space-y-1.5"><span>Descrição (opcional)</span><input value={editMotivo.descricao} onChange={(e) => setEditMotivo({ ...editMotivo, descricao: e.target.value })} disabled={salvandoMotivo} className="w-full h-11 px-3 rounded-xl border border-black/15 dark:border-white/20 bg-white dark:bg-rm-elevado-escuro text-sm" /></label>
                       </div>
                       <p className="text-xs text-slate-500 dark:text-zinc-400">A alteração vale para novas classificações. Atendimentos antigos mantêm o nome registrado.</p>
                       {erroMotivo && <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">{erroMotivo}</p>}
@@ -1123,7 +1123,7 @@ export default function ServerConfigView() {
         <div className="space-y-6 animate-fade-in">
           
           {/* Senha Padrão de Contingência */}
-          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
+          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro space-y-4 shadow-sm">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
                 Senha Padrão de Contingência
@@ -1154,7 +1154,7 @@ export default function ServerConfigView() {
 
               <button
                 type="submit"
-                className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-sm hover:opacity-90 flex items-center justify-center gap-1.5 cursor-pointer"
+                className="px-5 py-2.5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-sm hover:opacity-90 flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <SaveIcon className="w-3.5 h-3.5" />
                 <span>{senhaPadraoSalva ? 'Salvo!' : 'Salvar Senha Padrão'}</span>
@@ -1163,7 +1163,7 @@ export default function ServerConfigView() {
           </div>
 
           {/* Regras Obrigatórias para Conclusão de Chamados */}
-          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
+          <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro space-y-4 shadow-sm">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
                 Regras de Encerramento de Chamado
@@ -1185,7 +1185,7 @@ export default function ServerConfigView() {
                   onClick={() => handleToggleRegraSuporte(item.chave)}
                   className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                     configSuporte[item.chave]
-                      ? 'border-[#4d7c0f]/30 bg-[#4d7c0f]/5 dark:bg-[#84cc16]/5 shadow-xs'
+                      ? 'border-rm-acento/30 bg-rm-acento/5 dark:bg-rm-acento-escuro/5 shadow-xs'
                       : 'border-black/[0.06] dark:border-white/[0.11] bg-black/[0.01] dark:bg-white/[0.02] opacity-70'
                   }`}
                 >
@@ -1200,7 +1200,7 @@ export default function ServerConfigView() {
 
                   <span className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full ${
                     configSuporte[item.chave]
-                      ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950'
+                      ? 'bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950'
                       : 'bg-black/[0.05] dark:bg-white/[0.08] text-slate-600 dark:text-zinc-400'
                   }`}>
                     {configSuporte[item.chave] ? 'Obrigatório' : 'Opcional'}

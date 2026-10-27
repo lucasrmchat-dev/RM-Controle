@@ -109,7 +109,7 @@ export default function ChannelsManagement() {
       )}
 
       {/* Formulário Novo Canal Estilo Apple */}
-      <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] shadow-sm">
+      <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro shadow-sm">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 mb-4">
           Cadastrar Novo Tipo de Canal
         </h3>
@@ -126,7 +126,7 @@ export default function ChannelsManagement() {
                 onChange={(e) => setNome(e.target.value)}
                 placeholder="Ex: Mensageria Cloud API, Instagram Direct"
                 required
-                className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 text-[#1d1d1f] dark:text-white placeholder-slate-400"
+                className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-rm-acento/20 text-[#1d1d1f] dark:text-white placeholder-slate-400"
               />
             </div>
 
@@ -166,7 +166,7 @@ export default function ChannelsManagement() {
               whileTap={{ scale: 0.98 }}
               type="submit"
               disabled={loading}
-              className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-semibold text-xs transition-all shadow-sm disabled:opacity-50"
+              className="px-5 py-2.5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-semibold text-xs transition-all shadow-sm disabled:opacity-50"
             >
               {loading ? 'Salvando...' : 'Adicionar ao Catálogo'}
             </motion.button>
@@ -188,7 +188,7 @@ export default function ChannelsManagement() {
               onClick={() => handleChangeViewMode('grid')}
               className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
                 viewMode === 'grid'
-                  ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                  ? 'bg-white dark:bg-rm-campo-escuro text-[#1d1d1f] dark:text-white shadow-xs'
                   : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
               }`}
               title="Exibir catálogo em Cards"
@@ -201,7 +201,7 @@ export default function ChannelsManagement() {
               onClick={() => handleChangeViewMode('list')}
               className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
                 viewMode === 'list'
-                  ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                  ? 'bg-white dark:bg-rm-campo-escuro text-[#1d1d1f] dark:text-white shadow-xs'
                   : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
               }`}
               title="Exibir catálogo em Lista / Tabela"
@@ -217,7 +217,7 @@ export default function ChannelsManagement() {
             {canais.map((c) => (
               <div
                 key={c.id}
-                className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] hover:shadow-apple-hover transition-all flex flex-col justify-between"
+                className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro hover:shadow-apple-hover transition-all flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">
@@ -247,14 +247,14 @@ export default function ChannelsManagement() {
 
                 <div className="pt-3 mt-3 border-t border-black/[0.04] dark:border-white/[0.09] flex items-center justify-between text-[11px] text-slate-400">
                   <span>Catálogo Global</span>
-                  <span className="text-[#4d7c0f] dark:text-[#84cc16] font-medium">Ativo</span>
+                  <span className="text-rm-acento dark:text-rm-acento-escuro font-medium">Ativo</span>
                 </div>
               </div>
             ))}
           </div>
         ) : (
           /* Visualização em Lista / Tabela Apple */
-          <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] overflow-hidden shadow-sm">
+          <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro overflow-hidden shadow-sm">
             <div className="hidden sm:grid grid-cols-12 gap-3 px-5 py-3 border-b border-black/[0.05] dark:border-white/[0.09] text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-400 bg-black/[0.01] dark:bg-white/[0.02]">
               <div className="col-span-4">Canal de Atendimento</div>
               <div className="col-span-2">Categoria Técnica</div>

@@ -270,7 +270,7 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
     () =>
       chamado && (
         <span className="inline-flex flex-wrap items-center gap-2 text-[12px]">
-          <span className="inline-flex items-center h-6 px-2.5 rounded-full bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-semibold">
+          <span className="inline-flex items-center h-6 px-2.5 rounded-full bg-rm-acento/10 dark:bg-rm-acento-escuro/15 text-rm-acento dark:text-rm-acento-escuro font-semibold">
             {chamado.empresa_nome}
           </span>
           {(chamado.categorias || []).slice(0, 2).map((c) => (
@@ -423,8 +423,8 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
                 </span>
                 <span className="block mt-1 text-lg font-semibold tabular-nums">{formatarTempo(tempoEspera)}</span>
               </div>
-              <div className="p-4 rounded-xl border border-[#4d7c0f]/30 dark:border-[#84cc16]/30 bg-[#4d7c0f]/[0.05] dark:bg-[#84cc16]/[0.06]">
-                <span className="flex items-center gap-1.5 text-xs text-[#4d7c0f] dark:text-[#84cc16]">
+              <div className="p-4 rounded-xl border border-rm-acento/30 dark:border-rm-acento-escuro/30 bg-rm-acento/[0.05] dark:bg-rm-acento-escuro/[0.06]">
+                <span className="flex items-center gap-1.5 text-xs text-rm-acento dark:text-rm-acento-escuro">
                   <HourglassIcon className="w-3.5 h-3.5" /> Atendimento
                 </span>
                 <span className="block mt-1 text-lg font-semibold tabular-nums">{formatarTempo(semResposta ? tempoSessao : tempoTotal)}</span>
@@ -438,7 +438,7 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
               type="button"
               aria-expanded={ajustarTempo}
               onClick={() => setAjustarTempo((v) => !v)}
-              className="mt-3 text-[13px] font-semibold text-[#4d7c0f] dark:text-[#84cc16] hover:underline cursor-pointer"
+              className="mt-3 text-[13px] font-semibold text-rm-acento dark:text-rm-acento-escuro hover:underline cursor-pointer"
             >
               {ajustarTempo ? 'Fechar ajuste' : 'Ajustar horários'}
             </button>

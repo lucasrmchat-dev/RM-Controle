@@ -37,7 +37,7 @@ export default function SplashCarregamento({ pronto = false, onFim }) {
     <motion.div
       role="status"
       aria-label="Carregando RM Controle"
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-[#f5f5f7] dark:bg-[#141416] overflow-hidden"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-rm-fundo dark:bg-rm-fundo-escuro overflow-hidden"
       initial={false}
       animate={saindo ? { opacity: 0 } : { opacity: 1 }}
       transition={{ duration: 0.5, ease: SAIDA, delay: saindo ? 0.12 : 0 }}
@@ -62,7 +62,7 @@ export default function SplashCarregamento({ pronto = false, onFim }) {
           {!reduzir && (
             <motion.div
               aria-hidden="true"
-              className="absolute inset-0 rounded-full border-[1.5px] border-[#a3e635]"
+              className="absolute inset-0 rounded-full border-[1.5px] border-rm-acento-vivo"
               initial={{ scale: 1, opacity: 0 }}
               animate={{ scale: [1, 1.9], opacity: [0.7, 0] }}
               transition={{ delay: T.fim, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}

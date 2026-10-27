@@ -5,12 +5,97 @@
 /* ==============================================================================
    APPLE DESIGN TOKENS: ULTRA-CLEAN, HIGH CONTRAST, LUXURY MINIMALISM
    ============================================================================== */
+/* ==============================================================================
+   PALETAS (Configurações › Visualização): cores em "R G B" para as classes rm-* do Tailwind.
+   acento = destaque no claro · acento-escuro / acento-vivo = destaque no escuro
+   acento-medio = botões cheios do Chat · fundo / fundo-escuro = página
+   cartao-escuro / elevado-escuro / campo-escuro = níveis do modo escuro
+   ============================================================================== */
+:root,
+[data-paleta='whatsapp'] {
+  --rm-acento: 0 128 105;
+  --rm-acento-medio: 0 168 132;
+  --rm-acento-escuro: 0 168 132;
+  --rm-acento-vivo: 0 212 164;
+  --rm-fundo: 240 242 245;
+  --rm-fundo-escuro: 11 20 26;
+  --rm-cartao-escuro: 17 27 33;
+  --rm-elevado-escuro: 32 44 51;
+  --rm-campo-escuro: 42 57 66;
+}
+[data-paleta='verde'] {
+  --rm-acento: 77 124 15;
+  --rm-acento-medio: 101 163 13;
+  --rm-acento-escuro: 132 204 22;
+  --rm-acento-vivo: 163 230 53;
+  --rm-fundo: 245 245 247;
+  --rm-fundo-escuro: 20 20 22;
+  --rm-cartao-escuro: 30 30 33;
+  --rm-elevado-escuro: 38 38 42;
+  --rm-campo-escuro: 50 50 55;
+}
+[data-paleta='azul'] {
+  --rm-acento: 37 99 235;
+  --rm-acento-medio: 59 130 246;
+  --rm-acento-escuro: 96 165 250;
+  --rm-acento-vivo: 147 197 253;
+  --rm-fundo: 243 246 251;
+  --rm-fundo-escuro: 11 18 32;
+  --rm-cartao-escuro: 18 27 46;
+  --rm-elevado-escuro: 26 37 60;
+  --rm-campo-escuro: 36 49 76;
+}
+[data-paleta='roxo'] {
+  --rm-acento: 124 58 237;
+  --rm-acento-medio: 139 92 246;
+  --rm-acento-escuro: 167 139 250;
+  --rm-acento-vivo: 196 181 253;
+  --rm-fundo: 246 244 251;
+  --rm-fundo-escuro: 17 14 26;
+  --rm-cartao-escuro: 26 21 38;
+  --rm-elevado-escuro: 35 28 50;
+  --rm-campo-escuro: 46 38 64;
+}
+[data-paleta='rosa'] {
+  --rm-acento: 219 39 119;
+  --rm-acento-medio: 236 72 153;
+  --rm-acento-escuro: 244 114 182;
+  --rm-acento-vivo: 249 168 212;
+  --rm-fundo: 251 244 248;
+  --rm-fundo-escuro: 22 13 19;
+  --rm-cartao-escuro: 33 20 28;
+  --rm-elevado-escuro: 43 27 37;
+  --rm-campo-escuro: 56 36 48;
+}
+[data-paleta='laranja'] {
+  --rm-acento: 194 65 12;
+  --rm-acento-medio: 234 88 12;
+  --rm-acento-escuro: 251 146 60;
+  --rm-acento-vivo: 253 186 116;
+  --rm-fundo: 250 246 242;
+  --rm-fundo-escuro: 23 17 12;
+  --rm-cartao-escuro: 34 25 17;
+  --rm-elevado-escuro: 44 33 23;
+  --rm-campo-escuro: 57 43 30;
+}
+[data-paleta='grafite'] {
+  --rm-acento: 63 63 70;
+  --rm-acento-medio: 82 82 91;
+  --rm-acento-escuro: 212 212 216;
+  --rm-acento-vivo: 228 228 231;
+  --rm-fundo: 245 245 247;
+  --rm-fundo-escuro: 18 18 20;
+  --rm-cartao-escuro: 28 28 31;
+  --rm-elevado-escuro: 36 36 40;
+  --rm-campo-escuro: 48 48 53;
+}
+
 :root {
-  --background: #f5f5f7;
+  --background: rgb(var(--rm-fundo));
   --foreground: #1d1d1f;
   --card-bg: #ffffff;
   --card-border: rgba(0, 0, 0, 0.06);
-  --brand-primary: #4d7c0f;
+  --brand-primary: rgb(var(--rm-acento));
   --brand-secondary: #65a30d;
   --brand-light: #f7fee7;
   --brand-glow: rgba(101, 163, 13, 0.15);
@@ -30,11 +115,11 @@
    O preto puro deixava cartões e fundo iguais; cada nível agora fica visível.
    ============================================================================== */
 .dark {
-  --background: #141416;
+  --background: rgb(var(--rm-fundo-escuro));
   --foreground: #f5f5f7;
-  --card-bg: #1e1e21;
+  --card-bg: rgb(var(--rm-cartao-escuro));
   --card-border: rgba(255, 255, 255, 0.1);
-  --brand-primary: #84cc16;
+  --brand-primary: rgb(var(--rm-acento-escuro));
   --brand-secondary: #a3e635;
   --brand-light: rgba(132, 204, 22, 0.12);
   --brand-glow: rgba(132, 204, 22, 0.22);
@@ -170,4 +255,10 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* A ilha do cabeçalho fica no centro da janela: reservar o espaço da barra de rolagem mantém o centro
+   igual em telas que rolam (Fila) e que não rolam (Chat) */
+html {
+  overflow-y: scroll;
 }

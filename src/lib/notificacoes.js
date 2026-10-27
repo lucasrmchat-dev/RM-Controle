@@ -53,11 +53,28 @@ export const naoLidas = (lista = ler()) => lista.filter((n) => !n.lida).length;
  */
 export function notificar(n) {
   if (!n?.id || !n?.titulo) return false;
-  const lista = ler();
+  let lista = ler();
   if (lista.some((x) => x.id === n.id) || foiDescartada(n.id)) return false;
-  lista.unshift({ id: n.id, tipo: n.tipo || 'sistema', titulo: n.titulo, detalhe: n.detalhe || '', aba: n.aba || null, em: new Date().toISOString(), lida: false });
+  // `grupo`: um aviso só por assunto (ex.: uma conversa do Chat) — o novo substitui o anterior
+  if (n.grupo) lista = lista.filter((x) => x.grupo !== n.grupo);
+  lista.unshift({ id: n.id, tipo: n.tipo || 'sistema', titulo: n.titulo, detalhe: n.detalhe || '', aba: n.aba || null, grupo: n.grupo || null, alvo: n.alvo || null, em: new Date().toISOString(), lida: false });
   gravar(lista);
   return true;
+}
+
+/** Tira os avisos de um assunto (ex.: ao abrir a conversa do Chat, os avisos dela somem). */
+export function removerGrupo(grupo) {
+  if (!grupo) return;
+  const lista = ler();
+  const restantes = lista.filter((x) => x.grupo !== grupo);
+  if (restantes.length !== lista.length) gravar(restantes);
+}
+
+/** Marca uma como lida. */
+export function marcarLida(id) {
+  const lista = ler();
+  if (!lista.some((n) => n.id === id && !n.lida)) return;
+  gravar(lista.map((n) => (n.id === id ? { ...n, lida: true } : n)));
 }
 
 export function marcarTodasLidas() {

@@ -149,7 +149,7 @@ export default function KnowledgeBaseTab({
   return (
     <div className="space-y-5">
       {/* CARD DO TOPO: PESQUISA & CONTROLES DA BASE DE CONHECIMENTO */}
-      <div className="rounded-3xl p-6 border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
+      <div className="rounded-3xl p-6 border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro space-y-4 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
@@ -181,7 +181,7 @@ export default function KnowledgeBaseTab({
                   setIsNovaSolucaoOpen(!isNovaSolucaoOpen);
                 }
               }}
-              className="px-4 py-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-sm hover:opacity-95 flex items-center gap-1.5 cursor-pointer"
+              className="px-4 py-2 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-sm hover:opacity-95 flex items-center gap-1.5 cursor-pointer"
             >
               <LightBulbIcon className="w-3.5 h-3.5" />
               <span>{isNovaSolucaoOpen ? 'Voltar à Busca' : '+ Nova Solução'}</span>
@@ -196,7 +196,7 @@ export default function KnowledgeBaseTab({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Pesquisar por sintoma, código de erro ou descrição..."
-            className="w-full pl-11 pr-4 py-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs sm:text-sm font-medium text-[#1d1d1f] dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 transition-all"
+            className="w-full pl-11 pr-4 py-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs sm:text-sm font-medium text-[#1d1d1f] dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rm-acento/20 transition-all"
           />
           <div className="absolute inset-y-0 left-0 pl-3.5 pt-1 flex items-center pointer-events-none text-slate-400">
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -245,7 +245,7 @@ export default function KnowledgeBaseTab({
               whileTap={{ scale: 0.98 }}
               type="button"
               onClick={() => handleCriarSolucaoFromQuery(query)}
-              className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap self-start sm:self-auto"
+              className="px-5 py-2.5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap self-start sm:self-auto"
             >
               <span>+ Cadastrar Solução com &ldquo;{query}&rdquo;</span>
             </motion.button>
@@ -263,7 +263,7 @@ export default function KnowledgeBaseTab({
             exit={{ opacity: 0, y: 15, scale: 0.98 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
             onSubmit={handleSalvarSolucao} 
-            className="space-y-5 p-6 sm:p-7 rounded-3xl border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] shadow-sm"
+            className="space-y-5 p-6 sm:p-7 rounded-3xl border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro shadow-sm"
           >
             <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs space-y-1">
               <span className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
@@ -286,7 +286,7 @@ export default function KnowledgeBaseTab({
                   onChange={(e) => setNovoTitulo(e.target.value)}
                   placeholder="Ex: Instância Desconectada / Falha de Pareamento QR Code"
                   required
-                  className="w-full px-4 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 font-medium text-[#1d1d1f] dark:text-white"
+                  className="w-full px-4 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-rm-acento/20 font-medium text-[#1d1d1f] dark:text-white"
                 />
               </div>
 
@@ -310,7 +310,7 @@ export default function KnowledgeBaseTab({
                 <select
                   value={novoTipo}
                   onChange={(e) => setNovoTipo(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white cursor-pointer"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-rm-cartao-escuro border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none text-[#1d1d1f] dark:text-white [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white cursor-pointer"
                 >
                   <option value="Envio de Mensagem">Envio de Mensagem</option>
                   <option value="Desconexão de Instância">Desconexão de Instância</option>
@@ -328,7 +328,7 @@ export default function KnowledgeBaseTab({
                       type="checkbox"
                       checked={associarEmpresa}
                       onChange={(e) => setAssociarEmpresa(e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-300 text-[#4d7c0f] focus:ring-[#4d7c0f]"
+                      className="w-4 h-4 rounded border-slate-300 text-rm-acento focus:ring-rm-acento"
                     />
                     <span>Mencionar <strong>{empresa.nome}</strong> no card desta solução no Banco Geral</span>
                   </label>
@@ -358,7 +358,7 @@ export default function KnowledgeBaseTab({
                   onChange={(e) => setNovosPassos(e.target.value)}
                   placeholder={'1. Acessar o Manager do Servidor\n2. Clicar em Reiniciar Instância\n3. Aguardar 10s e escanear o novo QR Code gerado'}
                   required
-                  className="w-full p-4 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 leading-relaxed text-[#1d1d1f] dark:text-white"
+                  className="w-full p-4 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-rm-acento/20 leading-relaxed text-[#1d1d1f] dark:text-white"
                 />
               </div>
             </div>
@@ -374,7 +374,7 @@ export default function KnowledgeBaseTab({
               <button
                 type="submit"
                 disabled={salvando}
-                className="px-6 py-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 disabled:opacity-50 cursor-pointer"
+                className="px-6 py-2 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 disabled:opacity-50 cursor-pointer"
               >
                 {salvando ? 'Salvando...' : 'Salvar Procedimento'}
               </button>
@@ -425,7 +425,7 @@ export default function KnowledgeBaseTab({
                       onClick={() => setKbViewMode('cards')}
                       className={`px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer transition-all ${
                         kbViewMode === 'cards'
-                          ? 'bg-white dark:bg-zinc-800 text-black dark:text-white shadow-xs'
+                          ? 'bg-white dark:bg-rm-campo-escuro text-black dark:text-white shadow-xs'
                           : 'text-slate-500 hover:text-black dark:hover:text-white'
                       }`}
                       title="Visualizar em Cards"
@@ -438,7 +438,7 @@ export default function KnowledgeBaseTab({
                       onClick={() => setKbViewMode('list')}
                       className={`px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer transition-all ${
                         kbViewMode === 'list'
-                          ? 'bg-white dark:bg-zinc-800 text-black dark:text-white shadow-xs'
+                          ? 'bg-white dark:bg-rm-campo-escuro text-black dark:text-white shadow-xs'
                           : 'text-slate-500 hover:text-black dark:hover:text-white'
                       }`}
                       title="Visualizar em Lista"
@@ -451,7 +451,7 @@ export default function KnowledgeBaseTab({
 
                 <AnimatePresence mode="popLayout">
                   {solucoes.length === 0 ? (
-              <div className="p-10 rounded-3xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#1e1e21] text-center space-y-3 shadow-xs">
+              <div className="p-10 rounded-3xl border border-black/10 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro text-center space-y-3 shadow-xs">
                 <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto">
                   <LightBulbIcon className="w-6 h-6" />
                 </div>
@@ -465,7 +465,7 @@ export default function KnowledgeBaseTab({
                   <button
                     type="button"
                     onClick={() => handleCriarSolucaoFromQuery('')}
-                    className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-xs cursor-pointer inline-flex items-center gap-1.5 hover:opacity-95 transition-all"
+                    className="px-5 py-2.5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-xs cursor-pointer inline-flex items-center gap-1.5 hover:opacity-95 transition-all"
                   >
                     <LightBulbIcon className="w-3.5 h-3.5" />
                     <span>Cadastrar Primeira Solução</span>
@@ -490,7 +490,7 @@ export default function KnowledgeBaseTab({
                         className={`w-full rounded-3xl p-5 sm:p-6 border space-y-4 relative group flex flex-col justify-between shadow-xs transition-all ${
                           isDestaEmpresa
                             ? 'border-emerald-500/35 dark:border-emerald-500/25 bg-emerald-500/[0.02] dark:bg-emerald-500/[0.04]'
-                            : 'border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21]'
+                            : 'border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro'
                         }`}
                       >
                         <div>
@@ -551,7 +551,7 @@ export default function KnowledgeBaseTab({
                             )}
                           </div>
 
-                          <div className="w-full p-4 sm:p-5 rounded-2xl bg-slate-50/90 dark:bg-[#1e1e21]/90 border border-black/[0.05] dark:border-white/[0.09] text-xs sm:text-[13px] font-mono text-slate-800 dark:text-zinc-200 whitespace-pre-line leading-relaxed shadow-2xs">
+                          <div className="w-full p-4 sm:p-5 rounded-2xl bg-slate-50/90 dark:bg-rm-cartao-escuro/90 border border-black/[0.05] dark:border-white/[0.09] text-xs sm:text-[13px] font-mono text-slate-800 dark:text-zinc-200 whitespace-pre-line leading-relaxed shadow-2xs">
                             {s.solucao_passos}
                           </div>
                         </div>
@@ -602,7 +602,7 @@ export default function KnowledgeBaseTab({
                         className={`w-full rounded-2xl border p-4 sm:p-5 transition-all shadow-2xs ${
                           isDestaEmpresa
                             ? 'border-emerald-500/35 dark:border-emerald-500/25 bg-emerald-500/[0.02] dark:bg-emerald-500/[0.04]'
-                            : 'border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21]'
+                            : 'border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro'
                         }`}
                       >
                         {/* Linha Principal do Item */}
@@ -691,7 +691,7 @@ export default function KnowledgeBaseTab({
                                 {s.contexto}
                               </p>
                             )}
-                            <div className="w-full p-4 rounded-xl bg-slate-50/90 dark:bg-[#1e1e21]/90 border border-black/[0.06] dark:border-white/[0.11] text-xs sm:text-[13px] font-mono text-slate-800 dark:text-zinc-200 whitespace-pre-line leading-relaxed shadow-inner">
+                            <div className="w-full p-4 rounded-xl bg-slate-50/90 dark:bg-rm-cartao-escuro/90 border border-black/[0.06] dark:border-white/[0.11] text-xs sm:text-[13px] font-mono text-slate-800 dark:text-zinc-200 whitespace-pre-line leading-relaxed shadow-inner">
                               {s.solucao_passos}
                             </div>
                             <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono pt-1">

@@ -19,7 +19,7 @@ function Interruptor({ ligado, onMudar, rotulo }) {
       aria-checked={ligado}
       aria-label={rotulo}
       onClick={() => onMudar(!ligado)}
-      className={`relative w-[42px] h-[26px] rounded-full flex-shrink-0 cursor-pointer transition-colors ${ligado ? 'bg-[#4d7c0f] dark:bg-[#84cc16]' : 'bg-black/[0.12] dark:bg-white/[0.18]'}`}
+      className={`relative w-[42px] h-[26px] rounded-full flex-shrink-0 cursor-pointer transition-colors ${ligado ? 'bg-rm-acento dark:bg-rm-acento-escuro' : 'bg-black/[0.12] dark:bg-white/[0.18]'}`}
     >
       <span className={`absolute top-[2px] left-[2px] w-[22px] h-[22px] rounded-full bg-white shadow transition-transform ${ligado ? 'translate-x-4' : ''}`} />
     </button>
@@ -246,12 +246,12 @@ export default function PerfisAcessoView() {
       ) : (
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {perfis.map((p) => (
-            <li key={p.id} className="rounded-3xl bg-white dark:bg-[#1e1e21] ring-1 ring-black/[0.06] dark:ring-white/[0.09] p-5 flex flex-col">
+            <li key={p.id} className="rounded-3xl bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.09] p-5 flex flex-col">
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-[15px] font-semibold flex items-center gap-2">
                     {p.nome}
-                    {p.administrador && <span className="h-5 px-2 rounded-full text-[10.5px] font-semibold bg-[#4d7c0f]/12 text-[#4d7c0f] dark:text-[#a3e635] flex items-center">Administrador</span>}
+                    {p.administrador && <span className="h-5 px-2 rounded-full text-[10.5px] font-semibold bg-rm-acento/12 text-rm-acento dark:text-rm-acento-vivo flex items-center">Administrador</span>}
                   </p>
                   {p.descricao && <p className="text-[12.5px] text-slate-500 dark:text-zinc-400 mt-0.5">{p.descricao}</p>}
                 </div>

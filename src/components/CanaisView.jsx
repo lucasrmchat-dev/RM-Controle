@@ -10,17 +10,18 @@ import { ModalEtapas, Etapa, ErroRodape, Spinner, classeBotaoPrimario, classeBot
 import { classeCampo, classeRotulo } from './NovaEmpresaCampos';
 import { showToast } from './ToastNotification';
 import { ListSkeleton } from './SkeletonLoaders';
+import EncaixeCabecalho, { ACOES_TITULO, LINHA_TITULO } from './EncaixeCabecalho';
 
 const MOLA = { type: 'spring', bounce: 0.18, duration: 0.42 };
 
 const COR_STATUS = {
-  verde: 'bg-[#4d7c0f]/12 text-[#4d7c0f] dark:text-[#a3e635]',
+  verde: 'bg-rm-acento/12 text-rm-acento dark:text-rm-acento-vivo',
   ambar: 'bg-amber-500/14 text-amber-700 dark:text-amber-300',
   cinza: 'bg-black/[0.06] dark:bg-white/[0.1] text-slate-500 dark:text-zinc-400',
   vermelho: 'bg-rose-500/12 text-rose-700 dark:text-rose-300',
 };
 const QUALIDADE = { GREEN: 'Alta', YELLOW: 'Média', RED: 'Baixa', UNKNOWN: 'Ainda sem nota' };
-const PONTO = { verde: 'bg-[#4d7c0f] dark:bg-[#84cc16]', ambar: 'bg-amber-500', cinza: 'bg-slate-400', vermelho: 'bg-rose-500' };
+const PONTO = { verde: 'bg-rm-acento dark:bg-rm-acento-escuro', ambar: 'bg-amber-500', cinza: 'bg-slate-400', vermelho: 'bg-rose-500' };
 
 const IconeWhatsapp = ({ className = 'w-5 h-5' }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -265,7 +266,7 @@ function QrModal({ canal, onFechar, onAtualizado }) {
         <div className="relative w-[272px] h-[272px] rounded-[28px] bg-white ring-1 ring-black/[0.08] flex items-center justify-center overflow-hidden">
           <AnimatePresence mode="wait">
             {status === 'conectado' ? (
-              <motion.div key="ok" initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={MOLA} className="w-20 h-20 rounded-full bg-[#4d7c0f] text-white flex items-center justify-center">
+              <motion.div key="ok" initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={MOLA} className="w-20 h-20 rounded-full bg-rm-acento text-white flex items-center justify-center">
                 <svg className="w-10 h-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M6 12.5l4 4L18 8" />
                 </svg>
@@ -410,7 +411,7 @@ function EditarCanalModal({ canal, onFechar, onSalvo }) {
         </label>
         {canal?.tipo !== 'whatsapp_oficial' && (
           <label className="flex items-start gap-3 rounded-2xl px-3.5 py-3 ring-1 ring-black/[0.08] dark:ring-white/[0.1] cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03]">
-            <input type="checkbox" checked={dados.ignorarGrupos} onChange={(e) => setDados({ ...dados, ignorarGrupos: e.target.checked })} className="mt-0.5 w-4 h-4 accent-[#4d7c0f]" />
+            <input type="checkbox" checked={dados.ignorarGrupos} onChange={(e) => setDados({ ...dados, ignorarGrupos: e.target.checked })} className="mt-0.5 w-4 h-4 accent-rm-acento" />
             <span className="min-w-0">
               <span className="block text-[13.5px] font-semibold text-[#1d1d1f] dark:text-white">Não receber grupos deste número</span>
               <span className="block mt-0.5 text-[12.5px] leading-relaxed text-slate-500 dark:text-zinc-400">
@@ -467,7 +468,7 @@ function MesclarCanalModal({ canal, canais, onFechar, onMesclado }) {
             <button type="button" onClick={onFechar} className={classeBotaoTexto}>
               Cancelar
             </button>
-            <button type="button" onClick={mesclar} disabled={salvando || !escolhido || escolhido.status === 'conectado'} className={classeBotaoPrimario}>
+            <button type="button" onClick={mesclar} disabled={salvando || !escolhido || (escolhido.ativo && escolhido.status === 'conectado')} className={classeBotaoPrimario}>
               {salvando && <Spinner />}
               Mesclar
             </button>
@@ -482,14 +483,14 @@ function MesclarCanalModal({ canal, canais, onFechar, onMesclado }) {
           <>
             <span className={classeRotulo}>Canal antigo</span>
             {candidatos.map((c) => (
-              <label key={c.id} className={`flex items-start gap-3 rounded-2xl px-3.5 py-3 ring-1 cursor-pointer ${origem === c.id ? 'ring-[#4d7c0f] dark:ring-[#84cc16] bg-[#4d7c0f]/5' : 'ring-black/[0.08] dark:ring-white/[0.1]'}`}>
-                <input type="radio" name="origem-mescla" checked={origem === c.id} onChange={() => setOrigem(c.id)} className="mt-1 accent-[#4d7c0f]" />
+              <label key={c.id} className={`flex items-start gap-3 rounded-2xl px-3.5 py-3 ring-1 cursor-pointer ${origem === c.id ? 'ring-rm-acento dark:ring-rm-acento-escuro bg-rm-acento/5' : 'ring-black/[0.08] dark:ring-white/[0.1]'}`}>
+                <input type="radio" name="origem-mescla" checked={origem === c.id} onChange={() => setOrigem(c.id)} className="mt-1 accent-rm-acento" />
                 <span className="min-w-0">
                   <span className="block text-[14px] font-semibold">{c.nome}</span>
                   <span className="block text-[12.5px] text-slate-500 dark:text-zinc-400">
                     {c.ativo ? (STATUS_CANAL[c.status] || STATUS_CANAL.desconectado).rotulo : 'Desativado'} · {TIPOS_CANAL[c.tipo]?.rotulo}
                   </span>
-                  {c.status === 'conectado' && <span className="block mt-1 text-[12px] text-amber-700 dark:text-amber-400">Desconecte este canal antes de mesclar.</span>}
+                  {c.ativo && c.status === 'conectado' && <span className="block mt-1 text-[12px] text-amber-700 dark:text-amber-400">Desconecte ou desative este canal antes de mesclar.</span>}
                 </span>
               </label>
             ))}
@@ -527,9 +528,9 @@ function CartaoCanal({ canal, admin, onConectar, onAtualizado, onTestar, onRemov
   };
 
   return (
-    <motion.li layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={MOLA} className={`rounded-[22px] bg-white dark:bg-[#1e1e21] ring-1 ring-black/[0.06] dark:ring-white/[0.09] p-5 flex flex-col ${canal.ativo ? '' : 'opacity-60'}`}>
+    <motion.li layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={MOLA} className={`rounded-[22px] bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.09] p-5 flex flex-col ${canal.ativo ? '' : 'opacity-60'}`}>
       <div className="flex items-start gap-3">
-        <span className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 ${oficial ? 'bg-sky-500/12 text-sky-700 dark:text-sky-300' : 'bg-[#4d7c0f]/12 text-[#4d7c0f] dark:text-[#a3e635]'}`}>
+        <span className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 ${oficial ? 'bg-sky-500/12 text-sky-700 dark:text-sky-300' : 'bg-rm-acento/12 text-rm-acento dark:text-rm-acento-vivo'}`}>
           <IconeWhatsapp />
         </span>
         <div className="min-w-0 flex-1">
@@ -676,22 +677,19 @@ export default function CanaisView() {
 
   return (
     <div className="space-y-8 text-[#1d1d1f] dark:text-[#f5f5f7]">
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-5 pt-2">
-        <div>
-          <h1 className="text-[30px] sm:text-[34px] font-semibold tracking-[-0.025em] leading-tight">Canais</h1>
-          <p className="mt-1.5 text-[14.5px] text-slate-500 dark:text-zinc-400 max-w-xl">
-            Números de WhatsApp conectados ao atendimento.{canais ? ` ${conectados} de ${canais.length} conectado${canais.length === 1 ? '' : 's'}.` : ''}
-          </p>
-        </div>
+      <header className={`flex flex-wrap items-center justify-between gap-3 ${LINHA_TITULO}`}>
+        {/* O nome da tela já está no cabeçalho */}
+        <p className="text-[13.5px] text-slate-500 dark:text-zinc-400 lg:h-12 flex items-center">{canais ? `${conectados} de ${canais.length} conectado${canais.length === 1 ? '' : 's'}` : ''}</p>
+        <EncaixeCabecalho />
         {admin && (
-          <div className="relative">
-            <motion.button whileTap={{ scale: 0.97 }} type="button" onClick={() => setMenuAberto((v) => !v)} aria-expanded={menuAberto} className="h-11 px-5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-[14px] font-semibold shadow-md shadow-[#4d7c0f]/20 flex items-center gap-2 cursor-pointer">
+          <div className={`relative ${ACOES_TITULO}`}>
+            <motion.button whileTap={{ scale: 0.97 }} type="button" onClick={() => setMenuAberto((v) => !v)} aria-expanded={menuAberto} className="h-11 px-5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 text-[14px] font-semibold shadow-md shadow-rm-acento/20 flex items-center gap-2 cursor-pointer">
               <span className="text-[18px] leading-none -mt-px">+</span>
               Adicionar canal
             </motion.button>
             <AnimatePresence>
               {menuAberto && (
-                <motion.div initial={{ opacity: 0, y: -6, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.16 }} style={{ transformOrigin: 'top right' }} className="absolute right-0 top-[calc(100%+8px)] z-20 w-[300px] rounded-2xl bg-white dark:bg-[#26262a] ring-1 ring-black/[0.08] dark:ring-white/[0.12] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.3)] p-1.5">
+                <motion.div initial={{ opacity: 0, y: -6, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.16 }} style={{ transformOrigin: 'top right' }} className="absolute right-0 top-[calc(100%+8px)] z-20 w-[300px] rounded-2xl bg-white dark:bg-rm-elevado-escuro ring-1 ring-black/[0.08] dark:ring-white/[0.12] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.3)] p-1.5">
                   {Object.entries(TIPOS_CANAL).map(([id, t]) => (
                     <button
                       key={id}
@@ -720,12 +718,12 @@ export default function CanaisView() {
       )}
 
       {canais === null && !erro ? (
-        <div className="p-5 rounded-[22px] bg-white dark:bg-[#1e1e21] ring-1 ring-black/[0.06] dark:ring-white/[0.09]">
+        <div className="p-5 rounded-[22px] bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.09]">
           <ListSkeleton linhas={3} />
         </div>
       ) : canais?.length === 0 ? (
         <div className="py-16 flex flex-col items-center text-center">
-          <span className="w-14 h-14 rounded-full bg-[#4d7c0f]/10 text-[#4d7c0f] dark:text-[#a3e635] flex items-center justify-center">
+          <span className="w-14 h-14 rounded-full bg-rm-acento/10 text-rm-acento dark:text-rm-acento-vivo flex items-center justify-center">
             <IconeWhatsapp className="w-6 h-6" />
           </span>
           <p className="mt-4 text-[15px] font-semibold">Nenhum canal ainda</p>

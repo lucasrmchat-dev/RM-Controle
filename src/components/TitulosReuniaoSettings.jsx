@@ -47,7 +47,7 @@ export default function TitulosReuniaoSettings() {
     catch (e) { setErro(e.message); }
     finally { setSalvando(false); }
   };
-  return <section className="rounded-3xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-[#1e1e21] p-5 sm:p-8 space-y-6">
+  return <section className="rounded-3xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-rm-cartao-escuro p-5 sm:p-8 space-y-6">
     <div><h2 className="text-xl font-semibold tracking-tight">Títulos das reuniões</h2><p className="text-sm text-slate-500 dark:text-zinc-400 mt-2 leading-relaxed">Defina uma sugestão para cada departamento. Ao escolher o departamento e o cliente na agenda, o título fica pronto para usar. Quem agenda pode escrever outro.</p></div>
     <div className="text-sm bg-black/[0.03] dark:bg-white/[0.04] rounded-2xl p-4 space-y-2"><p><code>{'{cliente}'}</code> recebe o nome de quem participa da reunião.</p><p><code>{'{departamento}'}</code> recebe o departamento escolhido.</p><p className="text-xs text-slate-500 dark:text-zinc-400">Deixe um modelo vazio para usar o padrão: {MODELO_TITULO_PADRAO}</p></div>
     {erro && <p role="alert" className="text-sm text-rose-600 dark:text-rose-400">{erro}</p>}

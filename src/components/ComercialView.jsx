@@ -13,6 +13,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { classeCampo } from './NovaEmpresaCampos';
 import SeletorMes from './SeletorMes';
+import EncaixeCabecalho, { ACOES_TITULO, LINHA_TITULO } from './EncaixeCabecalho';
 
 const STATUS = { agendada: 'Agendada', concluida: 'Realizada', cancelada: 'Cancelada' };
 export default function ComercialView({ userEmail, onAbrirAgenda }) {
@@ -176,21 +177,15 @@ export default function ComercialView({ userEmail, onAbrirAgenda }) {
   if (!podeAcessar) return null;
   return (
     <div className="space-y-7 text-[#1d1d1f] dark:text-zinc-100">
-      <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium text-slate-500 dark:text-zinc-400">
-            Relacionamento e oportunidades
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight mt-1">Comercial</h1>
-          <p className="text-sm text-slate-500 dark:text-zinc-400 mt-2">
-            Da reunião ao próximo passo. Acompanhe o movimento de cada responsável.
-          </p>
-        </div>
+      <header className={`flex flex-wrap items-center justify-between gap-3 ${LINHA_TITULO}`}>
+        {/* O nome da tela já está no cabeçalho */}
+        <div className="hidden lg:block" />
+        <EncaixeCabecalho />
         {permissoes.modulos.includes('agenda') && (
           <button
             type="button"
             onClick={onAbrirAgenda}
-            className="self-start rounded-full px-5 py-2.5 text-sm font-medium bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] cursor-pointer"
+            className="self-start lg:justify-self-end rounded-full px-5 py-2.5 text-sm font-medium bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] cursor-pointer"
           >
             Abrir agenda
           </button>
@@ -248,7 +243,7 @@ export default function ComercialView({ userEmail, onAbrirAgenda }) {
         </div>
       )}
       {!carregando && !config.departamentos.length && (
-        <div className="rounded-2xl border border-black/10 dark:border-white/15 p-6 bg-white dark:bg-[#242426]">
+        <div className="rounded-2xl border border-black/10 dark:border-white/15 p-6 bg-white dark:bg-rm-elevado-escuro">
           <h2 className="font-semibold">Escolha os departamentos do Comercial</h2>
           <p className="text-sm text-slate-500 dark:text-zinc-400 mt-2">
             Um administrador deve selecionar os departamentos em Configurações avançadas → Comercial
@@ -264,7 +259,7 @@ export default function ComercialView({ userEmail, onAbrirAgenda }) {
         ].map(([rotulo, total]) => (
           <div
             key={rotulo}
-            className="rounded-2xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-[#242426] p-5"
+            className="rounded-2xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-rm-elevado-escuro p-5"
           >
             <p className="text-sm text-slate-500 dark:text-zinc-400">{rotulo}</p>
             {carregando ? (
@@ -275,7 +270,7 @@ export default function ComercialView({ userEmail, onAbrirAgenda }) {
           </div>
         ))}
       </div>
-      <section className="rounded-2xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-[#242426] overflow-hidden">
+      <section className="rounded-2xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-rm-elevado-escuro overflow-hidden">
         <div className="p-5 border-b border-black/5 dark:border-white/10">
           <h2 className="text-lg font-semibold">Por colaborador</h2>
           <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
@@ -395,7 +390,7 @@ export default function ComercialView({ userEmail, onAbrirAgenda }) {
                       draggable={!movendo}
                       onDragStart={(ev) => ev.dataTransfer.setData('text/rm-reuniao', e.id)}
                       aria-busy={movendo === e.id}
-                      className="rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#2b2b2f] p-4 space-y-3"
+                      className="rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-elevado-escuro p-4 space-y-3"
                     >
                       <div>
                         <p className="text-xs text-slate-500 dark:text-zinc-400">

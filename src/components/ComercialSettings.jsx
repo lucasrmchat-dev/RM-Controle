@@ -59,7 +59,7 @@ export default function ComercialSettings() {
     }
   };
   return (
-    <section className="rounded-3xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-[#242426] p-5 sm:p-8 space-y-8">
+    <section className="rounded-3xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-rm-elevado-escuro p-5 sm:p-8 space-y-8">
       <div>
         <h2 className="text-xl font-semibold">Comercial e pipelines</h2>
         <p className="text-sm text-slate-500 dark:text-zinc-400 mt-2">

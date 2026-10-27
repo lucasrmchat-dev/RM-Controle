@@ -46,7 +46,7 @@ export default function ChatSettings() {
   const mudou = config && salvo && JSON.stringify(config) !== JSON.stringify(salvo);
 
   return (
-    <section className="rounded-3xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-[#1e1e21] p-5 sm:p-8 space-y-8">
+    <section className="rounded-3xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-rm-cartao-escuro p-5 sm:p-8 space-y-8">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">Chat do WhatsApp</h2>
         <p className="text-sm text-slate-500 dark:text-zinc-400 mt-2 leading-relaxed max-w-2xl">Como as conversas chegam no Chat para toda a equipe.</p>
@@ -69,13 +69,13 @@ export default function ChatSettings() {
                     role="radio"
                     aria-checked={ativo}
                     onClick={() => setConfig({ ...config, grupos: o.id })}
-                    className={`text-left rounded-2xl p-4 ring-1 transition-colors cursor-pointer ${ativo ? 'ring-2 ring-[#4d7c0f] dark:ring-[#84cc16] bg-[#4d7c0f]/[0.05]' : 'ring-black/[0.1] dark:ring-white/[0.12] hover:bg-black/[0.02] dark:hover:bg-white/[0.04]'}`}
+                    className={`text-left rounded-2xl p-4 ring-1 transition-colors cursor-pointer ${ativo ? 'ring-2 ring-rm-acento dark:ring-rm-acento-escuro bg-rm-acento/[0.05]' : 'ring-black/[0.1] dark:ring-white/[0.12] hover:bg-black/[0.02] dark:hover:bg-white/[0.04]'}`}
                   >
                     <span className="flex items-center gap-2">
-                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${ativo ? 'border-[#4d7c0f] dark:border-[#84cc16]' : 'border-slate-300 dark:border-zinc-600'}`}>{ativo && <span className="w-2 h-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16]" />}</span>
+                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${ativo ? 'border-rm-acento dark:border-rm-acento-escuro' : 'border-slate-300 dark:border-zinc-600'}`}>{ativo && <span className="w-2 h-2 rounded-full bg-rm-acento dark:bg-rm-acento-escuro" />}</span>
                       <span className="text-[14px] font-semibold">{o.titulo}</span>
                     </span>
-                    {o.tag && <span className="inline-block mt-2 text-[10.5px] font-semibold uppercase tracking-wide text-[#4d7c0f] dark:text-[#a3e635]">{o.tag}</span>}
+                    {o.tag && <span className="inline-block mt-2 text-[10.5px] font-semibold uppercase tracking-wide text-rm-acento dark:text-rm-acento-vivo">{o.tag}</span>}
                     <span className="block mt-1.5 text-[12.5px] leading-relaxed text-slate-500 dark:text-zinc-400">{o.desc}</span>
                   </button>
                 );

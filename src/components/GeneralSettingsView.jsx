@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAudioConfig, setAudioConfig, playNotificationTone, getSomDoModulo } from '@/lib/audioNotifications';
 import SonsModulos from './SonsModulos';
+import EscolhaPaleta from './EscolhaPaleta';
 import { 
   getDefaultViewMode, 
   setDefaultViewMode,
@@ -42,6 +43,7 @@ import {
   CheckIcon, 
   ViewGridIcon, 
   ViewListIcon,
+  KanbanIcon,
   ShieldCheckIcon,
   WrenchIcon,
   XMarkIcon,
@@ -49,6 +51,7 @@ import {
   ClockIcon
 } from './Icons';
 import { showToast } from './ToastNotification';
+import EncaixeCabecalho, { ACOES_TITULO, LINHA_TITULO } from './EncaixeCabecalho';
 
 export default function GeneralSettingsView({ userEmail, initialSubTab = 'visualizacao' }) {
   // Papel definido pelo servidor no login/sessão (mesma regra de src/lib/roles.js)
@@ -144,7 +147,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
   const handleChangeViewMode = (mode) => {
     setDefaultViewMode(mode);
     setViewModeState(mode);
-    showToast(`Visualização do sistema definida para ${mode === 'cards' ? 'Cards' : 'Lista'} por padrão.`, 'success');
+    showToast(`Visualização do sistema definida para ${mode === 'cards' ? 'Cards' : mode === 'kanban' ? 'Kanban' : 'Lista'} por padrão.`, 'success');
   };
 
   const handleTestarSom = (tipo) => {
@@ -229,8 +232,8 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
       abas: [
         {
           id: 'visualizacao',
-          label: 'Visualização do Sistema',
-          badge: viewMode === 'cards' ? 'Cards' : 'Lista',
+          label: 'Aparência',
+          badge: viewMode === 'cards' ? 'Cards' : viewMode === 'kanban' ? 'Kanban' : 'Lista',
           icon: viewMode === 'cards' ? <ViewGridIcon className="w-4 h-4" /> : <ViewListIcon className="w-4 h-4" />,
         },
         {
@@ -407,11 +410,11 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
   const categoriasMenu = [
     { id: 'geral', titulo: 'Geral', cor: 'bg-slate-500/12 text-slate-600 dark:text-zinc-300', ids: ['visualizacao', 'audio'] },
     { id: 'atendimento', titulo: 'Atendimento', cor: 'bg-amber-500/14 text-amber-700 dark:text-amber-300', ids: ['regras_suporte', 'departamentos', 'canais', 'feedbacks'] },
-    { id: 'whatsapp', titulo: 'WhatsApp', cor: 'bg-[#00a884]/14 text-[#008069] dark:text-[#00d4a4]', ids: ['chat', 'whatsapp_envio', 'whatsapp'] },
+    { id: 'whatsapp', titulo: 'WhatsApp', cor: 'bg-rm-acento-medio/14 text-rm-acento dark:text-rm-acento-vivo', ids: ['chat', 'whatsapp_envio', 'whatsapp'] },
     { id: 'agenda', titulo: 'Agenda e Comercial', cor: 'bg-sky-500/12 text-sky-700 dark:text-sky-300', ids: ['agenda', 'titulos_reuniao', 'comercial'] },
     { id: 'equipe', titulo: 'Equipe e acesso', cor: 'bg-violet-500/12 text-violet-700 dark:text-violet-300', ids: ['perfis', 'servidores'] },
     { id: 'integracoes', titulo: 'Integrações', cor: 'bg-indigo-500/12 text-indigo-700 dark:text-indigo-300', ids: ['suporte_automatico'] },
-    { id: 'plataforma', titulo: 'Plataforma', cor: 'bg-[#4d7c0f]/12 text-[#4d7c0f] dark:text-[#a3e635]', ids: gestao ? ['plataforma'] : [] },
+    { id: 'plataforma', titulo: 'Plataforma', cor: 'bg-rm-acento/12 text-rm-acento dark:text-rm-acento-vivo', ids: gestao ? ['plataforma'] : [] },
     { id: 'seguranca', titulo: 'Segurança', cor: 'bg-rose-500/12 text-rose-700 dark:text-rose-300', ids: ['auditoria'] },
   ]
     .map((c) => ({ ...c, itens: c.ids.filter((id) => porId[id] && (isAdmin || BASICAS.includes(id))).map((id) => ({ ...porId[id], rotulo: ROTULOS_MENU[id] || porId[id].label, categoria: c.titulo })) }))
@@ -436,18 +439,18 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
 
   return (
     <div className="space-y-6 text-[#1d1d1f] dark:text-[#f5f5f7]">
-      <div>
-        <h1 className="text-[30px] sm:text-[34px] font-semibold tracking-[-0.025em] leading-tight">Configurações</h1>
-        <p className="mt-1.5 text-[14.5px] text-slate-500 dark:text-zinc-400 max-w-2xl">Preferências do sistema, do WhatsApp, da agenda e da equipe, organizadas por assunto.</p>
+      <div className={`hidden lg:grid ${LINHA_TITULO}`}>
+        <div />
+        <EncaixeCabecalho />
       </div>
 
       <div className="lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-8 lg:items-start">
         {/* Menu por categorias (no celular aparece primeiro; no computador fica ao lado) */}
-        <nav aria-label="Seções das configurações" className={`${menuCelular ? 'block' : 'hidden'} lg:block lg:sticky lg:top-[calc(var(--rm-cabecalho,78px)+16px)] space-y-5`}>
+        <nav aria-label="Seções das configurações" className={`${menuCelular ? 'block' : 'hidden'} lg:block lg:sticky lg:top-[calc(var(--rm-cabecalho,60px)+16px)] space-y-5`}>
           {categoriasMenu.map((cat) => (
             <section key={cat.id}>
               <h2 className="px-3 mb-1.5 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-slate-400 dark:text-zinc-500">{cat.titulo}</h2>
-              <ul className="rounded-2xl lg:rounded-none bg-white lg:bg-transparent dark:bg-[#1e1e21] lg:dark:bg-transparent ring-1 ring-black/[0.06] dark:ring-white/[0.09] lg:ring-0 overflow-hidden lg:overflow-visible divide-y divide-black/[0.05] dark:divide-white/[0.06] lg:divide-y-0">
+              <ul className="rounded-2xl lg:rounded-none bg-white lg:bg-transparent dark:bg-rm-cartao-escuro lg:dark:bg-transparent ring-1 ring-black/[0.06] dark:ring-white/[0.09] lg:ring-0 overflow-hidden lg:overflow-visible divide-y divide-black/[0.05] dark:divide-white/[0.06] lg:divide-y-0">
                 {cat.itens.map((item) => {
                   const ativo = subTab === item.id;
                   return (
@@ -482,7 +485,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
 
         <div className={`${menuCelular ? 'hidden' : 'block'} lg:block min-w-0 space-y-6`}>
           <div className="flex items-center gap-2 text-[13px]">
-            <button type="button" onClick={() => setMenuCelular(true)} className="lg:hidden h-9 pl-1.5 pr-3 -ml-1.5 rounded-full flex items-center gap-1 text-[#4d7c0f] dark:text-[#a3e635] font-medium cursor-pointer">
+            <button type="button" onClick={() => setMenuCelular(true)} className="lg:hidden h-9 pl-1.5 pr-3 -ml-1.5 rounded-full flex items-center gap-1 text-rm-acento dark:text-rm-acento-vivo font-medium cursor-pointer">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
                 <path d="M15 6l-6 6 6 6" />
               </svg>
@@ -503,7 +506,9 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           transition={{ duration: 0.2 }}
           className="space-y-6"
         >
-          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-sm space-y-5">
+          <EscolhaPaleta />
+
+          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro shadow-sm space-y-5">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
                 Preferência de Interface
@@ -516,68 +521,40 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div
-                onClick={() => handleChangeViewMode('list')}
-                className={`p-5 rounded-2xl border-2 transition-all cursor-pointer space-y-3 ${
-                  viewMode === 'list'
-                    ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/[0.03] dark:bg-[#84cc16]/[0.05] shadow-xs'
-                    : 'border-black/[0.08] dark:border-white/[0.1] bg-black/[0.01] hover:border-black/[0.15]'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-black/[0.04] dark:bg-white/[0.08] flex items-center justify-center">
-                      <ViewListIcon className="w-5 h-5 text-slate-700 dark:text-zinc-300" />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[
+                { id: 'list', titulo: 'Lista / Tabela', tag: 'Alta densidade de dados', Icone: ViewListIcon, desc: 'Cabeçalhos clicáveis para ordenar, muitos dados por linha e leitura rápida.' },
+                { id: 'cards', titulo: 'Cards / Grade', tag: 'Visual em cartões', Icone: ViewGridIcon, desc: 'Cada registro num cartão, com as métricas em destaque.' },
+                { id: 'kanban', titulo: 'Kanban', tag: 'Por estado', Icone: KanbanIcon, desc: 'Colunas por estado na Fila de Demandas e no Chat; nas outras telas, cards.' },
+              ].map(({ id, titulo, tag, Icone, desc }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => handleChangeViewMode(id)}
+                  aria-pressed={viewMode === id}
+                  className={`text-left p-5 rounded-2xl border-2 transition-all cursor-pointer space-y-3 ${
+                    viewMode === id ? 'border-rm-acento dark:border-rm-acento-escuro bg-rm-acento/[0.03] dark:bg-rm-acento-escuro/[0.05] shadow-xs' : 'border-black/[0.08] dark:border-white/[0.1] bg-black/[0.01] hover:border-black/[0.15]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-black/[0.04] dark:bg-white/[0.08] flex items-center justify-center">
+                        <Icone className="w-5 h-5 text-slate-700 dark:text-zinc-300" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">{titulo}</h4>
+                        <span className="text-[10px] text-slate-400 font-mono">{tag}</span>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
-                        Visualização em Lista / Tabela
-                      </h4>
-                      <span className="text-[10px] text-slate-400 font-mono">Alta densidade de dados</span>
-                    </div>
+                    {viewMode === id && (
+                      <span className="w-5 h-5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-black flex items-center justify-center">
+                        <CheckIcon className="w-3 h-3" />
+                      </span>
+                    )}
                   </div>
-                  {viewMode === 'list' && (
-                    <span className="w-5 h-5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-black flex items-center justify-center">
-                      <CheckIcon className="w-3 h-3" />
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-600 dark:text-zinc-400 leading-relaxed">
-                  Ideal para operadores e monitoramento contínuo: cabeçalhos clicáveis para ordenação alfabética, múltiplos dados em linha e rapidez na leitura.
-                </p>
-              </div>
-
-              <div
-                onClick={() => handleChangeViewMode('cards')}
-                className={`p-5 rounded-2xl border-2 transition-all cursor-pointer space-y-3 ${
-                  viewMode === 'cards'
-                    ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/[0.03] dark:bg-[#84cc16]/[0.05] shadow-xs'
-                    : 'border-black/[0.08] dark:border-white/[0.1] bg-black/[0.01] hover:border-black/[0.15]'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-black/[0.04] dark:bg-white/[0.08] flex items-center justify-center">
-                      <ViewGridIcon className="w-5 h-5 text-slate-700 dark:text-zinc-300" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
-                        Visualização em Cards / Grade
-                      </h4>
-                      <span className="text-[10px] text-slate-400 font-mono">Layout visual imersivo</span>
-                    </div>
-                  </div>
-                  {viewMode === 'cards' && (
-                    <span className="w-5 h-5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-black flex items-center justify-center">
-                      <CheckIcon className="w-3 h-3" />
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-600 dark:text-zinc-400 leading-relaxed">
-                  Apresenta cada registro em cartões elegantes com métricas visuais em destaque.
-                </p>
-              </div>
+                  <p className="text-xs text-slate-600 dark:text-zinc-400 leading-relaxed">{desc}</p>
+                </button>
+              ))}
             </div>
           </div>
         </motion.div>
@@ -585,309 +562,8 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
 
       {/* BÁSICA 2: ALERTAS SONOROS */}
       {subTab === 'audio' && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-          className="space-y-6"
-        >
-          <SonsModulos />
-
-          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-sm space-y-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-400">
-                  Notificações em Tempo Real
-                </span>
-                <h3 className="text-lg font-bold text-[#1d1d1f] dark:text-white mt-0.5">
-                  Toques Sonoros da Fila de Demandas
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
-                  Emite alertas sonoros através da API de Áudio do navegador sempre que uma nova demanda entrar na fila de espera, garantindo resposta rápida aos clientes.
-                </p>
-              </div>
-
-              <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
-                <input
-                  type="checkbox"
-                  checked={audioConfig.habilitado}
-                  onChange={(e) => setAudioState({ ...audioConfig, habilitado: e.target.checked })}
-                  className="sr-only peer"
-                />
-                <div className="w-14 h-8 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-800 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all dark:border-zinc-600 peer-checked:bg-[#4d7c0f] dark:peer-checked:bg-[#84cc16]"></div>
-              </label>
-            </div>
-          </div>
-
-          {audioConfig.habilitado && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Escopo */}
-                <div className="rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-sm space-y-4">
-                  <div>
-                    <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
-                      Escopo das Notificações
-                    </h4>
-                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                      Defina quando o som deve ser disparado para o seu usuário.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    {[
-                      { id: 'departamentos', titulo: 'Demandas dos meus Departamentos', desc: 'Toca quando a demanda pertencer a qualquer um dos departamentos atribuídos ao seu perfil' },
-                      { id: 'atribuidos', titulo: 'Apenas Demandas Atribuídas Diretamente a Mim', desc: 'Toca exclusivamente quando a demanda estiver direcionada ao seu e-mail' },
-                      { id: 'selecionados', titulo: 'Departamentos Selecionados Específicos', desc: 'Permite selecionar exatamente quais departamentos monitorar (ideal para gestores)' },
-                    ].map((item) => (
-                      <div key={item.id} className="space-y-2">
-                        <label
-                          onClick={() => setAudioState({ ...audioConfig, escopo: item.id })}
-                          className={`p-3.5 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
-                            audioConfig.escopo === item.id
-                              ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10'
-                              : 'border-black/[0.06] dark:border-white/[0.11] hover:border-black/20'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="audio_escopo"
-                            checked={audioConfig.escopo === item.id}
-                            onChange={() => setAudioState({ ...audioConfig, escopo: item.id })}
-                            className="mt-0.5 text-[#4d7c0f] focus:ring-[#4d7c0f]"
-                          />
-                          <div>
-                            <span className="text-xs font-bold text-[#1d1d1f] dark:text-white block">
-                              {item.titulo}
-                            </span>
-                            <span className="text-[11px] text-slate-500 dark:text-zinc-400 leading-tight block mt-0.5">
-                              {item.desc}
-                            </span>
-                          </div>
-                        </label>
-
-                        {/* Se selecionados for o escopo ativo, exibe checkboxes com os departamentos disponíveis */}
-                        {item.id === 'selecionados' && audioConfig.escopo === 'selecionados' && (
-                          <div className="p-3 bg-black/[0.02] dark:bg-white/[0.03] rounded-2xl border border-black/[0.05] dark:border-white/[0.09] space-y-2">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">
-                              Selecione os departamentos a monitorar:
-                            </span>
-                            <div className="grid grid-cols-2 gap-2">
-                              {categoriasDemandas.map((dept) => {
-                                const checked = (audioConfig.departamentosSelecionados || []).includes(dept);
-                                return (
-                                  <label
-                                    key={dept}
-                                    className={`px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all ${
-                                      checked
-                                        ? 'border-[#4d7c0f]/50 bg-[#4d7c0f]/10 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
-                                        : 'border-black/[0.06] dark:border-white/[0.11] text-slate-600 dark:text-zinc-400 hover:bg-black/[0.03]'
-                                    }`}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={checked}
-                                      onChange={(e) => {
-                                        const atuais = audioConfig.departamentosSelecionados || [];
-                                        const novos = e.target.checked
-                                          ? [...atuais, dept]
-                                          : atuais.filter((d) => d !== dept);
-                                        setAudioState({ ...audioConfig, departamentosSelecionados: novos });
-                                      }}
-                                      className="rounded text-[#4d7c0f] focus:ring-[#4d7c0f]"
-                                    />
-                                    <span>{dept}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Opção de silenciar som para demandas que o próprio usuário abrir */}
-                  <div className="pt-3 border-t border-black/[0.05] dark:border-white/[0.09] flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-[#1d1d1f] dark:text-white block">
-                        Notificar ao Criar Demanda
-                      </span>
-                      <span className="text-[11px] text-slate-500 dark:text-zinc-400 block mt-0.5">
-                        Tocar som no meu aparelho mesmo quando for eu mesmo que cadastrei a demanda.
-                      </span>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
-                      <input
-                        type="checkbox"
-                        checked={audioConfig.notificarCriador || false}
-                        onChange={(e) => setAudioState({ ...audioConfig, notificarCriador: e.target.checked })}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-800 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-zinc-600 peer-checked:bg-[#4d7c0f] dark:peer-checked:bg-[#84cc16]"></div>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Modo de Repetição com Intermitente */}
-                <div className="rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-sm space-y-4">
-                  <div>
-                    <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
-                      Modo de Repetição do Alerta
-                    </h4>
-                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                      Decida se o alerta deve tocar uma única vez, de forma intermitente ou por intervalo.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    {[
-                      { id: 'uma_vez', titulo: 'Tocar uma única vez', desc: 'Emite o toque sonoro apenas no instante de entrada do chamado' },
-                      { id: 'intermitente', titulo: 'Repetir em Modo Intermitente (Sem Pausas)', desc: 'Toca continuamente sem parar logo após cada repetição até ser atendido' },
-                      { id: 'intervalo', titulo: 'Repetir com Intervalo de Tempo', desc: 'Repete o alerta sonoro em intervalos regulares até o chamado ser aceito' },
-                    ].map((item) => (
-                      <label
-                        key={item.id}
-                        onClick={() => setAudioState({ ...audioConfig, modoRepeticao: item.id })}
-                        className={`p-3.5 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
-                          audioConfig.modoRepeticao === item.id
-                            ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10'
-                            : 'border-black/[0.06] dark:border-white/[0.11] hover:border-black/20'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="audio_modo"
-                          checked={audioConfig.modoRepeticao === item.id}
-                          onChange={() => setAudioState({ ...audioConfig, modoRepeticao: item.id })}
-                          className="mt-0.5 text-[#4d7c0f] focus:ring-[#4d7c0f]"
-                        />
-                        <div>
-                          <span className="text-xs font-bold text-[#1d1d1f] dark:text-white block">
-                            {item.titulo}
-                          </span>
-                          <span className="text-[11px] text-slate-500 dark:text-zinc-400 leading-tight block mt-0.5">
-                            {item.desc}
-                          </span>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-
-                  {audioConfig.modoRepeticao === 'intervalo' && (
-                    <div className="pt-2">
-                      <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300 block mb-1.5">
-                        Intervalo de Repetição: {audioConfig.intervaloSegundos || 30} segundos
-                      </label>
-                      <input
-                        type="range"
-                        min="5"
-                        max="120"
-                        step="5"
-                        value={audioConfig.intervaloSegundos || 30}
-                        onChange={(e) => setAudioState({ ...audioConfig, intervaloSegundos: parseInt(e.target.value, 10) })}
-                        className="w-full accent-[#4d7c0f] dark:accent-[#84cc16]"
-                      />
-                      <div className="flex justify-between text-[10px] text-slate-400 font-mono mt-1">
-                        <span>5s (imediato)</span>
-                        <span>30s (recomendado)</span>
-                        <span>120s (espaçado)</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Timbre do Alerta Sonoro */}
-                <div className="lg:col-span-2 rounded-3xl p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-sm space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
-                        Timbre do Alerta Sonoro
-                      </h4>
-                      <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                        Escolha a frequência acústica que melhor se adapta à rotina da sua equipe.
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={() => handleTestarSom(audioConfig.tipoSom)}
-                      disabled={somTocando}
-                      className="px-4 py-2 rounded-full bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] text-xs font-semibold text-slate-800 dark:text-zinc-200 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                    >
-                      <span>{somTocando ? 'Reproduzindo...' : 'Testar Som Atual'}</span>
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {opcoesSons.map((som) => {
-                      const isSel = audioConfig.tipoSom === som.id;
-                      return (
-                        <div
-                          key={som.id}
-                          onClick={() => {
-                            setAudioState({ ...audioConfig, tipoSom: som.id });
-                            handleTestarSom(som.id);
-                          }}
-                          className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-2 flex flex-col justify-between ${
-                            isSel
-                              ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10 shadow-sm'
-                              : 'border-black/[0.06] dark:border-white/[0.11] hover:border-black/20 bg-black/[0.01]'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-slate-700 dark:text-zinc-300">
-                              {som.tag}
-                            </span>
-                            {isSel && (
-                              <span className="w-2 h-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16]"></span>
-                            )}
-                          </div>
-                          <div>
-                            <h5 className="text-xs font-bold text-[#1d1d1f] dark:text-white">
-                              {som.nome}
-                            </h5>
-                            <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-1 leading-tight">
-                              {som.desc}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {/* Botão de Salvar Alterações de Alerta Sonoro */}
-              <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <SparklesIcon className="w-4 h-4 text-[#4d7c0f] dark:text-[#84cc16]" />
-                  <span className="text-xs text-slate-600 dark:text-zinc-300">
-                    Clique em <strong>Salvar Alterações</strong> para aplicar a configuração no seu perfil.
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-3 self-end sm:self-auto">
-                  <button
-                    type="button"
-                    onClick={() => handleTestarSom(audioConfig.tipoSom)}
-                    disabled={somTocando}
-                    className="px-4 py-2 rounded-full border border-black/10 dark:border-white/10 text-xs font-semibold hover:bg-black/5 dark:hover:bg-white/5 transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    Testar Som
-                  </button>
-                  <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="button"
-                    onClick={handleSalvarAudioConfig}
-                    className="px-6 py-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 transition-all flex items-center gap-2 cursor-pointer"
-                  >
-                    <CheckIcon className="w-3.5 h-3.5" />
-                    <span>Salvar Alterações de Alerta Sonoro</span>
-                  </motion.button>
-                </div>
-              </div>
-            </div>
-          )}
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+          <SonsModulos departamentos={categoriasDemandas} />
         </motion.div>
       )}
 
@@ -903,7 +579,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           <GoogleAgendaSync />
 
           {/* Card 1: Formulário Principal de Integração */}
-          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] space-y-6 shadow-sm">
+          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro space-y-6 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2 mb-1">
@@ -946,7 +622,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                     value={agendaConfig.calendarId || ''}
                     onChange={(e) => setAgendaConfigState({ ...agendaConfig, calendarId: e.target.value.trim() })}
                     placeholder="Ex: suporte@rmchat.com.br"
-                    className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20"
+                    className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-rm-acento/20"
                   />
                   <p className="text-[11px] text-slate-400">
                     Geralmente o e-mail proprietário da agenda Google (ex: suporte@rmchat.com.br).
@@ -960,10 +636,10 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                   <select
                     value={agendaConfig.visualizacaoPadrao || 'nativa'}
                     onChange={(e) => setAgendaConfigState({ ...agendaConfig, visualizacaoPadrao: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 cursor-pointer"
+                    className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-rm-acento/20 cursor-pointer"
                   >
-                    <option value="nativa" className="dark:bg-[#1e1e21]">Visão Semanal Nativa Apple / RM Controle (Recomendado)</option>
-                    <option value="embed" className="dark:bg-[#1e1e21]">Visão Google Calendar Embutida (iFrame Oficial)</option>
+                    <option value="nativa" className="dark:bg-rm-cartao-escuro">Visão Semanal Nativa Apple / RM Controle (Recomendado)</option>
+                    <option value="embed" className="dark:bg-rm-cartao-escuro">Visão Google Calendar Embutida (iFrame Oficial)</option>
                   </select>
                   <p className="text-[11px] text-slate-400">
                     A visão nativa permite cronômetros, contagem regressiva e alertas com som.
@@ -981,7 +657,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                   value={agendaConfig.urlIcal || ''}
                   onChange={(e) => setAgendaConfigState({ ...agendaConfig, urlIcal: e.target.value.trim() })}
                   placeholder="https://calendar.google.com/calendar/ical/suporte%40rmchat.com.br/public/basic.ics"
-                  className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20"
+                  className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-rm-acento/20"
                 />
                 <p className="text-[11px] text-slate-400">
                   Obtido em: Google Agenda → Configurações da Agenda → Integrar agenda → "Endereço público no formato iCal".
@@ -998,7 +674,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                   value={agendaConfig.urlEmbed || ''}
                   onChange={(e) => setAgendaConfigState({ ...agendaConfig, urlEmbed: e.target.value.trim() })}
                   placeholder="https://calendar.google.com/calendar/embed?src=suporte%40rmchat.com.br&ctz=America%2FFortaleza"
-                  className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20"
+                  className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-rm-acento/20"
                 />
                 <p className="text-[11px] text-slate-400">
                   Utilizada na aba "Google Agenda (Ao Vivo)" para exibir o calendário completo dentro do RM Controle.
@@ -1014,13 +690,13 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                   <select
                     value={agendaConfig.minutosAntecedencia || 15}
                     onChange={(e) => setAgendaConfigState({ ...agendaConfig, minutosAntecedencia: parseInt(e.target.value, 10) })}
-                    className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 cursor-pointer"
+                    className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-rm-acento/20 cursor-pointer"
                   >
-                    <option value={5} className="dark:bg-[#1e1e21]">5 minutos antes da reunião</option>
-                    <option value={10} className="dark:bg-[#1e1e21]">10 minutos antes da reunião</option>
-                    <option value={15} className="dark:bg-[#1e1e21]">15 minutos antes da reunião (Recomendado)</option>
-                    <option value={30} className="dark:bg-[#1e1e21]">30 minutos antes da reunião</option>
-                    <option value={60} className="dark:bg-[#1e1e21]">1 hora antes da reunião</option>
+                    <option value={5} className="dark:bg-rm-cartao-escuro">5 minutos antes da reunião</option>
+                    <option value={10} className="dark:bg-rm-cartao-escuro">10 minutos antes da reunião</option>
+                    <option value={15} className="dark:bg-rm-cartao-escuro">15 minutos antes da reunião (Recomendado)</option>
+                    <option value={30} className="dark:bg-rm-cartao-escuro">30 minutos antes da reunião</option>
+                    <option value={60} className="dark:bg-rm-cartao-escuro">1 hora antes da reunião</option>
                   </select>
                 </div>
 
@@ -1031,10 +707,10 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                   <select
                     value={agendaConfig.notificarEscopo || 'proprias'}
                     onChange={(e) => setAgendaConfigState({ ...agendaConfig, notificarEscopo: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 cursor-pointer"
+                    className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-rm-acento/20 cursor-pointer"
                   >
-                    <option value="proprias" className="dark:bg-[#1e1e21]">Apenas reuniões atribuídas a mim (Operador)</option>
-                    <option value="todas" className="dark:bg-[#1e1e21]">Todas as reuniões da equipe (Gestor / Diretoria)</option>
+                    <option value="proprias" className="dark:bg-rm-cartao-escuro">Apenas reuniões atribuídas a mim (Operador)</option>
+                    <option value="todas" className="dark:bg-rm-cartao-escuro">Todas as reuniões da equipe (Gestor / Diretoria)</option>
                   </select>
                 </div>
               </div>
@@ -1049,7 +725,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
 
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-2xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="px-6 py-2.5 rounded-2xl bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 transition-all flex items-center gap-1.5 cursor-pointer"
                 >
                   <SaveIcon className="w-3.5 h-3.5" />
                   <span>{agendaSalva ? 'Configurações Salvas!' : 'Salvar Configurações da Agenda'}</span>
@@ -1059,7 +735,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           </div>
 
           {/* Card 2: Guia Técnico de Integração e Sincronização */}
-          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm text-xs">
+          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro space-y-4 shadow-sm text-xs">
             <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white flex items-center gap-2">
               <span>📖 Como Obter os Links no seu Google Agenda</span>
             </h4>
@@ -1100,7 +776,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           transition={{ duration: 0.2 }}
           className="space-y-6"
         >
-          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-sm space-y-5">
+          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro shadow-sm space-y-5">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">
                 Segmentação Operacional
@@ -1120,11 +796,11 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                 value={novaCategoriaInput}
                 onChange={(e) => setNovaCategoriaInput(e.target.value)}
                 placeholder="Nome do novo departamento (ex: Financeiro, Suporte, Automação)..."
-                className="flex-1 px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20"
+                className="flex-1 px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rm-acento/20"
               />
               <button
                 type="submit"
-                className="px-6 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                className="px-6 py-2.5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <span>+ Adicionar Departamento</span>
               </button>
@@ -1172,7 +848,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           transition={{ duration: 0.2 }}
           className="space-y-6"
         >
-          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
+          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro space-y-4 shadow-sm">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
                 Acesso do Suporte
@@ -1192,7 +868,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                   value={senhaPadrao}
                   onChange={(e) => setSenhaPadrao(e.target.value)}
                   placeholder="Ex: RmSuporte#2026"
-                  className="flex-1 px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono font-medium focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20"
+                  className="flex-1 px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono font-medium focus:outline-none focus:ring-2 focus:ring-rm-acento/20"
                 />
                 <button
                   type="button"
@@ -1205,7 +881,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-2xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="px-5 py-2.5 rounded-2xl bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 transition-all flex items-center gap-1.5 cursor-pointer"
                 >
                   <SaveIcon className="w-3.5 h-3.5" />
                   <span>{senhaSalva ? 'Salvo!' : 'Salvar'}</span>
@@ -1214,9 +890,9 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
             </form>
           </div>
 
-          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
+          <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro space-y-4 shadow-sm">
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#4d7c0f] dark:text-[#84cc16]">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-rm-acento dark:text-rm-acento-escuro">
                 Validação de Atendimento
               </span>
               <h3 className="text-lg font-bold text-[#1d1d1f] dark:text-white mt-0.5">
@@ -1241,7 +917,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                     onClick={() => handleToggleRegraSuporte(item.campo)}
                     className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start justify-between gap-3 ${
                       ativo
-                        ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10'
+                        ? 'border-rm-acento dark:border-rm-acento-escuro bg-rm-acento/5 dark:bg-rm-acento-escuro/10'
                         : 'border-black/[0.06] dark:border-white/[0.11] bg-black/[0.01] hover:border-black/20'
                     }`}
                   >
@@ -1256,7 +932,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
 
                     <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
                       ativo
-                        ? 'bg-[#4d7c0f] text-white dark:bg-[#84cc16] dark:text-zinc-950'
+                        ? 'bg-rm-acento text-white dark:bg-rm-acento-escuro dark:text-zinc-950'
                         : 'bg-black/[0.05] dark:bg-white/[0.1] text-slate-400'
                     }`}>
                       {ativo ? <CheckIcon className="w-3 h-3" /> : '○'}
@@ -1268,7 +944,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           </div>
 
           {/* Card: Monitoramento de Tempos Operacionais (Saudável, Intermediário e Crítico) */}
-          <div className="p-6 rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-xs space-y-4">
+          <div className="p-6 rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro shadow-xs space-y-4">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 font-mono">
                 Monitoramento Operacional & Níveis de Tempo
@@ -1297,7 +973,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                     setConfigSuporteState(novo);
                     showToast(`Tempo saudável ajustado para ${v} min.`, 'success');
                   }}
-                  className="w-full px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-xs font-semibold focus:outline-none cursor-pointer"
+                  className="w-full px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro text-xs font-semibold focus:outline-none cursor-pointer"
                 >
                   <option value={5}>Até 5 minutos</option>
                   <option value={10}>Até 10 minutos (Padrão)</option>
@@ -1320,7 +996,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                     setConfigSuporteState(novo);
                     showToast(`Tempo intermediário ajustado para ${v} min.`, 'success');
                   }}
-                  className="w-full px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-xs font-semibold focus:outline-none cursor-pointer"
+                  className="w-full px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro text-xs font-semibold focus:outline-none cursor-pointer"
                 >
                   <option value={15}>Até 15 minutos</option>
                   <option value={20}>Até 20 minutos (Padrão)</option>
@@ -1344,7 +1020,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                     setConfigSuporteState(novo);
                     showToast(`Tempo crítico ajustado para ${v} min.`, 'success');
                   }}
-                  className="w-full px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-xs font-semibold focus:outline-none cursor-pointer"
+                  className="w-full px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro text-xs font-semibold focus:outline-none cursor-pointer"
                 >
                   <option value={20}>Acima de 20 minutos</option>
                   <option value={25}>Acima de 25 minutos</option>
@@ -1356,7 +1032,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
             </div>
           </div>
           {/* Card: URLs de Acesso aos Servidores (Servidor 1 e Servidor 2) */}
-          <div className="p-6 rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-xs space-y-4">
+          <div className="p-6 rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro shadow-xs space-y-4">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-mono">
                 Redirecionamento Rápido de Suporte
@@ -1381,7 +1057,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                   placeholder="https://acesso.suaempresa.com.br"
                   value={servidoresConfig.servidor_1_url || ''}
                   onChange={(e) => setServidoresConfigState({ ...servidoresConfig, servidor_1_url: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none"
+                  className="w-full px-3.5 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none"
                 />
               </div>
 
@@ -1396,7 +1072,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                   placeholder="https://acesso2.suaempresa.com.br"
                   value={servidoresConfig.servidor_2_url || ''}
                   onChange={(e) => setServidoresConfigState({ ...servidoresConfig, servidor_2_url: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none"
+                  className="w-full px-3.5 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none"
                 />
               </div>
             </div>
@@ -1412,7 +1088,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                     showToast(err.message, 'error');
                   }
                 }}
-                className="px-4 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 transition-all cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-rm-acento/20 hover:opacity-95 transition-all cursor-pointer"
               >
                 Salvar URLs dos Servidores
               </button>

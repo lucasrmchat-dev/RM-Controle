@@ -14,6 +14,7 @@ export const MODULOS = [
   { id: 'fila', rotulo: 'Fila de Demandas', descricao: 'Ver, assumir e concluir demandas' },
   { id: 'empresas', rotulo: 'Empresas', descricao: 'Cadastro, acessos e servidores das empresas' },
   { id: 'agenda', rotulo: 'Agenda', descricao: 'Reuniões e Google Agenda' },
+  { id: 'daily', rotulo: 'Daily', descricao: 'Metas da semana, resumo das dailies e atualizações' },
   { id: 'comercial', rotulo: 'Comercial', descricao: 'Reuniões e acompanhamento por colaborador' },
   { id: 'dashboard', rotulo: 'Dashboard', descricao: 'Métricas de atendimento' },
   { id: 'feedbacks', rotulo: 'Feedbacks', descricao: 'Feedbacks dos clientes' },
@@ -39,7 +40,15 @@ const norm = (s) => String(s || '').toLowerCase().trim();
  * @returns {{ administrador: boolean, modulos: string[], departamentos: string[]|null, bloqueados: string[], perfil: object|null }}
  *   departamentos = null → todos; bloqueados = lista de departamentos ocultos (regra antiga, sem perfil)
  */
-export function permissoesEfetivas({ email, equipe = [], perfis = [], adminsExtras = '', verComoPerfilId = null }) {
+export function permissoesEfetivas(opcoes) {
+  const perm = permissoesSemContrato(opcoes);
+  // Módulos que a empresa contratou limitam todo mundo, inclusive administradores (Configurações sempre fica)
+  const contratados = opcoes?.modulosDaEmpresa;
+  if (!Array.isArray(contratados)) return perm;
+  return { ...perm, modulos: perm.modulos.filter((m) => m === 'configuracoes' || ABAS_ADMIN.includes(m) || contratados.includes(m)) };
+}
+
+function permissoesSemContrato({ email, equipe = [], perfis = [], adminsExtras = '', verComoPerfilId = null }) {
   const alvo = normalizarEmail(email);
   const total = { administrador: true, modulos: ABAS_POR_PAPEL.administrador, departamentos: null, bloqueados: [], perfil: null };
   const proprietario = alvo && listaAdministradores(adminsExtras).has(alvo);

@@ -3,6 +3,7 @@
  * (supabase/migration_canais_chat.sql): administrador vê todas; os demais, as dos seus departamentos,
  * as sem departamento e as que estão com eles.
  */
+import { modulosDaEmpresa } from '@/lib/plataforma';
 import { permissoesEfetivas, podeVerDepartamento } from '@/lib/perfis';
 import { normalizarEmail } from '@/lib/roles';
 import { canalPublico } from '@/lib/server/canais/index';
@@ -16,11 +17,18 @@ import { isValidUUID } from '@/lib/sanitize';
 const json = (corpo, status = 200) => Response.json(corpo, { status, headers: { 'Cache-Control': 'no-store' } });
 
 /** Sessão + permissão do Chat. Devolve { erro } (resposta pronta) ou { ctx, perm }. */
+/** Mensagem de bloqueio quando a pessoa não tem o módulo (plano da empresa ou perfil), ou null. */
+export function semModulo(perm, modulo, nome) {
+  if (Array.isArray(perm.contratados) && !perm.contratados.includes(modulo)) return `Este módulo não faz parte do plano da sua empresa.`;
+  return perm.modulos.includes(modulo) ? null : `Seu perfil não tem acesso ${nome}.`;
+}
+
 export async function acessoAoChat(request) {
   const ctx = await contextoDaRequisicao(request);
   if (ctx.erro) return { erro: ctx.erro };
   const perm = await permissaoDoChat(ctx.db, ctx.email);
-  if (!perm.administrador && !perm.modulos.includes('chat')) return { erro: json({ ok: false, mensagem: 'Seu perfil não tem acesso ao Chat.' }, 403) };
+  const bloqueio = semModulo(perm, 'chat', 'ao Chat');
+  if (bloqueio) return { erro: json({ ok: false, mensagem: bloqueio }, 403) };
   return { ctx, perm };
 }
 
@@ -65,13 +73,16 @@ export async function permissaoDoChat(db, email) {
 
 async function permissaoDoBanco(db, email) {
   const alvo = normalizarEmail(email);
-  const [equipe, perfis, acesso] = await Promise.all([
+  const [equipe, perfis, acesso, org] = await Promise.all([
     db.from('equipe_usuarios').select('*'),
     db.from('perfis_acesso').select('*'),
     db.from('sistema_config').select('valor').eq('chave', CHAVE_ACESSO_CHAT).maybeSingle(),
+    // Módulos que a empresa contratou valem para todos, inclusive administradores
+    db.organizacaoId ? db.from('organizacoes').select('tipo, limites').eq('id', db.organizacaoId).maybeSingle() : { data: null },
   ]);
   const linhas = (equipe.data || []).map(({ senha, ...resto }) => resto);
-  const perm = permissoesEfetivas({ email: alvo, equipe: linhas, perfis: perfis.data || [], adminsExtras: process.env.RM_ADMIN_EMAILS });
+  const contratados = modulosDaEmpresa(org.data);
+  const perm = { ...permissoesEfetivas({ email: alvo, equipe: linhas, perfis: perfis.data || [], adminsExtras: process.env.RM_ADMIN_EMAILS, modulosDaEmpresa: contratados }), contratados };
   const membro = linhas.find((u) => normalizarEmail(u.email) === alvo);
   const chat = { ...ACESSO_CHAT_PADRAO, ...validarAcessoChat(acesso.data?.valor?.[alvo] || {}) };
   return { ...perm, email: alvo, nome: membro?.nome || nomePeloEmail(alvo), chat };

@@ -17,16 +17,39 @@ const REPETICOES = [
   { id: 'intervalo', nome: 'A cada intervalo' },
 ];
 const MODULOS = [
-  { id: 'chat', titulo: 'Chat do WhatsApp', descricao: 'Conversa nova na fila e mensagem nova nas suas conversas, inclusive a que está aberta na tela. Repetindo, para quando não houver mais nada sem ler (ou, na conversa aberta, quando você mexer no computador).' },
-  { id: 'reunioes', titulo: 'Reuniões', descricao: 'Lembrete antes das reuniões da agenda (a antecedência fica em Google Agenda & Alertas). Repetindo, para quando você mexer no mouse ou no teclado.' },
+  { id: 'chat', titulo: 'Chat do WhatsApp', descricao: 'Conversa nova na fila e mensagem nova nas suas conversas, inclusive a que está aberta na tela.', repete: 'Repetindo, para quando não houver mais nada sem ler.' },
+  { id: 'fila', titulo: 'Fila de Demandas', descricao: 'Demanda nova entrando na fila.', repete: 'Repetindo, para quando a demanda for assumida.' },
+  { id: 'reunioes', titulo: 'Reuniões', descricao: 'Lembrete antes das reuniões da agenda (a antecedência fica em Google Agenda & Alertas).', repete: 'Repetindo, para quando você mexer no mouse ou no teclado.' },
+];
+const ESCOPOS_FILA = [
+  { id: 'departamentos', nome: 'Meus departamentos' },
+  { id: 'atribuidos', nome: 'Só as atribuídas a mim' },
+  { id: 'selecionados', nome: 'Departamentos escolhidos' },
 ];
 
 const pilula = (ativo) =>
-  `px-3 py-1.5 rounded-full text-[11.5px] font-semibold cursor-pointer transition-all border ${
-    ativo ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#3f6212] dark:text-[#bef264]' : 'border-black/[0.08] dark:border-white/[0.12] text-slate-600 dark:text-zinc-300 hover:border-black/20'
+  `h-8 px-3 rounded-full text-[12.5px] font-medium whitespace-nowrap cursor-pointer transition-colors ${
+    ativo ? 'bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f]' : 'bg-black/[0.04] dark:bg-white/[0.07] text-slate-600 dark:text-zinc-300 hover:bg-black/[0.08] dark:hover:bg-white/[0.12]'
   }`;
 
-function CartaoModulo({ modulo }) {
+function Interruptor({ ligado, onMudar, rotulo }) {
+  return (
+    <button type="button" role="switch" aria-checked={ligado} aria-label={rotulo} onClick={() => onMudar(!ligado)} className={`relative w-11 h-6 rounded-full flex-shrink-0 cursor-pointer transition-colors ${ligado ? 'bg-rm-acento dark:bg-rm-acento-escuro' : 'bg-black/15 dark:bg-white/20'}`}>
+      <span className={`absolute top-[2px] w-5 h-5 rounded-full bg-white shadow transition-all ${ligado ? 'left-[22px]' : 'left-[2px]'}`} />
+    </button>
+  );
+}
+
+function Linha({ titulo, children }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-[120px_minmax(0,1fr)] gap-2 sm:gap-4 sm:items-center">
+      <span className="text-[12px] font-semibold text-slate-500 dark:text-zinc-400">{titulo}</span>
+      <div className="flex flex-wrap items-center gap-1.5">{children}</div>
+    </div>
+  );
+}
+
+function CartaoModulo({ modulo, departamentos }) {
   const [som, setSom] = useState(() => getSomDoModulo(modulo.id));
   useEffect(() => {
     const atualizar = () => setSom(getSomDoModulo(modulo.id));
@@ -39,79 +62,101 @@ function CartaoModulo({ modulo }) {
     setSomDoModulo(modulo.id, campos);
     setSom(getSomDoModulo(modulo.id));
   };
+  const selecionados = som.departamentosSelecionados || [];
+
   return (
-    <div className="rounded-3xl p-5 sm:p-6 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-sm space-y-4">
+    <section className="rounded-[22px] bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.09] p-5 space-y-4" aria-label={modulo.titulo}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h4 className="text-sm font-bold text-[#1d1d1f] dark:text-white">{modulo.titulo}</h4>
-          <p className="text-[11.5px] text-slate-500 dark:text-zinc-400 mt-0.5 leading-relaxed">{modulo.descricao}</p>
+          <h3 className="text-[15px] font-semibold tracking-tight">{modulo.titulo}</h3>
+          <p className="text-[12.5px] text-slate-500 dark:text-zinc-400 mt-0.5">{modulo.descricao}</p>
         </div>
-        <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
-          <input type="checkbox" checked={som.habilitado} onChange={(e) => mudar({ habilitado: e.target.checked })} className="sr-only peer" aria-label={`Som de ${modulo.titulo}`} />
-          <div className="w-11 h-6 bg-slate-200 rounded-full peer dark:bg-zinc-800 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#4d7c0f] dark:peer-checked:bg-[#84cc16]"></div>
-        </label>
+        <Interruptor ligado={som.habilitado} onMudar={(v) => mudar({ habilitado: v })} rotulo={`Som de ${modulo.titulo}`} />
       </div>
-      {som.habilitado ? (
-        <>
-          <div className="space-y-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500">Toque</span>
-            <div className="flex flex-wrap gap-1.5">
-              {TOQUES.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => {
-                    mudar({ tipoSom: t.id });
-                    playNotificationTone(t.id);
-                  }}
-                  className={pilula(som.tipoSom === t.id)}
-                >
-                  {t.nome}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500">Repetição</span>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {REPETICOES.map((r) => (
-                <button key={r.id} type="button" onClick={() => mudar({ modoRepeticao: r.id })} className={pilula(som.modoRepeticao === r.id)}>
-                  {r.nome}
-                </button>
-              ))}
-            </div>
-            {som.modoRepeticao === 'intervalo' && (
-              <label className="block pt-1">
-                <span className="text-[11.5px] text-slate-600 dark:text-zinc-300">A cada {som.intervaloSegundos} segundos</span>
-                <input type="range" min="5" max="120" step="5" value={som.intervaloSegundos} onChange={(e) => mudar({ intervaloSegundos: parseInt(e.target.value, 10) })} className="w-full accent-[#4d7c0f] dark:accent-[#84cc16]" />
-              </label>
-            )}
-            {som.modoRepeticao !== 'uma_vez' && <p className="text-[11px] text-slate-400 dark:text-zinc-500">A repetição para sozinha depois de 10 minutos.</p>}
-          </div>
-          <button type="button" onClick={() => playNotificationTone(som.tipoSom)} className="px-4 py-1.5 rounded-full border border-black/10 dark:border-white/10 text-[11.5px] font-semibold hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer">
-            Testar som
-          </button>
-        </>
-      ) : (
-        <p className="text-[11.5px] text-slate-400 dark:text-zinc-500">Sem som. Os avisos continuam aparecendo no sino de notificações.</p>
+
+      {som.habilitado && (
+        <div className="space-y-3 pt-1">
+          <Linha titulo="Toque">
+            {TOQUES.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                aria-pressed={som.tipoSom === t.id}
+                onClick={() => {
+                  mudar({ tipoSom: t.id });
+                  playNotificationTone(t.id);
+                }}
+                className={pilula(som.tipoSom === t.id)}
+              >
+                {t.nome}
+              </button>
+            ))}
+            <button type="button" onClick={() => playNotificationTone(som.tipoSom)} className="h-8 px-3 rounded-full text-[12.5px] font-medium text-rm-acento dark:text-rm-acento-vivo hover:bg-rm-acento/10 cursor-pointer">
+              ▶ Ouvir
+            </button>
+          </Linha>
+          <Linha titulo="Repetição">
+            {REPETICOES.map((r) => (
+              <button key={r.id} type="button" aria-pressed={som.modoRepeticao === r.id} onClick={() => mudar({ modoRepeticao: r.id })} className={pilula(som.modoRepeticao === r.id)}>
+                {r.nome}
+              </button>
+            ))}
+          </Linha>
+          {som.modoRepeticao === 'intervalo' && (
+            <Linha titulo={`A cada ${som.intervaloSegundos || 30} s`}>
+              <input type="range" min="5" max="120" step="5" value={som.intervaloSegundos || 30} onChange={(e) => mudar({ intervaloSegundos: parseInt(e.target.value, 10) })} aria-label="Intervalo da repetição em segundos" className="w-full max-w-[320px] accent-rm-acento dark:accent-rm-acento-escuro" />
+            </Linha>
+          )}
+          {som.modoRepeticao !== 'uma_vez' && <p className="text-[12px] text-slate-400 dark:text-zinc-500 sm:pl-[136px]">{modulo.repete} Para sozinha depois de 10 minutos.</p>}
+
+          {modulo.id === 'chat' && (
+            <Linha titulo="Grupos">
+              <Interruptor ligado={Boolean(som.grupos)} onMudar={(v) => mudar({ grupos: v })} rotulo="Avisar mensagens de grupos" />
+              <span className="text-[12.5px] text-slate-500 dark:text-zinc-400">Avisar também mensagens de grupos</span>
+            </Linha>
+          )}
+
+          {modulo.id === 'fila' && (
+            <>
+              <Linha titulo="Avisar de">
+                {ESCOPOS_FILA.map((e) => (
+                  <button key={e.id} type="button" aria-pressed={som.escopo === e.id} onClick={() => mudar({ escopo: e.id })} className={pilula(som.escopo === e.id)}>
+                    {e.nome}
+                  </button>
+                ))}
+              </Linha>
+              {som.escopo === 'selecionados' && (
+                <Linha titulo="Departamentos">
+                  {departamentos.map((d) => {
+                    const marcado = selecionados.includes(d);
+                    return (
+                      <button key={d} type="button" aria-pressed={marcado} onClick={() => mudar({ departamentosSelecionados: marcado ? selecionados.filter((x) => x !== d) : [...selecionados, d] })} className={pilula(marcado)}>
+                        {d}
+                      </button>
+                    );
+                  })}
+                </Linha>
+              )}
+              <Linha titulo="Minhas demandas">
+                <Interruptor ligado={Boolean(som.notificarCriador)} onMudar={(v) => mudar({ notificarCriador: v })} rotulo="Tocar também quando eu cadastrar a demanda" />
+                <span className="text-[12.5px] text-slate-500 dark:text-zinc-400">Tocar também quando eu mesmo cadastrar</span>
+              </Linha>
+            </>
+          )}
+        </div>
       )}
-    </div>
+    </section>
   );
 }
 
-/** Som de cada módulo (salva neste navegador, na hora). A Fila de Demandas tem a configuração completa abaixo. */
-export default function SonsModulos() {
+/** Som de cada módulo: as mesmas opções em todos, cada um com a sua configuração (neste navegador, salva na hora). */
+export default function SonsModulos({ departamentos = [] }) {
   return (
-    <div className="space-y-3">
-      <div className="px-1">
-        <h3 className="text-base font-bold text-[#1d1d1f] dark:text-white">Som de cada módulo</h3>
-        <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">Cada módulo tem seu toque, sua repetição e pode ser ligado ou desligado. As escolhas valem para este navegador e são salvas na hora.</p>
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {MODULOS.map((m) => (
-          <CartaoModulo key={m.id} modulo={m} />
-        ))}
-      </div>
+    <div className="space-y-4">
+      <p className="text-[13px] text-slate-500 dark:text-zinc-400 px-1">Cada módulo tem o seu toque e a sua repetição. As escolhas valem para este navegador e são salvas na hora.</p>
+      {MODULOS.map((m) => (
+        <CartaoModulo key={m.id} modulo={m} departamentos={departamentos} />
+      ))}
     </div>
   );
 }

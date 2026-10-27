@@ -62,6 +62,7 @@ import SupportQueueView from '@/components/SupportQueueView';
 import FeedbacksView from '@/components/FeedbacksView';
 import CanaisView from '@/components/CanaisView';
 import ChatView from '@/components/ChatView';
+import DailyView from '@/components/DailyView';
 import AgendaView from '@/components/AgendaView';
 import ComercialView from '@/components/ComercialView';
 import { 
@@ -72,6 +73,7 @@ import {
   XMarkIcon,
   CheckIcon 
 } from '@/components/Icons';
+import EncaixeCabecalho, { ACOES_TITULO, LINHA_TITULO } from '@/components/EncaixeCabecalho';
 
 // O papel oficial vem do servidor (cadastro da equipe); a regra local é só contingência sem rede
 async function obterPapelAtual(email) {
@@ -107,11 +109,11 @@ export default function Home() {
 
   useEffect(() => {
     const defaultM = getDefaultViewMode();
-    const effective = defaultM === 'cards' || defaultM === 'grid' ? 'grid' : 'list';
+    const effective = defaultM === 'cards' || defaultM === 'grid' || defaultM === 'kanban' ? 'grid' : 'list';
     setEmpresasViewMode(effective);
 
     const handleGlobalUpdate = (e) => {
-      const mode = e.detail === 'cards' || e.detail === 'grid' ? 'grid' : 'list';
+      const mode = e.detail === 'cards' || e.detail === 'grid' || e.detail === 'kanban' ? 'grid' : 'list';
       setEmpresasViewMode(mode);
     };
     window.addEventListener('rm_default_view_mode_updated', handleGlobalUpdate);
@@ -1012,9 +1014,9 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
   // PAINEL PRINCIPAL COM APROVEITAMENTO TOTAL DA LARGURA (MAX-W-[1720PX])
   // ==============================================================================
   return (
-    <div className="min-h-screen bg-[#f5f5f7] dark:bg-[#141416] text-[#1d1d1f] dark:text-[#f5f5f7] flex flex-col transition-colors duration-300">
+    <div className="min-h-screen bg-rm-fundo dark:bg-rm-fundo-escuro text-[#1d1d1f] dark:text-[#f5f5f7] flex flex-col transition-colors duration-300">
       
-      {/* Navbar Flutuante Estilo macOS / Dynamic Island */}
+      {/* Cabeçalho encaixado no topo (categorias com submenu) */}
       <Navbar
         activeTab={activeTab === 'empresas' ? 'fila' : activeTab}
         setActiveTab={(tab) => {
@@ -1031,10 +1033,9 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
         inactivityTimeLeft={inactivityTimeLeft}
         showMockData={showMockData}
         setShowMockData={handleToggleMockData}
-        acoesFila={activeTab === 'fila' && !selectedEmpresa}
       />
 
-      <main className="flex-1 w-full max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 xl:px-10 py-2 sm:py-4 pb-28 sm:pb-16">
+      <main className={`flex-1 w-full max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 xl:px-10 py-2 pb-28 ${activeTab === 'chat' && !selectedEmpresa ? 'sm:pt-2 sm:pb-4' : 'sm:pt-4 sm:pb-16'}`}>
         {selectedEmpresa ? (
           /* TELA CHEIA: GERENCIAR EMPRESA (WIDESCREEN DE ALTA PRODUTIVIDADE) */
           <div key="empresa-detail" className="animate-fade-in">
@@ -1064,10 +1065,10 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                 <div className="space-y-5">
                   
                   {/* Barra de Ações Superior Estilo Apple Padronizada */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${LINHA_TITULO}`}>
                     <div>
                       {/* Subpágina da Fila de Demandas */}
-                      <nav aria-label="Navegação" className="flex items-center gap-1.5 mb-2 text-xs">
+                      <nav aria-label="Navegação" className="flex items-center gap-1.5 text-xs lg:h-12">
                         <button
                           type="button"
                           onClick={() => setActiveTab('fila')}
@@ -1081,22 +1082,17 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                         <span className="text-slate-300 dark:text-zinc-500">/</span>
                         <span className="font-semibold text-[#1d1d1f] dark:text-white">Empresas</span>
                       </nav>
-                      <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white">
-                        Empresas
-                      </h1>
-                      <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
-                        Gerenciamento de clientes, instâncias de mensageria e credenciais técnicas de suporte.
-                      </p>
                     </div>
+                    <EncaixeCabecalho />
 
-                    <div className="flex items-center gap-2.5">
+                    <div className={`flex items-center gap-2.5 ${ACOES_TITULO}`}>
                       <button
                         type="button"
                         onClick={() => {
                           setEmpresaParaRegistrar(null);
                           setIsRegistrarModalGlobalOpen(true);
                         }}
-                        className="px-4 py-2.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-[#1d1d1f] dark:text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        className="px-4 py-2.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-rm-campo-escuro hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-[#1d1d1f] dark:text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
                       >
                         <span>+ Registrar Suporte</span>
                       </button>
@@ -1109,7 +1105,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                           setModalFechadoManualmente(false);
                           setIsModalCreateOpen(true);
                         }}
-                        className="px-4 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold shadow-md shadow-[#4d7c0f]/20 dark:shadow-[#84cc16]/20 hover:opacity-95 flex items-center gap-2 transition-all cursor-pointer"
+                        className="px-4 py-2.5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 text-xs font-semibold shadow-md shadow-rm-acento/20 dark:shadow-rm-acento-escuro/20 hover:opacity-95 flex items-center gap-2 transition-all cursor-pointer"
                       >
                         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -1133,7 +1129,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                   )}
 
                   {/* Toolbar Unificada Estilo macOS (Busca e Filtros Expandidos) */}
-                  <div className="rounded-2xl p-3.5 border border-black/[0.06] dark:border-white/[0.11] backdrop-blur-xl bg-white/80 dark:bg-[#1e1e21]/85 shadow-sm space-y-3">
+                  <div className="rounded-2xl p-3.5 border border-black/[0.06] dark:border-white/[0.11] backdrop-blur-xl bg-white/80 dark:bg-rm-cartao-escuro/85 shadow-sm space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                       
                       {/* Campo de Busca Aprimorada com SVG minimalista */}
@@ -1165,7 +1161,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                             }, 350);
                           }}
                           placeholder="Buscar empresa, operador ou canal..."
-                          className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.11] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 text-[#1d1d1f] dark:text-white placeholder-slate-400 font-medium"
+                          className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.11] text-xs focus:outline-none focus:ring-2 focus:ring-rm-acento/20 text-[#1d1d1f] dark:text-white placeholder-slate-400 font-medium"
                         />
                       </div>
 
@@ -1250,7 +1246,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                             onClick={() => handleChangeViewMode('grid')}
                             className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
                               empresasViewMode === 'grid'
-                                ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                                ? 'bg-white dark:bg-rm-campo-escuro text-[#1d1d1f] dark:text-white shadow-xs'
                                 : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
                             }`}
                             title="Visualização em Grade de Cards"
@@ -1263,7 +1259,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                             onClick={() => handleChangeViewMode('list')}
                             className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
                               empresasViewMode === 'list'
-                                ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                                ? 'bg-white dark:bg-rm-campo-escuro text-[#1d1d1f] dark:text-white shadow-xs'
                                 : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
                             }`}
                             title="Visualização em Lista Detalhada"
@@ -1288,14 +1284,14 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                         {Array.from({ length: 6 }).map((_, i) => <CompanyCardSkeleton key={i} />)}
                       </div>
                     ) : (
-                      <div role="status" aria-busy="true" className="rounded-2xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] overflow-hidden">
+                      <div role="status" aria-busy="true" className="rounded-2xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro overflow-hidden">
                         <span className="sr-only">Carregando empresas…</span>
                         {Array.from({ length: 6 }).map((_, i) => <CompanyTableRowSkeleton key={i} />)}
                       </div>
                     )
                   ) : empresas.length === 0 ? (
                     /* Estado Vazio Total Estilo Apple */
-                    <div className="rounded-3xl p-12 border border-black/[0.06] dark:border-white/[0.11] bg-white/80 dark:bg-[#1e1e21]/85 backdrop-blur-xl text-center space-y-4 shadow-sm">
+                    <div className="rounded-3xl p-12 border border-black/[0.06] dark:border-white/[0.11] bg-white/80 dark:bg-rm-cartao-escuro/85 backdrop-blur-xl text-center space-y-4 shadow-sm">
                       <div className="w-12 h-12 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] text-slate-400 dark:text-zinc-400 flex items-center justify-center mx-auto">
                         <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
                           <rect width="16" height="20" x="4" y="2" rx="2" ry="2"/>
@@ -1313,7 +1309,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                             setModalFechadoManualmente(false);
                             setIsModalCreateOpen(true);
                           }}
-                          className="px-4 py-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold shadow-sm cursor-pointer"
+                          className="px-4 py-2 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 text-xs font-semibold shadow-sm cursor-pointer"
                         >
                           + Cadastrar Empresa
                         </button>
@@ -1368,18 +1364,18 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                             whileHover={{ y: -3 }}
                             transition={{ duration: 0.2 }}
                             onClick={() => setEmpresaAcaoModal(emp)}
-                            className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] hover:shadow-apple-hover transition-all cursor-pointer flex flex-col justify-between group relative overflow-hidden"
+                            className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro hover:shadow-apple-hover transition-all cursor-pointer flex flex-col justify-between group relative overflow-hidden"
                           >
                             {/* Topo do Card: Avatar, Nome e Badges */}
                             <div className="space-y-3">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="flex items-center gap-3 min-w-0">
-                                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#4d7c0f]/15 to-[#65a30d]/20 dark:from-[#84cc16]/15 dark:to-[#84cc16]/5 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-sm flex items-center justify-center border border-[#4d7c0f]/20 flex-shrink-0">
+                                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-rm-acento/15 to-[#65a30d]/20 dark:from-rm-acento-escuro/15 dark:to-rm-acento-escuro/5 text-rm-acento dark:text-rm-acento-escuro font-bold text-sm flex items-center justify-center border border-rm-acento/20 flex-shrink-0">
                                     {emp.nome.charAt(0)}
                                   </div>
 
                                   <div className="min-w-0">
-                                    <h3 className="text-sm font-semibold text-[#1d1d1f] dark:text-white group-hover:text-[#4d7c0f] dark:group-hover:text-[#84cc16] transition-colors truncate">
+                                    <h3 className="text-sm font-semibold text-[#1d1d1f] dark:text-white group-hover:text-rm-acento dark:group-hover:text-rm-acento-escuro transition-colors truncate">
                                       {emp.nome}
                                     </h3>
                                     <p className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono truncate">
@@ -1436,7 +1432,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                                       key={i}
                                       className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/[0.03] dark:bg-white/[0.04] text-slate-700 dark:text-zinc-300 border border-black/[0.04] dark:border-white/[0.09] truncate max-w-[130px]"
                                     >
-                                      <MessageChannelIcon className="w-3 h-3 text-[#4d7c0f] dark:text-[#84cc16] flex-shrink-0" />
+                                      <MessageChannelIcon className="w-3 h-3 text-rm-acento dark:text-rm-acento-escuro flex-shrink-0" />
                                       <span className="truncate">{c.nome}</span>
                                     </span>
                                   ))
@@ -1460,13 +1456,13 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                                 </div>
                                 <div className="w-20 h-1 rounded-full bg-black/[0.05] dark:bg-white/[0.08] overflow-hidden">
                                   <div
-                                    className="h-full rounded-full bg-gradient-to-r from-[#4d7c0f] to-[#84cc16]"
+                                    className="h-full rounded-full bg-gradient-to-r from-rm-acento to-rm-acento-escuro"
                                     style={{ width: `${progressoPct}%` }}
                                   />
                                 </div>
                               </div>
 
-                              <span className="text-xs font-semibold text-[#4d7c0f] dark:text-[#84cc16] group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                              <span className="text-xs font-semibold text-rm-acento dark:text-rm-acento-escuro group-hover:translate-x-1 transition-transform flex items-center gap-1">
                                 Gerenciar →
                               </span>
                             </div>
@@ -1481,7 +1477,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ duration: 0.2 }}
-                      className="rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] overflow-hidden shadow-sm"
+                      className="rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro overflow-hidden shadow-sm"
                     >
                       {/* Cabeçalho da Tabela Apple com Ordenação */}
                       <div className="hidden lg:grid grid-cols-12 gap-4 px-5 py-3.5 border-b border-black/[0.05] dark:border-white/[0.09] text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-400 bg-black/[0.01] dark:bg-white/[0.02]">
@@ -1546,12 +1542,12 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                             >
                               {/* Empresa / Contato */}
                               <div className="lg:col-span-4 flex items-center gap-3 min-w-0 w-full">
-                                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-[#4d7c0f]/15 to-[#65a30d]/20 dark:from-[#84cc16]/15 dark:to-[#84cc16]/5 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-xs flex items-center justify-center border border-[#4d7c0f]/20 flex-shrink-0">
+                                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-rm-acento/15 to-[#65a30d]/20 dark:from-rm-acento-escuro/15 dark:to-rm-acento-escuro/5 text-rm-acento dark:text-rm-acento-escuro font-bold text-xs flex items-center justify-center border border-rm-acento/20 flex-shrink-0">
                                   {emp.nome.charAt(0)}
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
-                                    <h4 className="text-xs font-semibold text-[#1d1d1f] dark:text-white group-hover:text-[#4d7c0f] dark:group-hover:text-[#84cc16] transition-colors truncate">
+                                    <h4 className="text-xs font-semibold text-[#1d1d1f] dark:text-white group-hover:text-rm-acento dark:group-hover:text-rm-acento-escuro transition-colors truncate">
                                       {emp.nome}
                                     </h4>
                                     {emp.is_mock && (
@@ -1592,7 +1588,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                                     <div className="flex items-center gap-1">
                                       {emp.canais.slice(0, 2).map((c, i) => (
                                         <span key={i} className="w-5 h-5 rounded-full bg-black/[0.03] dark:bg-white/[0.05] flex items-center justify-center text-slate-600 dark:text-zinc-400" title={c.nome}>
-                                          <MessageChannelIcon className="w-3 h-3 text-[#4d7c0f] dark:text-[#84cc16]" />
+                                          <MessageChannelIcon className="w-3 h-3 text-rm-acento dark:text-rm-acento-escuro" />
                                         </span>
                                       ))}
                                     </div>
@@ -1608,7 +1604,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                                 </div>
                                 <div className="w-full lg:w-28 h-1.5 rounded-full bg-black/[0.05] dark:bg-white/[0.08] overflow-hidden">
                                   <div
-                                    className="h-full rounded-full bg-gradient-to-r from-[#4d7c0f] to-[#84cc16]"
+                                    className="h-full rounded-full bg-gradient-to-r from-rm-acento to-rm-acento-escuro"
                                     style={{ width: `${progressoPct}%` }}
                                   />
                                 </div>
@@ -1622,7 +1618,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                                     Em Suporte
                                   </span>
                                 ) : (
-                                  <span className="text-xs font-semibold text-[#4d7c0f] dark:text-[#84cc16] group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                                  <span className="text-xs font-semibold text-rm-acento dark:text-rm-acento-escuro group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
                                     Gerenciar →
                                   </span>
                                 )}
@@ -1636,7 +1632,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
 
                   {/* Paginação */}
                   {totalPages > 1 && (
-                    <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-white/[0.11] bg-white/80 dark:bg-[#1e1e21]/85 backdrop-blur-xl flex items-center justify-between text-xs">
+                    <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-white/[0.11] bg-white/80 dark:bg-rm-cartao-escuro/85 backdrop-blur-xl flex items-center justify-between text-xs">
                       <span className="text-slate-500 dark:text-zinc-400 text-[11px] font-mono tabular-nums">
                         Página {page} de {totalPages}
                       </span>
@@ -1712,6 +1708,9 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
               {/* CHAT: conversas do WhatsApp */}
               {activeTab === 'chat' && abasPermitidas.includes('chat') && <ChatView />}
 
+              {/* DAILY: reuniões diárias e metas da semana (ticket #21) */}
+              {activeTab === 'daily' && abasPermitidas.includes('daily') && <DailyView />}
+
               {/* CANAIS: números de WhatsApp (QR Code / API oficial) */}
               {activeTab === 'conexoes' && abasPermitidas.includes('conexoes') && <CanaisView />}
 
@@ -1761,7 +1760,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="w-full max-w-sm rounded-[28px] border border-black/[0.08] dark:border-white/[0.1] bg-white/95 dark:bg-[#1e1e21]/95 backdrop-blur-2xl p-6 shadow-2xl space-y-4 text-[#1d1d1f] dark:text-[#f5f5f7]"
+              className="w-full max-w-sm rounded-[28px] border border-black/[0.08] dark:border-white/[0.1] bg-white/95 dark:bg-rm-cartao-escuro/95 backdrop-blur-2xl p-6 shadow-2xl space-y-4 text-[#1d1d1f] dark:text-[#f5f5f7]"
             >
               <div className="flex items-center justify-between border-b border-black/[0.05] dark:border-white/[0.09] pb-3">
                 <div>
@@ -1791,7 +1790,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                         setSelectedEmpresa(empresaAcaoModal);
                         setEmpresaAcaoModal(null);
                       }}
-                      className="w-full py-2.5 px-4 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold shadow-sm hover:opacity-95 flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full py-2.5 px-4 rounded-xl bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 text-xs font-semibold shadow-sm hover:opacity-95 flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <PlayIcon className="w-3.5 h-3.5 fill-current" />
                       <span>Continuar Chamado em Andamento</span>
@@ -1875,7 +1874,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                         setSelectedEmpresa(empresaAcaoModal);
                         setEmpresaAcaoModal(null);
                       }}
-                      className="w-full py-2.5 px-4 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold shadow-sm hover:opacity-95 flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full py-2.5 px-4 rounded-xl bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 text-xs font-semibold shadow-sm hover:opacity-95 flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <PlayIcon className="w-3.5 h-3.5 fill-current" />
                       <span>Iniciar Atendimento</span>

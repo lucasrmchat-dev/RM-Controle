@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { acaoPlataforma, fetchPlataforma } from '@/lib/storage';
-import { RECURSOS_LIMITE, STATUS_CONTRATO, consumo, formatarMoeda } from '@/lib/plataforma';
+import { MODULOS_CONTRATAVEIS, RECURSOS_LIMITE, STATUS_CONTRATO, consumo, formatarMoeda } from '@/lib/plataforma';
 import { ModalEtapas, Etapa, ErroRodape, Spinner, classeBotaoPrimario, classeBotaoTexto } from './FormularioEtapas';
 import { classeCampo, classeRotulo } from './NovaEmpresaCampos';
 import { showToast } from './ToastNotification';
@@ -12,7 +12,7 @@ import { ListSkeleton } from './SkeletonLoaders';
 const MOLA = { type: 'spring', bounce: 0.18, duration: 0.42 };
 
 const COR_STATUS = {
-  ativa: 'bg-[#4d7c0f]/12 text-[#4d7c0f] dark:text-[#a3e635]',
+  ativa: 'bg-rm-acento/12 text-rm-acento dark:text-rm-acento-vivo',
   suspensa: 'bg-amber-500/14 text-amber-700 dark:text-amber-300',
   cancelada: 'bg-black/[0.06] dark:bg-white/[0.1] text-slate-500 dark:text-zinc-400',
 };
@@ -28,7 +28,7 @@ function Segmentado({ opcoes, valor, onMudar, rotulo }) {
           role="tab"
           aria-selected={valor === op.id}
           onClick={() => onMudar(op.id)}
-          className={`h-8 px-3.5 rounded-full text-[13px] font-medium cursor-pointer transition-colors whitespace-nowrap ${valor === op.id ? 'bg-white dark:bg-[#3a3a3f] text-[#1d1d1f] dark:text-white shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-slate-500 dark:text-zinc-400 hover:text-[#1d1d1f] dark:hover:text-white'}`}
+          className={`h-8 px-3.5 rounded-full text-[13px] font-medium cursor-pointer transition-colors whitespace-nowrap ${valor === op.id ? 'bg-white dark:bg-rm-campo-escuro text-[#1d1d1f] dark:text-white shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-slate-500 dark:text-zinc-400 hover:text-[#1d1d1f] dark:hover:text-white'}`}
         >
           {op.rotulo}
           {op.contador > 0 && <span className="ml-1.5 text-slate-400 tabular-nums">{op.contador}</span>}
@@ -40,7 +40,7 @@ function Segmentado({ opcoes, valor, onMudar, rotulo }) {
 
 function Metrica({ rotulo, valor, detalhe }) {
   return (
-    <div className="rounded-[22px] bg-white dark:bg-[#1e1e21] ring-1 ring-black/[0.06] dark:ring-white/[0.09] px-5 py-4">
+    <div className="rounded-[22px] bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.09] px-5 py-4">
       <p className="text-[12.5px] font-medium text-slate-500 dark:text-zinc-400">{rotulo}</p>
       <p className="mt-1 text-[21px] sm:text-[26px] font-semibold tracking-tight tabular-nums break-words leading-tight">{valor}</p>
       {detalhe && <p className="text-[12px] text-slate-400 dark:text-zinc-500">{detalhe}</p>}
@@ -69,7 +69,11 @@ function BarraConsumo({ item }) {
 // Formulários
 // ------------------------------------------------------------------------------
 function CamposLimites({ tipo, valor, onMudar }) {
+  // Sem lista salva, a empresa tem todos os módulos
+  const marcados = Array.isArray(valor.modulos) ? valor.modulos : MODULOS_CONTRATAVEIS.map((m) => m.id);
+  const alternar = (id) => onMudar({ ...valor, modulos: marcados.includes(id) ? marcados.filter((m) => m !== id) : [...marcados, id] });
   return (
+    <div className="space-y-4">
     <div className="grid grid-cols-2 gap-3">
       {RECURSOS_LIMITE.filter((r) => !r.so || r.so === tipo).map((r) => (
         <label key={r.id} className="block">
@@ -85,6 +89,19 @@ function CamposLimites({ tipo, valor, onMudar }) {
           />
         </label>
       ))}
+    </div>
+    <fieldset>
+      <legend className={classeRotulo}>Módulos contratados</legend>
+      <p className="text-[12px] text-slate-500 dark:text-zinc-400 mb-2">Só os módulos marcados aparecem para a empresa. Os perfis de acesso dela escolhem, dentro destes, o que cada pessoa vê.</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+        {MODULOS_CONTRATAVEIS.map((m) => (
+          <label key={m.id} className="flex items-center gap-2.5 px-3 py-2 rounded-xl ring-1 ring-black/[0.07] dark:ring-white/[0.1] cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03]">
+            <input type="checkbox" checked={marcados.includes(m.id)} onChange={() => alternar(m.id)} className="w-4 h-4 accent-rm-acento" />
+            <span className="text-[13px] font-medium">{m.rotulo}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
     </div>
   );
 }
@@ -481,7 +498,7 @@ export default function PlataformaView() {
             {nivel === 'revenda' ? 'As empresas que você vende: plano, limites, situação e suporte.' : 'Revendas e empresas assinantes do RM Controle: contratos, limites, situação e suporte.'}
           </p>
         </div>
-        <motion.button whileTap={{ scale: 0.97 }} type="button" onClick={() => setNovaAberta(true)} className="h-11 px-5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-[14px] font-semibold shadow-md shadow-[#4d7c0f]/20 flex items-center gap-2 cursor-pointer">
+        <motion.button whileTap={{ scale: 0.97 }} type="button" onClick={() => setNovaAberta(true)} className="h-11 px-5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 text-[14px] font-semibold shadow-md shadow-rm-acento/20 flex items-center gap-2 cursor-pointer">
           <span className="text-[18px] leading-none -mt-px">+</span>
           Nova empresa
         </motion.button>
@@ -494,7 +511,7 @@ export default function PlataformaView() {
       )}
 
       {!dados && !erro ? (
-        <div className="p-5 rounded-[22px] bg-white dark:bg-[#1e1e21] ring-1 ring-black/[0.06] dark:ring-white/[0.09]">
+        <div className="p-5 rounded-[22px] bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.09]">
           <ListSkeleton linhas={4} />
         </div>
       ) : dados ? (
@@ -523,7 +540,7 @@ export default function PlataformaView() {
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar por nome, documento ou e-mail"
               aria-label="Buscar empresas"
-              className="lg:ml-auto w-full lg:w-[320px] h-10 px-4 rounded-full bg-white dark:bg-white/[0.06] ring-1 ring-black/[0.08] dark:ring-white/[0.1] text-[13.5px] outline-none focus:ring-2 focus:ring-[#4d7c0f]/30 placeholder:text-slate-400"
+              className="lg:ml-auto w-full lg:w-[320px] h-10 px-4 rounded-full bg-white dark:bg-white/[0.06] ring-1 ring-black/[0.08] dark:ring-white/[0.1] text-[13.5px] outline-none focus:ring-2 focus:ring-rm-acento/30 placeholder:text-slate-400"
             />
           </div>
 
@@ -536,7 +553,7 @@ export default function PlataformaView() {
             <motion.ul layout className="grid gap-3 grid-cols-1 xl:grid-cols-2">
               <AnimatePresence initial={false}>
                 {visiveis.map((o) => (
-                  <motion.li key={o.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={MOLA} className="rounded-[22px] bg-white dark:bg-[#1e1e21] ring-1 ring-black/[0.06] dark:ring-white/[0.09] p-5">
+                  <motion.li key={o.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={MOLA} className="rounded-[22px] bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.09] p-5">
                     <div className="flex items-start gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -557,7 +574,7 @@ export default function PlataformaView() {
                     </div>
                     <div className="mt-4 pt-3 border-t border-black/[0.06] dark:border-white/[0.08] flex items-center gap-2">
                       {o.id === dados.minhaOrganizacao ? (
-                        <span className="h-9 px-3.5 rounded-full text-[13px] font-medium bg-[#4d7c0f]/10 text-[#4d7c0f] dark:text-[#a3e635] inline-flex items-center">Sua empresa</span>
+                        <span className="h-9 px-3.5 rounded-full text-[13px] font-medium bg-rm-acento/10 text-rm-acento dark:text-rm-acento-vivo inline-flex items-center">Sua empresa</span>
                       ) : o.tipo === 'assinante' && o.status === 'ativa' && (
                         <button type="button" onClick={() => setSuporte(o)} className="h-9 px-3.5 rounded-full text-[13px] font-semibold bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] cursor-pointer">
                           Entrar para suporte

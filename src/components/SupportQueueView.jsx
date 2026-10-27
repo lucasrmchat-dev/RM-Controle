@@ -9,7 +9,8 @@ import {
   getChamadosSuporte, 
   iniciarSuporte, 
   adicionarChamadoFila, 
-  assumirSuporte, 
+  assumirSuporte,
+  aguardarRetornoCliente, 
   cancelarSuporte, 
   getEmpresas, 
   getChamadosResolvidosHoje,
@@ -69,6 +70,7 @@ import {
   KanbanIcon,
   LayersIcon
 } from './Icons';
+import EncaixeCabecalho, { ACOES_TITULO, LINHA_TITULO } from './EncaixeCabecalho';
 
 export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativo, onVerEmpresas, userEmail }) {
   const [chamados, setChamados] = useState([]);
@@ -86,11 +88,11 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
 
   useEffect(() => {
     const globalMode = getDefaultViewMode();
-    const effective = globalMode === 'grid' || globalMode === 'cards' ? 'cards' : 'list';
-    setFilaViewMode(effective);
+    const paraFila = (m) => (m === 'kanban' ? 'kanban' : m === 'grid' || m === 'cards' ? 'cards' : 'list');
+    setFilaViewMode(paraFila(globalMode));
 
     const handleGlobalUpdate = (e) => {
-      const mode = e.detail === 'cards' || e.detail === 'grid' ? 'cards' : 'list';
+      const mode = paraFila(e.detail);
       setFilaViewMode(mode);
     };
     window.addEventListener('rm_default_view_mode_updated', handleGlobalUpdate);
@@ -1268,46 +1270,6 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
   };
 
   // Abrir demanda: abre o formulário completo já com a empresa escolhida
-  // Ações vindas do cabeçalho compacto (Navbar) quando os botões do topo saem de vista
-  // Os botões do topo estão no cabeçalho? (a Navbar avisa; ao voltar, eles voam de lá para cá)
-  const [acoesNoCabecalho, setAcoesNoCabecalho] = useState(() => (typeof window !== 'undefined' ? Boolean(window.__rmFilaAcoesNoCabecalho) : false));
-  useEffect(() => {
-    const aoMudar = (e) => {
-      const { encaixado, origens } = e.detail || {};
-      setAcoesNoCabecalho(Boolean(encaixado));
-      if (encaixado || !origens) return;
-      // Volta: cada botão sai de onde estava no cabeçalho e desliza até o seu lugar na página
-      requestAnimationFrame(() => {
-        document.querySelectorAll('#fila-acoes-topo [data-acao-fila]').forEach((el) => {
-          const de = origens[el.dataset.acaoFila];
-          if (!de || !el.animate) return;
-          const r = el.getBoundingClientRect();
-          const dx = de.x - (r.left + r.width / 2);
-          const dy = de.y - (r.top + r.height / 2);
-          el.animate([{ transform: `translate(${dx}px, ${dy}px)`, opacity: 0.6 }, { transform: 'translate(0, 0)', opacity: 1 }], {
-            duration: 520,
-            easing: 'cubic-bezier(0.32, 0.72, 0, 1)',
-          });
-        });
-      });
-    };
-    window.addEventListener('rm_fila_acoes_cabecalho', aoMudar);
-    return () => window.removeEventListener('rm_fila_acoes_cabecalho', aoMudar);
-  }, []);
-
-  // (a ref guarda os handlers atuais sem re-inscrever o ouvinte a cada segundo do cronômetro)
-  const acoesCabecalhoRef = useRef({});
-  acoesCabecalhoRef.current = {
-    nova: handleAbrirModalNovoChamado,
-    retroativo: () => onRegistrarRetroativo?.(),
-    empresas: () => onVerEmpresas?.(''),
-  };
-  useEffect(() => {
-    const aoAcionar = (e) => acoesCabecalhoRef.current[e.detail]?.();
-    window.addEventListener('rm_fila_acao', aoAcionar);
-    return () => window.removeEventListener('rm_fila_acao', aoAcionar);
-  }, []);
-
   const handleAbrirDemandaEmpresa = (emp) => setNovaDemanda({ aberto: true, empresaInicial: emp });
 
   // Empresa que não existe: abre o formulário da demanda já com os campos de cadastro da empresa
@@ -1484,7 +1446,18 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
       setDetalheId(null);
       setKanbanAberto(true);
     },
-    // Kanban: soltar o card na coluna de alguém atribui a demanda a essa pessoa
+    // Kanban: soltar em "Aguardando cliente" põe a demanda à espera do retorno (mantém o responsável e o tempo gasto)
+    aguardarCliente: async (ch) => {
+      const inicio = new Date(ch.tempo_ativo_inicio || ch.iniciado_em || Date.now()).getTime();
+      try {
+        await aguardarRetornoCliente({ chamado_id: ch.id, tempo_ativo_segundos: Math.max(1, Math.floor((Date.now() - inicio) / 1000)), userEmail });
+        await carregarDados();
+        showToast(`${ch.empresa_nome}: aguardando retorno do cliente.`, 'info');
+      } catch (err) {
+        showToast(err.message || 'Não foi possível colocar a demanda em espera.', 'error');
+      }
+    },
+    // Soltar o card na coluna de alguém atribui a demanda a essa pessoa
     atribuir: async (chamadoId, tec) => {
       const ch = chamados.find((c) => c.id === chamadoId);
       if (!ch) return;
@@ -1506,18 +1479,9 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
       {/* ============================================================================== */}
       {/* CABEÇALHO: TÍTULO + AÇÕES PRINCIPAIS                                           */}
       {/* ============================================================================== */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white">
-            Fila de Demandas
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">
-            Encontre a empresa, assuma a demanda e resolva — tudo a partir daqui.
-          </p>
-        </div>
-
-        {/* Ao rolar, estes botões "voam" para o cabeçalho (Navbar) e ficam ocultos aqui, mantendo o espaço */}
-        <div id="fila-acoes-topo" className={`flex flex-wrap items-center gap-2 ${acoesNoCabecalho ? 'invisible' : ''}`}>
+      <div className={`flex flex-wrap items-center justify-between gap-2 ${LINHA_TITULO}`}>
+        {/* O nome da tela já está no cabeçalho: à esquerda as ações secundárias, à direita a principal */}
+        <div className="flex flex-nowrap items-center gap-2 min-w-0">
           {onVerEmpresas && (
             <button
               type="button"
@@ -1527,7 +1491,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
               title="Lista completa de empresas, cadastros e filtros"
             >
               <BuildingIcon className="w-3.5 h-3.5" />
-              <span>Ver empresas</span>
+              <span className="whitespace-nowrap">Ver empresas</span>
             </button>
           )}
           {onRegistrarRetroativo && (
@@ -1541,17 +1505,20 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" />
               </svg>
-              <span>Suporte retroativo</span>
+              <span className="whitespace-nowrap">Suporte retroativo</span>
             </button>
           )}
+        </div>
+        <EncaixeCabecalho />
+        <div className={`flex items-center gap-2 ${ACOES_TITULO}`}>
           <button
             type="button"
             data-acao-fila="nova"
             onClick={handleAbrirModalNovoChamado}
-            className="h-10 px-5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold shadow-md shadow-[#4d7c0f]/20 dark:shadow-[#84cc16]/20 hover:opacity-95 flex items-center gap-2 transition-opacity cursor-pointer"
+            className="h-10 px-5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 text-xs font-bold shadow-md shadow-rm-acento/20 dark:shadow-rm-acento-escuro/20 hover:opacity-95 flex items-center gap-2 transition-opacity cursor-pointer"
           >
             <span className="text-base leading-none font-bold">+</span>
-            <span>Nova demanda</span>
+            <span className="whitespace-nowrap">Nova demanda</span>
           </button>
         </div>
       </div>
@@ -1582,7 +1549,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
         <div className="min-w-0 w-full space-y-4">
 
           {/* BARRA DE STATUS, VISUALIZAÇÃO E FILTROS */}
-          <div className="relative z-30 rounded-2xl p-2.5 sm:p-3 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] shadow-sm space-y-3">
+          <div className="relative z-30 rounded-2xl p-2.5 sm:p-3 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro shadow-sm space-y-3">
             <div className="flex flex-col xl:flex-row xl:items-center gap-3">
 
               {/* Status com contagem (substitui o antigo painel lateral de métricas) */}
@@ -1592,7 +1559,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                   { id: 'espera', label: 'Aguardando atendente', count: emEspera.length, dot: 'bg-amber-500', ping: emEspera.length > 0 },
                   { id: 'em_andamento', label: 'Em atendimento', count: emAndamento.length, dot: 'bg-emerald-500' },
                   { id: 'cliente', label: 'Aguardando cliente', count: aguardandoCliente.length, dot: 'bg-violet-500' },
-                  { id: 'resolvidos_hoje', label: 'Resolvidos hoje', count: resolvidosHoje.length, dot: 'bg-[#4d7c0f] dark:bg-[#84cc16]' },
+                  { id: 'resolvidos_hoje', label: 'Resolvidos hoje', count: resolvidosHoje.length, dot: 'bg-rm-acento dark:bg-rm-acento-escuro' },
                 ].map((st) => {
                   const isSelected = filtroStatus === st.id;
                   return (
@@ -1640,7 +1607,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                       aria-pressed={filaViewMode === id}
                       className={`h-8 px-2.5 rounded-lg transition-all flex items-center gap-1.5 text-[11px] font-semibold cursor-pointer ${
                         filaViewMode === id
-                          ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                          ? 'bg-white dark:bg-rm-campo-escuro text-[#1d1d1f] dark:text-white shadow-xs'
                           : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
                       }`}
                     >
@@ -1665,7 +1632,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
                   placeholder="Filtrar demandas, técnico, etiqueta…"
-                  className="w-full h-8 pl-8 pr-7 rounded-full bg-black/[0.03] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.11] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/15 dark:focus:ring-[#84cc16]/15 text-[#1d1d1f] dark:text-white placeholder:text-slate-400"
+                  className="w-full h-8 pl-8 pr-7 rounded-full bg-black/[0.03] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.11] text-xs focus:outline-none focus:ring-2 focus:ring-rm-acento/15 dark:focus:ring-rm-acento-escuro/15 text-[#1d1d1f] dark:text-white placeholder:text-slate-400"
                 />
                 {busca && (
                   <button
@@ -1695,8 +1662,8 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                     onClick={() => setFiltroDeptDropdownAberto(!filtroDeptDropdownAberto)}
                     className={`px-3.5 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-xs ${
                       filtrosDepartamentos.length > 0
-                        ? 'border-[#4d7c0f]/50 bg-[#4d7c0f]/10 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
-                        : 'border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-slate-700 dark:text-zinc-200 hover:border-black/20'
+                        ? 'border-rm-acento/50 bg-rm-acento/10 text-rm-acento dark:text-rm-acento-escuro font-bold'
+                        : 'border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro text-slate-700 dark:text-zinc-200 hover:border-black/20'
                     }`}
                   >
                     <LayersIcon className="w-3.5 h-3.5 text-slate-400" />
@@ -1713,7 +1680,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
 
                   {filtroDeptDropdownAberto && (
                     <div
-                      className="absolute top-full left-0 mt-1.5 w-72 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.1] dark:border-white/[0.15] shadow-2xl p-2 z-50 space-y-1 text-xs"
+                      className="absolute top-full left-0 mt-1.5 w-72 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/[0.1] dark:border-white/[0.15] shadow-2xl p-2 z-50 space-y-1 text-xs"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-between px-2.5 py-1 border-b border-black/[0.05] dark:border-white/[0.09] mb-1">
@@ -1737,7 +1704,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                         onClick={() => setFiltrosDepartamentos([])}
                         className={`w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between transition-colors cursor-pointer ${
                           filtrosDepartamentos.length === 0
-                            ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
+                            ? 'bg-rm-acento/15 dark:bg-rm-acento-escuro/20 text-rm-acento dark:text-rm-acento-escuro font-bold'
                             : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
                         }`}
                       >
@@ -1745,7 +1712,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                           <span className="w-2 h-2 rounded-full bg-slate-400"></span>
                           <span>Todos os Departamentos</span>
                         </div>
-                        {filtrosDepartamentos.length === 0 && <CheckIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16]" />}
+                        {filtrosDepartamentos.length === 0 && <CheckIcon className="w-3.5 h-3.5 text-rm-acento dark:text-rm-acento-escuro" />}
                       </button>
 
                       {/* Lista com Checkboxes */}
@@ -1773,7 +1740,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                               }}
                               className={`w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between transition-colors cursor-pointer ${
                                 isSelected
-                                  ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
+                                  ? 'bg-rm-acento/15 dark:bg-rm-acento-escuro/20 text-rm-acento dark:text-rm-acento-escuro font-bold'
                                   : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
                               }`}
                             >
@@ -1782,7 +1749,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                                   type="checkbox"
                                   checked={isSelected}
                                   readOnly
-                                  className="rounded text-[#4d7c0f] pointer-events-none"
+                                  className="rounded text-rm-acento pointer-events-none"
                                 />
                                 <span className={`w-2 h-2 rounded-full ${dotColor}`}></span>
                                 <span>{cat}</span>
@@ -1807,7 +1774,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                     key={dept}
                     type="button"
                     onClick={() => setFiltrosDepartamentos((prev) => prev.filter((d) => d !== dept))}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] text-xs font-bold border border-[#4d7c0f]/20 hover:bg-[#4d7c0f]/20 transition-all cursor-pointer shadow-2xs"
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rm-acento/10 dark:bg-rm-acento-escuro/15 text-rm-acento dark:text-rm-acento-escuro text-xs font-bold border border-rm-acento/20 hover:bg-rm-acento/20 transition-all cursor-pointer shadow-2xs"
                   >
                     <span>{dept}</span>
                     <XMarkIcon className="w-3 h-3" />
@@ -1841,7 +1808,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                   className={`px-3 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-xs ${
                     filtroTecnico !== 'todos'
                       ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300'
-                      : 'border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-slate-700 dark:text-zinc-200 hover:border-black/20'
+                      : 'border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro text-slate-700 dark:text-zinc-200 hover:border-black/20'
                   }`}
                 >
                   <div className="w-5 h-5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] flex items-center justify-center flex-shrink-0">
@@ -1864,7 +1831,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                 </button>
 
                 {filtroTecnicoDropdownAberto && (
-                  <div className="absolute right-0 top-full mt-1.5 z-50 w-72 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.1] dark:border-white/[0.15] shadow-2xl p-2 space-y-1">
+                  <div className="absolute right-0 top-full mt-1.5 z-50 w-72 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/[0.1] dark:border-white/[0.15] shadow-2xl p-2 space-y-1">
                     <input
                       type="text"
                       autoFocus
@@ -1879,7 +1846,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                         onClick={() => handleSelecionarFiltroTecnico('todos')}
                         className={`w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between text-xs transition-colors cursor-pointer ${
                           filtroTecnico === 'todos'
-                            ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
+                            ? 'bg-rm-acento/15 dark:bg-rm-acento-escuro/20 text-rm-acento dark:text-rm-acento-escuro font-bold'
                             : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
                         }`}
                       >
@@ -1895,7 +1862,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                         onClick={() => handleSelecionarFiltroTecnico('nao_atribuido')}
                         className={`w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between text-xs transition-colors cursor-pointer ${
                           filtroTecnico === 'nao_atribuido'
-                            ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
+                            ? 'bg-rm-acento/15 dark:bg-rm-acento-escuro/20 text-rm-acento dark:text-rm-acento-escuro font-bold'
                             : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
                         }`}
                       >
@@ -1933,7 +1900,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                               onClick={() => handleSelecionarFiltroTecnico(tec.id || tec.email || tec.nome)}
                               className={`w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between text-xs transition-colors cursor-pointer ${
                                 isSel
-                                  ? 'bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] font-bold'
+                                  ? 'bg-rm-acento/15 dark:bg-rm-acento-escuro/20 text-rm-acento dark:text-rm-acento-escuro font-bold'
                                   : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
                               }`}
                             >
@@ -1952,7 +1919,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                                     {chamadosCount}
                                   </span>
                                 )}
-                                {isSel && <CheckIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16]" />}
+                                {isSel && <CheckIcon className="w-3.5 h-3.5 text-rm-acento dark:text-rm-acento-escuro" />}
                               </div>
                             </button>
                           );
@@ -2004,7 +1971,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
           {!carregado ? (
             <SupportQueueSkeleton modo={filaViewMode} />
           ) : chamadosFiltrados.length === 0 ? (
-            <div className="relative z-10 rounded-3xl p-12 border border-black/[0.06] dark:border-white/[0.11] bg-white/80 dark:bg-[#1e1e21]/85 backdrop-blur-xl text-center space-y-4 shadow-sm">
+            <div className="relative z-10 rounded-3xl p-12 border border-black/[0.06] dark:border-white/[0.11] bg-white/80 dark:bg-rm-cartao-escuro/85 backdrop-blur-xl text-center space-y-4 shadow-sm">
               <div className="w-12 h-12 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] text-slate-400 dark:text-zinc-400 flex items-center justify-center mx-auto">
                 <SupportQueueIcon className="w-6 h-6" />
               </div>
@@ -2033,24 +2000,14 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                 <button
                   type="button"
                   onClick={handleAbrirModalNovoChamado}
-                  className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold shadow-sm cursor-pointer"
+                  className="px-5 py-2.5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 text-xs font-semibold shadow-sm cursor-pointer"
                 >
                   + Nova demanda
                 </button>
               </div>
             </div>
           ) : filaViewMode === 'kanban' ? (
-            <KanbanDemandas
-              chamados={chamadosFiltrados}
-              ctx={ctxDemandas}
-              acoes={acoesDemanda}
-              tempos={temposDemanda}
-              assumindoId={assumindoId}
-              tecnicos={listaTecnicosKanban}
-              pertenceA={isChamadoDoTecnico}
-              ehMim={isTecnicoMim}
-              selecionadaId={detalheId}
-            />
+            <KanbanDemandas chamados={chamadosFiltrados} ctx={ctxDemandas} acoes={acoesDemanda} tempos={temposDemanda} assumindoId={assumindoId} selecionadaId={detalheId} />
           ) : filaViewMode === 'cards' ? (
             <CardsDemandas chamados={chamadosFiltrados} ctx={ctxDemandas} acoes={acoesDemanda} tempos={temposDemanda} assumindoId={assumindoId} selecionadaId={detalheId} />
           ) : (
@@ -2089,7 +2046,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="w-full max-w-lg rounded-3xl border border-black/10 dark:border-white/15 bg-white dark:bg-[#1e1e21] p-6 shadow-2xl space-y-5 my-auto"
+            className="w-full max-w-lg rounded-3xl border border-black/10 dark:border-white/15 bg-white dark:bg-rm-cartao-escuro p-6 shadow-2xl space-y-5 my-auto"
           >
             <div className="flex items-center justify-between pb-3 border-b border-black/6 dark:border-white/[0.11]">
               <div>

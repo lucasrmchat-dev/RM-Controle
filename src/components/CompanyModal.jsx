@@ -81,7 +81,7 @@ export default function CompanyModal({ isOpen, onClose, onCreated, initialNome =
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 12 }}
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-[32px] border border-black/[0.08] dark:border-white/[0.1] bg-white/95 dark:bg-[#1e1e21]/95 backdrop-blur-3xl p-6 sm:p-8 shadow-2xl relative text-[#1d1d1f] dark:text-[#f5f5f7]"
+          className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-[32px] border border-black/[0.08] dark:border-white/[0.1] bg-white/95 dark:bg-rm-cartao-escuro/95 backdrop-blur-3xl p-6 sm:p-8 shadow-2xl relative text-[#1d1d1f] dark:text-[#f5f5f7]"
         >
           <button
             type="button"
@@ -96,7 +96,7 @@ export default function CompanyModal({ isOpen, onClose, onCreated, initialNome =
           </button>
 
           <div className="flex items-center gap-3.5 mb-6">
-            <div className="w-10 h-10 rounded-2xl bg-[#4d7c0f]/15 dark:bg-[#84cc16]/15 border border-[#4d7c0f]/20 flex items-center justify-center text-[#4d7c0f] dark:text-[#84cc16]">
+            <div className="w-10 h-10 rounded-2xl bg-rm-acento/15 dark:bg-rm-acento-escuro/15 border border-rm-acento/20 flex items-center justify-center text-rm-acento dark:text-rm-acento-escuro">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
                 <rect width="16" height="20" x="4" y="2" rx="2" ry="2" />
                 <path d="M9 22v-4h6v4" />
@@ -130,7 +130,7 @@ export default function CompanyModal({ isOpen, onClose, onCreated, initialNome =
                 }}
                 placeholder="Ex: Comercial Ramos & Filhos"
                 required
-                className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 text-[#1d1d1f] dark:text-white"
+                className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-rm-acento/20 text-[#1d1d1f] dark:text-white"
               />
               {isNomeDuplicado && (
                 <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1 font-medium pl-1">
@@ -161,7 +161,7 @@ export default function CompanyModal({ isOpen, onClose, onCreated, initialNome =
                 whileTap={{ scale: 0.98 }}
                 type="submit"
                 disabled={loading}
-                className="px-5 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-semibold shadow-sm hover:opacity-95 disabled:opacity-50 transition-all cursor-pointer"
+                className="px-5 py-2.5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 text-xs font-semibold shadow-sm hover:opacity-95 disabled:opacity-50 transition-all cursor-pointer"
               >
                 {loading ? 'Cadastrando...' : 'Cadastrar Empresa'}
               </motion.button>

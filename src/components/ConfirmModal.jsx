@@ -113,7 +113,7 @@ export default function ConfirmModal({
     success: {
       badgeBg: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/25',
       badgeText: 'Concluir',
-      confirmButton: 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 shadow-lg shadow-[#4d7c0f]/30',
+      confirmButton: 'bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 shadow-lg shadow-rm-acento/30',
       icon: (
         <svg className="w-5 h-5 text-emerald-600 dark:text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="20 6 9 17 4 12" />
@@ -159,7 +159,7 @@ export default function ConfirmModal({
           aria-labelledby={tituloId}
           aria-describedby={mensagemId}
           aria-busy={ocupado}
-          className="relative w-full max-w-md rounded-[32px] border border-black/[0.08] dark:border-white/[0.14] bg-white dark:bg-[#1e1e21] backdrop-blur-3xl p-6 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] space-y-5 text-[#1d1d1f] dark:text-[#f5f5f7] z-10 overflow-hidden"
+          className="relative w-full max-w-md rounded-[32px] border border-black/[0.08] dark:border-white/[0.14] bg-white dark:bg-rm-cartao-escuro backdrop-blur-3xl p-6 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] space-y-5 text-[#1d1d1f] dark:text-[#f5f5f7] z-10 overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Brilho sutil no topo */}

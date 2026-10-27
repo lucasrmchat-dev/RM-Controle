@@ -2,7 +2,7 @@ import { contextoDaRequisicao } from '@/lib/server/organizacao';
 import { consumirLimite } from '@/lib/server/protecao';
 import { abrirConversaComNumero, configDoChat, enviarTextoParaNumero } from '@/lib/server/canais/index';
 import { avisarAoVivo, topicoAoVivo } from '@/lib/server/canais/aoVivo';
-import { auditarChat, juntarDetalhes, listarConversas, permissaoDoChat } from '@/lib/server/canais/chat';
+import { auditarChat, juntarDetalhes, listarConversas, permissaoDoChat, semModulo } from '@/lib/server/canais/chat';
 import { isValidUUID } from '@/lib/sanitize';
 
 export const dynamic = 'force-dynamic';
@@ -19,7 +19,7 @@ export async function GET(request) {
   const ctx = await contextoDaRequisicao(request);
   if (ctx.erro) return ctx.erro;
   const perm = await permissaoDoChat(ctx.db, ctx.email);
-  if (!perm.administrador && !perm.modulos.includes('chat')) return json({ ok: false, mensagem: 'Seu perfil não tem acesso ao Chat.' }, 403);
+  if (semModulo(perm, 'chat', 'ao Chat')) return json({ ok: false, mensagem: semModulo(perm, 'chat', 'ao Chat') }, 403);
   const aba = new URL(request.url).searchParams.get('aba') === 'resolvidas' ? 'resolvidas' : 'abertas';
   try {
     const conversas = await listarConversas(ctx.db, perm, { aba });
@@ -33,7 +33,7 @@ export async function POST(request) {
   const ctx = await contextoDaRequisicao(request);
   if (ctx.erro) return ctx.erro;
   const perm = await permissaoDoChat(ctx.db, ctx.email);
-  if (!perm.administrador && !perm.modulos.includes('chat')) return json({ ok: false, mensagem: 'Seu perfil não tem acesso ao Chat.' }, 403);
+  if (semModulo(perm, 'chat', 'ao Chat')) return json({ ok: false, mensagem: semModulo(perm, 'chat', 'ao Chat') }, 403);
   if (!(await consumirLimite(`chat_novo_${perm.email}`, 20, 60))) return json({ ok: false, mensagem: 'Muitas conversas novas seguidas. Aguarde um minuto.' }, 429);
   const body = (await request.json().catch(() => null)) || {};
   if (!isValidUUID(body.canal_id)) return json({ ok: false, mensagem: 'Escolha o canal.' }, 400);

@@ -41,6 +41,7 @@ import {
   TrashIcon,
   XMarkIcon
 } from './Icons';
+import EncaixeCabecalho, { ACOES_TITULO, LINHA_TITULO } from './EncaixeCabecalho';
 
 export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }) {
   // Até a primeira sincronização terminar, mostra esqueleto em vez de "nenhum registro"
@@ -128,13 +129,13 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
 
   useEffect(() => {
     const globalMode = getDefaultViewMode();
-    const effective = globalMode === 'grid' || globalMode === 'cards' ? 'cards' : 'list';
+    const effective = globalMode === 'grid' || globalMode === 'cards' || globalMode === 'kanban' ? 'cards' : 'list';
     setProdutividadeViewMode(effective);
     setDemandasViewMode(effective);
     setHistoricoViewMode(effective);
 
     const handleGlobalUpdate = (e) => {
-      const mode = e.detail === 'cards' || e.detail === 'grid' ? 'cards' : 'list';
+      const mode = e.detail === 'cards' || e.detail === 'grid' || e.detail === 'kanban' ? 'cards' : 'list';
       setProdutividadeViewMode(mode);
       setDemandasViewMode(mode);
       setHistoricoViewMode(mode);
@@ -282,29 +283,20 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
     : 100;
 
   return (
-    <div className="space-y-7 text-[#1d1d1f] dark:text-[#f5f5f7] pt-2 sm:pt-4">
+    <div className="space-y-7 text-[#1d1d1f] dark:text-[#f5f5f7]">
       
       {/* ============================================================================== */}
       {/* CABEÇALHO DO DASHBOARD (ESTRITAMENTE MÉTRICAS E INDICADORES) */}
       {/* ============================================================================== */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-zinc-400 font-mono">
-              Métricas Consolidadas & Performance
-            </span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-slate-500 dark:text-zinc-400 capitalize">
-              {new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date())}
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white">
-            Dashboard de Atendimentos
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
-            Métricas consolidadas, produtividade da equipe, clientes mais demandantes e análise temporal de suporte.
-          </p>
+      <div className={`flex flex-wrap items-center justify-between gap-3 ${LINHA_TITULO}`}>
+        {/* O nome da tela já está no cabeçalho: aqui só o período */}
+        <div className="flex items-center gap-2 lg:h-12">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span className="text-[12px] font-medium px-2.5 py-1 rounded-full bg-black/5 dark:bg-white/10 text-slate-600 dark:text-zinc-300 capitalize">
+            {new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date())}
+          </span>
         </div>
+        <EncaixeCabecalho />
       </div>
 
       {/* ============================================================================== */}
@@ -313,10 +305,10 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
 
       {/* Trilho de KPIs Mobile (Liquid Glass Apple) - Otimizado para iPhone e iPad */}
       <div className="lg:hidden grid grid-cols-2 sm:grid-cols-4 gap-2.5 w-full mb-2">
-        <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] shadow-xs">
+        <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro shadow-xs">
           <div className="flex items-center justify-between text-slate-400 mb-1">
             <span className="text-[10px] font-semibold uppercase tracking-wider font-mono">Total</span>
-            <ChartBarIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16]" />
+            <ChartBarIcon className="w-3.5 h-3.5 text-rm-acento dark:text-rm-acento-escuro" />
           </div>
           <span className="text-xl font-bold font-mono text-[#1d1d1f] dark:text-white tabular-nums leading-none block">{carregado ? metricas.totalChamados : '–'}</span>
         </div>
@@ -346,7 +338,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
           </div>
         </div>
 
-        <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] shadow-xs">
+        <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro shadow-xs">
           <div className="flex items-center justify-between text-slate-400 mb-1">
             <span className="text-[10px] font-semibold uppercase tracking-wider font-mono">TMA</span>
             <ClockIcon className="w-3.5 h-3.5 text-slate-400" />
@@ -377,7 +369,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-              className="space-y-2.5 rounded-3xl p-2 sm:p-2.5 border border-black/[0.06] dark:border-white/[0.11] bg-white/80 dark:bg-[#1e1e21]/85 backdrop-blur-xl shadow-xs"
+              className="space-y-2.5 rounded-3xl p-2 sm:p-2.5 border border-black/[0.06] dark:border-white/[0.11] bg-white/80 dark:bg-rm-cartao-escuro/85 backdrop-blur-xl shadow-xs"
             >
               {/* Botão de Expansão Manual */}
               <div className="flex justify-center pb-1 border-b border-black/[0.04] dark:border-white/[0.09]">
@@ -396,7 +388,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                 className="rounded-2xl p-2 border border-black/[0.06] dark:border-white/[0.11] bg-black/[0.02] dark:bg-white/[0.03] flex flex-col items-center justify-center text-center shadow-xs cursor-default group relative"
                 title={`Total de Chamados no período: ${metricas.totalChamados}`}
               >
-                <ChartBarIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16] mb-1" />
+                <ChartBarIcon className="w-3.5 h-3.5 text-rm-acento dark:text-rm-acento-escuro mb-1" />
                 <span className="text-base font-bold font-mono tracking-tight text-[#1d1d1f] dark:text-white tabular-nums leading-none">
                   {carregado ? metricas.totalChamados : '–'}
                 </span>
@@ -484,12 +476,12 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                   layoutId="shared-kpi-card-1"
                   whileHover={{ y: -2 }}
                   transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                  className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] shadow-xs space-y-2"
+                  className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro shadow-xs space-y-2"
                 >
                   <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
                     <span className="text-xs font-semibold uppercase tracking-wider">Total de Chamados</span>
                     <span className="p-2 rounded-2xl bg-black/[0.03] dark:bg-white/[0.05]">
-                      <ChartBarIcon className="w-4 h-4 text-[#4d7c0f] dark:text-[#84cc16]" />
+                      <ChartBarIcon className="w-4 h-4 text-rm-acento dark:text-rm-acento-escuro" />
                     </span>
                   </div>
                   <div className="flex items-baseline gap-2">
@@ -505,7 +497,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                   layoutId="shared-kpi-card-2"
                   whileHover={{ y: -2 }}
                   transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                  className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] shadow-xs space-y-2"
+                  className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro shadow-xs space-y-2"
                 >
                   <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
                     <span className="text-xs font-semibold uppercase tracking-wider">Resolvidos</span>
@@ -529,7 +521,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                   whileHover={{ y: -2 }}
                   transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
                   onClick={() => onNavigate && onNavigate('fila')}
-                  className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] shadow-xs space-y-2 cursor-pointer hover:border-amber-500/40 hover:shadow-md transition-all group"
+                  className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro shadow-xs space-y-2 cursor-pointer hover:border-amber-500/40 hover:shadow-md transition-all group"
                   title="Clique para abrir a Fila de Suporte"
                 >
                   <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
@@ -556,11 +548,11 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                   layoutId="shared-kpi-card-4"
                   whileHover={{ y: -2 }}
                   transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                  className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] shadow-xs space-y-2"
+                  className="rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro shadow-xs space-y-2"
                 >
                   <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
                     <span className="text-xs font-semibold uppercase tracking-wider">Tempo Médio (TMA)</span>
-                    <span className="p-2 rounded-2xl bg-[#4d7c0f]/10 text-[#4d7c0f] dark:text-[#84cc16]">
+                    <span className="p-2 rounded-2xl bg-rm-acento/10 text-rm-acento dark:text-rm-acento-escuro">
                       <ClockIcon className="w-4 h-4" />
                     </span>
                   </div>
@@ -581,7 +573,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
         {/* -------------------------------------------------------------------------- */}
         <div className="flex-1 min-w-0 w-full space-y-6">
           {/* Barra de Filtros de Período Estilo Apple */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2.5 rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white/80 dark:bg-[#1e1e21]/80 backdrop-blur-xl shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2.5 rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white/80 dark:bg-rm-cartao-escuro/80 backdrop-blur-xl shadow-xs">
         <div className="flex items-center gap-1.5 overflow-x-auto p-0.5">
           <span className="text-xs font-semibold text-slate-500 dark:text-zinc-400 pl-2 pr-1">Período:</span>
           {[
@@ -633,7 +625,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
           <select
             value={filtroCategoria}
             onChange={(e) => setFiltroCategoria(e.target.value)}
-            className="px-3 py-1.5 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-xs font-semibold text-slate-700 dark:text-zinc-200 [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white focus:outline-none cursor-pointer shadow-xs"
+            className="px-3 py-1.5 rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro text-xs font-semibold text-slate-700 dark:text-zinc-200 [&>option]:bg-white [&>option]:text-black dark:[&>option]:bg-[#1a1a20] dark:[&>option]:text-white focus:outline-none cursor-pointer shadow-xs"
           >
             <option value="todas">{getPermissoesAtuais().administrador ? 'Todos os Departamentos' : 'Todos os meus departamentos'}</option>
             {categoriasLista.map((cat) => (
@@ -648,11 +640,11 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
           {/* ============================================================================== */}
       {/* SEÇÃO LÚDICA COM MOTION: DESEMPENHO E PRODUTIVIDADE DA EQUIPE */}
       {/* ============================================================================== */}
-      <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-5 shadow-sm">
+      <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro space-y-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-xl bg-[#4d7c0f]/10 dark:bg-[#84cc16]/10 flex items-center justify-center text-[#4d7c0f] dark:text-[#84cc16]">
+              <div className="w-7 h-7 rounded-xl bg-rm-acento/10 dark:bg-rm-acento-escuro/10 flex items-center justify-center text-rm-acento dark:text-rm-acento-escuro">
                 <UsersIcon className="w-4 h-4" />
               </div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
@@ -674,7 +666,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                 onClick={() => setProdutividadeViewMode('cards')}
                 className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
                   produtividadeViewMode === 'cards'
-                    ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                    ? 'bg-white dark:bg-rm-campo-escuro text-[#1d1d1f] dark:text-white shadow-xs'
                     : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
                 }`}
                 title="Exibir Produtividade em Cards"
@@ -687,7 +679,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                 onClick={() => setProdutividadeViewMode('list')}
                 className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
                   produtividadeViewMode === 'list'
-                    ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                    ? 'bg-white dark:bg-rm-campo-escuro text-[#1d1d1f] dark:text-white shadow-xs'
                     : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
                 }`}
                 title="Exibir Produtividade em Lista"
@@ -719,15 +711,15 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                   whileHover={{ y: -3 }}
                   className={`rounded-3xl p-5 border transition-all relative overflow-hidden flex flex-col justify-between ${
                     isTopPerformer
-                      ? 'border-[#4d7c0f]/40 dark:border-[#84cc16]/40 bg-gradient-to-b from-[#4d7c0f]/[0.05] to-transparent dark:from-[#84cc16]/[0.08] shadow-apple-hover'
-                      : 'border-black/[0.06] dark:border-white/[0.11] bg-black/[0.01] dark:bg-white/[0.02] hover:bg-white dark:hover:bg-[#1e1e21] hover:shadow-apple-hover'
+                      ? 'border-rm-acento/40 dark:border-rm-acento-escuro/40 bg-gradient-to-b from-rm-acento/[0.05] to-transparent dark:from-rm-acento-escuro/[0.08] shadow-apple-hover'
+                      : 'border-black/[0.06] dark:border-white/[0.11] bg-black/[0.01] dark:bg-white/[0.02] hover:bg-white dark:hover:bg-rm-cartao-escuro hover:shadow-apple-hover'
                   }`}
                 >
                   <div>
                     {/* Header do Membro com Avatar e Badge */}
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#4d7c0f]/20 to-[#84cc16]/25 dark:from-[#84cc16]/20 dark:to-[#4d7c0f]/10 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-sm flex items-center justify-center border border-[#4d7c0f]/20 flex-shrink-0">
+                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-rm-acento/20 to-rm-acento-escuro/25 dark:from-rm-acento-escuro/20 dark:to-rm-acento/10 text-rm-acento dark:text-rm-acento-escuro font-bold text-sm flex items-center justify-center border border-rm-acento/20 flex-shrink-0">
                           {col.nome.charAt(0)}
                         </div>
                         <div className="min-w-0">
@@ -742,7 +734,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
 
                       {/* Distintivo de Liderança / Destaque */}
                       {isTopPerformer ? (
-                        <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#4d7c0f]/15 dark:bg-[#84cc16]/15 border border-[#4d7c0f]/30 dark:border-[#84cc16]/30 text-[#4d7c0f] dark:text-[#84cc16] text-[10px] font-bold shadow-xs flex-shrink-0">
+                        <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-rm-acento/15 dark:bg-rm-acento-escuro/15 border border-rm-acento/30 dark:border-rm-acento-escuro/30 text-rm-acento dark:text-rm-acento-escuro text-[10px] font-bold shadow-xs flex-shrink-0">
                           <TrophyIcon className="w-3.5 h-3.5" />
                           <span>Destaque</span>
                         </div>
@@ -754,11 +746,11 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                     </div>
 
                     {/* Bloco de Suportes Resolvidos */}
-                    <div className="grid grid-cols-2 gap-2.5 p-3 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.04] dark:border-white/[0.09] mb-3">
+                    <div className="grid grid-cols-2 gap-2.5 p-3 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/[0.04] dark:border-white/[0.09] mb-3">
                       <div>
                         <span className="text-[10px] font-medium text-slate-400 block">Resolvidos</span>
                         <div className="flex items-baseline gap-1.5 mt-0.5">
-                          <span className="text-xl font-bold font-mono text-[#4d7c0f] dark:text-[#84cc16] tabular-nums">
+                          <span className="text-xl font-bold font-mono text-rm-acento dark:text-rm-acento-escuro tabular-nums">
                             {col.resolvidos}
                           </span>
                           <span className="text-[10px] text-slate-400 font-mono">
@@ -786,7 +778,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                       </div>
                       <div className="w-full h-1.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] overflow-hidden">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-[#4d7c0f] to-[#84cc16] transition-all duration-500"
+                          className="h-full rounded-full bg-gradient-to-r from-rm-acento to-rm-acento-escuro transition-all duration-500"
                           style={{ width: `${col.taxa_resolucao}%` }}
                         />
                       </div>
@@ -810,7 +802,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
             })}
           </div>
         ) : (
-          <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] overflow-hidden shadow-xs">
+          <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro overflow-hidden shadow-xs">
             <div className="grid grid-cols-12 gap-3 px-4 py-2.5 border-b border-black/[0.05] dark:border-white/[0.09] text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-400 bg-black/[0.01] dark:bg-white/[0.02]">
               <div className="col-span-4 cursor-pointer select-none flex items-center gap-1 hover:text-black dark:hover:text-white" onClick={() => {
                 if (sortProdCol === 'nome') setSortProdDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -865,7 +857,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                 return (
                   <div key={col.email || idx} className="grid grid-cols-12 gap-3 px-4 py-3 items-center hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors text-xs">
                     <div className="col-span-4 flex items-center gap-2 min-w-0">
-                      <span className="w-6 h-6 rounded-lg bg-[#4d7c0f]/15 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-[10px] flex items-center justify-center flex-shrink-0">
+                      <span className="w-6 h-6 rounded-lg bg-rm-acento/15 dark:bg-rm-acento-escuro/15 text-rm-acento dark:text-rm-acento-escuro font-bold text-[10px] flex items-center justify-center flex-shrink-0">
                         {col.nome?.charAt(0) || 'U'}
                       </span>
                       <div className="truncate">
@@ -874,13 +866,13 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                       </div>
                     </div>
                     <div className="col-span-3 font-mono">
-                      <span className="font-bold text-[#4d7c0f] dark:text-[#84cc16]">{col.resolvidos}</span>
+                      <span className="font-bold text-rm-acento dark:text-rm-acento-escuro">{col.resolvidos}</span>
                       <span className="text-slate-400"> / {col.total_chamados}</span>
                     </div>
                     <div className="col-span-3">
                       <div className="flex items-center gap-2">
                         <div className="w-16 h-1.5 rounded-full bg-black/[0.05] dark:bg-white/[0.08] overflow-hidden">
-                          <div className="h-full rounded-full bg-gradient-to-r from-[#4d7c0f] to-[#84cc16]" style={{ width: `${taxa}%` }} />
+                          <div className="h-full rounded-full bg-gradient-to-r from-rm-acento to-rm-acento-escuro" style={{ width: `${taxa}%` }} />
                         </div>
                         <span className="text-[11px] font-mono font-bold text-slate-700 dark:text-zinc-300">{taxa}%</span>
                       </div>
@@ -901,7 +893,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
       {/* ============================================================================== */}
       {/* SEÇÃO: EMPRESAS QUE MAIS DEMANDAM SUPORTE */}
       {/* ============================================================================== */}
-      <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-5 shadow-sm">
+      <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro space-y-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <div className="flex items-center gap-2">
@@ -941,7 +933,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
               return (
                 <div
                   key={emp.empresa_id}
-                  className="p-3.5 sm:p-4 rounded-2xl border border-black/[0.04] dark:border-white/[0.09] bg-black/[0.01] dark:bg-white/[0.02] hover:bg-white dark:hover:bg-[#1e1e21]/60 hover:shadow-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  className="p-3.5 sm:p-4 rounded-2xl border border-black/[0.04] dark:border-white/[0.09] bg-black/[0.01] dark:bg-white/[0.02] hover:bg-white dark:hover:bg-rm-cartao-escuro/60 hover:shadow-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                 >
                   <div className="min-w-0 flex-1 space-y-2">
                     <div className="flex items-center gap-2.5 flex-wrap">
@@ -965,7 +957,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                     {/* Barra de Proporção de Demanda */}
                     <div className="w-full h-1.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-blue-500 to-[#4d7c0f] dark:to-[#84cc16] transition-all duration-500"
+                        className="h-full rounded-full bg-gradient-to-r from-blue-500 to-rm-acento dark:to-rm-acento-escuro transition-all duration-500"
                         style={{ width: `${barWidth}%` }}
                       />
                     </div>
@@ -994,7 +986,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                           setEmpresaDetalhesDemandas(emp);
                         }
                       }}
-                      className="px-4 py-2 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-[#1d1d1f] dark:text-white transition-all self-start sm:self-center flex-shrink-0 cursor-pointer shadow-xs"
+                      className="px-4 py-2 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-rm-campo-escuro hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-[#1d1d1f] dark:text-white transition-all self-start sm:self-center flex-shrink-0 cursor-pointer shadow-xs"
                     >
                       Ver Empresa →
                     </button>
@@ -1012,7 +1004,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
         
         {/* GRÁFICO 1: EVOLUÇÃO DIÁRIA DE CHAMADOS */}
-        <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
+        <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro space-y-4 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
@@ -1087,7 +1079,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                     cx={p.x}
                     cy={p.y}
                     r="4"
-                    className="fill-white dark:fill-zinc-900 stroke-[#4d7c0f] dark:stroke-[#84cc16]"
+                    className="fill-white dark:fill-zinc-900 stroke-rm-acento dark:stroke-rm-acento-escuro"
                     strokeWidth="2.5"
                   />
                   {/* Badge numérico de quantificação acima do ponto */}
@@ -1098,7 +1090,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                       width="22"
                       height="14"
                       rx="4"
-                      className={p.valor > 0 ? "fill-[#4d7c0f] dark:fill-[#84cc16]" : "fill-black/10 dark:fill-white/10"}
+                      className={p.valor > 0 ? "fill-rm-acento dark:fill-rm-acento-escuro" : "fill-black/10 dark:fill-white/10"}
                     />
                     <text
                       x={p.x}
@@ -1124,7 +1116,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
         </div>
 
         {/* GRÁFICO 2: DISTRIBUIÇÃO DOS MOTIVOS DE SUPORTE (DONUT CHART) */}
-        <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
+        <div className="rounded-3xl p-6 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro space-y-4 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
@@ -1226,7 +1218,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
       {/* ============================================================================== */}
       {/* HISTÓRICO RECENTE DE ATENDIMENTOS */}
       {/* ============================================================================== */}
-      <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] overflow-hidden shadow-sm">
+      <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro overflow-hidden shadow-sm">
         <div className="p-5 border-b border-black/[0.05] dark:border-white/[0.09] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold text-[#1d1d1f] dark:text-white">
@@ -1241,7 +1233,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
               onClick={() => setHistoricoViewMode('cards')}
               className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
                 historicoViewMode === 'cards'
-                  ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                  ? 'bg-white dark:bg-rm-campo-escuro text-[#1d1d1f] dark:text-white shadow-xs'
                   : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
               }`}
               title="Exibir Histórico em Cards"
@@ -1254,7 +1246,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
               onClick={() => setHistoricoViewMode('list')}
               className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
                 historicoViewMode === 'list'
-                  ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs'
+                  ? 'bg-white dark:bg-rm-campo-escuro text-[#1d1d1f] dark:text-white shadow-xs'
                   : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
               }`}
               title="Exibir Histórico em Lista"
@@ -1449,7 +1441,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                     setItensPorPagina(Number(e.target.value));
                     setPaginaAtual(1);
                   }}
-                  className="px-2.5 py-1 rounded-xl bg-white dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] text-xs font-semibold text-[#1d1d1f] dark:text-white cursor-pointer focus:outline-none"
+                  className="px-2.5 py-1 rounded-xl bg-white dark:bg-rm-cartao-escuro border border-black/[0.08] dark:border-white/[0.1] text-xs font-semibold text-[#1d1d1f] dark:text-white cursor-pointer focus:outline-none"
                 >
                   <option value={5}>5 por página</option>
                   <option value={10}>10 por página</option>
@@ -1463,7 +1455,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                   type="button"
                   disabled={paginaAtual <= 1}
                   onClick={() => setPaginaAtual((p) => Math.max(1, p - 1))}
-                  className="px-3 py-1 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 disabled:opacity-40 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed transition-all shadow-2xs"
+                  className="px-3 py-1 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-rm-campo-escuro text-xs font-semibold text-slate-700 dark:text-zinc-300 disabled:opacity-40 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed transition-all shadow-2xs"
                 >
                   ← Anterior
                 </button>
@@ -1474,7 +1466,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
                   type="button"
                   disabled={paginaAtual >= totalPaginas}
                   onClick={() => setPaginaAtual((p) => Math.min(totalPaginas, p + 1))}
-                  className="px-3 py-1 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 disabled:opacity-40 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed transition-all shadow-2xs"
+                  className="px-3 py-1 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-rm-campo-escuro text-xs font-semibold text-slate-700 dark:text-zinc-300 disabled:opacity-40 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed transition-all shadow-2xs"
                 >
                   Próxima →
                 </button>
@@ -1491,7 +1483,7 @@ export default function DashboardView({ onSelectEmpresa, userEmail, onNavigate }
       {/* Modal de Detalhes da Demanda por Empresa (quando clicado no Dashboard) */}
       {empresaDetalhesDemandas && (
         <div className="fixed inset-0 w-screen h-screen z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-lg rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] p-6 shadow-2xl space-y-4 text-[#1d1d1f] dark:text-[#f5f5f7]">
+          <div className="w-full max-w-lg rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro p-6 shadow-2xl space-y-4 text-[#1d1d1f] dark:text-[#f5f5f7]">
             <div className="flex items-center justify-between border-b border-black/[0.05] dark:border-white/[0.09] pb-3">
               <div>
                 <h3 className="text-base font-bold text-[#1d1d1f] dark:text-white">

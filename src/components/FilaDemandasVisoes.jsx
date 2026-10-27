@@ -15,7 +15,7 @@ export const ESTADOS = {
     ponto: 'bg-amber-500',
     faixa: 'bg-amber-400',
     pilula: 'text-slate-600 dark:text-zinc-300',
-    fundo: 'bg-white dark:bg-[#1e1e21]',
+    fundo: 'bg-white dark:bg-rm-cartao-escuro',
     borda: 'ring-black/[0.07] dark:ring-white/[0.09]',
     linhaAberta: 'bg-black/[0.018] dark:bg-white/[0.03]',
     dica: 'Ninguém assumiu ainda',
@@ -26,7 +26,7 @@ export const ESTADOS = {
     ponto: 'bg-emerald-500',
     faixa: 'bg-emerald-500',
     pilula: 'text-slate-600 dark:text-zinc-300',
-    fundo: 'bg-white dark:bg-[#1e1e21]',
+    fundo: 'bg-white dark:bg-rm-cartao-escuro',
     borda: 'ring-black/[0.07] dark:ring-white/[0.09]',
     linhaAberta: 'bg-black/[0.018] dark:bg-white/[0.03]',
     dica: 'Sendo atendidas agora',
@@ -37,7 +37,7 @@ export const ESTADOS = {
     ponto: 'bg-violet-500',
     faixa: 'bg-violet-500',
     pilula: 'text-slate-600 dark:text-zinc-300',
-    fundo: 'bg-white dark:bg-[#1e1e21]',
+    fundo: 'bg-white dark:bg-rm-cartao-escuro',
     borda: 'ring-black/[0.07] dark:ring-white/[0.09]',
     linhaAberta: 'bg-black/[0.018] dark:bg-white/[0.03]',
     dica: 'Esperando o cliente responder',
@@ -48,7 +48,7 @@ export const ESTADOS = {
     ponto: 'bg-slate-400',
     faixa: 'bg-slate-300',
     pilula: 'text-slate-600 dark:text-zinc-300',
-    fundo: 'bg-white dark:bg-[#1e1e21]',
+    fundo: 'bg-white dark:bg-rm-cartao-escuro',
     borda: 'ring-black/[0.07] dark:ring-white/[0.09]',
     linhaAberta: 'bg-slate-50 dark:bg-white/[0.03]',
     dica: '',
@@ -148,7 +148,7 @@ function Avatar({ nome, destaque = false, tamanho = 'w-6 h-6 text-[10px]' }) {
   return (
     <span
       className={`${tamanho} rounded-full flex items-center justify-center font-semibold flex-shrink-0 ring-2 ring-white dark:ring-[#1e1e21] ${
-        destaque ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950' : 'bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-100'
+        destaque ? 'bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950' : 'bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-100'
       }`}
       aria-hidden="true"
     >
@@ -197,8 +197,8 @@ function AcaoPrincipal({ ch, info, acoes, assumindoId, rotuloLongo = false, chei
         title="Assume a demanda e abre a tela da empresa"
         className={`${btnBase} px-3.5 ${
           cheia
-            ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 shadow-sm shadow-[#4d7c0f]/25 hover:opacity-90'
-            : 'text-[#4d7c0f] dark:text-[#84cc16] ring-1 ring-inset ring-[#4d7c0f]/30 dark:ring-[#84cc16]/30 group-hover:bg-[#4d7c0f] group-hover:text-white group-hover:ring-transparent dark:group-hover:bg-[#84cc16] dark:group-hover:text-zinc-950'
+            ? 'bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 shadow-sm shadow-rm-acento/25 hover:opacity-90'
+            : 'text-rm-acento dark:text-rm-acento-escuro ring-1 ring-inset ring-rm-acento/30 dark:ring-rm-acento-escuro/30 group-hover:bg-rm-acento group-hover:text-white group-hover:ring-transparent dark:group-hover:bg-rm-acento-escuro dark:group-hover:text-zinc-950'
         }`}
       >
         {assumindoId === ch.id ? <span className="w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <PlayIcon className="w-2.5 h-2.5 fill-current" />}
@@ -354,7 +354,7 @@ function EditorEtiquetas({ chamado, acoes }) {
         }}
         placeholder="+ Etiqueta"
         aria-label="Nova etiqueta"
-        className="h-7 w-24 px-2.5 rounded-full bg-transparent border border-dashed border-black/[0.15] dark:border-white/[0.2] text-[12.5px] placeholder:text-slate-400 focus:outline-none focus:border-solid focus:border-[#4d7c0f] dark:focus:border-[#84cc16]"
+        className="h-7 w-24 px-2.5 rounded-full bg-transparent border border-dashed border-black/[0.15] dark:border-white/[0.2] text-[12.5px] placeholder:text-slate-400 focus:outline-none focus:border-solid focus:border-rm-acento dark:focus:border-rm-acento-escuro"
       />
     </div>
   );
@@ -395,7 +395,7 @@ function AcoesSecundarias({ chamado, info, acoes, assumindoId, compacta = false 
             <BellOffIcon className="w-3.5 h-3.5" /> {!compacta && 'Adiar'}
           </button>
           {menuAdiar && (
-            <div className="absolute bottom-full mb-1.5 left-0 z-20 p-1 rounded-xl ring-1 ring-black/[0.08] dark:ring-white/[0.12] bg-white dark:bg-[#1e1e21] shadow-lg flex" onClick={(e) => e.stopPropagation()}>
+            <div className="absolute bottom-full mb-1.5 left-0 z-20 p-1 rounded-xl ring-1 ring-black/[0.08] dark:ring-white/[0.12] bg-white dark:bg-rm-cartao-escuro shadow-lg flex" onClick={(e) => e.stopPropagation()}>
               {[10, 15, 30, 60, 120].map((m) => (
                 <button
                   key={m}
@@ -609,7 +609,7 @@ function LinhaDemanda({ ch, ctx, acoes, tempos, assumindoId, aberta }) {
             acoes.abrirDetalhe(ch);
           }
         }}
-        className="flex items-center gap-4 px-4 sm:px-5 py-4 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#4d7c0f]"
+        className="flex items-center gap-4 px-4 sm:px-5 py-4 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rm-acento"
       >
         <Monograma nome={ch.empresa_nome} />
         <div className="min-w-0 flex-1">
@@ -665,7 +665,7 @@ export function ListaDemandas({ chamados, ctx, acoes, tempos, assumindoId, selec
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={ABRIR}
-                className="rounded-2xl bg-white dark:bg-[#1e1e21] ring-1 ring-black/[0.07] dark:ring-white/[0.09] overflow-hidden divide-y divide-black/[0.06] dark:divide-white/[0.07]"
+                className="rounded-2xl bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.07] dark:ring-white/[0.09] overflow-hidden divide-y divide-black/[0.06] dark:divide-white/[0.07]"
               >
                 <AnimatePresence initial={false}>
                   {g.itens.map((ch) => (
@@ -825,7 +825,7 @@ export function CardsDemandas({ chamados, ctx, acoes, tempos, assumindoId, selec
 // KANBAN: coluna "Aguardando atendente" + uma coluna por pessoa (arraste para atribuir)
 // ==============================================================================
 
-function ColunaKanban({ titulo, subtitulo, cabecalho, itens, vazio, destaque, onSoltar, children }) {
+function ColunaKanban({ titulo, subtitulo, cabecalho, itens, vazio, destaque, onSoltar, larga = false, children }) {
   const [sobre, setSobre] = useState(false);
   return (
     <div
@@ -842,9 +842,9 @@ function ColunaKanban({ titulo, subtitulo, cabecalho, itens, vazio, destaque, on
         const id = e.dataTransfer.getData('text/plain');
         if (id) onSoltar(id);
       }}
-      className={`w-[300px] sm:w-[320px] flex-shrink-0 flex flex-col rounded-[22px] transition-colors max-h-[calc(100dvh-260px)] min-h-[320px] ${
+      className={`${larga ? 'min-w-0' : 'w-[300px] sm:w-[320px] flex-shrink-0'} flex flex-col rounded-[22px] transition-colors max-h-[calc(100dvh-260px)] min-h-[320px] ${
         sobre
-          ? 'ring-2 ring-[#4d7c0f] dark:ring-[#84cc16] bg-[#4d7c0f]/[0.05] dark:bg-[#84cc16]/[0.06]'
+          ? 'ring-2 ring-rm-acento dark:ring-rm-acento-escuro bg-rm-acento/[0.05] dark:bg-rm-acento-escuro/[0.06]'
           : destaque
             ? 'ring-1 ring-black/[0.06] dark:ring-white/[0.08] bg-black/[0.02] dark:bg-white/[0.025]'
             : 'ring-1 ring-black/[0.05] dark:ring-white/[0.07] bg-black/[0.018] dark:bg-white/[0.02]'
@@ -865,48 +865,57 @@ function ColunaKanban({ titulo, subtitulo, cabecalho, itens, vazio, destaque, on
   );
 }
 
-export function KanbanDemandas({ chamados, ctx, acoes, tempos, assumindoId, tecnicos = [], pertenceA, ehMim, selecionadaId = null }) {
-  const espera = useMemo(() => ordenarPorPrioridade(chamados.filter((c) => c.status === 'aguardando_visualizacao'), ctx), [chamados, ctx]);
-  const colunas = useMemo(() => {
-    const ativos = chamados.filter((c) => c.status === 'em_andamento' || c.status === 'pendente');
-    return tecnicos
-      .map((tec) => ({ tec, itens: ordenarPorPrioridade(ativos.filter((c) => pertenceA(c, tec)), ctx) }))
-      .sort((a, b) => (ehMim(a.tec) ? -1 : ehMim(b.tec) ? 1 : b.itens.length - a.itens.length));
-  }, [chamados, ctx, tecnicos, pertenceA, ehMim]);
+/**
+ * Kanban por estado: Aguardando atendente · Em atendimento · Aguardando cliente.
+ * Arrastar muda o estado (assumir, retomar ou colocar à espera do cliente). Para ver só as de alguém,
+ * use o filtro de técnicos acima.
+ */
+const ESTADOS_KANBAN = [
+  { id: 'espera', titulo: 'Aguardando atendente', subtitulo: 'Ninguém assumiu ainda', cor: 'bg-amber-500', status: ['aguardando_visualizacao'], vazio: 'Nenhuma demanda esperando.' },
+  { id: 'atendimento', titulo: 'Em atendimento', subtitulo: 'Sendo atendidas agora', cor: 'bg-emerald-500', status: ['em_andamento'], vazio: 'Ninguém em atendimento.' },
+  { id: 'cliente', titulo: 'Aguardando cliente', subtitulo: 'Esperando retorno do cliente', cor: 'bg-violet-500', status: ['pendente'], vazio: 'Nenhuma à espera do cliente.' },
+];
+
+export function KanbanDemandas({ chamados, ctx, acoes, tempos, assumindoId, selecionadaId = null }) {
+  const colunas = useMemo(
+    () => ESTADOS_KANBAN.map((e) => ({ ...e, itens: ordenarPorPrioridade(chamados.filter((c) => e.status.includes(c.status)), ctx) })),
+    [chamados, ctx]
+  );
+  const porId = useMemo(() => new Map(chamados.map((c) => [String(c.id), c])), [chamados]);
+  // O que soltar em cada coluna faz com a demanda
+  const soltar = (estado) => (id) => {
+    const ch = porId.get(String(id));
+    if (!ch) return;
+    if (estado === 'atendimento') {
+      if (ch.status === 'aguardando_visualizacao') acoes.assumir(ch);
+      else if (ch.status === 'pendente') acoes.retomar(ch);
+    } else if (estado === 'cliente' && ch.status === 'em_andamento') {
+      acoes.aguardarCliente?.(ch);
+    }
+  };
 
   return (
     <div className="-mx-1 px-1 overflow-x-auto pb-3">
-      <div className="flex gap-4 items-stretch">
-        <ColunaKanban titulo="Aguardando atendente" subtitulo="Arraste para alguém da equipe" itens={espera} vazio="Nenhuma demanda esperando." destaque cabecalho={<span className="w-2.5 h-2.5 rounded-full bg-amber-500" />}>
-          <AnimatePresence initial={false}>
-            {espera.map((ch) => (
-              <CartaoDemanda key={ch.id} ch={ch} ctx={ctx} acoes={acoes} tempos={tempos} assumindoId={assumindoId} kanban aberto={selecionadaId === ch.id} />
-            ))}
-          </AnimatePresence>
-        </ColunaKanban>
-
-        {colunas.map(({ tec, itens }) => {
-          const mim = ehMim(tec);
-          const emAtendimento = itens.filter((c) => c.status === 'em_andamento').length;
-          const aguardando = itens.length - emAtendimento;
-          return (
-            <ColunaKanban
-              key={tec.key || tec.email || tec.nome}
-              titulo={mim ? `${tec.nome} (você)` : tec.nome}
-              subtitulo={itens.length ? `${emAtendimento} em atendimento${aguardando ? ` · ${aguardando} aguardando cliente` : ''}` : 'Livre'}
-              itens={itens}
-              vazio="Sem demandas agora."
-              cabecalho={<Avatar nome={tec.nome} tamanho="w-8 h-8 text-[11px]" destaque={mim} />}
-              onSoltar={(id) => acoes.atribuir(id, tec)}
-            >
-              <AnimatePresence initial={false}>
-                {itens.map((ch) => (
-                  <CartaoDemanda key={ch.id} ch={ch} ctx={ctx} acoes={acoes} tempos={tempos} assumindoId={assumindoId} kanban aberto={selecionadaId === ch.id} />
-                ))}
-              </AnimatePresence>
-            </ColunaKanban>
-          );
-        })}
+      <div className="grid grid-cols-[repeat(3,minmax(300px,1fr))] gap-4 items-stretch">
+        {colunas.map((col) => (
+          <ColunaKanban
+            key={col.id}
+            titulo={col.titulo}
+            subtitulo={col.subtitulo}
+            itens={col.itens}
+            vazio={col.vazio}
+            destaque={col.id === 'espera'}
+            cabecalho={<span className={`w-2.5 h-2.5 rounded-full ${col.cor}`} />}
+            onSoltar={col.id === 'espera' ? null : soltar(col.id)}
+            larga
+          >
+            <AnimatePresence initial={false}>
+              {col.itens.map((ch) => (
+                <CartaoDemanda key={ch.id} ch={ch} ctx={ctx} acoes={acoes} tempos={tempos} assumindoId={assumindoId} kanban aberto={selecionadaId === ch.id} />
+              ))}
+            </AnimatePresence>
+          </ColunaKanban>
+        ))}
       </div>
     </div>
   );

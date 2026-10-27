@@ -4,7 +4,7 @@ import { novoBanco } from './base.mjs';
 import assert from 'node:assert/strict';
 process.on('uncaughtException', (e) => { console.log('FALHOU:', e.message, '| consulta:', e.query || ''); process.exit(1); });
 
-const db = await novoBanco(['schema.sql', 'setup_secure_rls.sql', 'migration_feedbacks_e_departamentos.sql', 'migration_supabase_completa.sql', 'migration_perfis_acesso.sql', 'migration_google_agenda.sql', 'migration_descricao_historico.sql', 'migration_agenda_departamento.sql', 'migration_comercial_pipeline.sql', 'migration_comercial_webhooks.sql', 'migration_relato_atendimentos.sql', 'migration_feedbacks_subtarefas.sql', 'migration_descricao_demandas.sql', 'migration_whatsapp_agenda.sql', 'migration_multiempresa.sql', 'migration_canais_chat.sql', 'migration_canais_chat.sql', 'migration_chat_acoes.sql', 'migration_chat_acoes.sql', 'migration_chat_grupos.sql', 'migration_chat_grupos.sql', 'migration_desempenho.sql', 'migration_desempenho.sql']);
+const db = await novoBanco(['schema.sql', 'setup_secure_rls.sql', 'migration_feedbacks_e_departamentos.sql', 'migration_supabase_completa.sql', 'migration_perfis_acesso.sql', 'migration_google_agenda.sql', 'migration_descricao_historico.sql', 'migration_agenda_departamento.sql', 'migration_comercial_pipeline.sql', 'migration_comercial_webhooks.sql', 'migration_relato_atendimentos.sql', 'migration_feedbacks_subtarefas.sql', 'migration_descricao_demandas.sql', 'migration_whatsapp_agenda.sql', 'migration_multiempresa.sql', 'migration_canais_chat.sql', 'migration_canais_chat.sql', 'migration_chat_acoes.sql', 'migration_chat_acoes.sql', 'migration_chat_grupos.sql', 'migration_chat_grupos.sql', 'migration_desempenho.sql', 'migration_desempenho.sql', 'migration_daily.sql', 'migration_daily.sql']);
 console.log('✔ migração aplicada (duas vezes, sem erro)');
 const RMCHAT = '00000000-0000-4000-8000-000000000002';
 
@@ -78,5 +78,17 @@ console.log('✔ outra empresa não vê nem mistura conversas');
 await servidor(`UPDATE organizacoes SET limites = '{"numeros_whatsapp": 1}' WHERE id = $1`, [RMCHAT]);
 await assert.rejects(servidor(`INSERT INTO canais (nome, tipo, provedor, organizacao_id) VALUES ('Segundo', 'whatsapp_oficial', 'meta', $1)`, [RMCHAT]), /Limite do plano/);
 console.log('✔ limite de números de WhatsApp conferido pelo banco');
+
+// Daily: cada empresa vê só o seu; o navegador só lê
+await servidor(`INSERT INTO daily_reunioes (titulo, resumo, organizacao_id) VALUES ('Daily', 'resumo da RM', $1)`, [RMCHAT]);
+await servidor(`INSERT INTO daily_metas (semana, texto, organizacao_id) VALUES ('2026-10-26', 'meta da RM', $1)`, [RMCHAT]);
+assert.equal((await como('ana@rmchat.com', `SELECT id FROM daily_reunioes`)).length, 1);
+assert.equal((await como('ana@rmchat.com', `SELECT id FROM daily_metas`)).length, 1);
+assert.equal((await como('bia@b.com', `SELECT id FROM daily_reunioes`)).length, 0);
+assert.equal((await como('bia@b.com', `SELECT id FROM daily_metas`)).length, 0);
+await falha('ana@rmchat.com', `INSERT INTO daily_reunioes (titulo) VALUES ('pelo navegador')`);
+await falha('ana@rmchat.com', `UPDATE daily_metas SET texto = 'x'`);
+await assert.rejects(servidor(`UPDATE daily_metas SET organizacao_id = $1`, [b.id]));
+console.log('✔ Daily: separado por empresa, navegador só lê, empresa imutável');
 
 console.log('\nTODOS OS TESTES DE CANAIS PASSARAM');

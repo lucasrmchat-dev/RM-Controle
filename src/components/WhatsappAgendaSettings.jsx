@@ -19,7 +19,7 @@ import { Spinner } from './FormularioEtapas';
 import { classeCampo } from './NovaEmpresaCampos';
 import { showToast } from './ToastNotification';
 
-const cartao = 'rounded-3xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-[#1e1e21] p-5 sm:p-8';
+const cartao = 'rounded-3xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-rm-cartao-escuro p-5 sm:p-8';
 const botaoEscuro = 'h-11 px-5 rounded-full bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] text-sm font-medium disabled:opacity-50 cursor-pointer flex items-center gap-2';
 
 function Opcoes({ opcoes, valor, onMudar, rotulo }) {
@@ -288,7 +288,7 @@ export default function WhatsappAgendaSettings() {
           </p>
         </div>
         <label className="flex items-center gap-2.5 text-sm font-medium cursor-pointer flex-shrink-0">
-          <input type="checkbox" checked={config.ativo} onChange={(e) => setConfig((c) => ({ ...c, ativo: e.target.checked }))} className="w-4 h-4 accent-[#4d7c0f] cursor-pointer" />
+          <input type="checkbox" checked={config.ativo} onChange={(e) => setConfig((c) => ({ ...c, ativo: e.target.checked }))} className="w-4 h-4 accent-rm-acento cursor-pointer" />
           Envio ligado
         </label>
       </div>

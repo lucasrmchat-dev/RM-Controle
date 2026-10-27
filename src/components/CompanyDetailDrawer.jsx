@@ -223,12 +223,12 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/30 dark:bg-black/70 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-2xl h-full bg-white dark:bg-[#1e1e21] border-l border-slate-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden text-slate-900 dark:text-zinc-100">
+      <div className="w-full max-w-2xl h-full bg-white dark:bg-rm-cartao-escuro border-l border-slate-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden text-slate-900 dark:text-zinc-100">
         
         {/* Cabeçalho do Drawer */}
-        <div className="p-5 border-b border-slate-200 dark:border-zinc-800 flex items-start justify-between gap-4 bg-slate-50/70 dark:bg-[#1e1e21]/50">
+        <div className="p-5 border-b border-slate-200 dark:border-zinc-800 flex items-start justify-between gap-4 bg-slate-50/70 dark:bg-rm-cartao-escuro/50">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-zinc-800 flex items-center justify-center font-bold text-sm text-slate-700 dark:text-zinc-200">
+            <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-rm-campo-escuro flex items-center justify-center font-bold text-sm text-slate-700 dark:text-zinc-200">
               {empresa.nome.charAt(0)}
             </div>
             <div>
@@ -255,7 +255,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-zinc-800 transition-all"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-rm-campo-escuro transition-all"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"/>
@@ -276,7 +276,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
         )}
 
         {/* Abas Internas */}
-        <div className="flex border-b border-slate-200 dark:border-zinc-800 px-5 bg-white dark:bg-[#1e1e21]/30 overflow-x-auto">
+        <div className="flex border-b border-slate-200 dark:border-zinc-800 px-5 bg-white dark:bg-rm-cartao-escuro/30 overflow-x-auto">
           {[
             { id: 'canais', label: `Canais (${empresa.canais?.length || 0})` },
             { id: 'observacoes', label: `Observações (${empresa.observacoes?.length || 0})` },
@@ -288,7 +288,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
               onClick={() => setActiveSubTab(subTab.id)}
               className={`py-3 px-3 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
                 activeSubTab === subTab.id
-                  ? 'border-[#4d7c0f] dark:border-[#84cc16] text-[#4d7c0f] dark:text-[#84cc16]'
+                  ? 'border-rm-acento dark:border-rm-acento-escuro text-rm-acento dark:text-rm-acento-escuro'
                   : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -305,7 +305,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
           {/* ============================================================================== */}
           {activeSubTab === 'canais' && (
             <div className="space-y-5">
-              <div className="p-4 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-[#1e1e21]/40 space-y-3">
+              <div className="p-4 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-rm-cartao-escuro/40 space-y-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300">
                   Vincular Canal Contratado
                 </h3>
@@ -319,7 +319,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                       <select
                         value={selectedCanalId}
                         onChange={(e) => setSelectedCanalId(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-white dark:bg-[#1e1e21] border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none"
+                        className="w-full px-3 py-2 rounded-lg bg-white dark:bg-rm-cartao-escuro border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none"
                       >
                         {catalogoCanais.map((canal) => (
                           <option key={canal.id} value={canal.id}>
@@ -338,7 +338,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                         value={canalNumero}
                         onChange={(e) => setCanalNumero(e.target.value)}
                         placeholder="+55 11 99999-0000 ou ID"
-                        className="w-full px-3 py-2 rounded-lg bg-white dark:bg-[#1e1e21] border border-slate-200 dark:border-zinc-700 text-xs placeholder-slate-400 focus:outline-none"
+                        className="w-full px-3 py-2 rounded-lg bg-white dark:bg-rm-cartao-escuro border border-slate-200 dark:border-zinc-700 text-xs placeholder-slate-400 focus:outline-none"
                       />
                     </div>
                   </div>
@@ -352,7 +352,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                       value={canalObs}
                       onChange={(e) => setCanalObs(e.target.value)}
                       placeholder="Ex: Número exclusivo para setor de cobrança"
-                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-[#1e1e21] border border-slate-200 dark:border-zinc-700 text-xs placeholder-slate-400 focus:outline-none"
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-rm-cartao-escuro border border-slate-200 dark:border-zinc-700 text-xs placeholder-slate-400 focus:outline-none"
                     />
                   </div>
 
@@ -360,7 +360,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                     <button
                       type="submit"
                       disabled={loadingCanal}
-                      className="px-3.5 py-1.5 rounded-lg bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-semibold text-xs transition-all shadow-sm"
+                      className="px-3.5 py-1.5 rounded-lg bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-semibold text-xs transition-all shadow-sm"
                     >
                       {loadingCanal ? 'Vinculando...' : 'Adicionar Canal'}
                     </button>
@@ -382,12 +382,12 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                     {empresa.canais.map((c) => (
                       <div
                         key={c.canal_id}
-                        className="p-3.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#1e1e21]/60 flex items-center justify-between gap-3"
+                        className="p-3.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-rm-cartao-escuro/60 flex items-center justify-between gap-3"
                       >
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-slate-900 dark:text-white">{c.nome}</span>
-                            <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border border-slate-200 dark:border-zinc-700">
+                            <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-rm-campo-escuro text-slate-600 dark:text-zinc-400 border border-slate-200 dark:border-zinc-700">
                               {c.tipo.toUpperCase()}
                             </span>
                           </div>
@@ -403,7 +403,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
 
                         <button
                           onClick={() => handleRemoverCanal(c.canal_id)}
-                          className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all"
+                          className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-rm-campo-escuro transition-all"
                           title="Remover canal"
                         >
                           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -423,7 +423,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
           {/* ============================================================================== */}
           {activeSubTab === 'observacoes' && (
             <div className="space-y-5">
-              <div className="p-4 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-[#1e1e21]/40 space-y-3">
+              <div className="p-4 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-rm-cartao-escuro/40 space-y-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300">
                   Nova Observação / Registro
                 </h3>
@@ -435,7 +435,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                       value={novaObsTitulo}
                       onChange={(e) => setNovaObsTitulo(e.target.value)}
                       placeholder="Título da observação (ex: Regra de atendimento / particularidade)"
-                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-[#1e1e21] border border-slate-200 dark:border-zinc-700 text-xs placeholder-slate-400 focus:outline-none"
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-rm-cartao-escuro border border-slate-200 dark:border-zinc-700 text-xs placeholder-slate-400 focus:outline-none"
                     />
                   </div>
 
@@ -446,7 +446,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                       onChange={(e) => setNovaObsConteudo(e.target.value)}
                       placeholder="Detalhes e histórico da observação..."
                       required
-                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-[#1e1e21] border border-slate-200 dark:border-zinc-700 text-xs placeholder-slate-400 focus:outline-none"
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-rm-cartao-escuro border border-slate-200 dark:border-zinc-700 text-xs placeholder-slate-400 focus:outline-none"
                     />
                   </div>
 
@@ -454,7 +454,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                     <button
                       type="submit"
                       disabled={loadingObs}
-                      className="px-3.5 py-1.5 rounded-lg bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-semibold text-xs shadow-sm"
+                      className="px-3.5 py-1.5 rounded-lg bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-semibold text-xs shadow-sm"
                     >
                       {loadingObs ? 'Salvando...' : 'Registrar Observação'}
                     </button>
@@ -476,7 +476,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                     {empresa.observacoes.map((obs) => (
                       <div
                         key={obs.id}
-                        className="p-3.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#1e1e21]/60 space-y-1.5"
+                        className="p-3.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-rm-cartao-escuro/60 space-y-1.5"
                       >
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold text-slate-900 dark:text-white">
@@ -513,12 +513,12 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
           {/* ============================================================================== */}
           {activeSubTab === 'credenciais' && (
             <div className="space-y-5">
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#1e1e21]/50 border border-slate-200 dark:border-zinc-800 text-xs text-slate-600 dark:text-zinc-400">
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-rm-cartao-escuro/50 border border-slate-200 dark:border-zinc-800 text-xs text-slate-600 dark:text-zinc-400">
                 <span className="font-semibold text-slate-800 dark:text-zinc-200 block mb-0.5">Segurança & Auditoria LGPD</span>
                 O acesso a esta senha é restrito à equipe técnica de suporte. Cada visualização ou alteração é registrada no rastro de auditoria com seu e-mail e data/hora.
               </div>
 
-              <div className="p-5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#1e1e21]/40 space-y-4">
+              <div className="p-5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-rm-cartao-escuro/40 space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-zinc-200">
                     Acesso Técnico
@@ -527,7 +527,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                   {!editandoCredenciais ? (
                     <button
                       onClick={() => setEditandoCredenciais(true)}
-                      className="px-3 py-1 rounded-lg border border-slate-200 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 transition-all"
+                      className="px-3 py-1 rounded-lg border border-slate-200 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-rm-campo-escuro text-xs font-semibold text-slate-700 dark:text-zinc-300 transition-all"
                     >
                       Alterar Credenciais
                     </button>
@@ -543,7 +543,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
 
                 {!editandoCredenciais ? (
                   <div className="space-y-3">
-                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-[#1e1e21] border border-slate-200 dark:border-zinc-800">
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-rm-cartao-escuro border border-slate-200 dark:border-zinc-800">
                       <span className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block mb-0.5">
                         E-mail de Administrador
                       </span>
@@ -552,7 +552,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                       </span>
                     </div>
 
-                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-[#1e1e21] border border-slate-200 dark:border-zinc-800">
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-rm-cartao-escuro border border-slate-200 dark:border-zinc-800">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 uppercase tracking-wider">
                           Senha de Suporte
@@ -567,7 +567,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                       <div className="flex items-center justify-between gap-2 mt-1">
                         <span className="font-mono text-sm tracking-wider text-slate-900 dark:text-white select-all">
                           {revelarSenha ? (
-                            <span className="text-[#4d7c0f] dark:text-[#84cc16] font-bold">{senhaSuporte || 'Sem senha configurada'}</span>
+                            <span className="text-rm-acento dark:text-rm-acento-escuro font-bold">{senhaSuporte || 'Sem senha configurada'}</span>
                           ) : (
                             <span>{maskPassword(senhaSuporte)}</span>
                           )}
@@ -577,7 +577,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                           <button
                             type="button"
                             onClick={handleToggleRevelarSenha}
-                            className="px-2.5 py-1 rounded-lg bg-slate-200/80 dark:bg-zinc-800 text-[11px] font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-300 transition-all"
+                            className="px-2.5 py-1 rounded-lg bg-slate-200/80 dark:bg-rm-campo-escuro text-[11px] font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-300 transition-all"
                           >
                             {revelarSenha ? 'Ocultar' : 'Ver Senha'}
                           </button>
@@ -585,7 +585,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                           <button
                             type="button"
                             onClick={handleCopiarSenha}
-                            className="px-2.5 py-1 rounded-lg bg-slate-200/80 dark:bg-zinc-800 text-[11px] font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-300 transition-all"
+                            className="px-2.5 py-1 rounded-lg bg-slate-200/80 dark:bg-rm-campo-escuro text-[11px] font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-300 transition-all"
                           >
                             {copiado ? 'Copiado!' : 'Copiar'}
                           </button>
@@ -605,7 +605,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                         onChange={(e) => setAdminEmail(e.target.value)}
                         placeholder="admin@empresa.com.br"
                         required
-                        className="w-full px-3 py-2 rounded-lg bg-white dark:bg-[#1e1e21] border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none"
+                        className="w-full px-3 py-2 rounded-lg bg-white dark:bg-rm-cartao-escuro border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none"
                       />
                     </div>
 
@@ -617,7 +617,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                         <button
                           type="button"
                           onClick={() => setSenhaSuporte(generateSecurePassword(16))}
-                          className="text-[11px] text-[#4d7c0f] dark:text-[#84cc16] hover:underline"
+                          className="text-[11px] text-rm-acento dark:text-rm-acento-escuro hover:underline"
                         >
                           Gerar Senha Segura
                         </button>
@@ -628,7 +628,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                         onChange={(e) => setSenhaSuporte(e.target.value)}
                         placeholder="Nova senha"
                         required
-                        className="w-full px-3 py-2 rounded-lg bg-white dark:bg-[#1e1e21] border border-slate-200 dark:border-zinc-700 text-xs font-mono focus:outline-none"
+                        className="w-full px-3 py-2 rounded-lg bg-white dark:bg-rm-cartao-escuro border border-slate-200 dark:border-zinc-700 text-xs font-mono focus:outline-none"
                       />
                     </div>
 
@@ -643,7 +643,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                       <button
                         type="submit"
                         disabled={loadingCred}
-                        className="px-4 py-1.5 rounded-lg bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-semibold text-xs shadow-sm"
+                        className="px-4 py-1.5 rounded-lg bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-semibold text-xs shadow-sm"
                       >
                         {loadingCred ? 'Salvando...' : 'Salvar Senha'}
                       </button>
@@ -659,7 +659,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
           {/* ============================================================================== */}
           {activeSubTab === 'checklist' && (
             <div className="space-y-5">
-              <div className="p-4 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-[#1e1e21]/40 space-y-2.5">
+              <div className="p-4 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-rm-cartao-escuro/40 space-y-2.5">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300">
                   Formato de Conversa no Servidor
                 </h3>
@@ -670,8 +670,8 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                     onClick={() => handleAlterarFormato('colaborativo')}
                     className={`p-3 rounded-xl border text-left transition-all ${
                       formatoAtendimento === 'colaborativo'
-                        ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#f7fee7] dark:bg-[#84cc16]/10 text-slate-900 dark:text-white'
-                        : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#1e1e21]/50 text-slate-600 dark:text-zinc-400 hover:border-slate-300'
+                        ? 'border-rm-acento dark:border-rm-acento-escuro bg-[#f7fee7] dark:bg-rm-acento-escuro/10 text-slate-900 dark:text-white'
+                        : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-rm-cartao-escuro/50 text-slate-600 dark:text-zinc-400 hover:border-slate-300'
                     }`}
                   >
                     <span className="text-xs font-bold block mb-0.5">Formato Colaborativo</span>
@@ -685,8 +685,8 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                     onClick={() => handleAlterarFormato('individual')}
                     className={`p-3 rounded-xl border text-left transition-all ${
                       formatoAtendimento === 'individual'
-                        ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#f7fee7] dark:bg-[#84cc16]/10 text-slate-900 dark:text-white'
-                        : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#1e1e21]/50 text-slate-600 dark:text-zinc-400 hover:border-slate-300'
+                        ? 'border-rm-acento dark:border-rm-acento-escuro bg-[#f7fee7] dark:bg-rm-acento-escuro/10 text-slate-900 dark:text-white'
+                        : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-rm-cartao-escuro/50 text-slate-600 dark:text-zinc-400 hover:border-slate-300'
                     }`}
                   >
                     <span className="text-xs font-bold block mb-0.5">Formato Individual</span>
@@ -711,8 +711,8 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                       key={item.id}
                       className={`p-3.5 rounded-xl border transition-all ${
                         item.concluido
-                          ? 'border-[#4d7c0f]/30 dark:border-[#84cc16]/30 bg-emerald-50/20 dark:bg-emerald-950/10'
-                          : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#1e1e21]/50'
+                          ? 'border-rm-acento/30 dark:border-rm-acento-escuro/30 bg-emerald-50/20 dark:bg-emerald-950/10'
+                          : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-rm-cartao-escuro/50'
                       }`}
                     >
                       <div className="flex items-start gap-2.5">
@@ -720,7 +720,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                           type="checkbox"
                           checked={item.concluido}
                           onChange={() => handleToggleChecklist(item)}
-                          className="mt-1 w-4 h-4 accent-[#4d7c0f] dark:accent-[#84cc16] cursor-pointer rounded"
+                          className="mt-1 w-4 h-4 accent-rm-acento dark:accent-rm-acento-escuro cursor-pointer rounded"
                         />
                         <div className="flex-1">
                           <span className={`text-xs font-semibold ${
@@ -747,7 +747,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                 {/* Adicionar Requisito Customizado */}
                 <form
                   onSubmit={handleAdicionarRequisitoCustom}
-                  className="p-3.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50/40 dark:bg-[#1e1e21]/30 space-y-2.5"
+                  className="p-3.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50/40 dark:bg-rm-cartao-escuro/30 space-y-2.5"
                 >
                   <span className="text-xs font-semibold text-slate-700 dark:text-zinc-300 block">
                     + Adicionar Requisito Personalizado
@@ -758,21 +758,21 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
                       value={novoReqTitulo}
                       onChange={(e) => setNovoReqTitulo(e.target.value)}
                       placeholder="Nome do requisito técnico"
-                      className="px-3 py-1.5 rounded-lg bg-white dark:bg-[#1e1e21] border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none"
+                      className="px-3 py-1.5 rounded-lg bg-white dark:bg-rm-cartao-escuro border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none"
                     />
                     <input
                       type="text"
                       value={novoReqObs}
                       onChange={(e) => setNovoReqObs(e.target.value)}
                       placeholder="Observação (opcional)"
-                      className="px-3 py-1.5 rounded-lg bg-white dark:bg-[#1e1e21] border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none"
+                      className="px-3 py-1.5 rounded-lg bg-white dark:bg-rm-cartao-escuro border border-slate-200 dark:border-zinc-700 text-xs focus:outline-none"
                     />
                   </div>
                   <div className="flex justify-end">
                     <button
                       type="submit"
                       disabled={loadingChecklist}
-                      className="px-3 py-1 rounded-lg bg-slate-200 dark:bg-zinc-800 hover:bg-slate-300 text-xs font-semibold text-slate-700 dark:text-zinc-300 transition-all"
+                      className="px-3 py-1 rounded-lg bg-slate-200 dark:bg-rm-campo-escuro hover:bg-slate-300 text-xs font-semibold text-slate-700 dark:text-zinc-300 transition-all"
                     >
                       Adicionar
                     </button>

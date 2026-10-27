@@ -7,6 +7,20 @@ import { permissoesEfetivas, podeVerDemanda } from './perfis';
 let audioCtx = null;
 let activeLoopInterval = null;
 
+// O navegador só libera som depois de um clique ou tecla na página: destrava o áudio na primeira interação,
+// senão o primeiro aviso (e às vezes todos, se a aba ficou parada) sai mudo
+if (typeof window !== 'undefined') {
+  const destravar = () => {
+    const ctx = getAudioContext();
+    if (ctx && ctx.state === 'running') {
+      window.removeEventListener('pointerdown', destravar, true);
+      window.removeEventListener('keydown', destravar, true);
+    }
+  };
+  window.addEventListener('pointerdown', destravar, true);
+  window.addEventListener('keydown', destravar, true);
+}
+
 function getAudioContext() {
   if (typeof window === 'undefined') return null;
   if (!audioCtx) {
@@ -205,13 +219,15 @@ export function playNotificationTone(tipo = 'harmonico') {
 // A Fila de Demandas continua com a configuração acima (getAudioConfig).
 // ------------------------------------------------------------------------------
 export const SONS_DOS_MODULOS = {
-  chat: { habilitado: true, tipoSom: 'mensagem', modoRepeticao: 'uma_vez', intervaloSegundos: 30 },
+  chat: { habilitado: true, tipoSom: 'mensagem', modoRepeticao: 'uma_vez', intervaloSegundos: 30, grupos: true },
   reunioes: { habilitado: true, tipoSom: 'reuniao', modoRepeticao: 'uma_vez', intervaloSegundos: 30 },
 };
 const TOQUES = ['harmonico', 'dinamico', 'sino', 'incisivo', 'mensagem', 'reuniao'];
 const MODOS = ['uma_vez', 'intermitente', 'intervalo'];
 
 export function getSomDoModulo(modulo) {
+  // Fila de Demandas: a configuração de sempre (rm_audio_*), com as mesmas opções dos outros módulos
+  if (modulo === 'fila') return getAudioConfig();
   const padrao = SONS_DOS_MODULOS[modulo] || SONS_DOS_MODULOS.chat;
   if (typeof window === 'undefined') return { ...padrao };
   let salvo = {};
@@ -225,10 +241,12 @@ export function getSomDoModulo(modulo) {
     tipoSom: TOQUES.includes(salvo.tipoSom) ? salvo.tipoSom : padrao.tipoSom,
     modoRepeticao: MODOS.includes(salvo.modoRepeticao) ? salvo.modoRepeticao : padrao.modoRepeticao,
     intervaloSegundos: Math.min(300, Math.max(5, parseInt(salvo.intervaloSegundos, 10) || padrao.intervaloSegundos)),
+    ...(padrao.grupos !== undefined ? { grupos: typeof salvo.grupos === 'boolean' ? salvo.grupos : padrao.grupos } : {}),
   };
 }
 
 export function setSomDoModulo(modulo, config) {
+  if (modulo === 'fila') return setAudioConfig(config);
   if (typeof window === 'undefined' || !SONS_DOS_MODULOS[modulo]) return;
   try {
     localStorage.setItem(`rm_som_${modulo}`, JSON.stringify({ ...getSomDoModulo(modulo), ...config }));

@@ -116,7 +116,7 @@ export default function InternalDemandsKanbanModal({ isOpen, onClose, userEmail 
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 12 }}
         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-7xl h-[92vh] rounded-[32px] bg-white dark:bg-[#1e1e21] border border-black/10 dark:border-white/15 p-5 sm:p-7 shadow-2xl flex flex-col justify-between text-[#1d1d1f] dark:text-[#f5f5f7] relative overflow-hidden"
+        className="w-full max-w-7xl h-[92vh] rounded-[32px] bg-white dark:bg-rm-cartao-escuro border border-black/10 dark:border-white/15 p-5 sm:p-7 shadow-2xl flex flex-col justify-between text-[#1d1d1f] dark:text-[#f5f5f7] relative overflow-hidden"
       >
         {/* Header do Kanban */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-black/[0.06] dark:border-white/[0.11] pb-4 flex-shrink-0">
@@ -145,7 +145,7 @@ export default function InternalDemandsKanbanModal({ isOpen, onClose, userEmail 
                 onClick={() => setFiltroTipo('todos')}
                 className={`px-3 py-1 rounded-full text-xs font-semibold cursor-pointer transition-all ${
                   filtroTipo === 'todos'
-                    ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-xs font-bold'
+                    ? 'bg-white dark:bg-rm-campo-escuro text-[#1d1d1f] dark:text-white shadow-xs font-bold'
                     : 'text-slate-500 hover:text-black dark:hover:text-white'
                 }`}
               >
@@ -214,7 +214,7 @@ export default function InternalDemandsKanbanModal({ isOpen, onClose, userEmail 
                   }}
                   className={`rounded-3xl p-3.5 border flex flex-col h-full shadow-2xs transition-all ${
                     colunaArrastando === col.id
-                      ? 'border-[#4d7c0f] dark:border-[#84cc16] ring-2 ring-[#4d7c0f]/30 bg-[#4d7c0f]/[0.04]'
+                      ? 'border-rm-acento dark:border-rm-acento-escuro ring-2 ring-rm-acento/30 bg-rm-acento/[0.04]'
                       : 'bg-black/[0.015] dark:bg-white/[0.02] border-black/[0.05] dark:border-white/[0.09]'
                   }`}
                 >
@@ -249,7 +249,7 @@ export default function InternalDemandsKanbanModal({ isOpen, onClose, userEmail 
                               e.dataTransfer.setData('text/plain', fb.id);
                               e.dataTransfer.effectAllowed = 'move';
                             }}
-                            className="p-3.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/[0.06] dark:border-white/[0.11] space-y-2.5 shadow-2xs hover:shadow-sm transition-all cursor-grab active:cursor-grabbing hover:border-black/20 dark:hover:border-white/20 select-none"
+                            className="p-3.5 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/[0.06] dark:border-white/[0.11] space-y-2.5 shadow-2xs hover:shadow-sm transition-all cursor-grab active:cursor-grabbing hover:border-black/20 dark:hover:border-white/20 select-none"
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex items-center gap-1.5 flex-wrap">
@@ -332,7 +332,7 @@ export default function InternalDemandsKanbanModal({ isOpen, onClose, userEmail 
                                       const nextIdx = colunas.findIndex((c) => c.id === col.id) + 1;
                                       if (nextIdx < colunas.length) handleMudarStatus(fb.id, colunas[nextIdx].id);
                                     }}
-                                    className="px-2.5 py-1 rounded-lg bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 hover:bg-[#4d7c0f]/25 text-[#4d7c0f] dark:text-[#84cc16] font-bold cursor-pointer transition-all"
+                                    className="px-2.5 py-1 rounded-lg bg-rm-acento/15 dark:bg-rm-acento-escuro/20 hover:bg-rm-acento/25 text-rm-acento dark:text-rm-acento-escuro font-bold cursor-pointer transition-all"
                                     title="Avançar etapa"
                                   >
                                     →

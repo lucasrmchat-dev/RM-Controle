@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { BrandMark } from './BrandMark';
 import PerfilPainel from './PerfilPainel';
 import CentralNotificacoes from './CentralNotificacoes';
@@ -22,25 +22,15 @@ import {
 } from '@/lib/storage';
 import { contarConversasNovas } from '@/lib/canais';
 import { analisarConversas, chatEsperando } from '@/lib/vigiaChat';
-import { pararSomDoModulo, tocarSomDoModulo } from '@/lib/audioNotifications';
+import { getSomDoModulo, pararSomDoModulo, tocarSomDoModulo } from '@/lib/audioNotifications';
 import { notificar } from '@/lib/notificacoes';
 import { permissoesEfetivas, podeVerDemanda } from '@/lib/perfis';
 import { ROTULOS_PAPEL } from '@/lib/roles';
-import { SupportQueueIcon, CalendarIcon, BuildingIcon } from './Icons';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 // Mola única do cabeçalho: tudo se move junto, como uma peça só
 const MOLA = { type: 'spring', bounce: 0.2, duration: 0.55 };
-const ROTULO = { type: 'spring', bounce: 0, duration: 0.38 };
 
-const IconeDashboard = () => (
-  <svg className="w-[17px] h-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-    <rect width="7" height="9" x="3" y="3" rx="1.5" />
-    <rect width="7" height="5" x="14" y="3" rx="1.5" />
-    <rect width="7" height="9" x="14" y="12" rx="1.5" />
-    <rect width="7" height="5" x="3" y="16" rx="1.5" />
-  </svg>
-);
 /** Ícones das abas: todos no mesmo traço (1,75) e tamanho, no estilo dos símbolos da Apple. */
 const ICONES_ABA = {
   chat: ['M21 12a8.5 8.5 0 0 1-12.6 7.45L3 21l1.55-5.4A8.5 8.5 0 1 1 21 12z', 'M8.5 10.5h7M8.5 13.5h4.5'],
@@ -49,8 +39,32 @@ const ICONES_ABA = {
   comercial: ['M3 17.5l6-6 4 4 8-8', 'M15 7.5h6v6'],
   dashboard: ['M4 20V10', 'M10 20V4', 'M16 20v-7', 'M21 20H3'],
   feedbacks: ['M9 18h6', 'M10 21.5h4', 'M12 2.5a6.5 6.5 0 0 0-4 11.6c.6.5 1 1.2 1 2V16h6v-.1c0-.8.4-1.5 1-2A6.5 6.5 0 0 0 12 2.5z'],
+  daily: ['M9 4.5H7a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6.5a2 2 0 0 0-2-2h-2', 'M9 3.5h6v3H9z', 'M8.5 12.5l2 2 4-4.5', 'M8.5 17.5h7'],
   canais: ['M7.5 2.5h9a1.5 1.5 0 0 1 1.5 1.5v16a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 20V4a1.5 1.5 0 0 1 1.5-1.5z', 'M11 18.5h2', 'M9.5 9.5a3.5 3.5 0 0 1 5 0M10.8 11.6a1.6 1.6 0 0 1 2.4 0'],
 };
+const ILHA =
+  'bg-white/85 dark:bg-rm-elevado-escuro/85 border border-black/[0.07] dark:border-white/[0.11] shadow-[0_8px_24px_-14px_rgba(0,0,0,0.18)] dark:shadow-[0_12px_32px_-14px_rgba(0,0,0,0.7)]';
+
+/** Categorias do cabeçalho: cada uma junta abas parecidas (com uma aba só, vira a própria aba). */
+const GRUPOS = [
+  { id: 'atendimento', label: 'Atendimento', icone: 'chat', itens: ['chat', 'conexoes'] },
+  { id: 'demandas', label: 'Demandas', icone: 'fila', itens: ['fila', 'agenda'] },
+  { id: 'gestao', label: 'Gestão', icone: 'dashboard', itens: ['dashboard', 'daily', 'comercial'] },
+];
+// Feedbacks fica no menu da conta (entre Configurações gerais e Sair)
+
+/** Contador numa aba ou categoria (fora do Navbar: o tipo do componente não muda a cada renderização). */
+const Selo = ({ valor, destaque }) =>
+  valor ? (
+    <span
+      className={`relative min-w-[18px] h-[18px] px-1.5 rounded-full text-[11px] font-semibold tabular-nums flex items-center justify-center ${
+        destaque ? 'bg-amber-500/15 text-amber-700 dark:bg-amber-400/20 dark:text-amber-300' : 'bg-black/[0.06] dark:bg-white/[0.12] text-slate-600 dark:text-zinc-300'
+      }`}
+    >
+      {valor > 99 ? '99+' : valor}
+    </span>
+  ) : null;
+
 const IconeAba = ({ d }) => (
   <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     {d.map((p) => (
@@ -69,97 +83,10 @@ const Dica = ({ texto, children }) => (
   </span>
 );
 
-const IconeFeedbacks = () => (
-  <svg className="w-[17px] h-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-  </svg>
-);
-const IconeRetroativo = () => (
-  <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
-    <path d="M3 3v5h5" />
-    <path d="M12 7v5l3 2" />
-  </svg>
-);
 
-/** Dispara uma ação da Fila de Demandas (o componente da fila escuta e abre o que for preciso). */
-const acaoFila = (acao) => window.dispatchEvent(new CustomEvent('rm_fila_acao', { detail: acao }));
-
-// Linha central do cabeçalho (top 12px + metade dos 54px de altura)
-const CENTRO_CABECALHO = 39;
+// Barra do topo (computador): altura e linha central (as ações da fila encaixam ao cruzar esta linha)
+const ALTURA_CABECALHO = 64;
 const VOO = { duration: 520, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
-
-const centro = (el) => {
-  const r = el.getBoundingClientRect();
-  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-};
-
-/**
- * As ações da fila no cabeçalho. Ao aparecer, cada botão começa exatamente onde está o botão
- * equivalente da página e desliza até aqui (os da página ficam ocultos enquanto isso).
- */
-// forwardRef: o AnimatePresence em modo popLayout precisa medir este elemento ao sair
-const IlhaAcoesFila = React.forwardRef(function IlhaAcoesFila({ classeIlha, comRotulo }, refExterno) {
-  const ref = useRef(null);
-  const juntarRefs = (el) => {
-    ref.current = el;
-    if (typeof refExterno === 'function') refExterno(el);
-    else if (refExterno) refExterno.current = el;
-  };
-  // O React (modo estrito, em desenvolvimento) roda o efeito duas vezes; a segunda anularia o voo
-  const voou = useRef(false);
-  useLayoutEffect(() => {
-    if (voou.current) return;
-    voou.current = true;
-    ref.current?.querySelectorAll('[data-acao]').forEach((el) => {
-      const origem = document.querySelector(`#fila-acoes-topo [data-acao-fila="${el.dataset.acao}"]`);
-      if (!origem || !el.animate) return;
-      const de = centro(origem);
-      const para = centro(el);
-      el.animate([{ transform: `translate(${de.x - para.x}px, ${de.y - para.y}px)` }, { transform: 'translate(0, 0)' }], VOO);
-    });
-  }, []);
-
-  const botao =
-    'h-10 px-3 rounded-full flex items-center gap-2 text-[13px] font-medium text-[#1d1d1f] dark:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.1] cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4d7c0f]/40';
-  return (
-    <motion.div
-      ref={juntarRefs}
-      key="acoes-fila"
-      layout
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0, transition: { duration: 0.14 } }}
-      transition={{ opacity: { duration: 0.2 }, layout: MOLA }}
-      style={{ borderRadius: 999 }}
-      className={`${classeIlha} h-[54px] flex items-center gap-1 px-1.5`}
-    >
-      <button type="button" data-acao="empresas" onClick={() => acaoFila('empresas')} title="Ver empresas" className={botao}>
-        <BuildingIcon className="w-[15px] h-[15px]" />
-        {comRotulo && 'Empresas'}
-      </button>
-      <button type="button" data-acao="retroativo" onClick={() => acaoFila('retroativo')} title="Registrar suporte retroativo" className={botao}>
-        <IconeRetroativo />
-        {comRotulo && 'Retroativo'}
-      </button>
-      <button
-        type="button"
-        data-acao="nova"
-        onClick={() => acaoFila('nova')}
-        className="h-10 pl-3 pr-4 rounded-full flex items-center gap-1.5 text-[13px] font-semibold bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 hover:opacity-90 cursor-pointer transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4d7c0f]/40"
-      >
-        <span className="text-[17px] leading-none -mt-px">+</span>
-        Nova demanda
-      </button>
-    </motion.div>
-  );
-});
-
-/** Avisa a fila se os botões do topo estão no cabeçalho; ao voltar, envia de onde cada um parte. */
-function anunciarEncaixe(encaixado, origens = null) {
-  window.__rmFilaAcoesNoCabecalho = encaixado;
-  window.dispatchEvent(new CustomEvent('rm_fila_acoes_cabecalho', { detail: { encaixado, origens } }));
-}
 
 function useLarguraTela() {
   const [largura, setLargura] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
@@ -182,44 +109,36 @@ export default function Navbar({
   inactivityTimeLeft,
   showMockData,
   setShowMockData,
-  acoesFila = false,
 }) {
   const [perfilAberto, setPerfilAberto] = useState(false);
-  // Cabeçalho recolhido (computador): a ilha encolhe para símbolo, sino e conta, e a tela ganha a altura toda
-  const [recolhido, setRecolhido] = useState(false);
-  // Recolhido, a ilha sobe e some (como a barra de menus do Mac em tela cheia); o mouse no topo traz de volta
-  const [revelado, setRevelado] = useState(false);
-  const esconder = useRef(null);
-  const revelar = () => {
-    clearTimeout(esconder.current);
-    setRevelado(true);
-  };
-  const agendarEsconder = () => {
-    clearTimeout(esconder.current);
-    esconder.current = setTimeout(() => setRevelado(false), 650);
-  };
-  const preferenciaLida = useRef(false);
+  const [grupoAberto, setGrupoAberto] = useState(null);
+  // A ilha fica SEMPRE no mesmo lugar (topo, centro). As telas reservam o meio da linha de título com a
+  // largura dela (--rm-ilha-largura, ver EncaixeCabecalho); em telas menores que 1024px há uma faixa no topo.
+  const ilhaRef = useRef(null);
   useEffect(() => {
     try {
-      if (localStorage.getItem('rm_cabecalho_recolhido') === 'sim') setRecolhido(true);
+      localStorage.removeItem('rm_cabecalho_recolhido');
     } catch {}
-    preferenciaLida.current = true;
+    const raiz = document.documentElement;
+    const medir = () => {
+      raiz.style.setProperty('--rm-cabecalho', window.innerWidth >= 1024 ? '0px' : `${ALTURA_CABECALHO}px`);
+      if (ilhaRef.current?.offsetWidth) raiz.style.setProperty('--rm-ilha-largura', `${ilhaRef.current.offsetWidth}px`);
+    };
+    medir();
+    window.addEventListener('resize', medir);
+    const tamanho = typeof ResizeObserver !== 'undefined' && ilhaRef.current ? new ResizeObserver(medir) : null;
+    if (tamanho) tamanho.observe(ilhaRef.current);
+    return () => {
+      window.removeEventListener('resize', medir);
+      tamanho?.disconnect();
+    };
   }, []);
-  useEffect(() => {
-    document.documentElement.style.setProperty('--rm-cabecalho', recolhido ? '0px' : '78px');
-    if (!preferenciaLida.current) return;
-    try {
-      localStorage.setItem('rm_cabecalho_recolhido', recolhido ? 'sim' : 'nao');
-    } catch {}
-  }, [recolhido]);
   const [totalFila, setTotalFila] = useState(0);
   const [totalReunioesHoje, setTotalReunioesHoje] = useState(0);
   // Conversas do Chat com mensagens novas e notificações não lidas (aparecem também com o cabeçalho recolhido)
   const [totalChat, setTotalChat] = useState(0);
   const [notificacoesNovas, setNotificacoesNovas] = useState(0);
   const [userRole, setUserRole] = useState('administrador');
-  const [encaixado, setEncaixado] = useState(false);
-  const encaixadoRef = useRef(false);
   const perfilRef = useRef(null);
   const largura = useLarguraTela();
 
@@ -255,14 +174,19 @@ export default function Navbar({
     const processar = (conversas, config) => {
       ultimas = conversas;
       setTotalChat(contarConversasNovas(conversas, config));
-      const { proximo, avisos } = analisarConversas(vigiaChat.current, conversas, { email });
+      const grupos = Boolean(getSomDoModulo('chat').grupos);
+      const { proximo, avisos } = analisarConversas(vigiaChat.current, conversas, { email, grupos });
       vigiaChat.current = proximo;
       if (!avisos.length) return;
-      avisos.forEach((a) => notificar({ id: `chat-${a.chave}`, tipo: 'chat', titulo: a.titulo, detalhe: a.detalhe, aba: 'chat' }));
+      // Um aviso por conversa na central; a conversa aberta na tela (e a aba visível) só toca o som
+      const vendo = document.visibilityState === 'visible' ? window.__rmChatAberta : null;
+      avisos
+        .filter((a) => a.conversaId !== vendo)
+        .forEach((a) => notificar({ id: `chat-${a.chave}`, tipo: 'chat', titulo: a.titulo, detalhe: a.detalhe, aba: 'chat', grupo: `chat-${a.conversaId}`, alvo: { conversaId: a.conversaId } }));
       // Som do Chat (Configurações › Sons e alertas). A repetição para quando não houver mais nada sem ler;
       // na conversa aberta (que já chega lida), para quando a pessoa voltar a mexer no computador
       const naAberta = avisos.some((a) => a.conversaId === window.__rmChatAberta);
-      tocarSomDoModulo('chat', naAberta ? {} : { aindaPendente: () => chatEsperando(ultimas, { email }) });
+      tocarSomDoModulo('chat', naAberta ? {} : { aindaPendente: () => chatEsperando(ultimas, { email, grupos: Boolean(getSomDoModulo('chat').grupos) }) });
     };
     let aoVivo = null;
     let espera = null;
@@ -312,43 +236,6 @@ export default function Navbar({
     return () => eventos.forEach((ev) => window.removeEventListener(ev, checarEstado));
   }, []);
 
-  // Rolagem: na fila, quando os botões do topo da página chegam à linha do cabeçalho, eles passam
-  // para a ilha ao lado (e voltam ao descer). Só troca estado ao cruzar a linha, então rolar não re-renderiza.
-  useEffect(() => {
-    let quadro = 0;
-    const medir = () => {
-      quadro = 0;
-      const topo = acoesFila ? document.getElementById('fila-acoes-topo') : null;
-      let novo = false;
-      if (topo) {
-        const { y } = centro(topo);
-        novo = encaixadoRef.current ? y <= CENTRO_CABECALHO + 6 : y <= CENTRO_CABECALHO;
-      }
-      if (novo === encaixadoRef.current) return;
-      // Ao desencaixar, guarda onde cada botão estava no cabeçalho para a volta partir dali
-      let origens = null;
-      if (!novo) {
-        origens = {};
-        document.querySelectorAll('header [data-acao]').forEach((el) => {
-          origens[el.dataset.acao] = centro(el);
-        });
-      }
-      encaixadoRef.current = novo;
-      setEncaixado(novo);
-      anunciarEncaixe(novo, topo ? origens : null);
-    };
-    const aoRolar = () => {
-      if (!quadro) quadro = requestAnimationFrame(medir);
-    };
-    medir();
-    window.addEventListener('scroll', aoRolar, { passive: true });
-    window.addEventListener('resize', aoRolar);
-    return () => {
-      window.removeEventListener('scroll', aoRolar);
-      window.removeEventListener('resize', aoRolar);
-      if (quadro) cancelAnimationFrame(quadro);
-    };
-  }, [acoesFila, activeTab]);
 
   useEffect(() => {
     if (!perfilAberto) return undefined;
@@ -372,13 +259,14 @@ export default function Navbar({
     .toUpperCase();
 
   const todasAsAbas = [
-    { id: 'chat', label: 'Chat', curto: 'Chat', badge: totalChat || null, icon: <IconeAba d={ICONES_ABA.chat} /> },
-    { id: 'fila', label: 'Fila de Demandas', curto: 'Fila', badge: totalFila || null, icon: <IconeAba d={ICONES_ABA.fila} /> },
-    { id: 'agenda', label: 'Agenda', curto: 'Agenda', badge: totalReunioesHoje || null, icon: <IconeAba d={ICONES_ABA.agenda} /> },
-    { id: 'comercial', label: 'Comercial', curto: 'Comercial', icon: <IconeAba d={ICONES_ABA.comercial} /> },
-    { id: 'dashboard', label: 'Dashboard', curto: 'Métricas', icon: <IconeAba d={ICONES_ABA.dashboard} /> },
-    { id: 'feedbacks', label: 'Feedbacks', curto: 'Feedbacks', icon: <IconeAba d={ICONES_ABA.feedbacks} /> },
-    { id: 'conexoes', label: 'Canais', curto: 'Canais', icon: <IconeAba d={ICONES_ABA.canais} /> },
+    { id: 'chat', label: 'Chat', curto: 'Chat', descricao: 'Conversas do WhatsApp', badge: totalChat || null, icon: <IconeAba d={ICONES_ABA.chat} /> },
+    { id: 'conexoes', label: 'Canais', curto: 'Canais', descricao: 'Números de WhatsApp conectados', icon: <IconeAba d={ICONES_ABA.canais} /> },
+    { id: 'fila', label: 'Fila de Demandas', curto: 'Fila', descricao: 'Demandas dos clientes', badge: totalFila || null, icon: <IconeAba d={ICONES_ABA.fila} /> },
+    { id: 'feedbacks', label: 'Feedbacks', curto: 'Feedbacks', descricao: 'Ideias, melhorias e problemas', icon: <IconeAba d={ICONES_ABA.feedbacks} /> },
+    { id: 'agenda', label: 'Agenda', curto: 'Agenda', descricao: 'Reuniões e Google Agenda', badge: totalReunioesHoje || null, icon: <IconeAba d={ICONES_ABA.agenda} /> },
+    { id: 'daily', label: 'Daily', curto: 'Daily', descricao: 'Resumo das dailies e metas da semana', icon: <IconeAba d={ICONES_ABA.daily} /> },
+    { id: 'dashboard', label: 'Dashboard', curto: 'Métricas', descricao: 'Métricas de atendimento', icon: <IconeAba d={ICONES_ABA.dashboard} /> },
+    { id: 'comercial', label: 'Comercial', curto: 'Comercial', descricao: 'Reuniões e acompanhamento comercial', icon: <IconeAba d={ICONES_ABA.comercial} /> },
     // Plataforma (empresas assinantes e revendas) fica em Configurações, não no cabeçalho
   ];
   const permitidas = getAbasPermitidas(userEmail);
@@ -387,20 +275,21 @@ export default function Navbar({
   const permReal = permissoesEfetivas({ email: userEmail, equipe: getEquipeUsuarios(), perfis: getPerfisAcesso() });
   const rotuloAcesso = permAtual.perfil?.nome || (permAtual.administrador ? 'Administrador' : ROTULOS_PAPEL[userRole] || 'Suporte Técnico');
   const abas = todasAsAbas.filter((t) => permitidas.includes(t.id));
+  const porId = new Map(abas.map((t) => [t.id, t]));
+  // Categorias com o que a pessoa pode ver (vazias somem)
+  const grupos = GRUPOS.map((g) => ({ ...g, abas: g.itens.map((id) => porId.get(id)).filter(Boolean) })).filter((g) => g.abas.length);
   const podeConfigurar = permitidas.includes('configuracoes');
 
   const irPara = (tabId) => {
     setPerfilAberto(false);
+    setGrupoAberto(null);
     setActiveTab(tabId);
     window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
+  // Nomes nas categorias só pela largura da janela (nunca muda sozinho com a tela aberta)
+  const comNome = largura >= 1180;
 
-  const mostrarAcoes = acoesFila && encaixado && !recolhido;
-  const ilhaEscondida = recolhido && !revelado && !perfilAberto;
-  // Com as ações encaixadas, as abas inativas viram só ícone para abrir espaço
-  const rotulosCompletos = largura >= 1180 && !mostrarAcoes;
-  const acoesComRotulo = largura >= 1280;
 
   const painel = (modo) => (
     <PerfilPainel
@@ -420,6 +309,8 @@ export default function Navbar({
       segundosRestantes={inactivityTimeLeft}
       podeConfigurar={podeConfigurar}
       onConfiguracoes={() => irPara('configuracoes')}
+      podeFeedbacks={permitidas.includes('feedbacks')}
+      onFeedbacks={() => irPara('feedbacks')}
       mostrarDemo={showMockData}
       onDemo={setShowMockData}
       onSair={() => {
@@ -429,221 +320,77 @@ export default function Navbar({
     />
   );
 
-  const ilha =
-    'pointer-events-auto bg-white/80 dark:bg-[#232326]/80 backdrop-blur-2xl backdrop-saturate-150 border border-black/[0.07] dark:border-white/[0.11] shadow-[0_10px_30px_-12px_rgba(0,0,0,0.18)] dark:shadow-[0_14px_40px_-12px_rgba(0,0,0,0.75)]';
-
   return (
     <>
       {/* ============================================================================== */}
-      {/* COMPUTADOR: ilha centralizada; na fila, recebe as ações ao lado ao rolar       */}
+      {/* COMPUTADOR: ilha centralizada encaixada no topo (não cobre a tela), categorias    */}
+      {/* com submenu ao passar o mouse; sem recolher                                     */}
       {/* ============================================================================== */}
-      <header className="hidden sm:flex fixed top-3 inset-x-0 z-40 justify-center px-4 lg:px-6 pointer-events-none">
-        {/* Recolhido: faixa sensível no topo e puxador que trazem a ilha de volta */}
-        {recolhido && (
-          <>
-            <div className="pointer-events-auto fixed top-0 left-1/2 -translate-x-1/2 w-[320px] h-[10px]" onMouseEnter={revelar} aria-hidden="true" />
-            {(() => {
-              // Avisos que não podem sumir com o cabeçalho recolhido
-              const avisos = [
-                ...abas.filter((t) => t.badge).map((t) => ({ id: t.id, icone: t.icon, valor: t.badge, rotulo: t.label, cor: t.id === 'fila' ? 'text-amber-700 dark:text-amber-300' : 'text-slate-600 dark:text-zinc-300' })),
-                ...(notificacoesNovas ? [{ id: 'notificacoes', valor: notificacoesNovas, rotulo: 'Notificações', cor: 'text-rose-600 dark:text-rose-400', sino: true }] : []),
-              ];
-              return (
-                <motion.button
-                  type="button"
-                  onClick={() => {
-                    // Clicar no puxador já expande o cabeçalho de vez
-                    setRevelado(false);
-                    setRecolhido(false);
-                  }}
-                  onMouseEnter={revelar}
-                  aria-label={`Expandir o cabeçalho${avisos.length ? ` (${avisos.map((a) => `${a.rotulo}: ${a.valor}`).join(', ')})` : ''}`}
-                  title="Clique para expandir o cabeçalho"
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: ilhaEscondida ? 1 : 0, y: ilhaEscondida ? 0 : -8 }}
-                  transition={MOLA}
-                  className={`pointer-events-auto fixed top-1.5 left-1/2 -translate-x-1/2 flex items-center justify-center cursor-pointer ${
-                    avisos.length ? 'h-7 px-2.5 gap-2.5 rounded-full bg-white/90 dark:bg-[#232326]/90 backdrop-blur-xl ring-1 ring-black/[0.07] dark:ring-white/[0.1] shadow-[0_6px_20px_-8px_rgba(0,0,0,0.3)]' : 'w-16 h-4'
-                  }`}
-                >
-                  {avisos.length ? (
-                    avisos.map((a) => (
-                      <span key={a.id} className={`flex items-center gap-1 text-[11.5px] font-semibold tabular-nums ${a.cor}`}>
-                        {a.sino ? (
-                          <svg className="w-[13px] h-[13px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-                          </svg>
-                        ) : (
-                          <span className="[&_svg]:w-[13px] [&_svg]:h-[13px] flex">{a.icone}</span>
-                        )}
-                        {a.valor > 99 ? '99+' : a.valor}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="w-10 h-[5px] rounded-full bg-black/20 dark:bg-white/25" />
-                  )}
-                </motion.button>
-              );
-            })()}
-          </>
-        )}
-        <LayoutGroup>
-          <motion.div
-            animate={{ y: ilhaEscondida ? -80 : 0 }}
-            transition={MOLA}
-            onMouseEnter={recolhido ? revelar : undefined}
-            onMouseLeave={recolhido ? agendarEsconder : undefined}
-            onFocusCapture={recolhido ? revelar : undefined}
-            className="flex items-center justify-center gap-2 w-full max-w-[1720px]"
-          >
-            <motion.div
-              layout
-              transition={MOLA}
-              style={{ borderRadius: 999 }}
-              className={`${ilha} ${recolhido ? 'h-[48px]' : 'h-[54px]'} flex items-center gap-1 pl-1.5 pr-1.5`}
+      <header className="hidden sm:block">
+        {/* z-[49]: acima de tudo da página (a busca e os filtros da Fila usam z-40, e por virem depois na página
+            cobriam a lista das categorias), mas abaixo das janelas (z-50 em diante) */}
+        <div className="fixed top-2 lg:top-4 left-1/2 -translate-x-1/2 z-[49]">
+          {/* Ilha: marca, categorias, notificações e conta */}
+          <div ref={ilhaRef} data-ilha-cabecalho className={`${ILHA} h-[48px] rounded-full flex items-center gap-1 pl-1 pr-1 backdrop-blur-xl`}>
+            <button
+              type="button"
+              onClick={() => irPara('fila')}
+              aria-label="RM Controle — ir para a Fila de Demandas"
+              className="h-10 w-10 flex items-center justify-center rounded-full cursor-pointer flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rm-acento/40"
             >
-              {/* Marca: só o símbolo */}
-              <motion.button
-                layout="position"
-                transition={MOLA}
+              <BrandMark size={34} />
+            </button>
+
+            <nav aria-label="Seções" className="flex items-center gap-0.5 ml-0.5">
+              {grupos.map((g) => (
+                <CategoriaCabecalho key={g.id} grupo={g} activeTab={activeTab} aberto={grupoAberto === g.id} onAbrir={(v) => setGrupoAberto((atual) => (v ? g.id : atual === g.id ? null : atual))} onIr={irPara} comNome={comNome} />
+              ))}
+            </nav>
+
+            <span className="w-px h-6 bg-black/[0.08] dark:bg-white/[0.12] mx-1" aria-hidden="true" />
+            <Dica texto="Notificações">
+              <CentralNotificacoes embutido onAbrirAba={(aba) => (aba === 'fila' || permitidas.includes(aba)) && irPara(aba)} />
+            </Dica>
+            <div className="relative" ref={perfilRef}>
+              <button
                 type="button"
-                onClick={() => irPara('fila')}
-                aria-label="RM Controle — ir para a Fila de Demandas"
-                className="h-10 w-10 flex items-center justify-center rounded-full cursor-pointer flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4d7c0f]/40"
+                onClick={() => setPerfilAberto((v) => !v)}
+                aria-expanded={perfilAberto}
+                aria-label="Sua conta"
+                className={`h-10 flex items-center gap-2 rounded-full cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rm-acento/40 ${
+                  perfilAberto ? 'bg-black/[0.06] dark:bg-white/[0.12]' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.08]'
+                } px-1`}
               >
-                <BrandMark size={recolhido ? 34 : 36} />
-              </motion.button>
+                <span className="w-8 h-8 rounded-full bg-[#1d1d1f] dark:bg-rm-fundo text-white dark:text-[#1d1d1f] flex items-center justify-center text-[12px] font-semibold">{iniciais}</span>
+              </button>
+              <AnimatePresence>{perfilAberto && largura >= 640 && painel('popover')}</AnimatePresence>
+            </div>
+          </div>
 
-              {/* Abas (recolhido: só os ícones) */}
-              <motion.nav layout="position" transition={MOLA} aria-label="Seções" className="flex items-center gap-0.5 ml-1">
-                {abas.map((tab) => {
-                  const ativa = activeTab === tab.id;
-                  const comRotulo = !recolhido && (ativa || rotulosCompletos);
-                  const botao = (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => irPara(tab.id)}
-                      aria-current={ativa ? 'page' : undefined}
-                      aria-label={comRotulo ? undefined : tab.label}
-                      className={`relative h-10 rounded-full flex items-center text-[13px] font-medium cursor-pointer transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4d7c0f]/40 ${comRotulo ? 'px-3.5' : 'px-2.5'} ${
-                        ativa ? 'text-[#1d1d1f] dark:text-white' : 'text-slate-500 dark:text-zinc-400 hover:text-[#1d1d1f] dark:hover:text-white'
-                      }`}
-                    >
-                      {ativa && (
-                        <motion.span
-                          layoutId="aba-ativa"
-                          transition={MOLA}
-                          className="absolute inset-0 rounded-full bg-black/[0.06] dark:bg-white/[0.12]"
-                        />
-                      )}
-                      <span className={`relative ${ativa ? 'text-[#4d7c0f] dark:text-[#a3e635]' : ''}`}>{tab.icon}</span>
-                      <AnimatePresence initial={false}>
-                        {comRotulo && (
-                          <motion.span
-                            key="rotulo"
-                            initial={{ opacity: 0, width: 0, marginLeft: 0 }}
-                            animate={{ opacity: 1, width: 'auto', marginLeft: 8 }}
-                            exit={{ opacity: 0, width: 0, marginLeft: 0 }}
-                            transition={ROTULO}
-                            className="relative overflow-hidden whitespace-nowrap"
-                          >
-                            {tab.label}
-                          </motion.span>
-                        )}
-                      </AnimatePresence>
-                      {tab.badge && (
-                        <span
-                          className={`relative ml-1.5 min-w-[18px] h-[18px] px-1.5 rounded-full text-[11px] font-semibold tabular-nums flex items-center justify-center ${
-                            tab.id === 'fila' ? 'bg-amber-500/15 text-amber-700 dark:bg-amber-400/20 dark:text-amber-300' : 'bg-black/[0.06] dark:bg-white/[0.12] text-slate-600 dark:text-zinc-300'
-                          }`}
-                        >
-                          {tab.badge}
-                        </span>
-                      )}
-                    </button>
-                  );
-                  return comRotulo ? botao : (
-                    <Dica key={tab.id} texto={tab.badge ? `${tab.label} · ${tab.badge}` : tab.label}>
-                      {botao}
-                    </Dica>
-                  );
-                })}
-              </motion.nav>
-
-              {/* Notificações, recolher/expandir e conta */}
-              <motion.div layout="position" transition={MOLA} className="flex items-center gap-0.5 flex-shrink-0 ml-1">
-                <span className="w-px h-6 bg-black/[0.08] dark:bg-white/[0.12] mx-1" aria-hidden="true" />
-                <Dica texto="Notificações">
-                  <CentralNotificacoes embutido onAbrirAba={(aba) => (aba === 'fila' || permitidas.includes(aba)) && irPara(aba)} />
-                </Dica>
-                <Dica texto={recolhido ? 'Expandir o cabeçalho' : 'Recolher o cabeçalho'}>
-                <motion.button
-                  type="button"
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => {
-                    setPerfilAberto(false);
-                    setRevelado(false);
-                    setRecolhido((v) => !v);
-                  }}
-                  aria-label={recolhido ? 'Expandir o cabeçalho' : 'Recolher o cabeçalho'}
-                  aria-expanded={!recolhido}
-                  className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer text-slate-500 dark:text-zinc-400 hover:text-[#1d1d1f] dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.08] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4d7c0f]/40"
-                >
-                  <motion.svg animate={{ rotate: recolhido ? 180 : 0 }} transition={MOLA} className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M7 12.5l5-5 5 5" />
-                    <path d="M7 18l5-5 5 5" />
-                  </motion.svg>
-                </motion.button>
-                </Dica>
-
-                <div className="relative" ref={perfilRef}>
-                  <button
-                    type="button"
-                    onClick={() => setPerfilAberto((v) => !v)}
-                    aria-expanded={perfilAberto}
-                    aria-label="Sua conta"
-                    className={`h-10 flex items-center gap-2 rounded-full cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4d7c0f]/40 ${
-                      perfilAberto ? 'bg-black/[0.06] dark:bg-white/[0.12]' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.08]'
-                    } px-1`}
-                  >
-                    <span className="w-8 h-8 rounded-full bg-[#1d1d1f] dark:bg-[#f5f5f7] text-white dark:text-[#1d1d1f] flex items-center justify-center text-[12px] font-semibold">
-                      {iniciais}
-                    </span>
-                  </button>
-                  <AnimatePresence>{perfilAberto && largura >= 640 && painel('popover')}</AnimatePresence>
-                </div>
-              </motion.div>
-            </motion.div>
-
-            {/* Ações da fila que "encaixam" ao lado da ilha quando as do topo saem de vista */}
-            <AnimatePresence mode="popLayout">
-              {mostrarAcoes && <IlhaAcoesFila key="acoes-fila" classeIlha={ilha} comRotulo={acoesComRotulo} />}
-            </AnimatePresence>
-          </motion.div>
-        </LayoutGroup>
+        </div>
       </header>
-
-      {/* Espaço reservado para o cabeçalho fixo */}
-      <div className="hidden sm:block transition-[height] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]" style={{ height: 'var(--rm-cabecalho, 78px)' }} aria-hidden="true" />
+      {/* Telas menores que 1024px: faixa própria no topo (a linha de título não tem espaço para a ilha) */}
+      <div className="hidden sm:block lg:hidden" style={{ height: ALTURA_CABECALHO }} aria-hidden="true" />
 
       {/* ============================================================================== */}
       {/* CELULAR: barra superior simples + dock inferior                                 */}
       {/* ============================================================================== */}
-      <header className="sm:hidden fixed top-0 inset-x-0 z-40 bg-white/85 dark:bg-[#1c1c1f]/85 backdrop-blur-2xl border-b border-black/[0.06] dark:border-white/[0.1] px-4 h-14 flex items-center justify-between">
+      <header className="sm:hidden fixed top-0 inset-x-0 z-40 bg-white/85 dark:bg-rm-elevado-escuro/85 backdrop-blur-2xl border-b border-black/[0.06] dark:border-white/[0.1] px-4 h-14 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <BrandMark size={30} />
           <span className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-white">RM Controle</span>
         </div>
-        <button
-          type="button"
-          onClick={() => setPerfilAberto(true)}
-          aria-label="Sua conta"
-          className="w-9 h-9 rounded-full bg-[#1d1d1f] dark:bg-[#f5f5f7] text-white dark:text-[#1d1d1f] flex items-center justify-center text-[12px] font-semibold cursor-pointer"
-        >
-          {iniciais}
-        </button>
+        <div className="flex items-center gap-1">
+          <CentralNotificacoes embutido onAbrirAba={(aba) => (aba === 'fila' || permitidas.includes(aba)) && irPara(aba)} />
+          <button
+            type="button"
+            onClick={() => setPerfilAberto(true)}
+            aria-label="Sua conta"
+            className="w-9 h-9 rounded-full bg-[#1d1d1f] dark:bg-rm-fundo text-white dark:text-[#1d1d1f] flex items-center justify-center text-[12px] font-semibold cursor-pointer"
+          >
+            {iniciais}
+          </button>
+        </div>
       </header>
       <div className="sm:hidden h-14" aria-hidden="true" />
 
@@ -651,48 +398,192 @@ export default function Navbar({
       <AnimatePresence>
         {perfilAberto && largura < 640 && (
           <>
-            <motion.div
-              key="veu"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[59] bg-black/40"
-              onClick={() => setPerfilAberto(false)}
-            />
+            <motion.div key="veu" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[59] bg-black/40" onClick={() => setPerfilAberto(false)} />
             {painel('sheet')}
           </>
         )}
       </AnimatePresence>
 
-      <nav className="sm:hidden fixed bottom-2.5 inset-x-2.5 z-50 bg-white/85 dark:bg-[#232326]/85 backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.11] shadow-[0_12px_36px_rgba(0,0,0,0.16)] dark:shadow-[0_16px_40px_rgba(0,0,0,0.7)] rounded-[26px] p-1.5 flex items-center justify-between">
-        {abas.map((tab) => {
-          const ativa = activeTab === tab.id;
+      {/* Dock do celular: uma posição por categoria; com mais de uma aba, abre a lista acima do dock */}
+      <AnimatePresence>
+        {grupoAberto && largura < 640 && (
+          <>
+            <motion.div key="veu-grupo" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="sm:hidden fixed inset-0 z-[48] bg-black/25" onClick={() => setGrupoAberto(null)} />
+            <motion.div
+              key="lista-grupo"
+              role="menu"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={MOLA}
+              className="sm:hidden fixed bottom-[86px] inset-x-2.5 z-50 rounded-[22px] bg-white dark:bg-rm-elevado-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.1] shadow-[0_16px_40px_rgba(0,0,0,0.2)] p-1.5"
+            >
+              {(grupos.find((g) => g.id === grupoAberto)?.abas || []).map((t) => (
+                <button key={t.id} type="button" role="menuitem" onClick={() => irPara(t.id)} className={`w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-left cursor-pointer ${activeTab === t.id ? 'bg-black/[0.05] dark:bg-white/[0.08]' : ''}`}>
+                  <span className={activeTab === t.id ? 'text-rm-acento dark:text-rm-acento-vivo' : 'text-slate-500 dark:text-zinc-400'}>{t.icon}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[14.5px] font-semibold text-[#1d1d1f] dark:text-white">{t.label}</span>
+                    <span className="block text-[12px] text-slate-500 dark:text-zinc-400">{t.descricao}</span>
+                  </span>
+                  <Selo valor={t.badge} destaque={t.id === 'fila'} />
+                </button>
+              ))}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+      <nav className="sm:hidden fixed bottom-2.5 inset-x-2.5 z-50 bg-white/85 dark:bg-rm-elevado-escuro/85 backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.11] shadow-[0_12px_36px_rgba(0,0,0,0.16)] dark:shadow-[0_16px_40px_rgba(0,0,0,0.7)] rounded-[26px] p-1.5 flex items-center justify-between">
+        {grupos.map((g) => {
+          const unica = g.abas.length === 1 ? g.abas[0] : null;
+          const ativa = g.abas.some((t) => t.id === activeTab);
+          const badge = g.abas.reduce((n, t) => n + (t.badge || 0), 0);
           return (
             <motion.button
-              key={tab.id}
+              key={g.id}
               type="button"
               whileTap={{ scale: 0.9 }}
-              onClick={() => irPara(tab.id)}
+              onClick={() => (unica ? irPara(unica.id) : setGrupoAberto((v) => (v === g.id ? null : g.id)))}
               aria-current={ativa ? 'page' : undefined}
-              className={`relative flex-1 h-12 flex flex-col items-center justify-center gap-0.5 rounded-[20px] cursor-pointer ${
-                ativa ? 'text-[#1d1d1f] dark:text-white' : 'text-slate-500 dark:text-zinc-400'
-              }`}
+              aria-expanded={unica ? undefined : grupoAberto === g.id}
+              className={`relative flex-1 h-12 flex flex-col items-center justify-center gap-0.5 rounded-[20px] cursor-pointer ${ativa ? 'text-[#1d1d1f] dark:text-white' : 'text-slate-500 dark:text-zinc-400'}`}
             >
               {ativa && <motion.span layoutId="dock-ativo" transition={MOLA} className="absolute inset-0 rounded-[20px] bg-black/[0.06] dark:bg-white/[0.12]" />}
-              <span className={`relative ${ativa ? 'text-[#4d7c0f] dark:text-[#a3e635]' : ''}`}>
-                {tab.icon}
-                {tab.badge && (
-                  <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-white text-[10px] font-semibold tabular-nums flex items-center justify-center">
-                    {tab.badge}
-                  </span>
+              <span className={`relative ${ativa ? 'text-rm-acento dark:text-rm-acento-vivo' : ''}`}>
+                {(g.abas.find((t) => t.id === activeTab) || g.abas[0]).icon}
+                {badge > 0 && (
+                  <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-white text-[10px] font-semibold tabular-nums flex items-center justify-center">{badge > 99 ? '99+' : badge}</span>
                 )}
               </span>
-              <span className="relative text-[10px] font-medium">{tab.curto}</span>
+              <span className="relative text-[10px] font-medium">{(g.abas.find((t) => t.id === activeTab) || g.abas[0]).curto}</span>
             </motion.button>
           );
         })}
       </nav>
-
     </>
+  );
+}
+
+/**
+ * Uma categoria do cabeçalho, sem nome de categoria: o botão é a própria aba (a atual da categoria, ou a
+ * primeira). Passar o mouse expande a cápsula para baixo só com as outras abas da categoria.
+ * A largura do botão é a do maior nome da categoria, então a ilha nunca muda de tamanho ao trocar de aba.
+ */
+function CategoriaCabecalho({ grupo, activeTab, aberto, onAbrir, onIr, comNome }) {
+  const atual = grupo.abas.find((t) => t.id === activeTab) || null;
+  const mostrada = atual || grupo.abas[0];
+  const outras = grupo.abas.filter((t) => t.id !== mostrada.id);
+  const badge = grupo.abas.reduce((n, t) => n + (t.badge || 0), 0);
+  const destaque = grupo.abas.some((t) => t.id === 'fila' && t.badge);
+  const fechar = useRef(null);
+  const raiz = useRef(null);
+  const lista = useRef(null);
+  const abrirRef = useRef(onAbrir);
+  abrirRef.current = onAbrir;
+  const entrar = () => {
+    clearTimeout(fechar.current);
+    if (outras.length) onAbrir(true);
+  };
+  useEffect(() => () => clearTimeout(fechar.current), []);
+  // Aberta, a lista acompanha a posição real do mouse: só fecha quando ele está fora do botão E da lista
+  // (com folga) por 0,4 s. Não depende de eventos de entrar/sair, que se perdem quando algo na tela
+  // muda debaixo do cursor.
+  useEffect(() => {
+    if (!aberto) return undefined;
+    const dentro = (x, y) =>
+      [raiz.current, lista.current].some((el) => {
+        if (!el) return false;
+        const r = el.getBoundingClientRect();
+        return x >= r.left - 8 && x <= r.right + 8 && y >= r.top - 8 && y <= r.bottom + 8;
+      });
+    const mover = (e) => {
+      if (dentro(e.clientX, e.clientY)) {
+        clearTimeout(fechar.current);
+        fechar.current = null;
+      } else if (!fechar.current) {
+        fechar.current = setTimeout(() => {
+          fechar.current = null;
+          abrirRef.current(false);
+        }, 400);
+      }
+    };
+    const esc = (e) => e.key === 'Escape' && abrirRef.current(false);
+    document.addEventListener('pointermove', mover, true);
+    window.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('pointermove', mover, true);
+      window.removeEventListener('keydown', esc);
+      clearTimeout(fechar.current);
+      fechar.current = null;
+    };
+  }, [aberto]);
+
+  const ativa = Boolean(atual);
+  const nomes = (
+    <span className="relative grid">
+      {grupo.abas.map((t) => (
+        <span key={t.id} aria-hidden={t.id !== mostrada.id} className={`[grid-area:1/1] whitespace-nowrap ${t.id === mostrada.id ? '' : 'invisible'}`}>
+          {t.label}
+        </span>
+      ))}
+    </span>
+  );
+  const linha = (t, principal) => {
+    const aqui = t.id === activeTab;
+    return (
+      <button
+        key={t.id}
+        type="button"
+        role={principal ? undefined : 'menuitem'}
+        onClick={() => onIr(t.id)}
+        onKeyDown={
+          principal
+            ? (e) => {
+                if (!outras.length || e.key !== 'ArrowDown') return;
+                e.preventDefault();
+                onAbrir(true);
+                requestAnimationFrame(() => raiz.current?.querySelector('[role="menuitem"]')?.focus());
+              }
+            : undefined
+        }
+        aria-current={aqui ? 'page' : undefined}
+        aria-haspopup={principal && outras.length ? 'menu' : undefined}
+        aria-expanded={principal && outras.length ? aberto : undefined}
+        aria-label={comNome || !principal ? undefined : t.label}
+        className={`relative h-10 w-full rounded-full flex items-center gap-2 text-[13.5px] font-medium cursor-pointer transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rm-acento/40 ${comNome || !principal ? 'px-3.5' : 'px-2.5 justify-center'} ${
+          aqui ? 'text-[#1d1d1f] dark:text-white' : 'text-slate-500 dark:text-zinc-400 hover:text-[#1d1d1f] dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.07]'
+        }`}
+      >
+        {principal && ativa && <motion.span layoutId="aba-ativa" transition={MOLA} className="absolute inset-0 rounded-full bg-black/[0.06] dark:bg-white/[0.12]" />}
+        <span className={`relative ${aqui ? 'text-rm-acento dark:text-rm-acento-vivo' : ''}`}>{t.icon}</span>
+        {/* Na lista, o nome aparece sempre (mesmo com a ilha só em ícones) */}
+        {principal ? comNome && nomes : <span className="relative whitespace-nowrap">{t.label}</span>}
+        {(comNome || !principal) && <span className="flex-1" />}
+        <Selo valor={principal ? badge : t.badge} destaque={principal ? destaque : t.id === 'fila'} />
+      </button>
+    );
+  };
+
+  return (
+    <div ref={raiz} className="relative" onPointerEnter={entrar}>
+      {/* Dica só sem lista: com lista, ela cobriria a primeira opção */}
+      {comNome || outras.length ? linha(mostrada, true) : <Dica texto={mostrada.label}>{linha(mostrada, true)}</Dica>}
+      <AnimatePresence>
+        {aberto && outras.length > 0 && (
+          // A cápsula "cresce" para baixo: a faixa transparente no topo liga o botão à lista (o mouse não cai no vão)
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4, transition: { duration: 0.1 } }}
+            transition={{ type: 'spring', bounce: 0, duration: 0.22 }}
+            ref={lista}
+            className="absolute left-0 top-full min-w-full pt-2 z-50"
+          >
+            <div role="menu" aria-label={grupo.label} className={`${ILHA} backdrop-blur-xl rounded-[24px] p-1 flex flex-col gap-0.5 min-w-[150px]`}>
+              {outras.map((t) => linha(t, false))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

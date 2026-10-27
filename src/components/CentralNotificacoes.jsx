@@ -6,6 +6,7 @@ import {
   EVENTO_NOTIFICACOES,
   limparNotificacoes,
   listarNotificacoes,
+  marcarLida,
   marcarTodasLidas,
   removerNotificacao,
 } from '@/lib/notificacoes';
@@ -23,9 +24,9 @@ const TIPOS = {
   sla: { icone: AlertCircleIcon, cor: 'bg-rose-500/12 text-rose-600 dark:bg-rose-400/15 dark:text-rose-400' },
   prazo: { icone: ClockIcon, cor: 'bg-amber-500/14 text-amber-700 dark:bg-amber-400/15 dark:text-amber-400' },
   reuniao: { icone: CalendarIcon, cor: 'bg-sky-500/12 text-sky-700 dark:bg-sky-400/15 dark:text-sky-300' },
-  feedback: { icone: LightBulbIcon, cor: 'bg-[#4d7c0f]/12 text-[#4d7c0f] dark:bg-[#84cc16]/15 dark:text-[#a3e635]' },
-  chat: { icone: ChatIcone, cor: 'bg-[#00a884]/14 text-[#008069] dark:bg-[#00a884]/20 dark:text-[#00d4a4]' },
-  sistema: { icone: SparklesIcon, cor: 'bg-[#4d7c0f]/12 text-[#4d7c0f] dark:bg-[#84cc16]/15 dark:text-[#a3e635]' },
+  feedback: { icone: LightBulbIcon, cor: 'bg-rm-acento/12 text-rm-acento dark:bg-rm-acento-escuro/15 dark:text-rm-acento-vivo' },
+  chat: { icone: ChatIcone, cor: 'bg-rm-acento-medio/14 text-rm-acento dark:bg-rm-acento-medio/20 dark:text-rm-acento-vivo' },
+  sistema: { icone: SparklesIcon, cor: 'bg-rm-acento/12 text-rm-acento dark:bg-rm-acento-escuro/15 dark:text-rm-acento-vivo' },
 };
 
 function tempoRelativo(iso) {
@@ -46,40 +47,41 @@ const Sino = ({ className }) => (
   </svg>
 );
 
+// Filtros da central: só aparecem os tipos que têm aviso
+const FILTROS = [
+  { id: 'chat', rotulo: 'Chat', tipos: ['chat'] },
+  { id: 'demandas', rotulo: 'Demandas', tipos: ['demanda', 'sla', 'prazo'] },
+  { id: 'agenda', rotulo: 'Agenda', tipos: ['reuniao'] },
+  { id: 'outros', rotulo: 'Outros', tipos: ['feedback', 'sistema'] },
+];
+
 function ItemNotificacao({ n, onAbrir, onRemover }) {
   const tipo = TIPOS[n.tipo] || TIPOS.sistema;
   const Icone = tipo.icone;
   return (
-    <motion.li
-      layout
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: 24, transition: { duration: 0.18 } }}
-      transition={MOLA}
-      className="group relative"
-    >
+    <motion.li layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, x: 24, transition: { duration: 0.16 } }} transition={MOLA} className="group relative">
       <button
         type="button"
         onClick={() => onAbrir(n)}
-        className="w-full text-left flex gap-3 px-3 py-3 pr-10 rounded-2xl hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors cursor-pointer"
+        className="w-full text-left flex items-start gap-2.5 px-2.5 py-2 pr-9 rounded-xl hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors cursor-pointer"
       >
-        <span className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${tipo.cor}`}>
-          <Icone className="w-4 h-4" />
+        <span className={`mt-0.5 w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${tipo.cor}`}>
+          <Icone className="w-3.5 h-3.5" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-1.5">
-            {!n.lida && <span className="w-1.5 h-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#a3e635] flex-shrink-0" aria-label="Não lida" />}
-            <span className="text-[13px] font-semibold leading-snug text-[#1d1d1f] dark:text-white truncate">{n.titulo}</span>
+          <span className="flex items-baseline gap-2">
+            <span className={`text-[13px] leading-snug truncate ${n.lida ? 'font-medium text-slate-600 dark:text-zinc-300' : 'font-semibold text-[#1d1d1f] dark:text-white'}`}>{n.titulo}</span>
+            <span className="ml-auto text-[11px] text-slate-400 dark:text-zinc-500 whitespace-nowrap flex-shrink-0">{tempoRelativo(n.em)}</span>
           </span>
-          {n.detalhe && <span className="block text-[12.5px] leading-snug text-slate-500 dark:text-zinc-400 mt-0.5 line-clamp-2">{n.detalhe}</span>}
-          <span className="block text-[11.5px] text-slate-400 dark:text-zinc-500 mt-1">{tempoRelativo(n.em)}</span>
+          {n.detalhe && <span className="block text-[12px] leading-snug text-slate-500 dark:text-zinc-400 truncate">{n.detalhe}</span>}
         </span>
+        {!n.lida && <span className="absolute left-1 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-rm-acento dark:bg-rm-acento-vivo" aria-label="Não lida" />}
       </button>
       <button
         type="button"
         onClick={() => onRemover(n.id)}
         aria-label={`Apagar notificação: ${n.titulo}`}
-        className="absolute top-3 right-2.5 w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-[#1d1d1f] dark:hover:text-white hover:bg-black/[0.06] dark:hover:bg-white/[0.1] cursor-pointer md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+        className="absolute top-1/2 -translate-y-1/2 right-1.5 w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-[#1d1d1f] dark:hover:text-white hover:bg-black/[0.06] dark:hover:bg-white/[0.1] cursor-pointer md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
       >
         <XMarkIcon className="w-3.5 h-3.5" />
       </button>
@@ -95,6 +97,7 @@ function ItemNotificacao({ n, onAbrir, onRemover }) {
 export default function CentralNotificacoes({ onAbrirAba, embutido = false, soCelular = false }) {
   const [lista, setLista] = useState([]);
   const [aberto, setAberto] = useState(false);
+  const [filtro, setFiltro] = useState('todas');
   const raiz = useRef(null);
   const sino = useAnimationControls();
   const totalAnterior = useRef(null);
@@ -144,12 +147,19 @@ export default function CentralNotificacoes({ onAbrirAba, embutido = false, soCe
   }, [aberto]);
 
   const abrirNotificacao = (n) => {
-    fechar();
+    marcarLida(n.id);
+    setAberto(false);
     if (n.aba) onAbrirAba?.(n.aba);
+    // Aviso do Chat: abre a conversa (já aberta a tela, na hora; senão, quando ela montar)
+    if (n.alvo?.conversaId) {
+      window.__rmChatAbrirPendente = n.alvo.conversaId;
+      window.dispatchEvent(new CustomEvent('rm_chat_abrir', { detail: { conversaId: n.alvo.conversaId } }));
+    }
   };
 
-  const novas = lista.filter((n) => !n.lida);
-  const anteriores = lista.filter((n) => n.lida);
+  const filtrosVisiveis = FILTROS.filter((f) => lista.some((n) => f.tipos.includes(n.tipo)));
+  const ativo = filtrosVisiveis.find((f) => f.id === filtro);
+  const visiveis = ativo ? lista.filter((n) => ativo.tipos.includes(n.tipo)) : lista;
 
   return (
     <div ref={raiz} className={embutido ? 'relative' : `fixed z-40 right-4 bottom-[88px] sm:right-6 sm:bottom-6 ${soCelular ? 'sm:hidden' : ''}`}>
@@ -163,7 +173,7 @@ export default function CentralNotificacoes({ onAbrirAba, embutido = false, soCe
             exit={{ opacity: 0, y: embutido ? -6 : 8, scale: 0.97, transition: { duration: 0.15 } }}
             transition={{ type: 'spring', bounce: 0.16, duration: 0.42 }}
             style={{ transformOrigin: embutido ? 'top right' : 'bottom right' }}
-            className={`absolute right-0 ${embutido ? 'top-[calc(100%+16px)] -mr-2' : 'bottom-[calc(100%+12px)]'} w-[min(380px,calc(100vw-32px))] max-h-[min(560px,70vh)] flex flex-col rounded-[24px] bg-white/95 dark:bg-[#232326]/95 backdrop-blur-2xl ring-1 ring-black/[0.08] dark:ring-white/[0.12] shadow-[0_30px_70px_-20px_rgba(0,0,0,0.35)] dark:shadow-[0_30px_70px_-20px_rgba(0,0,0,0.8)] text-[#1d1d1f] dark:text-[#f5f5f7] overflow-hidden`}
+            className={`absolute right-0 ${embutido ? 'top-[calc(100%+16px)] -mr-2' : 'bottom-[calc(100%+12px)]'} w-[min(380px,calc(100vw-32px))] max-h-[min(560px,70vh)] flex flex-col rounded-[24px] bg-white/95 dark:bg-rm-elevado-escuro/95 backdrop-blur-2xl ring-1 ring-black/[0.08] dark:ring-white/[0.12] shadow-[0_30px_70px_-20px_rgba(0,0,0,0.35)] dark:shadow-[0_30px_70px_-20px_rgba(0,0,0,0.8)] text-[#1d1d1f] dark:text-[#f5f5f7] overflow-hidden`}
           >
             <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-3">
               <div>
@@ -173,15 +183,33 @@ export default function CentralNotificacoes({ onAbrirAba, embutido = false, soCe
                 </p>
               </div>
               {lista.length > 0 && (
-                <button
-                  type="button"
-                  onClick={limparNotificacoes}
-                  className="h-8 px-3 rounded-full text-[12.5px] font-medium text-slate-600 dark:text-zinc-300 hover:text-[#1d1d1f] dark:hover:text-white bg-black/[0.04] dark:bg-white/[0.07] hover:bg-black/[0.07] dark:hover:bg-white/[0.11] cursor-pointer transition-colors"
-                >
-                  Limpar tudo
-                </button>
+                <div className="flex items-center gap-1">
+                  {pendentes > 0 && (
+                    <button type="button" onClick={marcarTodasLidas} className="h-8 px-3 rounded-full text-[12.5px] font-medium text-slate-600 dark:text-zinc-300 hover:text-[#1d1d1f] dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.08] cursor-pointer transition-colors">
+                      Marcar lidas
+                    </button>
+                  )}
+                  <button type="button" onClick={limparNotificacoes} className="h-8 px-3 rounded-full text-[12.5px] font-medium text-slate-600 dark:text-zinc-300 hover:text-[#1d1d1f] dark:hover:text-white bg-black/[0.04] dark:bg-white/[0.07] hover:bg-black/[0.07] dark:hover:bg-white/[0.11] cursor-pointer transition-colors">
+                    Limpar
+                  </button>
+                </div>
               )}
             </div>
+
+            {filtrosVisiveis.length > 1 && (
+              <div className="flex gap-1 px-4 pb-3 overflow-x-auto [scrollbar-width:none]" role="tablist" aria-label="Filtrar notificações">
+                {[{ id: 'todas', rotulo: 'Todas' }, ...filtrosVisiveis].map((f) => {
+                  const qtd = f.id === 'todas' ? pendentes : lista.filter((n) => !n.lida && f.tipos.includes(n.tipo)).length;
+                  const sel = (ativo?.id || 'todas') === f.id;
+                  return (
+                    <button key={f.id} type="button" role="tab" aria-selected={sel} onClick={() => setFiltro(f.id)} className={`h-7 px-3 rounded-full text-[12px] font-medium whitespace-nowrap cursor-pointer transition-colors ${sel ? 'bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f]' : 'bg-black/[0.04] dark:bg-white/[0.07] text-slate-600 dark:text-zinc-300 hover:bg-black/[0.07]'}`}>
+                      {f.rotulo}
+                      {qtd > 0 && <span className="ml-1.5 tabular-nums opacity-70">{qtd}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             <div className="h-px bg-black/[0.06] dark:bg-white/[0.08]" />
 
@@ -191,7 +219,7 @@ export default function CentralNotificacoes({ onAbrirAba, embutido = false, soCe
                   initial={{ scale: 0.6, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={MOLA}
-                  className="w-14 h-14 rounded-full bg-[#4d7c0f]/10 dark:bg-[#84cc16]/12 text-[#4d7c0f] dark:text-[#a3e635] flex items-center justify-center"
+                  className="w-14 h-14 rounded-full bg-rm-acento/10 dark:bg-rm-acento-escuro/12 text-rm-acento dark:text-rm-acento-vivo flex items-center justify-center"
                 >
                   <Sino className="w-6 h-6" />
                 </motion.span>
@@ -201,26 +229,13 @@ export default function CentralNotificacoes({ onAbrirAba, embutido = false, soCe
                 </p>
               </div>
             ) : (
-              <div className="overflow-y-auto overscroll-contain px-2 py-2">
-                {[
-                  ['Novas', novas],
-                  ['Anteriores', anteriores],
-                ].map(
-                  ([titulo, itens]) =>
-                    itens.length > 0 && (
-                      <section key={titulo} className="mb-1">
-                        <h3 className="px-3 pt-2 pb-1 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-slate-400 dark:text-zinc-500">{titulo}</h3>
-                        <ul>
-                          <AnimatePresence initial={false}>
-                            {itens.map((n) => (
-                              <ItemNotificacao key={n.id} n={n} onAbrir={abrirNotificacao} onRemover={removerNotificacao} />
-                            ))}
-                          </AnimatePresence>
-                        </ul>
-                      </section>
-                    )
-                )}
-              </div>
+              <ul className="overflow-y-auto overscroll-contain px-1.5 py-1.5">
+                <AnimatePresence initial={false}>
+                  {visiveis.map((n) => (
+                    <ItemNotificacao key={n.id} n={n} onAbrir={abrirNotificacao} onRemover={removerNotificacao} />
+                  ))}
+                </AnimatePresence>
+              </ul>
             )}
           </motion.div>
         )}
@@ -236,13 +251,13 @@ export default function CentralNotificacoes({ onAbrirAba, embutido = false, soCe
         transition={MOLA}
         className={
           embutido
-            ? `relative w-10 h-10 rounded-full flex items-center justify-center cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4d7c0f]/40 ${
+            ? `relative w-10 h-10 rounded-full flex items-center justify-center cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rm-acento/40 ${
                 aberto ? 'bg-black/[0.06] dark:bg-white/[0.12] text-[#1d1d1f] dark:text-white' : 'text-slate-500 dark:text-zinc-400 hover:text-[#1d1d1f] dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.08]'
               }`
             : `relative w-[52px] h-[52px] rounded-full flex items-center justify-center cursor-pointer backdrop-blur-2xl ring-1 transition-colors shadow-[0_14px_34px_-10px_rgba(0,0,0,0.35)] dark:shadow-[0_14px_34px_-10px_rgba(0,0,0,0.8)] ${
                 aberto
                   ? 'bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] ring-transparent'
-                  : 'bg-white/85 dark:bg-[#26262a]/85 text-[#1d1d1f] dark:text-white ring-black/[0.08] dark:ring-white/[0.12]'
+                  : 'bg-white/85 dark:bg-rm-elevado-escuro/85 text-[#1d1d1f] dark:text-white ring-black/[0.08] dark:ring-white/[0.12]'
               }`
         }
       >

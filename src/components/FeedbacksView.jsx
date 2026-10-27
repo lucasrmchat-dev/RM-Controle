@@ -24,6 +24,7 @@ import { NOVIDADES, feedbackDoTicket, novidadePublicada, ordenarNovidades, rotul
 import { showToast } from './ToastNotification';
 import { ListSkeleton } from './SkeletonLoaders';
 import { BugIcon, CalendarIcon, CheckIcon, EditIcon, LightBulbIcon, SparklesIcon } from './Icons';
+import EncaixeCabecalho, { ACOES_TITULO, LINHA_TITULO } from './EncaixeCabecalho';
 
 const MOLA = { type: 'spring', bounce: 0.18, duration: 0.42 };
 
@@ -31,14 +32,14 @@ const ESTILO_TIPO = {
   bug: { icone: BugIcon, ponto: 'bg-rose-500', texto: 'text-rose-700 dark:text-rose-300' },
   melhoria: { icone: EditIcon, ponto: 'bg-sky-500', texto: 'text-sky-700 dark:text-sky-300' },
   ideia: { icone: LightBulbIcon, ponto: 'bg-amber-500', texto: 'text-amber-700 dark:text-amber-300' },
-  novidade: { icone: SparklesIcon, ponto: 'bg-[#4d7c0f] dark:bg-[#84cc16]', texto: 'text-[#4d7c0f] dark:text-[#a3e635]' },
+  novidade: { icone: SparklesIcon, ponto: 'bg-rm-acento dark:bg-rm-acento-escuro', texto: 'text-rm-acento dark:text-rm-acento-vivo' },
 };
 
 const PONTO_ETAPA = {
   em_analise: 'bg-amber-500',
   no_roadmap: 'bg-violet-500',
   em_correcao: 'bg-sky-500',
-  resolvido: 'bg-[#4d7c0f] dark:bg-[#84cc16]',
+  resolvido: 'bg-rm-acento dark:bg-rm-acento-escuro',
 };
 
 const iniciais = (nome) =>
@@ -70,7 +71,7 @@ function Segmentado({ opcoes, valor, onMudar, id, rotulo }) {
             onClick={() => onMudar(op.id)}
             className={`relative h-8 px-3.5 rounded-full text-[13px] font-medium cursor-pointer transition-colors whitespace-nowrap ${ativo ? 'text-[#1d1d1f] dark:text-white' : 'text-slate-500 dark:text-zinc-400 hover:text-[#1d1d1f] dark:hover:text-white'}`}
           >
-            {ativo && <motion.span layoutId={`seg-${id}`} transition={MOLA} className="absolute inset-0 rounded-full bg-white dark:bg-[#3a3a3f] shadow-[0_1px_3px_rgba(0,0,0,0.12)]" />}
+            {ativo && <motion.span layoutId={`seg-${id}`} transition={MOLA} className="absolute inset-0 rounded-full bg-white dark:bg-rm-campo-escuro shadow-[0_1px_3px_rgba(0,0,0,0.12)]" />}
             <span className="relative">
               {op.rotulo}
               {op.contador > 0 && <span className="ml-1.5 text-slate-400 dark:text-zinc-500 tabular-nums">{op.contador}</span>}
@@ -108,7 +109,7 @@ function TrilhaEtapas({ fb, nomes }) {
     <div>
       <div className="grid grid-cols-4 gap-1" aria-hidden="true">
         {ETAPAS_FEEDBACK.map((id, k) => (
-          <span key={id} className={`h-1 rounded-full ${k <= i ? (i === 3 ? 'bg-[#4d7c0f] dark:bg-[#84cc16]' : 'bg-[#1d1d1f] dark:bg-white') : 'bg-black/[0.08] dark:bg-white/[0.1]'}`} />
+          <span key={id} className={`h-1 rounded-full ${k <= i ? (i === 3 ? 'bg-rm-acento dark:bg-rm-acento-escuro' : 'bg-[#1d1d1f] dark:bg-white') : 'bg-black/[0.08] dark:bg-white/[0.1]'}`} />
         ))}
       </div>
       <p className="mt-1.5 text-[12px] text-slate-500 dark:text-zinc-400">
@@ -134,7 +135,7 @@ function ChipSubtarefas({ fb }) {
   const p = progressoSubtarefas(fb.subtarefas || []);
   if (!p.total) return null;
   return (
-    <span className={`inline-flex items-center gap-1 text-[11.5px] font-medium tabular-nums ${p.atrasadas ? 'text-rose-600 dark:text-rose-400' : p.feitas === p.total ? 'text-[#4d7c0f] dark:text-[#a3e635]' : 'text-slate-500 dark:text-zinc-400'}`}>
+    <span className={`inline-flex items-center gap-1 text-[11.5px] font-medium tabular-nums ${p.atrasadas ? 'text-rose-600 dark:text-rose-400' : p.feitas === p.total ? 'text-rm-acento dark:text-rm-acento-vivo' : 'text-slate-500 dark:text-zinc-400'}`}>
       <CheckIcon className="w-3 h-3 stroke-[2.5]" />
       {p.feitas}/{p.total}
     </span>
@@ -166,7 +167,7 @@ function CartaoEnvio({ fb, nomes, onAbrir }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={MOLA}
-      className="text-left rounded-[22px] bg-white dark:bg-[#1e1e21] ring-1 ring-black/[0.06] dark:ring-white/[0.09] p-5 flex flex-col gap-3 hover:shadow-[0_10px_30px_-14px_rgba(0,0,0,0.25)] hover:-translate-y-0.5 transition-[box-shadow,transform] duration-300 cursor-pointer"
+      className="text-left rounded-[22px] bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.09] p-5 flex flex-col gap-3 hover:shadow-[0_10px_30px_-14px_rgba(0,0,0,0.25)] hover:-translate-y-0.5 transition-[box-shadow,transform] duration-300 cursor-pointer"
     >
       <div className="flex items-center justify-between gap-3">
         <SeloTipo tipo={fb.tipo} />
@@ -196,15 +197,15 @@ const dataNota = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('pt-BR'
 function CartaoNovidade({ nota, feedbacks, onAbrirTicket, rodape = null }) {
   const tickets = (nota.tickets || []).map((t) => ({ t, fb: feedbackDoTicket(t, feedbacks) }));
   return (
-    <article className="rounded-[24px] bg-white dark:bg-[#1e1e21] ring-1 ring-black/[0.06] dark:ring-white/[0.08] p-6 sm:p-7">
-      <p className="text-[12px] font-medium text-[#4d7c0f] dark:text-[#a3e635]">{nota.modulo}</p>
+    <article className="rounded-[24px] bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.08] p-6 sm:p-7">
+      <p className="text-[12px] font-medium text-rm-acento dark:text-rm-acento-vivo">{nota.modulo}</p>
       <h3 className="mt-1 text-[19px] font-semibold tracking-[-0.015em] leading-snug">{nota.titulo}</h3>
       <p className="mt-2 text-[14.5px] leading-relaxed text-slate-600 dark:text-zinc-300">{nota.resumo}</p>
       {nota.itens?.length > 0 && (
         <ul className="mt-4 space-y-2">
           {nota.itens.map((item) => (
             <li key={item} className="flex gap-3 text-[14px] leading-relaxed text-[#1d1d1f] dark:text-zinc-100">
-              <CheckIcon className="w-4 h-4 mt-[3px] flex-shrink-0 text-[#4d7c0f] dark:text-[#84cc16] stroke-[2.5]" />
+              <CheckIcon className="w-4 h-4 mt-[3px] flex-shrink-0 text-rm-acento dark:text-rm-acento-escuro stroke-[2.5]" />
               <span>{item}</span>
             </li>
           ))}
@@ -298,7 +299,7 @@ function AprovacaoNovidades({ publicacao, feedbacks, onAbrirTicket, onPublicar }
                   {!pub ? `Escrita em ${dataNota(n.data)} · ninguém da equipe vê ainda` : pub.publicada ? `Publicada por ${pub.por} em ${new Date(pub.em).toLocaleDateString('pt-BR')}` : `Oculta por ${pub.por}`}
                 </span>
                 {(!pub || !pub.publicada) && (
-                  <button type="button" disabled={salvando === n.id} onClick={() => agir(n.id, true)} className="h-9 px-4 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-[13px] font-semibold cursor-pointer disabled:opacity-50">
+                  <button type="button" disabled={salvando === n.id} onClick={() => agir(n.id, true)} className="h-9 px-4 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 text-[13px] font-semibold cursor-pointer disabled:opacity-50">
                     Publicar para a equipe
                   </button>
                 )}
@@ -386,7 +387,7 @@ function CartaoPipeline({ fb, onAbrir, arrastandoId, setArrastandoId }) {
         role="button"
         tabIndex={0}
         onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onAbrir(fb)}
-        className={`rounded-2xl bg-white dark:bg-[#232326] ring-1 ring-black/[0.06] dark:ring-white/[0.09] p-3.5 cursor-grab active:cursor-grabbing select-none hover:shadow-[0_8px_22px_-12px_rgba(0,0,0,0.3)] transition-[box-shadow,opacity] ${arrastandoId === fb.id ? 'opacity-40' : ''}`}
+        className={`rounded-2xl bg-white dark:bg-rm-elevado-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.09] p-3.5 cursor-grab active:cursor-grabbing select-none hover:shadow-[0_8px_22px_-12px_rgba(0,0,0,0.3)] transition-[box-shadow,opacity] ${arrastandoId === fb.id ? 'opacity-40' : ''}`}
       >
         <div className="flex items-center justify-between gap-2">
           <SeloTipo tipo={fb.tipo} />
@@ -433,7 +434,7 @@ function Pipeline({ itens, nomes, onAbrir, onMover }) {
                   const id = e.dataTransfer.getData('text/plain');
                   if (id) onMover(id, etapa);
                 }}
-                className={`rounded-[22px] p-2.5 min-h-[420px] flex flex-col transition-colors duration-200 ${destaque ? 'bg-[#4d7c0f]/[0.07] ring-2 ring-[#4d7c0f]/40 dark:ring-[#84cc16]/40' : 'bg-black/[0.025] dark:bg-white/[0.03]'}`}
+                className={`rounded-[22px] p-2.5 min-h-[420px] flex flex-col transition-colors duration-200 ${destaque ? 'bg-rm-acento/[0.07] ring-2 ring-rm-acento/40 dark:ring-rm-acento-escuro/40' : 'bg-black/[0.025] dark:bg-white/[0.03]'}`}
               >
                 <header className="flex items-center gap-2 px-1.5 pt-1 pb-3">
                   <span className={`w-2 h-2 rounded-full ${PONTO_ETAPA[etapa]}`} />
@@ -445,7 +446,7 @@ function Pipeline({ itens, nomes, onAbrir, onMover }) {
                     <CartaoPipeline key={fb.id} fb={fb} onAbrir={onAbrir} arrastandoId={arrastandoId} setArrastandoId={setArrastandoId} />
                   ))}
                   {cards.length === 0 && (
-                    <div className={`h-24 rounded-2xl border border-dashed flex items-center justify-center text-[12px] transition-colors ${destaque ? 'border-[#4d7c0f]/50 text-[#4d7c0f]' : 'border-black/[0.1] dark:border-white/[0.12] text-slate-400'}`}>
+                    <div className={`h-24 rounded-2xl border border-dashed flex items-center justify-center text-[12px] transition-colors ${destaque ? 'border-rm-acento/50 text-rm-acento' : 'border-black/[0.1] dark:border-white/[0.12] text-slate-400'}`}>
                       Arraste para cá
                     </div>
                   )}
@@ -462,7 +463,7 @@ function Pipeline({ itens, nomes, onAbrir, onMover }) {
 function Lista({ itens, nomes, onAbrir }) {
   if (!itens.length) return <Vazio titulo="Nada encontrado" texto="Ajuste a busca ou os filtros." />;
   return (
-    <div className="rounded-[22px] bg-white dark:bg-[#1e1e21] ring-1 ring-black/[0.06] dark:ring-white/[0.09] overflow-hidden">
+    <div className="rounded-[22px] bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.09] overflow-hidden">
       <div className="hidden lg:grid grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.1fr)_70px_minmax(0,1fr)] gap-4 px-5 py-3 text-[11.5px] font-semibold uppercase tracking-[0.05em] text-slate-400 dark:text-zinc-500 border-b border-black/[0.06] dark:border-white/[0.08]">
         <span>Feedback</span>
         <span>Parte do sistema</span>
@@ -508,7 +509,7 @@ function Lista({ itens, nomes, onAbrir }) {
 
 function Metrica({ rotulo, valor, detalhe, alerta = false }) {
   return (
-    <div className="rounded-[22px] bg-white dark:bg-[#1e1e21] ring-1 ring-black/[0.06] dark:ring-white/[0.09] px-5 py-4">
+    <div className="rounded-[22px] bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.09] px-5 py-4">
       <p className="text-[12.5px] font-medium text-slate-500 dark:text-zinc-400">{rotulo}</p>
       <p className={`mt-1 text-[28px] font-semibold tracking-tight tabular-nums ${alerta && valor > 0 ? 'text-rose-600 dark:text-rose-400' : ''}`}>{valor}</p>
       {detalhe && <p className="text-[12px] text-slate-400 dark:text-zinc-500">{detalhe}</p>}
@@ -576,7 +577,7 @@ function VistaDesenvolvimento({ feedbacks, nomes, onAbrir, onMover, publicacao, 
                 onChange={(e) => setBusca(e.target.value)}
                 placeholder="Buscar por ticket, título, módulo ou autor"
                 aria-label="Buscar feedbacks"
-                className="w-full h-10 pl-10 pr-4 rounded-full bg-white dark:bg-white/[0.06] ring-1 ring-black/[0.08] dark:ring-white/[0.1] text-[13.5px] outline-none focus:ring-2 focus:ring-[#4d7c0f]/30 placeholder:text-slate-400"
+                className="w-full h-10 pl-10 pr-4 rounded-full bg-white dark:bg-white/[0.06] ring-1 ring-black/[0.08] dark:ring-white/[0.1] text-[13.5px] outline-none focus:ring-2 focus:ring-rm-acento/30 placeholder:text-slate-400"
               />
             </div>
             <Segmentado
@@ -728,14 +729,11 @@ export default function FeedbacksView({ userEmail }) {
 
   return (
     <div className="space-y-8 text-[#1d1d1f] dark:text-[#f5f5f7]">
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-5 pt-2">
-        <div>
-          <h1 className="text-[30px] sm:text-[34px] font-semibold tracking-[-0.025em] leading-tight">Feedbacks</h1>
-          <p className="mt-1.5 text-[14.5px] text-slate-500 dark:text-zinc-400 max-w-xl">
-            {vistaDev ? 'Tudo o que a equipe enviou, do primeiro relato até a entrega.' : 'Problemas, melhorias e ideias para o RM Controle. Acompanhe o que você enviou e veja o que mudou.'}
-          </p>
-        </div>
-        <div className="flex items-center gap-3 flex-wrap">
+      <header className={`flex flex-wrap items-center justify-between gap-3 ${LINHA_TITULO}`}>
+        {/* O nome da tela já está no cabeçalho */}
+        <div className="hidden lg:block" />
+        <EncaixeCabecalho />
+        <div className={`flex items-center gap-3 flex-nowrap ${ACOES_TITULO}`}>
           {ehDev && (
             <Segmentado
               id="feedbacks-visao"
@@ -753,7 +751,7 @@ export default function FeedbacksView({ userEmail }) {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
             onClick={() => setNovoAberto(true)}
-            className="h-11 px-5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-[14px] font-semibold shadow-md shadow-[#4d7c0f]/20 flex items-center gap-2 cursor-pointer"
+            className="h-11 px-5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 text-[14px] font-semibold shadow-md shadow-rm-acento/20 flex items-center gap-2 cursor-pointer"
           >
             <span className="text-[18px] leading-none -mt-px">+</span>
             Enviar feedback
@@ -762,7 +760,7 @@ export default function FeedbacksView({ userEmail }) {
       </header>
 
       {!carregado ? (
-        <div className="p-5 rounded-[22px] bg-white dark:bg-[#1e1e21] ring-1 ring-black/[0.06] dark:ring-white/[0.09]">
+        <div className="p-5 rounded-[22px] bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.09]">
           <ListSkeleton linhas={5} />
         </div>
       ) : vistaDev ? (

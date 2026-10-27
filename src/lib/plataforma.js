@@ -12,6 +12,37 @@ export const RECURSOS_LIMITE = [
   { id: 'assinantes', rotulo: 'Assinantes', descricao: 'Empresas que a revenda pode criar', so: 'revenda' },
 ];
 
+/**
+ * Módulos que a empresa contratou (limites.modulos). Sem a lista, tem todos (empresas antigas).
+ * Os perfis de acesso escolhem, dentro destes, o que cada pessoa vê. Configurações sempre ficam.
+ */
+export const MODULOS_CONTRATAVEIS = [
+  { id: 'chat', rotulo: 'Chat do WhatsApp' },
+  { id: 'conexoes', rotulo: 'Canais (números de WhatsApp)' },
+  { id: 'fila', rotulo: 'Fila de Demandas' },
+  { id: 'empresas', rotulo: 'Empresas clientes' },
+  { id: 'feedbacks', rotulo: 'Feedbacks' },
+  { id: 'agenda', rotulo: 'Agenda' },
+  { id: 'daily', rotulo: 'Daily' },
+  { id: 'comercial', rotulo: 'Comercial' },
+  { id: 'dashboard', rotulo: 'Dashboard' },
+];
+const IDS_CONTRATAVEIS = MODULOS_CONTRATAVEIS.map((m) => m.id);
+
+/** A empresa contratou o módulo? (plataforma e empresas sem lista: tudo) */
+export function moduloContratado(org, modulo) {
+  if (!org || org.tipo === 'plataforma') return true;
+  const lista = org.limites?.modulos;
+  if (!Array.isArray(lista) || !IDS_CONTRATAVEIS.includes(modulo)) return true;
+  return lista.includes(modulo);
+}
+
+/** Lista de módulos da empresa para aplicar nas permissões (null = sem restrição). */
+export function modulosDaEmpresa(org) {
+  if (!org || org.tipo === 'plataforma' || !Array.isArray(org.limites?.modulos)) return null;
+  return org.limites.modulos;
+}
+
 export const STATUS_ORGANIZACAO = {
   ativa: { rotulo: 'Ativa' },
   suspensa: { rotulo: 'Suspensa', descricao: 'Ninguém da empresa entra até ser reativada. Os dados ficam guardados.' },
@@ -46,6 +77,8 @@ export function validarLimites(valor, tipo) {
     if (!Number.isInteger(n) || n < 0 || n > 100000) throw new Error(`Limite de ${r.rotulo.toLowerCase()} inválido.`);
     limites[r.id] = n;
   }
+  // Módulos contratados: só ids conhecidos; ausente = todos
+  if (Array.isArray(valor?.modulos)) limites.modulos = [...new Set(valor.modulos.filter((m) => IDS_CONTRATAVEIS.includes(m)))];
   return limites;
 }
 

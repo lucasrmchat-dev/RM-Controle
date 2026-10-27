@@ -15,7 +15,7 @@ function Chave({ ligado, onMudar, titulo, descricao, desabilitado }) {
       onClick={() => onMudar(!ligado)}
       className="w-full flex items-start gap-3 rounded-2xl px-3.5 py-3 ring-1 ring-black/[0.08] dark:ring-white/[0.1] text-left cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] disabled:opacity-50"
     >
-      <span className={`relative mt-0.5 w-9 h-[22px] rounded-full flex-shrink-0 transition-colors ${ligado ? 'bg-[#4d7c0f] dark:bg-[#84cc16]' : 'bg-black/15 dark:bg-white/20'}`}>
+      <span className={`relative mt-0.5 w-9 h-[22px] rounded-full flex-shrink-0 transition-colors ${ligado ? 'bg-rm-acento dark:bg-rm-acento-escuro' : 'bg-black/15 dark:bg-white/20'}`}>
         <span className={`absolute top-[3px] w-4 h-4 rounded-full bg-white shadow transition-all ${ligado ? 'left-[17px]' : 'left-[3px]'}`} />
       </span>
       <span className="min-w-0">
@@ -104,7 +104,7 @@ export default function AcessoChatUsuario({ email, administrador = false }) {
                         checked={marcado}
                         disabled={salvando}
                         onChange={() => salvar({ ...acesso, canais: marcado ? acesso.canais.filter((id) => id !== c.id) : [...acesso.canais, c.id] })}
-                        className="w-4 h-4 accent-[#4d7c0f]"
+                        className="w-4 h-4 accent-rm-acento"
                       />
                       <span className="text-xs font-medium text-[#1d1d1f] dark:text-white">{c.nome}</span>
                       <span className="text-[11px] text-slate-400">{c.numero ? formatarTelefone(c.numero) : c.tipo === 'whatsapp_oficial' ? 'API oficial' : 'QR Code'}</span>

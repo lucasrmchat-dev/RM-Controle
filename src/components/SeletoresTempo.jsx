@@ -92,7 +92,7 @@ export function CalendarioMes({ valor, onMudar }) {
                 ativo
                   ? 'bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] font-semibold'
                   : hoje
-                    ? 'text-[#4d7c0f] dark:text-[#a3e635] font-semibold hover:bg-black/[0.05] dark:hover:bg-white/[0.08]'
+                    ? 'text-rm-acento dark:text-rm-acento-vivo font-semibold hover:bg-black/[0.05] dark:hover:bg-white/[0.08]'
                     : doMes
                       ? 'text-[#1d1d1f] dark:text-zinc-100 hover:bg-black/[0.05] dark:hover:bg-white/[0.08]'
                       : 'text-slate-300 dark:text-zinc-600 hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'
@@ -176,7 +176,7 @@ export function CampoHorario({ valor, onMudar, rotulo, id }) {
       aria-label={rotulo}
       aria-invalid={invalido}
       placeholder="hh:mm"
-      className={`w-[88px] h-10 px-3 rounded-xl text-center text-[15px] font-semibold tabular-nums bg-white dark:bg-white/[0.04] ring-1 outline-none focus:ring-2 focus:ring-[#4d7c0f]/40 ${
+      className={`w-[88px] h-10 px-3 rounded-xl text-center text-[15px] font-semibold tabular-nums bg-white dark:bg-white/[0.04] ring-1 outline-none focus:ring-2 focus:ring-rm-acento/40 ${
         invalido ? 'ring-rose-400' : 'ring-black/[0.12] dark:ring-white/[0.14]'
       }`}
     />
@@ -287,7 +287,7 @@ export function SeletorDuracao({ inicio, fim, onMudar, rotuloId }) {
               onBlur={() => definirMinutos(Number(minutosTexto) || 15)}
               onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), definirMinutos(Number(minutosTexto) || 15))}
               aria-label="Duração em minutos"
-              className="w-[64px] h-10 px-2 rounded-xl text-center text-[15px] font-semibold tabular-nums bg-white dark:bg-white/[0.04] ring-1 ring-black/[0.12] dark:ring-white/[0.14] outline-none focus:ring-2 focus:ring-[#4d7c0f]/40"
+              className="w-[64px] h-10 px-2 rounded-xl text-center text-[15px] font-semibold tabular-nums bg-white dark:bg-white/[0.04] ring-1 ring-black/[0.12] dark:ring-white/[0.14] outline-none focus:ring-2 focus:ring-rm-acento/40"
             />
             <span className="text-slate-500 dark:text-zinc-400">minutos</span>
           </label>

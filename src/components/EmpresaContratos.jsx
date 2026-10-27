@@ -9,7 +9,7 @@ import { classeCampo, classeRotulo } from './NovaEmpresaCampos';
 import { showToast } from './ToastNotification';
 
 const COR = {
-  ativo: 'bg-[#4d7c0f]/12 text-[#4d7c0f] dark:text-[#a3e635]',
+  ativo: 'bg-rm-acento/12 text-rm-acento dark:text-rm-acento-vivo',
   em_negociacao: 'bg-sky-500/12 text-sky-700 dark:text-sky-300',
   em_atraso: 'bg-amber-500/14 text-amber-700 dark:text-amber-300',
   encerrado: 'bg-black/[0.06] dark:bg-white/[0.1] text-slate-500 dark:text-zinc-400',
@@ -68,7 +68,7 @@ export default function EmpresaContratos({ empresa, userEmail, podeEditar = true
   );
 
   return (
-    <section className="rounded-3xl bg-white dark:bg-[#1e1e21] ring-1 ring-black/[0.06] dark:ring-white/[0.09] p-6 sm:p-8 space-y-6">
+    <section className="rounded-3xl bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.09] p-6 sm:p-8 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Contrato</h2>
@@ -116,7 +116,7 @@ export default function EmpresaContratos({ empresa, userEmail, podeEditar = true
                 <button type="button" onClick={() => setForm(null)} className="h-10 px-4 rounded-full text-[13px] font-medium cursor-pointer">
                   Cancelar
                 </button>
-                <button type="button" onClick={salvar} disabled={salvando || !form.plano?.trim()} className="h-10 px-4 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-[13px] font-semibold cursor-pointer disabled:opacity-50 flex items-center gap-2">
+                <button type="button" onClick={salvar} disabled={salvando || !form.plano?.trim()} className="h-10 px-4 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 text-[13px] font-semibold cursor-pointer disabled:opacity-50 flex items-center gap-2">
                   {salvando && <Spinner />}
                   Salvar contrato
                 </button>

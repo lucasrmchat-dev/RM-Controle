@@ -235,9 +235,9 @@ export default function AuditLogsView() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setMostrarFiltroAvancado(!mostrarFiltroAvancado)}
-            className="px-4 py-2 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-[#1e1e21] hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-slate-700 dark:text-zinc-300 transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+            className="px-4 py-2 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-rm-cartao-escuro hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-slate-700 dark:text-zinc-300 transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
           >
-            <CalendarIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16]" />
+            <CalendarIcon className="w-3.5 h-3.5 text-rm-acento dark:text-rm-acento-escuro" />
             <span>{mostrarFiltroAvancado ? 'Ocultar Filtro Avançado' : 'Filtro por Período'}</span>
           </button>
 
@@ -255,7 +255,7 @@ export default function AuditLogsView() {
       {/* ============================================================================== */}
       {/* LINHA DO TEMPO LÚDICA COM DIAS PASSADOS, HOJE E DIAS FUTUROS SEMI-TRANSPARENTES */}
       {/* ============================================================================== */}
-      <div className="rounded-3xl p-4 sm:p-5 border border-black/8 dark:border-white/10 bg-white/80 dark:bg-[#1e1e21]/85 backdrop-blur-xl shadow-sm space-y-3">
+      <div className="rounded-3xl p-4 sm:p-5 border border-black/8 dark:border-white/10 bg-white/80 dark:bg-rm-cartao-escuro/85 backdrop-blur-xl shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
             Linha do Tempo de Atividades
@@ -266,7 +266,7 @@ export default function AuditLogsView() {
                 setDiaSelecionado(null);
                 setPage(1);
               }}
-              className="text-xs font-bold text-[#4d7c0f] dark:text-[#84cc16] hover:underline"
+              className="text-xs font-bold text-rm-acento dark:text-rm-acento-escuro hover:underline"
             >
               Ver Todos os Dias
             </button>
@@ -305,13 +305,13 @@ export default function AuditLogsView() {
                   isSelected
                     ? 'border-black dark:border-white bg-black text-white dark:bg-white dark:text-black shadow-md'
                     : d.isHoje
-                    ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/10 dark:bg-[#84cc16]/10 text-[#0a0a0c] dark:text-white'
+                    ? 'border-rm-acento dark:border-rm-acento-escuro bg-rm-acento/10 dark:bg-rm-acento-escuro/10 text-[#0a0a0c] dark:text-white'
                     : 'border-black/8 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.03] text-slate-700 dark:text-zinc-300 hover:border-black/20 dark:hover:border-white/20'
                 }`}
               >
                 {d.isHoje && (
                   <span className={`absolute -top-2 px-1.5 py-0.2 rounded-full text-[8px] font-bold uppercase ${
-                    isSelected ? 'bg-white text-black' : 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-black'
+                    isSelected ? 'bg-white text-black' : 'bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-black'
                   }`}>
                     Hoje
                   </span>
@@ -332,7 +332,7 @@ export default function AuditLogsView() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white/90 dark:bg-[#1e1e21]/90 backdrop-blur-xl shadow-sm space-y-3"
+            className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white/90 dark:bg-rm-cartao-escuro/90 backdrop-blur-xl shadow-sm space-y-3"
           >
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -344,7 +344,7 @@ export default function AuditLogsView() {
                   setDataFimAvancada('');
                   setPage(1);
                 }}
-                className="text-xs text-[#4d7c0f] dark:text-[#84cc16] font-semibold hover:underline"
+                className="text-xs text-rm-acento dark:text-rm-acento-escuro font-semibold hover:underline"
               >
                 Limpar Intervalo
               </button>
@@ -384,7 +384,7 @@ export default function AuditLogsView() {
       </AnimatePresence>
 
       {/* Barra de Busca Rápida */}
-      <div className="rounded-2xl p-3 border border-black/8 dark:border-white/10 bg-white/80 dark:bg-[#1e1e21]/80 backdrop-blur-xl flex items-center gap-3 shadow-xs">
+      <div className="rounded-2xl p-3 border border-black/8 dark:border-white/10 bg-white/80 dark:bg-rm-cartao-escuro/80 backdrop-blur-xl flex items-center gap-3 shadow-xs">
         <input
           type="text"
           value={filtroTexto}
@@ -403,7 +403,7 @@ export default function AuditLogsView() {
       </div>
 
       {/* Tabela de Eventos Detalhados com Paginação */}
-      <div className="rounded-3xl border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] overflow-hidden shadow-sm">
+      <div className="rounded-3xl border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro overflow-hidden shadow-sm">
         <div className="p-5 border-b border-black/6 dark:border-white/[0.11] flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-zinc-300">
           <span>Rastro de Atividades ({logsFiltrados.length})</span>
           <span className="text-[10px] text-slate-400 font-mono">Imutável • Protegido por RLS</span>

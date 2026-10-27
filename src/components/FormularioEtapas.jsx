@@ -16,7 +16,7 @@ export const EASE = [0.16, 1, 0.3, 1];
 export const normalizarBusca = (t) => removerAcentos(String(t || '').toLowerCase().trim());
 
 export const classeBotaoPrimario =
-  'h-11 px-5 rounded-full text-sm font-semibold bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 shadow-md shadow-[#4d7c0f]/20 dark:shadow-[#84cc16]/20 hover:opacity-95 cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2 transition-opacity';
+  'h-11 px-5 rounded-full text-sm font-semibold bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 shadow-md shadow-rm-acento/20 dark:shadow-rm-acento-escuro/20 hover:opacity-95 cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2 transition-opacity';
 export const classeBotaoSecundario =
   'h-11 px-5 rounded-full text-sm font-semibold border border-black/[0.14] dark:border-white/[0.18] bg-white dark:bg-white/[0.04] text-[#1d1d1f] dark:text-white hover:bg-black/[0.03] dark:hover:bg-white/[0.08] cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 transition-colors';
 export const classeBotaoTexto =
@@ -63,7 +63,7 @@ export function ModalEtapas({ aberto, onFechar, bloqueado = false, titulo, subti
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reduzir ? { opacity: 0 } : { opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.32, ease: EASE }}
-            className={`w-full ${largura} max-h-[94dvh] sm:max-h-[90vh] flex flex-col rounded-t-[28px] sm:rounded-[28px] bg-[#fbfbfa] dark:bg-[#1e1e21] border border-black/[0.08] dark:border-white/[0.1] shadow-2xl text-[#1d1d1f] dark:text-white`}
+            className={`w-full ${largura} max-h-[94dvh] sm:max-h-[90vh] flex flex-col rounded-t-[28px] sm:rounded-[28px] bg-[#fbfbfa] dark:bg-rm-cartao-escuro border border-black/[0.08] dark:border-white/[0.1] shadow-2xl text-[#1d1d1f] dark:text-white`}
           >
             <header className="flex items-start justify-between gap-4 px-6 sm:px-8 pt-6 sm:pt-7 pb-5 border-b border-black/[0.06] dark:border-white/[0.11]">
               <div className="min-w-0">
@@ -116,7 +116,7 @@ export function Etapa({ numero, titulo, descricao, estado, ultima = false, fimDe
         <span
           className={`w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-bold transition-colors duration-300 ${
             concluida
-              ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950'
+              ? 'bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950'
               : travada
                 ? 'border border-black/15 dark:border-white/20 text-slate-400'
                 : 'bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f]'
@@ -220,7 +220,7 @@ export function Combobox({ id, placeholder, opcoes, renderOpcao, onEscolher, opc
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.14 }}
-            className="absolute z-30 left-0 right-0 top-full mt-1.5 max-h-64 overflow-y-auto rounded-xl border border-black/[0.1] dark:border-white/[0.14] bg-white dark:bg-[#1e1e21] shadow-xl p-1.5"
+            className="absolute z-30 left-0 right-0 top-full mt-1.5 max-h-64 overflow-y-auto rounded-xl border border-black/[0.1] dark:border-white/[0.14] bg-white dark:bg-rm-cartao-escuro shadow-xl p-1.5"
           >
             {filtradas.map((o, i) => (
               <li
@@ -247,11 +247,11 @@ export function Combobox({ id, placeholder, opcoes, renderOpcao, onEscolher, opc
                   e.preventDefault();
                   escolher(filtradas.length);
                 }}
-                className={`mt-1 px-3 py-2.5 rounded-lg cursor-pointer border-t border-black/[0.06] dark:border-white/[0.11] flex items-center gap-2.5 text-sm font-semibold text-[#4d7c0f] dark:text-[#84cc16] ${
-                  destaque === filtradas.length ? 'bg-[#4d7c0f]/[0.08] dark:bg-[#84cc16]/[0.1]' : ''
+                className={`mt-1 px-3 py-2.5 rounded-lg cursor-pointer border-t border-black/[0.06] dark:border-white/[0.11] flex items-center gap-2.5 text-sm font-semibold text-rm-acento dark:text-rm-acento-escuro ${
+                  destaque === filtradas.length ? 'bg-rm-acento/[0.08] dark:bg-rm-acento-escuro/[0.1]' : ''
                 }`}
               >
-                <span className="w-5 h-5 rounded-md bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 flex items-center justify-center text-base leading-none">+</span>
+                <span className="w-5 h-5 rounded-md bg-rm-acento/15 dark:bg-rm-acento-escuro/20 flex items-center justify-center text-base leading-none">+</span>
                 <span className="truncate">{opcaoNova(termo.trim())}</span>
               </li>
             )}
@@ -295,7 +295,7 @@ export function Escolhido({ icone, titulo, detalhe, selo, onTrocar, rotuloTrocar
 }
 
 export function SeloNovo({ children = 'Novo' }) {
-  return <span className="px-1.5 py-0.5 rounded-md bg-[#4d7c0f]/12 dark:bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#84cc16] text-[11px] font-bold">{children}</span>;
+  return <span className="px-1.5 py-0.5 rounded-md bg-rm-acento/12 dark:bg-rm-acento-escuro/15 text-rm-acento dark:text-rm-acento-escuro text-[11px] font-bold">{children}</span>;
 }
 
 /** Bloco que abre/fecha com altura animada. */
@@ -326,7 +326,7 @@ export function Expandir({ aberto, children }) {
 export function Pilulas({ opcoes, selecionadas, onAlternar, rotuloId, cor = 'escura' }) {
   const ativoCls =
     cor === 'marca'
-      ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 border-transparent'
+      ? 'bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 border-transparent'
       : 'bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] border-transparent';
   return (
     <div role="group" aria-labelledby={rotuloId} className="flex flex-wrap gap-2">

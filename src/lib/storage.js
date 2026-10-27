@@ -1,7 +1,7 @@
 import { validarConfigComercial, CONFIG_COMERCIAL_PADRAO } from './comercial';
 import { validarModelosTitulosAgenda } from './titulosAgenda';
 import { validarConfigFeedbacks, validarSubtarefas, CONFIG_FEEDBACKS_PADRAO, tipoFeedback } from './feedbacks';
-import { validarContratoCliente } from './plataforma';
+import { modulosDaEmpresa, validarContratoCliente } from './plataforma';
 
 // Auxiliar para identificar chamados gerados por feedbacks/relatos internos
 export function isChamadoFeedback(c) {
@@ -53,7 +53,8 @@ export function getDefaultViewMode() {
 
 export function setDefaultViewMode(mode) {
   if (typeof window === 'undefined') return;
-  const valid = mode === 'cards' || mode === 'grid' ? 'cards' : 'list';
+  // Kanban vale onde existe (Fila de Demandas e Chat); nas demais telas vira cards
+  const valid = mode === 'kanban' ? 'kanban' : mode === 'cards' || mode === 'grid' ? 'cards' : 'list';
   localStorage.setItem('rm_default_view_mode', valid);
   window.dispatchEvent(new CustomEvent('rm_default_view_mode_updated', { detail: valid }));
 }
@@ -3331,7 +3332,7 @@ export function definirUsuarioAtual(email) {
 /** O que a pessoa logada pode ver: módulos e departamentos (regra em src/lib/perfis.js). */
 export function getPermissoesAtuais(email = null) {
   const alvo = email || emailUsuarioAtual;
-  return permissoesEfetivas({ email: alvo, equipe: getEquipeUsuarios(), perfis: getPerfisAcesso(), verComoPerfilId: getVerComoPerfil() });
+  return permissoesEfetivas({ email: alvo, equipe: getEquipeUsuarios(), perfis: getPerfisAcesso(), verComoPerfilId: getVerComoPerfil(), modulosDaEmpresa: modulosDaEmpresa(getOrganizacaoAtual()) });
 }
 
 export function getAbasPermitidas(email = null) {
@@ -3344,7 +3345,7 @@ export function getAbasPermitidas(email = null) {
 // MULTIEMPRESA: o navegador guarda dados de UMA empresa por vez
 // ==============================================================================
 // Preferências visuais sobrevivem à troca; todo o resto (demandas, empresas, equipe, agenda...) é apagado
-const PRESERVAR_AO_TROCAR_EMPRESA = new Set(['rm_theme', 'rm_last_active_timestamp', 'rm_feedbacks_visao', 'rm_feedbacks_modo_dev', 'rm_organizacao_atual']);
+const PRESERVAR_AO_TROCAR_EMPRESA = new Set(['rm_theme', 'rm_paleta', 'rm_last_active_timestamp', 'rm_feedbacks_visao', 'rm_feedbacks_modo_dev', 'rm_organizacao_atual']);
 
 /**
  * Registra a empresa em que a pessoa está (vinda de /api/auth/session). Se mudou desde a última vez
@@ -3400,6 +3401,9 @@ async function chamarCanais(url, metodo, corpo) {
   return json;
 }
 export const fetchCanais = () => chamarCanais('/api/canais', 'GET');
+// Daily (ticket #21): reuniões diárias e metas da semana, pelo servidor (confere módulo e empresa)
+export const fetchDaily = (semana) => chamarCanais(`/api/daily${semana ? `?semana=${encodeURIComponent(semana)}` : ''}`, 'GET');
+export const acaoDaily = (corpo) => chamarCanais('/api/daily', 'POST', corpo);
 export const criarCanal = (dados) => chamarCanais('/api/canais', 'POST', dados);
 export const editarCanal = (dados) => chamarCanais('/api/canais', 'PATCH', dados);
 export const excluirCanal = (id) => chamarCanais('/api/canais', 'DELETE', { id });

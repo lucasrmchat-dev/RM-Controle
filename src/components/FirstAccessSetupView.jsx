@@ -127,7 +127,7 @@ export default function FirstAccessSetupView({
   };
 
   return (
-    <div className="min-h-screen w-full relative flex items-center justify-center p-4 sm:p-6 overflow-hidden bg-[#f4f4f6] dark:bg-[#141416] text-[#0a0a0c] dark:text-[#ffffff] transition-colors duration-300">
+    <div className="min-h-screen w-full relative flex items-center justify-center p-4 sm:p-6 overflow-hidden bg-[#f4f4f6] dark:bg-rm-fundo-escuro text-[#0a0a0c] dark:text-[#ffffff] transition-colors duration-300">
       
       {/* Background Ambient Mesh Orbs com Movimento Orgânico Suave */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -139,7 +139,7 @@ export default function FirstAccessSetupView({
             opacity: [0.25, 0.4, 0.25],
           }}
           transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute -top-[15%] -left-[10%] w-[60vw] h-[60vw] max-w-[650px] max-h-[650px] rounded-full bg-gradient-to-br from-[#4d7c0f]/20 via-[#84cc16]/15 to-transparent blur-[140px]"
+          className="absolute -top-[15%] -left-[10%] w-[60vw] h-[60vw] max-w-[650px] max-h-[650px] rounded-full bg-gradient-to-br from-rm-acento/20 via-rm-acento-escuro/15 to-transparent blur-[140px]"
         />
         <motion.div
           animate={{
@@ -159,7 +159,7 @@ export default function FirstAccessSetupView({
           <button
             type="button"
             onClick={onLogout}
-            className="px-3.5 py-2 rounded-full backdrop-blur-2xl bg-white/90 dark:bg-[#1e1e21]/90 border border-black/10 dark:border-white/15 shadow-xs hover:scale-105 active:scale-95 transition-all text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:text-red-600 dark:hover:text-red-400 flex items-center gap-1.5 cursor-pointer"
+            className="px-3.5 py-2 rounded-full backdrop-blur-2xl bg-white/90 dark:bg-rm-cartao-escuro/90 border border-black/10 dark:border-white/15 shadow-xs hover:scale-105 active:scale-95 transition-all text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:text-red-600 dark:hover:text-red-400 flex items-center gap-1.5 cursor-pointer"
             title="Sair / Encerrar Sessão sem concluir o cadastro"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -174,7 +174,7 @@ export default function FirstAccessSetupView({
         {onToggleTheme && (
           <button
             onClick={() => onToggleTheme(theme === 'light' ? 'dark' : 'light')}
-            className="p-2.5 rounded-full backdrop-blur-2xl bg-white/90 dark:bg-[#1e1e21]/90 border border-black/10 dark:border-white/15 shadow-xs hover:scale-105 active:scale-95 transition-all text-slate-800 dark:text-zinc-100 cursor-pointer"
+            className="p-2.5 rounded-full backdrop-blur-2xl bg-white/90 dark:bg-rm-cartao-escuro/90 border border-black/10 dark:border-white/15 shadow-xs hover:scale-105 active:scale-95 transition-all text-slate-800 dark:text-zinc-100 cursor-pointer"
             title="Alternar Tema Claro / Escuro"
           >
             {theme === 'light' ? (
@@ -203,9 +203,9 @@ export default function FirstAccessSetupView({
                 key={passoNum}
                 className={`h-1.5 rounded-full transition-all duration-400 ${
                   isAtual
-                    ? 'w-10 bg-[#4d7c0f] dark:bg-[#84cc16]'
+                    ? 'w-10 bg-rm-acento dark:bg-rm-acento-escuro'
                     : isConcluido
-                    ? 'w-6 bg-[#4d7c0f]/50 dark:bg-[#84cc16]/50'
+                    ? 'w-6 bg-rm-acento/50 dark:bg-rm-acento-escuro/50'
                     : 'w-4 bg-black/10 dark:bg-white/15'
                 }`}
               />
@@ -213,7 +213,7 @@ export default function FirstAccessSetupView({
           })}
         </div>
 
-        <div className="rounded-[36px] p-7 sm:p-10 backdrop-blur-3xl bg-white/95 dark:bg-[#1e1e21]/95 border border-black/12 dark:border-white/15 shadow-[0_30px_100px_-20px_rgba(0,0,0,0.12)] dark:shadow-[0_35px_110px_-25px_rgba(0,0,0,0.95)] overflow-hidden relative">
+        <div className="rounded-[36px] p-7 sm:p-10 backdrop-blur-3xl bg-white/95 dark:bg-rm-cartao-escuro/95 border border-black/12 dark:border-white/15 shadow-[0_30px_100px_-20px_rgba(0,0,0,0.12)] dark:shadow-[0_35px_110px_-25px_rgba(0,0,0,0.95)] overflow-hidden relative">
           <AnimatePresence mode="wait">
 
             {/* ============================================================================== */}
@@ -229,7 +229,7 @@ export default function FirstAccessSetupView({
                 className="space-y-6 text-center"
               >
                 <motion.div variants={itemVariants} className="space-y-2">
-                  <span className="text-4xl sm:text-5xl font-extrabold tracking-tight bg-gradient-to-r from-[#4d7c0f] via-emerald-600 to-[#84cc16] bg-clip-text text-transparent inline-block">
+                  <span className="text-4xl sm:text-5xl font-extrabold tracking-tight bg-gradient-to-r from-rm-acento via-emerald-600 to-rm-acento-escuro bg-clip-text text-transparent inline-block">
                     Olá.
                   </span>
                   <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#1d1d1f] dark:text-white">
@@ -264,7 +264,7 @@ export default function FirstAccessSetupView({
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setEtapa(2)}
-                    className="w-full py-3.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-sm shadow-md hover:opacity-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    className="w-full py-3.5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-sm shadow-md hover:opacity-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <span>Continuar</span>
                     <span>→</span>
@@ -311,7 +311,7 @@ export default function FirstAccessSetupView({
                         value={novaSenha}
                         onChange={(e) => setNovaSenha(e.target.value)}
                         placeholder="Digite sua nova senha..."
-                        className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 font-mono"
+                        className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-rm-acento/20 font-mono"
                       />
                       <button
                         type="button"
@@ -333,7 +333,7 @@ export default function FirstAccessSetupView({
                         value={confirmarSenha}
                         onChange={(e) => setConfirmarSenha(e.target.value)}
                         placeholder="Repita sua nova senha..."
-                        className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 font-mono"
+                        className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-rm-acento/20 font-mono"
                       />
                       <button
                         type="button"
@@ -409,7 +409,7 @@ export default function FirstAccessSetupView({
                     whileTap={todasRegrasAtendidas ? { scale: 0.98 } : {}}
                     disabled={!todasRegrasAtendidas}
                     onClick={() => setEtapa(3)}
-                    className="px-6 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1.5 cursor-pointer"
+                    className="px-6 py-2.5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>Salvar e Continuar</span>
                     <span>→</span>
@@ -461,7 +461,7 @@ export default function FirstAccessSetupView({
                       onChange={(e) => setAudioConfig({ ...audioConfig, habilitado: e.target.checked })}
                       className="sr-only peer"
                     />
-                    <div className="w-12 h-7 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-800 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[3px] after:left-[3px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-zinc-600 peer-checked:bg-[#4d7c0f] dark:peer-checked:bg-[#84cc16]"></div>
+                    <div className="w-12 h-7 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-rm-campo-escuro peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[3px] after:left-[3px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-zinc-600 peer-checked:bg-rm-acento dark:peer-checked:bg-rm-acento-escuro"></div>
                   </label>
                 </motion.div>
 
@@ -486,7 +486,7 @@ export default function FirstAccessSetupView({
                               onClick={() => setAudioConfig({ ...audioConfig, modoRepeticao: m.id })}
                               className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
                                 isSel
-                                  ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 font-bold'
+                                  ? 'border-rm-acento dark:border-rm-acento-escuro bg-rm-acento/10 dark:bg-rm-acento-escuro/15 font-bold'
                                   : 'border-black/[0.06] dark:border-white/[0.11] hover:border-black/20 bg-black/[0.01]'
                               }`}
                             >
@@ -510,7 +510,7 @@ export default function FirstAccessSetupView({
                             step="5"
                             value={audioConfig.intervaloSegundos || 30}
                             onChange={(e) => setAudioConfig({ ...audioConfig, intervaloSegundos: parseInt(e.target.value, 10) })}
-                            className="w-full accent-[#4d7c0f] dark:accent-[#84cc16]"
+                            className="w-full accent-rm-acento dark:accent-rm-acento-escuro"
                           />
                         </div>
                       )}
@@ -538,13 +538,13 @@ export default function FirstAccessSetupView({
                               }}
                               className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
                                 isSel
-                                  ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/10 dark:bg-[#84cc16]/15 shadow-xs font-bold'
+                                  ? 'border-rm-acento dark:border-rm-acento-escuro bg-rm-acento/10 dark:bg-rm-acento-escuro/15 shadow-xs font-bold'
                                   : 'border-black/[0.06] dark:border-white/[0.11] hover:border-black/20 bg-black/[0.01]'
                               }`}
                             >
                               <div className="flex items-center justify-between w-full mb-1">
                                 <span className="text-xs font-bold text-[#1d1d1f] dark:text-white">{som.nome}</span>
-                                {isSel && <span className="w-2 h-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16]"></span>}
+                                {isSel && <span className="w-2 h-2 rounded-full bg-rm-acento dark:bg-rm-acento-escuro"></span>}
                               </div>
                               <span className="text-[10px] text-slate-500 dark:text-zinc-400 leading-tight block">
                                 {som.desc}
@@ -570,7 +570,7 @@ export default function FirstAccessSetupView({
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setEtapa(4)}
-                    className="px-6 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                    className="px-6 py-2.5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>Salvar e Continuar</span>
                     <span>→</span>
@@ -612,7 +612,7 @@ export default function FirstAccessSetupView({
                     onClick={() => setViewMode('list')}
                     className={`p-5 rounded-3xl border-2 transition-all cursor-pointer space-y-3 ${
                       viewMode === 'list'
-                        ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10 shadow-sm'
+                        ? 'border-rm-acento dark:border-rm-acento-escuro bg-rm-acento/5 dark:bg-rm-acento-escuro/10 shadow-sm'
                         : 'border-black/[0.08] dark:border-white/[0.1] bg-black/[0.01] hover:border-black/20'
                     }`}
                   >
@@ -629,7 +629,7 @@ export default function FirstAccessSetupView({
                         </div>
                       </div>
                       {viewMode === 'list' && (
-                        <span className="w-5 h-5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-black flex items-center justify-center">
+                        <span className="w-5 h-5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-black flex items-center justify-center">
                           <CheckIcon className="w-3 h-3" />
                         </span>
                       )}
@@ -652,7 +652,7 @@ export default function FirstAccessSetupView({
                     onClick={() => setViewMode('cards')}
                     className={`p-5 rounded-3xl border-2 transition-all cursor-pointer space-y-3 ${
                       viewMode === 'cards'
-                        ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/5 dark:bg-[#84cc16]/10 shadow-sm'
+                        ? 'border-rm-acento dark:border-rm-acento-escuro bg-rm-acento/5 dark:bg-rm-acento-escuro/10 shadow-sm'
                         : 'border-black/[0.08] dark:border-white/[0.1] bg-black/[0.01] hover:border-black/20'
                     }`}
                   >
@@ -669,7 +669,7 @@ export default function FirstAccessSetupView({
                         </div>
                       </div>
                       {viewMode === 'cards' && (
-                        <span className="w-5 h-5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-black flex items-center justify-center">
+                        <span className="w-5 h-5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-black flex items-center justify-center">
                           <CheckIcon className="w-3 h-3" />
                         </span>
                       )}
@@ -700,7 +700,7 @@ export default function FirstAccessSetupView({
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setEtapa(5)}
-                    className="px-6 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                    className="px-6 py-2.5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>Revisar e Concluir</span>
                     <span>→</span>
@@ -722,7 +722,7 @@ export default function FirstAccessSetupView({
                 className="space-y-6 text-center"
               >
                 <motion.div variants={itemVariants} className="space-y-2">
-                  <div className="w-16 h-16 rounded-full bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16] flex items-center justify-center mx-auto mb-2 border border-[#4d7c0f]/30">
+                  <div className="w-16 h-16 rounded-full bg-rm-acento/15 dark:bg-rm-acento-escuro/20 text-rm-acento dark:text-rm-acento-escuro flex items-center justify-center mx-auto mb-2 border border-rm-acento/30">
                     <CheckIcon className="w-8 h-8 stroke-[2.5]" />
                   </div>
                   <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#1d1d1f] dark:text-white">
@@ -766,7 +766,7 @@ export default function FirstAccessSetupView({
                     whileTap={{ scale: 0.98 }}
                     disabled={submitting}
                     onClick={handleFinalizarSetup}
-                    className="w-full py-4 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-sm shadow-xl shadow-[#4d7c0f]/20 hover:opacity-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    className="w-full py-4 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-sm shadow-xl shadow-rm-acento/20 hover:opacity-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                   >
                     <SparklesIcon className="w-4 h-4" />
                     <span>{submitting ? 'Gravando Configurações...' : 'Começar a Usar o RM Controle'}</span>

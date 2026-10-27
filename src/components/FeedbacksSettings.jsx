@@ -11,7 +11,7 @@ const PONTOS = {
   em_analise: 'bg-amber-500',
   no_roadmap: 'bg-violet-500',
   em_correcao: 'bg-sky-500',
-  resolvido: 'bg-[#4d7c0f] dark:bg-[#84cc16]',
+  resolvido: 'bg-rm-acento dark:bg-rm-acento-escuro',
 };
 
 /** Configurações › Feedbacks: nomes das etapas do pipeline e quem forma a área de desenvolvimento. */
@@ -49,7 +49,7 @@ export default function FeedbacksSettings() {
   };
 
   return (
-    <section className="rounded-3xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-[#1e1e21] p-5 sm:p-8 space-y-9">
+    <section className="rounded-3xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-rm-cartao-escuro p-5 sm:p-8 space-y-9">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">Feedbacks</h2>
         <p className="text-sm text-slate-500 dark:text-zinc-400 mt-2 leading-relaxed max-w-2xl">

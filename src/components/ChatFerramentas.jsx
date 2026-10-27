@@ -49,7 +49,7 @@ function Chave({ ligado, onMudar, titulo, descricao, desabilitado = false }) {
       onClick={() => onMudar(!ligado)}
       className="w-full flex items-center gap-3.5 rounded-2xl px-4 py-3 ring-1 ring-black/[0.08] dark:ring-white/[0.1] text-left cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] disabled:opacity-50 disabled:cursor-not-allowed"
     >
-      <span className={`relative w-10 h-6 rounded-full flex-shrink-0 transition-colors ${ligado ? 'bg-[#00a884]' : 'bg-black/15 dark:bg-white/20'}`}>
+      <span className={`relative w-10 h-6 rounded-full flex-shrink-0 transition-colors ${ligado ? 'bg-rm-acento-medio' : 'bg-black/15 dark:bg-white/20'}`}>
         <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${ligado ? 'left-5' : 'left-1'}`} />
       </span>
       <span className="min-w-0">
@@ -203,7 +203,7 @@ function LinhaContato({ c, Avatar, onConversar, onSalvo }) {
           }}
         >
           <input value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} autoFocus placeholder="Nome" className="flex-1 h-9 rounded-lg px-3 bg-black/[0.04] dark:bg-white/[0.06] outline-none text-[14px]" />
-          <button type="submit" disabled={ocupado} className="h-9 px-3 rounded-lg bg-[#4d7c0f] text-white text-[13px] font-semibold cursor-pointer disabled:opacity-50">
+          <button type="submit" disabled={ocupado} className="h-9 px-3 rounded-lg bg-rm-acento text-white text-[13px] font-semibold cursor-pointer disabled:opacity-50">
             Salvar
           </button>
           <button type="button" onClick={() => setEditando(false)} className="h-9 px-2 text-[13px] text-slate-500 cursor-pointer">
@@ -219,7 +219,7 @@ function LinhaContato({ c, Avatar, onConversar, onSalvo }) {
           <button type="button" onClick={() => setEditando(true)} className="h-8 px-3 rounded-full text-[12.5px] font-medium text-slate-600 dark:text-zinc-300 ring-1 ring-black/[0.1] dark:ring-white/[0.14] hover:bg-black/[0.04] cursor-pointer md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100">
             Editar
           </button>
-          <button type="button" onClick={() => onConversar(c)} disabled={ocupado} className="h-8 px-3 rounded-full text-[12.5px] font-semibold text-white bg-[#00a884] hover:bg-[#019774] cursor-pointer">
+          <button type="button" onClick={() => onConversar(c)} disabled={ocupado} className="h-8 px-3 rounded-full text-[12.5px] font-semibold text-white bg-rm-acento-medio hover:bg-[#019774] cursor-pointer">
             Conversar
           </button>
         </>

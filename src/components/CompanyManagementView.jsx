@@ -824,7 +824,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
         <div className="flex flex-col lg:flex-row lg:items-center gap-3 flex-wrap flex-1">
           <button
             onClick={onBack}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-[#1e1e21] text-xs font-semibold text-slate-700 dark:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5 shadow-xs transition-all self-start flex-shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-rm-cartao-escuro text-xs font-semibold text-slate-700 dark:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5 shadow-xs transition-all self-start flex-shrink-0 cursor-pointer"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="19" y1="12" x2="5" y2="12"/>
@@ -879,7 +879,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
             onClick={handleAbrirModalIniciarSuporte}
-            className="px-4 py-2.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 flex items-center gap-2 transition-all cursor-pointer"
+            className="px-4 py-2.5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-rm-acento/20 hover:opacity-95 flex items-center gap-2 transition-all cursor-pointer"
           >
             <PlayIcon className="w-3.5 h-3.5" />
             <span>{chamadoAtivo ? '+ Nova Demanda' : 'Iniciar Atendimento de Demanda'}</span>
@@ -888,7 +888,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
           <button
             type="button"
             onClick={() => setIsRegistrarModalOpen(true)}
-            className="px-3.5 py-2.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-800 hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-[#1d1d1f] dark:text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+            className="px-3.5 py-2.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-rm-campo-escuro hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-[#1d1d1f] dark:text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
             <span>+ Registrar Suporte</span>
           </button>
@@ -914,10 +914,10 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
         <div className="lg:col-span-4 xl:col-span-4 space-y-4 lg:sticky lg:top-20">
           
           {/* Cartão de Identidade & Status da Empresa */}
-          <div className="rounded-3xl p-6 border border-black/10 dark:border-white/12 bg-white dark:bg-[#1e1e21] shadow-sm space-y-5">
+          <div className="rounded-3xl p-6 border border-black/10 dark:border-white/12 bg-white dark:bg-rm-cartao-escuro shadow-sm space-y-5">
             
             <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#4d7c0f]/20 to-[#84cc16]/25 text-[#4d7c0f] dark:text-[#84cc16] font-bold text-xl flex items-center justify-center border border-[#4d7c0f]/30 flex-shrink-0">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-rm-acento/20 to-rm-acento-escuro/25 text-rm-acento dark:text-rm-acento-escuro font-bold text-xl flex items-center justify-center border border-rm-acento/30 flex-shrink-0">
                 {empresa.nome.charAt(0)}
               </div>
               <div className="min-w-0 flex-1">
@@ -927,14 +927,14 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                       type="text"
                       value={empresaNomeEditInput}
                       onChange={(e) => setEmpresaNomeEditInput(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-xl border border-black/15 dark:border-white/20 bg-white dark:bg-zinc-800 text-sm font-bold text-[#0a0a0c] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]"
+                      className="w-full px-3 py-1.5 rounded-xl border border-black/15 dark:border-white/20 bg-white dark:bg-rm-campo-escuro text-sm font-bold text-[#0a0a0c] dark:text-white focus:outline-none focus:ring-2 focus:ring-rm-acento"
                       autoFocus
                     />
                     <div className="flex items-center gap-1.5">
                       <button
                         type="submit"
                         disabled={salvandoEmpresaServidor}
-                        className="px-3 py-1 rounded-lg bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold shadow-xs hover:opacity-95 cursor-pointer"
+                        className="px-3 py-1 rounded-lg bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 text-xs font-bold shadow-xs hover:opacity-95 cursor-pointer"
                       >
                         Salvar
                       </button>
@@ -961,7 +961,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                       className="p-1 rounded-lg text-slate-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
                       title="Editar nome da empresa"
                     >
-                      <EditIcon className="w-4 h-4 text-slate-500 hover:text-[#4d7c0f] dark:hover:text-[#84cc16]" />
+                      <EditIcon className="w-4 h-4 text-slate-500 hover:text-rm-acento dark:hover:text-rm-acento-escuro" />
                     </button>
                   </div>
                 )}
@@ -1032,7 +1032,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                     empresa.tipo_cliente === 'existente'
                       ? 'bg-blue-500/10 text-blue-700 dark:text-blue-300'
-                      : 'bg-[#4d7c0f]/10 text-[#4d7c0f] dark:text-[#84cc16]'
+                      : 'bg-rm-acento/10 text-rm-acento dark:text-rm-acento-escuro'
                   }`}>
                     {TIPOS_CLIENTE[empresa.tipo_cliente]}
                   </span>
@@ -1043,7 +1043,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
               <button
                 type="button"
                 onClick={() => setActiveTab('servidor')}
-                className="text-[11px] font-semibold text-[#4d7c0f] dark:text-[#84cc16] hover:underline cursor-pointer"
+                className="text-[11px] font-semibold text-rm-acento dark:text-rm-acento-escuro hover:underline cursor-pointer"
               >
                 Alterar servidor ou tipo de cliente →
               </button>
@@ -1072,7 +1072,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 </div>
                 <div className="w-full h-2 rounded-full bg-black/5 dark:bg-white/10 overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-[#4d7c0f] to-[#84cc16] transition-all duration-500"
+                    className="h-full rounded-full bg-gradient-to-r from-rm-acento to-rm-acento-escuro transition-all duration-500"
                     style={{ width: `${pctChecklist}%` }}
                   />
                 </div>
@@ -1112,7 +1112,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 </div>
               )}
 
-              <div className="p-3.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-amber-500/25 text-center space-y-1 shadow-xs">
+              <div className="p-3.5 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-amber-500/25 text-center space-y-1 shadow-xs">
                 <span className="text-[11px] text-slate-500 dark:text-zinc-400 block font-medium">Tempo Decorrido:</span>
                 <span className="text-3xl font-extrabold font-mono text-amber-600 dark:text-amber-400 tabular-nums block">
                   {formatarTempo(tempoSuporteSegundos)}
@@ -1133,7 +1133,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                     verificarChamadoAtivo();
                     setIsFinalizarModalOpen(true);
                   }}
-                  className="w-full py-3 rounded-2xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  className="w-full py-3 rounded-2xl bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-rm-acento/20 hover:opacity-95 flex items-center justify-center gap-2 transition-all cursor-pointer"
                 >
                   <CheckIcon className="w-4 h-4 stroke-[2.5]" />
                   <span>Concluir Chamado</span>
@@ -1160,7 +1160,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
           {/* ============================================================================== */}
           {activeTab === 'canais' && (
             <div className="space-y-4">
-              <div className="rounded-3xl p-6 border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+              <div className="rounded-3xl p-6 border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
                 <div>
                   <h2 className="text-base font-bold text-[#0a0a0c] dark:text-white">
                     Canais de Mensageria Contratados
@@ -1178,7 +1178,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                       onClick={() => handleChangeCanaisViewMode('grid')}
                       className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
                         canaisViewMode === 'grid'
-                          ? 'bg-white dark:bg-zinc-800 text-[#0a0a0c] dark:text-white shadow-xs'
+                          ? 'bg-white dark:bg-rm-campo-escuro text-[#0a0a0c] dark:text-white shadow-xs'
                           : 'text-slate-500 hover:text-[#0a0a0c] dark:hover:text-white'
                       }`}
                       title="Exibir canais em Cards"
@@ -1191,7 +1191,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                       onClick={() => handleChangeCanaisViewMode('list')}
                       className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
                         canaisViewMode === 'list'
-                          ? 'bg-white dark:bg-zinc-800 text-[#0a0a0c] dark:text-white shadow-xs'
+                          ? 'bg-white dark:bg-rm-campo-escuro text-[#0a0a0c] dark:text-white shadow-xs'
                           : 'text-slate-500 hover:text-[#0a0a0c] dark:hover:text-white'
                       }`}
                       title="Exibir canais em Lista Detalhada"
@@ -1217,7 +1217,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="rounded-3xl p-6 border border-black/10 dark:border-white/15 bg-slate-50/90 dark:bg-[#1e1e21]/90 space-y-4 shadow-sm"
+                    className="rounded-3xl p-6 border border-black/10 dark:border-white/15 bg-slate-50/90 dark:bg-rm-cartao-escuro/90 space-y-4 shadow-sm"
                   >
                     <div className="flex items-center justify-between">
                       <div>
@@ -1244,8 +1244,8 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                               onClick={() => setSelectedCanalId(c.id)}
                               className={`p-3 rounded-2xl border text-left flex items-center gap-3 transition-all ${
                                 selectedCanalId === c.id
-                                  ? 'border-black dark:border-white bg-white dark:bg-zinc-800 shadow-sm'
-                                  : 'border-black/8 dark:border-white/10 bg-white/50 dark:bg-[#1e1e21]/50 text-slate-600 dark:text-zinc-400'
+                                  ? 'border-black dark:border-white bg-white dark:bg-rm-campo-escuro shadow-sm'
+                                  : 'border-black/8 dark:border-white/10 bg-white/50 dark:bg-rm-cartao-escuro/50 text-slate-600 dark:text-zinc-400'
                               }`}
                             >
                               <div className="w-8 h-8 rounded-xl bg-black/5 dark:bg-white/10 flex items-center justify-center flex-shrink-0">
@@ -1271,7 +1271,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                             onChange={(e) => setCanalNumero(e.target.value)}
                             placeholder="Ex: +55 11 98888-7777"
                             required
-                            className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/10 dark:border-white/15 text-xs font-mono focus:outline-none"
+                            className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/10 dark:border-white/15 text-xs font-mono focus:outline-none"
                           />
                         </div>
 
@@ -1284,7 +1284,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                             value={canalObs}
                             onChange={(e) => setCanalObs(e.target.value)}
                             placeholder="Ex: Instância exclusiva do setor de vendas"
-                            className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/10 dark:border-white/15 text-xs focus:outline-none"
+                            className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/10 dark:border-white/15 text-xs focus:outline-none"
                           />
                         </div>
                       </div>
@@ -1302,14 +1302,14 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
 
               {/* Lista de Canais Ativos */}
               {(!empresa.canais || empresa.canais.length === 0) ? (
-                <div className="rounded-3xl p-10 border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] text-center space-y-2">
+                <div className="rounded-3xl p-10 border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro text-center space-y-2">
                   <p className="text-sm font-bold text-[#0a0a0c] dark:text-white">Nenhum canal conectado ainda</p>
                   <p className="text-xs text-slate-500">Vincule a primeira instância ou canal de mensageria da empresa.</p>
                 </div>
               ) : canaisViewMode === 'grid' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   {empresa.canais.map((c) => (
-                    <div key={c.canal_id} className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] flex items-start justify-between gap-3 shadow-sm hover:shadow-md transition-all">
+                    <div key={c.canal_id} className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro flex items-start justify-between gap-3 shadow-sm hover:shadow-md transition-all">
                       <div className="space-y-2 min-w-0">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-xl bg-black/5 dark:bg-white/10 flex items-center justify-center flex-shrink-0">
@@ -1342,7 +1342,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 </div>
               ) : (
                 /* Visualização em Lista de Canais (Estilo Tabela Apple) */
-                <div className="rounded-3xl border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] overflow-hidden shadow-sm">
+                <div className="rounded-3xl border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro overflow-hidden shadow-sm">
                   <div className="hidden sm:grid grid-cols-12 gap-3 px-5 py-3 border-b border-black/5 dark:border-white/[0.09] text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-400 bg-black/[0.01] dark:bg-white/[0.02]">
                     <div className="col-span-4">Canal / Categoria</div>
                     <div className="col-span-4">Identificador / Número</div>
@@ -1408,7 +1408,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
           {/* ============================================================================== */}
           {activeTab === 'credenciais' && (
             <div className="space-y-4">
-              <div className="rounded-3xl p-6 border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+              <div className="rounded-3xl p-6 border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
                 <div>
                   <h2 className="text-base font-bold text-[#0a0a0c] dark:text-white">
                     Acessos e Senhas Técnicas ({credenciaisList.length})
@@ -1426,7 +1426,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                       onClick={() => handleChangeCredenciaisViewMode('cards')}
                       className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
                         credenciaisViewMode === 'cards'
-                          ? 'bg-white dark:bg-zinc-800 text-[#0a0a0c] dark:text-white shadow-xs'
+                          ? 'bg-white dark:bg-rm-campo-escuro text-[#0a0a0c] dark:text-white shadow-xs'
                           : 'text-slate-500 hover:text-[#0a0a0c] dark:hover:text-white'
                       }`}
                       title="Exibir acessos em Cards"
@@ -1439,7 +1439,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                       onClick={() => handleChangeCredenciaisViewMode('list')}
                       className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
                         credenciaisViewMode === 'list'
-                          ? 'bg-white dark:bg-zinc-800 text-[#0a0a0c] dark:text-white shadow-xs'
+                          ? 'bg-white dark:bg-rm-campo-escuro text-[#0a0a0c] dark:text-white shadow-xs'
                           : 'text-slate-500 hover:text-[#0a0a0c] dark:hover:text-white'
                       }`}
                       title="Exibir acessos em Lista / Tabela Keychain"
@@ -1474,7 +1474,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
                     onSubmit={handleSalvarNovaCredencial}
-                    className="rounded-3xl p-6 border border-black/10 dark:border-white/15 bg-slate-50/90 dark:bg-[#1e1e21]/90 space-y-4 shadow-sm"
+                    className="rounded-3xl p-6 border border-black/10 dark:border-white/15 bg-slate-50/90 dark:bg-rm-cartao-escuro/90 space-y-4 shadow-sm"
                   >
                     <div className="flex items-center justify-between">
                       <div>
@@ -1500,7 +1500,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                           onChange={(e) => setCredRotulo(e.target.value)}
                           placeholder="Ex: Painel Admin, Servidor SSH"
                           required
-                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/10 dark:border-white/15 text-xs focus:outline-none"
+                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/10 dark:border-white/15 text-xs focus:outline-none"
                         />
                       </div>
 
@@ -1513,7 +1513,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                           value={credNomeUsuario}
                           onChange={(e) => setCredNomeUsuario(e.target.value)}
                           placeholder="Ex: Carlos Gerente, Atendente 01"
-                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/10 dark:border-white/15 text-xs focus:outline-none"
+                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/10 dark:border-white/15 text-xs focus:outline-none"
                         />
                       </div>
 
@@ -1526,7 +1526,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                           value={credUsuario}
                           onChange={(e) => setCredUsuario(e.target.value)}
                           placeholder="Ex: admin@empresa.com.br"
-                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/10 dark:border-white/15 text-xs focus:outline-none font-mono"
+                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/10 dark:border-white/15 text-xs focus:outline-none font-mono"
                         />
                       </div>
                     </div>
@@ -1540,7 +1540,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                           <button
                             type="button"
                             onClick={() => setCredSenha(generateSecurePassword(14))}
-                            className="text-[10px] text-[#4d7c0f] dark:text-[#84cc16] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                            className="text-[10px] text-rm-acento dark:text-rm-acento-escuro font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                           >
                             <SparklesIcon className="w-3 h-3" />
                             <span>Gerar Senha Segura</span>
@@ -1551,7 +1551,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                           value={credSenha}
                           onChange={(e) => setCredSenha(e.target.value)}
                           placeholder="Opcional - preencha se houver senha cadastrada"
-                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/10 dark:border-white/15 text-xs font-mono focus:outline-none"
+                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/10 dark:border-white/15 text-xs font-mono focus:outline-none"
                         />
                       </div>
 
@@ -1564,7 +1564,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                           value={credObs}
                           onChange={(e) => setCredObs(e.target.value)}
                           placeholder="Ex: Requer 2FA no celular do cliente"
-                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/10 dark:border-white/15 text-xs focus:outline-none"
+                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/10 dark:border-white/15 text-xs focus:outline-none"
                         />
                       </div>
                     </div>
@@ -1582,7 +1582,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
 
               {/* Cards de Acessos Apple Style */}
               {credenciaisList.length === 0 ? (
-                <div className="rounded-3xl p-10 border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] text-center space-y-2">
+                <div className="rounded-3xl p-10 border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro text-center space-y-2">
                   <p className="text-sm font-bold text-[#0a0a0c] dark:text-white">Nenhum acesso cadastrado</p>
                   <p className="text-xs text-slate-500">Adicione credenciais para documentar os acessos desta empresa.</p>
                 </div>
@@ -1595,11 +1595,11 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                     return (
                       <div
                         key={cred.id}
-                        className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] space-y-3 shadow-sm hover:shadow-md transition-all"
+                        className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro space-y-3 shadow-sm hover:shadow-md transition-all"
                       >
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-black/5 dark:border-white/[0.09] pb-3">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-xl bg-[#4d7c0f]/10 dark:bg-[#84cc16]/10 flex items-center justify-center text-[#4d7c0f] dark:text-[#84cc16] font-bold text-xs border border-[#4d7c0f]/20">
+                            <div className="w-8 h-8 rounded-xl bg-rm-acento/10 dark:bg-rm-acento-escuro/10 flex items-center justify-center text-rm-acento dark:text-rm-acento-escuro font-bold text-xs border border-rm-acento/20">
                               <AppleKeyIcon className="w-4 h-4" />
                             </div>
                             <div>
@@ -1694,7 +1694,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 </div>
               ) : (
                 /* Visualização em Lista / Tabela Keychain */
-                <div className="rounded-3xl border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] overflow-hidden shadow-sm">
+                <div className="rounded-3xl border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro overflow-hidden shadow-sm">
                   <div className="hidden lg:grid grid-cols-12 gap-3 px-5 py-3 border-b border-black/5 dark:border-white/[0.09] text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-400 bg-black/[0.01] dark:bg-white/[0.02]">
                     <div className="col-span-3">Rótulo do Acesso</div>
                     <div className="col-span-2">Nome Usuário</div>
@@ -1713,8 +1713,8 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                         <div key={cred.id} className="p-4 sm:px-5 sm:py-3.5 flex flex-col lg:grid lg:grid-cols-12 gap-2 lg:gap-3 items-start lg:items-center hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition-colors">
                           {/* Rótulo */}
                           <div className="lg:col-span-3 flex items-center gap-2 min-w-0">
-                            <span className="w-6 h-6 rounded-lg bg-[#4d7c0f]/10 dark:bg-[#84cc16]/10 flex items-center justify-center text-xs flex-shrink-0 border border-[#4d7c0f]/20">
-                              <AppleKeyIcon className="w-3.5 h-3.5 text-[#4d7c0f] dark:text-[#84cc16]" />
+                            <span className="w-6 h-6 rounded-lg bg-rm-acento/10 dark:bg-rm-acento-escuro/10 flex items-center justify-center text-xs flex-shrink-0 border border-rm-acento/20">
+                              <AppleKeyIcon className="w-3.5 h-3.5 text-rm-acento dark:text-rm-acento-escuro" />
                             </span>
                             <div className="min-w-0">
                               <span className="text-xs font-bold text-[#0a0a0c] dark:text-white block truncate">{cred.rotulo}</span>
@@ -1811,7 +1811,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
             <div className="space-y-6">
 
               {/* 1. PERFIL: EM QUAL SERVIDOR ESTÁ E SE É CLIENTE NOVO OU JÁ EXISTENTE */}
-              <div className="rounded-3xl p-6 sm:p-7 border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] shadow-sm">
+              <div className="rounded-3xl p-6 sm:p-7 border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro shadow-sm">
                 <div className="mb-5">
                   <h3 className="text-base sm:text-lg font-bold text-[#0a0a0c] dark:text-white">Servidor e tipo de cliente</h3>
                   <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
@@ -1835,7 +1835,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                             onClick={() => handleTrocarAlocacaoServidor(srv)}
                             className={`py-2.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60 ${
                               ativo
-                                ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-sm'
+                                ? 'bg-white dark:bg-rm-campo-escuro text-[#1d1d1f] dark:text-white shadow-sm'
                                 : 'text-slate-500 dark:text-zinc-400 hover:text-black dark:hover:text-white'
                             }`}
                           >
@@ -1864,7 +1864,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                           onClick={() => setTipoClienteEdit(valor)}
                           className={`py-2.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
                             tipoClienteEdit === valor
-                              ? 'bg-white dark:bg-zinc-800 text-[#1d1d1f] dark:text-white shadow-sm'
+                              ? 'bg-white dark:bg-rm-campo-escuro text-[#1d1d1f] dark:text-white shadow-sm'
                               : 'text-slate-500 dark:text-zinc-400 hover:text-black dark:hover:text-white'
                           }`}
                         >
@@ -1888,7 +1888,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                             value={clienteDesdeEdit || ''}
                             max={new Date().toISOString().slice(0, 10)}
                             onChange={(e) => setClienteDesdeEdit(e.target.value)}
-                            className="px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] text-xs font-mono text-[#1d1d1f] dark:text-white"
+                            className="px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro text-xs font-mono text-[#1d1d1f] dark:text-white"
                           />
                         </motion.label>
                       )}
@@ -1905,7 +1905,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                         type="button"
                         onClick={handleSalvarTipoCliente}
                         disabled={salvandoTipoCliente}
-                        className="w-full py-2.5 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-xs font-bold disabled:opacity-60 cursor-pointer"
+                        className="w-full py-2.5 rounded-xl bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 text-xs font-bold disabled:opacity-60 cursor-pointer"
                       >
                         {salvandoTipoCliente ? 'Salvando…' : 'Salvar tipo de cliente'}
                       </button>
@@ -1916,7 +1916,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
 
               
               {/* 2. CHECKLIST OBRIGATÓRIO DE IMPLEMENTAÇÃO DE SERVIDOR NOVO (100% DINÂMICO & CUSTOMIZÁVEL) */}
-              <div className="rounded-3xl p-6 sm:p-7 border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] space-y-5 shadow-sm">
+              <div className="rounded-3xl p-6 sm:p-7 border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro space-y-5 shadow-sm">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-black/[0.05] dark:border-white/[0.09]">
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 inline-block mb-1">
@@ -1942,7 +1942,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                         </span>
                         <div className="w-32 h-2 rounded-full bg-black/[0.05] dark:bg-white/[0.08] overflow-hidden">
                           <div
-                            className="h-full rounded-full bg-gradient-to-r from-blue-500 to-[#4d7c0f] dark:to-[#84cc16] transition-all duration-500"
+                            className="h-full rounded-full bg-gradient-to-r from-blue-500 to-rm-acento dark:to-rm-acento-escuro transition-all duration-500"
                             style={{
                               width: `${servidorDetalhes.checklist_implementacao.length > 0 ? Math.round((servidorDetalhes.checklist_implementacao.filter(i => i.concluido).length / servidorDetalhes.checklist_implementacao.length) * 100) : 0}%`
                             }}
@@ -2003,14 +2003,14 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                           onChange={(e) => setNovoChecklistTitulo(e.target.value)}
                           placeholder="Título do requisito (ex: Certificado SSL Let's Encrypt)"
                           required
-                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/10 dark:border-white/15 text-xs focus:outline-none"
+                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/10 dark:border-white/15 text-xs focus:outline-none"
                         />
                         <input
                           type="text"
                           value={novoChecklistDesc}
                           onChange={(e) => setNovoChecklistDesc(e.target.value)}
                           placeholder="Orientações técnicas (opcional)"
-                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/10 dark:border-white/15 text-xs focus:outline-none"
+                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/10 dark:border-white/15 text-xs focus:outline-none"
                         />
                       </div>
                       <div className="flex justify-end gap-2">
@@ -2024,7 +2024,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                         <button
                           type="submit"
                           disabled={salvandoNovoChecklist}
-                          className="px-5 py-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-xs"
+                          className="px-5 py-1.5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-xs"
                         >
                           {salvandoNovoChecklist ? 'Salvando...' : 'Salvar Requisito'}
                         </button>
@@ -2047,7 +2047,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                         className={`rounded-2xl p-4 border transition-all flex items-start justify-between gap-3.5 ${
                           item.concluido
                             ? 'border-emerald-500/30 bg-emerald-500/[0.04] dark:bg-emerald-500/[0.06]'
-                            : 'border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] hover:bg-black/[0.015]'
+                            : 'border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro hover:bg-black/[0.015]'
                         }`}
                       >
                         <div
@@ -2067,7 +2067,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                             type="checkbox"
                             checked={Boolean(item.concluido)}
                             onChange={() => {}}
-                            className="w-5 h-5 accent-[#4d7c0f] dark:accent-[#84cc16] cursor-pointer rounded mt-0.5 pointer-events-none"
+                            className="w-5 h-5 accent-rm-acento dark:accent-rm-acento-escuro cursor-pointer rounded mt-0.5 pointer-events-none"
                           />
 
                           <div className="space-y-0.5 min-w-0 flex-1">
@@ -2125,7 +2125,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
               </div>
 
               {/* 3. ANOTAÇÕES PARTICULARES DA EMPRESA (CONCENTRADAS AQUI EM OPERAÇÃO & SERVIDOR) */}
-              <div className="rounded-3xl p-6 sm:p-7 border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] space-y-4 shadow-sm">
+              <div className="rounded-3xl p-6 sm:p-7 border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro space-y-4 shadow-sm">
                 <div className="flex items-center justify-between pb-3 border-b border-black/[0.05] dark:border-white/[0.09]">
                   <div>
                     <h3 className="text-base font-bold text-[#0a0a0c] dark:text-white">
@@ -2151,7 +2151,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
                       onSubmit={handleSalvarObservacao}
-                      className="rounded-3xl p-5 border border-black/10 dark:border-white/15 bg-slate-50/90 dark:bg-[#1e1e21]/90 space-y-3"
+                      className="rounded-3xl p-5 border border-black/10 dark:border-white/15 bg-slate-50/90 dark:bg-rm-cartao-escuro/90 space-y-3"
                     >
                       <div className="flex items-center justify-between">
                         <h4 className="text-xs font-bold uppercase text-slate-700 dark:text-zinc-300">Nova Anotação Técnica</h4>
@@ -2164,7 +2164,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                         value={novaObsTitulo}
                         onChange={(e) => setNovaObsTitulo(e.target.value)}
                         placeholder="Título da anotação (ex: Particularidade no Horário de Almoço)"
-                        className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/10 dark:border-white/15 text-xs focus:outline-none"
+                        className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/10 dark:border-white/15 text-xs focus:outline-none"
                       />
                       <textarea
                         rows={3}
@@ -2172,7 +2172,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                         onChange={(e) => setNovaObsConteudo(e.target.value)}
                         placeholder="Conteúdo detalhado da anotação..."
                         required
-                        className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-[#1e1e21] border border-black/10 dark:border-white/15 text-xs focus:outline-none leading-relaxed"
+                        className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/10 dark:border-white/15 text-xs focus:outline-none leading-relaxed"
                       />
                       <div className="flex justify-end gap-2">
                         <button type="button" onClick={() => setIsAddObsOpen(false)} className="px-4 py-1.5 text-xs text-slate-500 cursor-pointer">Cancelar</button>
@@ -2234,7 +2234,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
               </div>
 
               {/* Ação destrutiva separada do resto, com confirmação por nome e senha */}
-              <div className="rounded-3xl p-6 sm:p-7 border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="rounded-3xl p-6 sm:p-7 border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro flex flex-col sm:flex-row sm:items-center gap-4">
                 <div className="min-w-0 flex-1">
                   <h3 className="text-sm font-semibold text-[#0a0a0c] dark:text-white">Excluir empresa</h3>
                   <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
@@ -2265,7 +2265,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
 
           {activeTab === 'chamados' && (
             <div className="space-y-4">
-              <div className="rounded-3xl p-6 border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] shadow-sm">
+              <div className="rounded-3xl p-6 border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro shadow-sm">
                 <h2 className="text-base font-bold text-[#0a0a0c] dark:text-white">
                   Histórico de Atendimentos ({chamadosEmpresa.length})
                 </h2>
@@ -2275,7 +2275,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
               </div>
 
               {chamadosEmpresa.length === 0 ? (
-                <div className="rounded-3xl p-10 border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] text-center text-xs text-slate-500">
+                <div className="rounded-3xl p-10 border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro text-center text-xs text-slate-500">
                   Nenhum atendimento registrado para esta empresa ainda.
                 </div>
               ) : (
@@ -2303,7 +2303,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                     return (
                       <div
                         key={ch.id}
-                        className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                        className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                       >
                         <div className="space-y-1.5 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -2362,7 +2362,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                             Tempo de Duração
                           </span>
                           <span className={`text-sm font-bold font-mono tabular-nums ${
-                            isAtivo ? 'text-amber-600 dark:text-amber-400 animate-pulse' : 'text-[#4d7c0f] dark:text-[#84cc16]'
+                            isAtivo ? 'text-amber-600 dark:text-amber-400 animate-pulse' : 'text-rm-acento dark:text-rm-acento-escuro'
                           }`}>
                             {duracaoFormatada}
                           </span>
@@ -2395,7 +2395,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
 
               {/* COLUNA 2: ACESSOS E SENHAS TÉCNICAS (50% IGUALITÁRIO) */}
               <div className="w-full space-y-4">
-                <div className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white dark:bg-[#1e1e21] shadow-sm space-y-4">
+                <div className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro shadow-sm space-y-4">
                   <div className="flex items-center justify-between pb-3 border-b border-black/6 dark:border-white/[0.11]">
                     <div>
                       <h2 className="text-lg font-bold tracking-tight text-[#0a0a0c] dark:text-white flex items-center gap-2">
@@ -2440,7 +2440,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                           setCredObs('');
                           setIsAddCredOpen(true);
                         }}
-                        className="px-3.5 py-1.5 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-xs hover:opacity-95 transition-all cursor-pointer inline-flex items-center gap-1.5"
+                        className="px-3.5 py-1.5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-xs hover:opacity-95 transition-all cursor-pointer inline-flex items-center gap-1.5"
                       >
                         + Cadastrar Acesso Principal
                       </button>
@@ -2454,7 +2454,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                             key={cred.id}
                             className={`p-3.5 rounded-2xl border transition-all space-y-2.5 ${
                               cred.is_principal
-                                ? 'border-[#4d7c0f]/40 dark:border-[#84cc16]/40 bg-[#4d7c0f]/[0.03] dark:bg-[#84cc16]/[0.04]'
+                                ? 'border-rm-acento/40 dark:border-rm-acento-escuro/40 bg-rm-acento/[0.03] dark:bg-rm-acento-escuro/[0.04]'
                                 : 'border-black/6 dark:border-white/[0.11] bg-black/[0.015] dark:bg-white/[0.02]'
                             }`}
                           >
@@ -2471,14 +2471,14 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                               </div>
                               <div className="flex items-center gap-1.5">
                                 {cred.is_principal ? (
-                                  <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#4d7c0f]/15 dark:bg-[#84cc16]/20 text-[#4d7c0f] dark:text-[#84cc16]">
+                                  <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rm-acento/15 dark:bg-rm-acento-escuro/20 text-rm-acento dark:text-rm-acento-escuro">
                                     Principal
                                   </span>
                                 ) : (
                                   <button
                                     type="button"
                                     onClick={() => handleTornarCredencialPrincipal(cred.id)}
-                                    className="text-[9px] font-semibold text-slate-400 hover:text-[#4d7c0f] dark:hover:text-[#84cc16] underline cursor-pointer"
+                                    className="text-[9px] font-semibold text-slate-400 hover:text-rm-acento dark:hover:text-rm-acento-escuro underline cursor-pointer"
                                   >
                                     Tornar Principal
                                   </button>
@@ -2496,7 +2496,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
 
                             {/* Email / Usuário */}
                             {cred.usuario_email && (
-                              <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white dark:bg-[#1e1e21] border border-black/5 dark:border-white/[0.09] text-xs">
+                              <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white dark:bg-rm-cartao-escuro border border-black/5 dark:border-white/[0.09] text-xs">
                                 <span className="text-[11px] font-mono text-slate-600 dark:text-zinc-300 truncate">
                                   {cred.usuario_email}
                                 </span>
@@ -2513,7 +2513,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
 
                             {/* Senha */}
                             {cred.senha && (
-                              <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white dark:bg-[#1e1e21] border border-black/5 dark:border-white/[0.09] text-xs">
+                              <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white dark:bg-rm-cartao-escuro border border-black/5 dark:border-white/[0.09] text-xs">
                                 <span className="text-[11px] font-mono text-slate-800 dark:text-zinc-200">
                                   {isRevelada ? cred.senha : '••••••••••••'}
                                 </span>
@@ -2558,7 +2558,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-lg rounded-3xl border border-black/10 dark:border-white/12 bg-white dark:bg-[#1e1e21] p-6 shadow-2xl space-y-4"
+            className="w-full max-w-lg rounded-3xl border border-black/10 dark:border-white/12 bg-white dark:bg-rm-cartao-escuro p-6 shadow-2xl space-y-4"
           >
             <div className="flex items-center justify-between pb-3 border-b border-black/6 dark:border-white/[0.11]">
               <div>
@@ -2590,7 +2590,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   placeholder="https://acesso.suaempresa.com.br"
                   value={servidor1UrlInput}
                   onChange={(e) => setServidor1UrlInput(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-[#1e1e21] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-rm-cartao-escuro text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-rm-acento"
                 />
               </div>
 
@@ -2605,7 +2605,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   placeholder="https://acesso2.suaempresa.com.br"
                   value={servidor2UrlInput}
                   onChange={(e) => setServidor2UrlInput(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-[#1e1e21] text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-rm-cartao-escuro text-xs font-mono text-[#1d1d1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-rm-acento"
                 />
               </div>
 
@@ -2619,7 +2619,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 transition-all cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-rm-acento/20 hover:opacity-95 transition-all cursor-pointer"
                 >
                   Salvar Links
                 </button>
@@ -2635,7 +2635,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-lg rounded-3xl border border-black/10 dark:border-white/15 bg-white dark:bg-[#1e1e21] p-6 shadow-2xl space-y-4"
+            className="w-full max-w-lg rounded-3xl border border-black/10 dark:border-white/15 bg-white dark:bg-rm-cartao-escuro p-6 shadow-2xl space-y-4"
           >
             <div className="flex items-center justify-between pb-3 border-b border-black/6 dark:border-white/[0.11]">
               <div>
@@ -2669,7 +2669,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   onChange={(e) => setCredRotulo(e.target.value)}
                   placeholder="Ex: Painel Admin, Colaborador - João, Servidor SSH"
                   required
-                  className="w-full px-3.5 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-[#1e1e21] border border-black/10 dark:border-white/15 text-xs text-[#0a0a0c] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]"
+                  className="w-full px-3.5 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-rm-cartao-escuro border border-black/10 dark:border-white/15 text-xs text-[#0a0a0c] dark:text-white focus:outline-none focus:ring-2 focus:ring-rm-acento"
                 />
               </div>
 
@@ -2683,7 +2683,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                     value={credNomeUsuario}
                     onChange={(e) => setCredNomeUsuario(e.target.value)}
                     placeholder="Ex: João Silva, Gerente"
-                    className="w-full px-3.5 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-[#1e1e21] border border-black/10 dark:border-white/15 text-xs text-[#0a0a0c] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]"
+                    className="w-full px-3.5 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-rm-cartao-escuro border border-black/10 dark:border-white/15 text-xs text-[#0a0a0c] dark:text-white focus:outline-none focus:ring-2 focus:ring-rm-acento"
                   />
                 </div>
 
@@ -2696,7 +2696,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                     value={credUsuario}
                     onChange={(e) => setCredUsuario(e.target.value)}
                     placeholder="joao@empresa.com ou admin"
-                    className="w-full px-3.5 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-[#1e1e21] border border-black/10 dark:border-white/15 text-xs font-mono text-[#0a0a0c] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]"
+                    className="w-full px-3.5 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-rm-cartao-escuro border border-black/10 dark:border-white/15 text-xs font-mono text-[#0a0a0c] dark:text-white focus:outline-none focus:ring-2 focus:ring-rm-acento"
                   />
                 </div>
               </div>
@@ -2709,7 +2709,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   <button
                     type="button"
                     onClick={() => setCredSenha(generateSecurePassword(14))}
-                    className="text-[10px] text-[#4d7c0f] dark:text-[#84cc16] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-[10px] text-rm-acento dark:text-rm-acento-escuro font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <SparklesIcon className="w-3 h-3" />
                     <span>Gerar Senha Segura</span>
@@ -2721,7 +2721,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   onChange={(e) => setCredSenha(e.target.value)}
                   placeholder="Digite a senha..."
                   required
-                  className="w-full px-3.5 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-[#1e1e21] border border-black/10 dark:border-white/15 text-xs font-mono text-[#0a0a0c] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]"
+                  className="w-full px-3.5 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-rm-cartao-escuro border border-black/10 dark:border-white/15 text-xs font-mono text-[#0a0a0c] dark:text-white focus:outline-none focus:ring-2 focus:ring-rm-acento"
                 />
               </div>
 
@@ -2734,7 +2734,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   onChange={(e) => setCredObs(e.target.value)}
                   rows={2}
                   placeholder="Ex: Acesso via VPN necessária, porta 2222, etc."
-                  className="w-full px-3.5 py-2 rounded-2xl bg-black/[0.02] dark:bg-[#1e1e21] border border-black/10 dark:border-white/15 text-xs text-[#0a0a0c] dark:text-white focus:outline-none resize-none"
+                  className="w-full px-3.5 py-2 rounded-2xl bg-black/[0.02] dark:bg-rm-cartao-escuro border border-black/10 dark:border-white/15 text-xs text-[#0a0a0c] dark:text-white focus:outline-none resize-none"
                 />
               </div>
 
@@ -2751,7 +2751,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-[#4d7c0f]/20 hover:opacity-95 transition-all cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-rm-acento/20 hover:opacity-95 transition-all cursor-pointer"
                 >
                   {editandoCredId ? 'Salvar Alterações' : 'Cadastrar Acesso'}
                 </button>
@@ -2794,13 +2794,13 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="w-full max-w-lg rounded-[28px] bg-white dark:bg-[#1e1e21] border border-black/10 dark:border-white/15 p-6 sm:p-7 shadow-2xl space-y-5 text-[#1d1d1f] dark:text-[#f5f5f7] relative"
+              className="w-full max-w-lg rounded-[28px] bg-white dark:bg-rm-cartao-escuro border border-black/10 dark:border-white/15 p-6 sm:p-7 shadow-2xl space-y-5 text-[#1d1d1f] dark:text-[#f5f5f7] relative"
             >
               <div className="flex items-start justify-between gap-4 border-b border-black/[0.06] dark:border-white/[0.11] pb-4">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="w-2 h-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16]"></span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#4d7c0f] dark:text-[#84cc16]">
+                    <span className="w-2 h-2 rounded-full bg-rm-acento dark:bg-rm-acento-escuro"></span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-rm-acento dark:text-rm-acento-escuro">
                       Nova Demanda em Tempo Real
                     </span>
                   </div>
@@ -2843,7 +2843,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                         }}
                         className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border ${
                           isSelected
-                            ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 border-[#4d7c0f] dark:border-[#84cc16] shadow-xs'
+                            ? 'bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 border-rm-acento dark:border-rm-acento-escuro shadow-xs'
                             : 'bg-black/[0.02] dark:bg-white/[0.04] text-slate-600 dark:text-zinc-400 border-black/[0.08] dark:border-white/[0.1] hover:border-black/20'
                         }`}
                       >
@@ -2868,7 +2868,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   value={solicitanteInicialDemanda}
                   onChange={(e) => setSolicitanteInicialDemanda(e.target.value)}
                   placeholder="Nome do solicitante na empresa..."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 font-medium"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-rm-acento/20 font-medium"
                 />
               </div>
 
@@ -2882,7 +2882,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   value={motivoInicialDemanda}
                   onChange={(e) => setMotivoInicialDemanda(e.target.value)}
                   placeholder="Ex: Dúvida sobre conciliação, erro de conexão, etc..."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 font-medium"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-rm-acento/20 font-medium"
                 />
               </div>
 
@@ -2898,7 +2898,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 <button
                   type="button"
                   onClick={handleConfirmarIniciarSuporte}
-                  className="px-6 py-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 flex items-center gap-1.5 cursor-pointer"
+                  className="px-6 py-2 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 flex items-center gap-1.5 cursor-pointer"
                 >
                   <PlayIcon className="w-3.5 h-3.5" />
                   <span>Iniciar Atendimento Agora</span>
@@ -2917,13 +2917,13 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="w-full max-w-lg rounded-[28px] bg-white dark:bg-[#1e1e21] border border-black/10 dark:border-white/15 p-6 sm:p-7 shadow-2xl space-y-5 text-[#1d1d1f] dark:text-[#f5f5f7] relative"
+              className="w-full max-w-lg rounded-[28px] bg-white dark:bg-rm-cartao-escuro border border-black/10 dark:border-white/15 p-6 sm:p-7 shadow-2xl space-y-5 text-[#1d1d1f] dark:text-[#f5f5f7] relative"
             >
               <div className="flex items-start justify-between gap-4 border-b border-black/[0.06] dark:border-white/[0.11] pb-4">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="w-2 h-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16]"></span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#4d7c0f] dark:text-[#84cc16]">
+                    <span className="w-2 h-2 rounded-full bg-rm-acento dark:bg-rm-acento-escuro"></span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-rm-acento dark:text-rm-acento-escuro">
                       Nova Demanda em Tempo Real
                     </span>
                   </div>
@@ -2966,7 +2966,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                         }}
                         className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border ${
                           isSelected
-                            ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 border-[#4d7c0f] dark:border-[#84cc16] shadow-xs'
+                            ? 'bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 border-rm-acento dark:border-rm-acento-escuro shadow-xs'
                             : 'bg-black/[0.02] dark:bg-white/[0.04] text-slate-600 dark:text-zinc-400 border-black/[0.08] dark:border-white/[0.1] hover:border-black/20'
                         }`}
                       >
@@ -2991,7 +2991,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   value={solicitanteInicialDemanda}
                   onChange={(e) => setSolicitanteInicialDemanda(e.target.value)}
                   placeholder="Nome do solicitante na empresa..."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 font-medium"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-rm-acento/20 font-medium"
                 />
               </div>
 
@@ -3005,7 +3005,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   value={motivoInicialDemanda}
                   onChange={(e) => setMotivoInicialDemanda(e.target.value)}
                   placeholder="Ex: Dúvida sobre conciliação, erro de conexão, etc..."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-[#4d7c0f]/20 font-medium"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs focus:outline-none focus:ring-2 focus:ring-rm-acento/20 font-medium"
                 />
               </div>
 
@@ -3021,7 +3021,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 <button
                   type="button"
                   onClick={handleConfirmarIniciarSuporte}
-                  className="px-6 py-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 flex items-center gap-1.5 cursor-pointer"
+                  className="px-6 py-2 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-md hover:opacity-95 flex items-center gap-1.5 cursor-pointer"
                 >
                   <PlayIcon className="w-3.5 h-3.5" />
                   <span>Iniciar Atendimento Agora</span>

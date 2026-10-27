@@ -1,4 +1,5 @@
 import { contextoDaRequisicao } from '@/lib/server/organizacao';
+import { moduloContratado } from '@/lib/plataforma';
 import { consumirLimite } from '@/lib/server/protecao';
 import { hashToken, novoToken } from '@/lib/server/canais/cofre';
 import { canalPublico, configDoChat, enderecoWebhook, enviarTextoParaNumero, provedorDo, segredosDo } from '@/lib/server/canais/index';
@@ -24,6 +25,7 @@ const json = (corpo, status = 200) => Response.json(corpo, { status, headers: { 
 export async function POST(request, { params }) {
   const ctx = await contextoDaRequisicao(request, { exigirAdmin: true });
   if (ctx.erro) return ctx.erro;
+  if (!moduloContratado(ctx.org, 'conexoes')) return json({ ok: false, mensagem: 'Canais não fazem parte do plano da sua empresa.' }, 403);
   if (!isValidUUID(params.id)) return json({ ok: false, mensagem: 'Canal inválido.' }, 400);
   if (!(await consumirLimite(`canais_acao_${ctx.email}`, 60, 60))) return json({ ok: false, mensagem: 'Muitas ações seguidas. Aguarde um minuto.' }, 429);
   const body = (await request.json().catch(() => null)) || {};

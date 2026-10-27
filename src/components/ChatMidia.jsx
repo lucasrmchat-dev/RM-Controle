@@ -108,8 +108,8 @@ function PlayerAudio({ src, segundos, minha }) {
       <div className="flex-1 min-w-0">
         <div className="h-5 flex items-center cursor-pointer" onClick={pular} role="slider" aria-label="Posição do áudio" aria-valuemin={0} aria-valuemax={Math.round(duracao)} aria-valuenow={Math.round(atual)} tabIndex={0}>
           <div className="relative w-full h-[3px] rounded-full bg-black/15 dark:bg-white/20">
-            <div className="absolute inset-y-0 left-0 rounded-full bg-[#00a884]" style={{ width: `${progresso * 100}%` }} />
-            <div className="absolute top-1/2 -translate-y-1/2 -ml-1.5 w-3 h-3 rounded-full bg-[#00a884] shadow" style={{ left: `${progresso * 100}%` }} />
+            <div className="absolute inset-y-0 left-0 rounded-full bg-rm-acento-medio" style={{ width: `${progresso * 100}%` }} />
+            <div className="absolute top-1/2 -translate-y-1/2 -ml-1.5 w-3 h-3 rounded-full bg-rm-acento-medio shadow" style={{ left: `${progresso * 100}%` }} />
           </div>
         </div>
         <div className="flex items-center justify-between text-[11px] text-[#667781] dark:text-[#8696a0] tabular-nums -mt-0.5">
@@ -293,7 +293,7 @@ export function PreviaArquivo({ arquivo, onCancelar, onEnviar }) {
     return () => window.removeEventListener('keydown', esc);
   }, [onCancelar]);
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-30 flex flex-col bg-[#e9edef] dark:bg-[#0b141a]">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-30 flex flex-col bg-[#e9edef] dark:bg-rm-fundo-escuro">
       <div className="h-[60px] flex items-center gap-3 px-4">
         <button type="button" onClick={onCancelar} aria-label="Cancelar envio" className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-black/[0.06] dark:hover:bg-white/[0.08] cursor-pointer">
           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -310,20 +310,20 @@ export function PreviaArquivo({ arquivo, onCancelar, onEnviar }) {
           <video src={url} controls className="max-w-full max-h-full rounded-lg bg-black" />
         ) : (
           <div className="flex flex-col items-center gap-3 text-center">
-            <span className="w-20 h-24 rounded-xl bg-white dark:bg-[#202c33] shadow flex items-center justify-center text-[13px] font-bold uppercase text-slate-500">{(arquivo.name.split('.').pop() || '').slice(0, 4)}</span>
+            <span className="w-20 h-24 rounded-xl bg-white dark:bg-rm-elevado-escuro shadow flex items-center justify-center text-[13px] font-bold uppercase text-slate-500">{(arquivo.name.split('.').pop() || '').slice(0, 4)}</span>
             <p className="text-[14px] text-slate-600 dark:text-[#aebac1] max-w-xs break-words">{arquivo.name}</p>
           </div>
         )}
       </div>
       <form
-        className="p-3 sm:p-4 flex items-center gap-2 bg-[#f0f2f5] dark:bg-[#202c33]"
+        className="p-3 sm:p-4 flex items-center gap-2 bg-rm-fundo dark:bg-rm-elevado-escuro"
         onSubmit={(e) => {
           e.preventDefault();
           onEnviar(legenda);
         }}
       >
-        {tipo !== 'audio' && <input value={legenda} onChange={(e) => setLegenda(e.target.value)} maxLength={1024} autoFocus placeholder="Legenda (opcional)" className="flex-1 h-11 rounded-full px-4 bg-white dark:bg-[#2a3942] outline-none text-[15px]" />}
-        <button type="submit" className="ml-auto w-12 h-12 rounded-full bg-[#00a884] text-white flex items-center justify-center cursor-pointer" aria-label="Enviar arquivo">
+        {tipo !== 'audio' && <input value={legenda} onChange={(e) => setLegenda(e.target.value)} maxLength={1024} autoFocus placeholder="Legenda (opcional)" className="flex-1 h-11 rounded-full px-4 bg-white dark:bg-rm-campo-escuro outline-none text-[15px]" />}
+        <button type="submit" className="ml-auto w-12 h-12 rounded-full bg-rm-acento-medio text-white flex items-center justify-center cursor-pointer" aria-label="Enviar arquivo">
           <svg className="w-5 h-5 translate-x-px" viewBox="0 0 24 24" fill="currentColor">
             <path d="M3.4 20.4l17.45-7.48a1 1 0 0 0 0-1.84L3.4 3.6a.99.99 0 0 0-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z" />
           </svg>

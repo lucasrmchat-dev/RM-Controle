@@ -24,6 +24,7 @@ import AgendaGradeSemana from './AgendaGradeSemana';
 import AgendaEventoResumo from './AgendaEventoResumo';
 import { isoDoDia } from './SeletoresTempo';
 import { CheckIcon, RefreshIcon } from './Icons';
+import EncaixeCabecalho, { ACOES_TITULO, LINHA_TITULO } from './EncaixeCabecalho';
 
 const NOMES_DIA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -105,14 +106,14 @@ function CartaoReuniao({ evt, cor, agora, onAbrir }) {
       onClick={() => onAbrir(evt)}
       className={`w-full text-left rounded-2xl p-3 ring-1 transition-colors cursor-pointer ${
         acontecendo
-          ? 'bg-white dark:bg-[#26262a] ring-[#4d7c0f]/40 dark:ring-[#84cc16]/40 shadow-[0_6px_20px_-10px_rgba(77,124,15,0.45)]'
-          : 'bg-white dark:bg-[#232326] ring-black/[0.07] dark:ring-white/[0.09] hover:ring-black/[0.16] dark:hover:ring-white/[0.18]'
+          ? 'bg-white dark:bg-rm-elevado-escuro ring-rm-acento/40 dark:ring-rm-acento-escuro/40 shadow-[0_6px_20px_-10px_rgba(77,124,15,0.45)]'
+          : 'bg-white dark:bg-rm-elevado-escuro ring-black/[0.07] dark:ring-white/[0.09] hover:ring-black/[0.16] dark:hover:ring-white/[0.18]'
       } ${passou || cancelada ? 'opacity-55' : ''}`}
     >
       <div className="flex items-center gap-1.5 text-[11.5px] tabular-nums text-slate-500 dark:text-zinc-400">
         <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: prazo ? '#f59e0b' : cor || '#8e8e93' }} aria-hidden="true" />
         {horarioDoEvento(evt)}
-        {acontecendo && <span className="ml-auto text-[10.5px] font-semibold text-[#4d7c0f] dark:text-[#a3e635]">agora</span>}
+        {acontecendo && <span className="ml-auto text-[10.5px] font-semibold text-rm-acento dark:text-rm-acento-vivo">agora</span>}
         {realizada && <CheckIcon className="ml-auto w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 stroke-[2.5]" />}
       </div>
       <p className={`mt-1 text-[13px] font-semibold leading-snug text-[#1d1d1f] dark:text-white line-clamp-2 ${cancelada ? 'line-through' : ''}`}>
@@ -432,14 +433,13 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
   return (
     <div className="space-y-5 pb-6">
       {/* Cabeçalho */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white">Agenda</h1>
-          <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">
-            {totalSemana === 0 ? 'Nenhum compromisso nesta semana.' : `${totalSemana} ${totalSemana === 1 ? 'compromisso' : 'compromissos'} nesta semana.`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+      <div className={`flex flex-wrap items-center justify-between gap-3 ${LINHA_TITULO}`}>
+        {/* O nome da tela já está no cabeçalho */}
+        <p className="text-[13.5px] text-slate-500 dark:text-zinc-400 lg:h-12 flex items-center">
+          {totalSemana === 0 ? 'Nenhum compromisso nesta semana' : `${totalSemana} ${totalSemana === 1 ? 'compromisso' : 'compromissos'} nesta semana`}
+        </p>
+        <EncaixeCabecalho />
+        <div className={`flex items-center gap-2 ${ACOES_TITULO}`}>
           {googleSync?.configurado &&
             (conectado ? (
               <button
@@ -463,7 +463,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
           <button
             type="button"
             onClick={() => setModal({ data: estaNaSemanaAtual ? hojeIso : dias[0] })}
-            className="h-10 pl-3.5 pr-4 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-[13px] font-semibold flex items-center gap-1.5 hover:opacity-90 cursor-pointer shadow-sm"
+            className="h-10 pl-3.5 pr-4 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 text-[13px] font-semibold flex items-center gap-1.5 hover:opacity-90 cursor-pointer shadow-sm"
           >
             <span className="text-[17px] leading-none -mt-px">+</span> Nova reunião
           </button>
@@ -471,7 +471,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
       </div>
 
       {/* Barra: semana, visão e filtros */}
-      <div className="rounded-3xl bg-white dark:bg-[#1e1e21] ring-1 ring-black/[0.06] dark:ring-white/[0.09] p-2 flex flex-col lg:flex-row lg:items-center gap-2">
+      <div className="rounded-3xl bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.09] p-2 flex flex-col lg:flex-row lg:items-center gap-2">
         <div className="flex items-center gap-1">
           <button type="button" onClick={() => moverSemana(-1)} aria-label="Semana anterior" className="w-9 h-9 rounded-full flex items-center justify-center text-lg text-slate-600 dark:text-zinc-300 hover:bg-black/[0.05] dark:hover:bg-white/[0.08] cursor-pointer">
             ‹
@@ -512,7 +512,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
                 className={`relative h-8 px-3.5 rounded-full text-[12.5px] font-medium cursor-pointer ${visao === id ? 'text-[#1d1d1f] dark:text-white' : 'text-slate-500 dark:text-zinc-400'}`}
               >
                 {visao === id && (
-                  <motion.span layoutId="agenda-visao" className="absolute inset-0 rounded-full bg-white dark:bg-[#3a3a3f] shadow-sm" transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }} />
+                  <motion.span layoutId="agenda-visao" className="absolute inset-0 rounded-full bg-white dark:bg-rm-campo-escuro shadow-sm" transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }} />
                 )}
                 <span className="relative">{rotulo}</span>
               </button>
@@ -522,7 +522,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
             value={pessoa}
             onChange={(e) => setPessoa(e.target.value)}
             aria-label="Filtrar por responsável"
-            className="h-10 pl-3.5 pr-8 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-[12.5px] font-medium cursor-pointer outline-none focus:ring-2 focus:ring-[#4d7c0f]/30"
+            className="h-10 pl-3.5 pr-8 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-[12.5px] font-medium cursor-pointer outline-none focus:ring-2 focus:ring-rm-acento/30"
           >
             <option value="todas">Toda a equipe</option>
             <option value="eu">Só as minhas</option>
@@ -540,7 +540,7 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar reunião ou empresa"
             aria-label="Buscar reunião ou empresa"
-            className="h-10 w-full sm:w-56 px-4 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-[12.5px] outline-none focus:ring-2 focus:ring-[#4d7c0f]/30 placeholder:text-slate-400"
+            className="h-10 w-full sm:w-56 px-4 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-[12.5px] outline-none focus:ring-2 focus:ring-rm-acento/30 placeholder:text-slate-400"
           />
         </div>
       </div>
@@ -569,15 +569,15 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
                 key={dia}
                 aria-label={deIso(dia).toLocaleDateString('pt-BR', { dateStyle: 'full' })}
                 className={`group/dia rounded-3xl p-2 flex flex-col md:min-h-[420px] ${
-                  hoje ? 'bg-white dark:bg-[#1e1e21] ring-1 ring-black/[0.08] dark:ring-white/[0.12]' : 'bg-black/[0.02] dark:bg-white/[0.02]'
+                  hoje ? 'bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.08] dark:ring-white/[0.12]' : 'bg-black/[0.02] dark:bg-white/[0.02]'
                 } ${!itens.length && !hoje ? 'max-md:hidden' : ''}`}
               >
                 <header className="flex items-center justify-between px-1.5 pt-1 pb-2">
                   <div className="flex items-center gap-1.5">
-                    <span className={`text-[12px] font-medium ${hoje ? 'text-[#4d7c0f] dark:text-[#a3e635]' : 'text-slate-500 dark:text-zinc-400'}`}>{NOMES_DIA[(i + 1) % 7]}</span>
+                    <span className={`text-[12px] font-medium ${hoje ? 'text-rm-acento dark:text-rm-acento-vivo' : 'text-slate-500 dark:text-zinc-400'}`}>{NOMES_DIA[(i + 1) % 7]}</span>
                     <span
                       className={`text-[15px] font-semibold tabular-nums ${
-                        hoje ? 'w-7 h-7 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 flex items-center justify-center text-[13px]' : 'text-[#1d1d1f] dark:text-white'
+                        hoje ? 'w-7 h-7 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 flex items-center justify-center text-[13px]' : 'text-[#1d1d1f] dark:text-white'
                       }`}
                     >
                       {deIso(dia).getDate()}
@@ -618,11 +618,11 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
             .filter((d) => porDia[d].length)
             .map((dia) => (
               <section key={dia}>
-                <h2 className={`text-[13px] font-semibold mb-2 px-1 first-letter:uppercase ${dia === hojeIso ? 'text-[#4d7c0f] dark:text-[#a3e635]' : 'text-slate-500 dark:text-zinc-400'}`}>
+                <h2 className={`text-[13px] font-semibold mb-2 px-1 first-letter:uppercase ${dia === hojeIso ? 'text-rm-acento dark:text-rm-acento-vivo' : 'text-slate-500 dark:text-zinc-400'}`}>
                   {deIso(dia).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
                   {dia === hojeIso && ' · hoje'}
                 </h2>
-                <ul className="rounded-3xl bg-white dark:bg-[#1e1e21] ring-1 ring-black/[0.06] dark:ring-white/[0.09] divide-y divide-black/[0.06] dark:divide-white/[0.08]">
+                <ul className="rounded-3xl bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.09] divide-y divide-black/[0.06] dark:divide-white/[0.08]">
                   {porDia[dia].map((evt) => {
                     const prazo = evt.origem === 'fila_demandas';
                     return (

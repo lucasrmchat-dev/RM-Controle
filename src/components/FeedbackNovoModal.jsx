@@ -259,7 +259,7 @@ export default function FeedbackNovoModal({ aberto, onFechar, userEmail, podePub
                   if (e.dataTransfer.files?.[0]) anexar(e.dataTransfer.files[0]);
                 }}
                 className={`w-full rounded-2xl border border-dashed px-4 py-6 text-center transition-colors cursor-pointer ${
-                  arrastando ? 'border-[#4d7c0f] bg-[#4d7c0f]/[0.05]' : 'border-black/[0.18] dark:border-white/[0.2] hover:border-black/35 dark:hover:border-white/35'
+                  arrastando ? 'border-rm-acento bg-rm-acento/[0.05]' : 'border-black/[0.18] dark:border-white/[0.2] hover:border-black/35 dark:hover:border-white/35'
                 }`}
               >
                 <span className="block text-[13.5px] font-medium">Arraste, cole (⌘V) ou clique para anexar</span>
@@ -280,7 +280,7 @@ export default function FeedbackNovoModal({ aberto, onFechar, userEmail, podePub
                       aria-checked={prioridade === p.id}
                       onClick={() => setPrioridade(p.id)}
                       className={`min-h-9 py-1.5 px-2 rounded-xl text-[12.5px] leading-tight font-medium cursor-pointer transition-colors ${
-                        prioridade === p.id ? 'bg-white dark:bg-[#3a3a3f] text-[#1d1d1f] dark:text-white shadow-sm' : 'text-slate-500 dark:text-zinc-400 hover:text-[#1d1d1f] dark:hover:text-white'
+                        prioridade === p.id ? 'bg-white dark:bg-rm-campo-escuro text-[#1d1d1f] dark:text-white shadow-sm' : 'text-slate-500 dark:text-zinc-400 hover:text-[#1d1d1f] dark:hover:text-white'
                       }`}
                     >
                       {p.rotulo}

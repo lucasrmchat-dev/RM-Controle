@@ -29,7 +29,7 @@ const PONTO_ETAPA = {
   em_analise: 'bg-amber-500',
   no_roadmap: 'bg-violet-500',
   em_correcao: 'bg-sky-500',
-  resolvido: 'bg-[#4d7c0f] dark:bg-[#84cc16]',
+  resolvido: 'bg-rm-acento dark:bg-rm-acento-escuro',
 };
 
 const diasAberto = (iso) => {
@@ -90,7 +90,7 @@ async function copiarImagem(dataUrl) {
 // ------------------------------------------------------------------------------
 function Painel({ titulo, acao, children, className = '' }) {
   return (
-    <section className={`rounded-[24px] bg-white dark:bg-[#1e1e21] ring-1 ring-black/[0.06] dark:ring-white/[0.08] ${className}`}>
+    <section className={`rounded-[24px] bg-white dark:bg-rm-cartao-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.08] ${className}`}>
       {titulo && (
         <header className="flex items-center justify-between gap-3 px-6 pt-5">
           <h2 className="text-[13px] font-semibold tracking-tight text-slate-500 dark:text-zinc-400">{titulo}</h2>
@@ -182,7 +182,7 @@ function LinhaSubtarefa({ st, podeEditar, onAlterar, onExcluir }) {
         onClick={() => onAlterar({ ...st, concluida_em: feita ? null : new Date().toISOString() })}
         aria-label={feita ? `Reabrir: ${st.titulo}` : `Concluir: ${st.titulo}`}
         className={`mt-0.5 w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center transition-all ${podeEditar ? 'cursor-pointer' : 'cursor-default'} ${
-          feita ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950' : 'ring-[1.5px] ring-black/25 dark:ring-white/30 hover:ring-[#4d7c0f]'
+          feita ? 'bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950' : 'ring-[1.5px] ring-black/25 dark:ring-white/30 hover:ring-rm-acento'
         }`}
       >
         {feita && <CheckIcon className="w-3 h-3 stroke-[3]" />}
@@ -203,7 +203,7 @@ function LinhaSubtarefa({ st, podeEditar, onAlterar, onExcluir }) {
               }
             }}
             maxLength={200}
-            className="w-full bg-transparent text-[14px] leading-snug outline-none border-b border-[#4d7c0f]/50 pb-0.5"
+            className="w-full bg-transparent text-[14px] leading-snug outline-none border-b border-rm-acento/50 pb-0.5"
           />
         ) : (
           <button
@@ -218,7 +218,7 @@ function LinhaSubtarefa({ st, podeEditar, onAlterar, onExcluir }) {
         )}
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-slate-400 dark:text-zinc-500">
           <span>Criada {dataHora(st.criada_em)}</span>
-          {feita && <span className="text-[#4d7c0f] dark:text-[#a3e635]">Concluída {dataHora(st.concluida_em)}</span>}
+          {feita && <span className="text-rm-acento dark:text-rm-acento-vivo">Concluída {dataHora(st.concluida_em)}</span>}
         </div>
         <div className="mt-1 -ml-2">
           <SeletorPrazo compacto valor={st.prazo} concluido={feita} desabilitado={!podeEditar} onMudar={(prazo) => onAlterar({ ...st, prazo })} />
@@ -244,7 +244,7 @@ function Anel({ fracao }) {
   return (
     <svg width="56" height="56" viewBox="0 0 56 56" className="-rotate-90 flex-shrink-0" aria-hidden="true">
       <circle cx="28" cy="28" r={r} fill="none" strokeWidth="5" className="stroke-black/[0.07] dark:stroke-white/[0.1]" />
-      <motion.circle cx="28" cy="28" r={r} fill="none" strokeWidth="5" strokeLinecap="round" className="stroke-[#4d7c0f] dark:stroke-[#84cc16]" strokeDasharray={c} initial={false} animate={{ strokeDashoffset: c * (1 - fracao) }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }} />
+      <motion.circle cx="28" cy="28" r={r} fill="none" strokeWidth="5" strokeLinecap="round" className="stroke-rm-acento dark:stroke-rm-acento-escuro" strokeDasharray={c} initial={false} animate={{ strokeDashoffset: c * (1 - fracao) }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }} />
     </svg>
   );
 }
@@ -317,9 +317,9 @@ export default function FeedbackEstacao({ fb, lista = [], onNavegar, onFechar, n
     (fb.historico || []).forEach((h) => eventos.push({ em: h.em, texto: `${nomePessoa(h.por)} moveu para "${nomesEtapas[h.etapa] || h.etapa}"`, cor: PONTO_ETAPA[h.etapa] || 'bg-slate-400' }));
     subtarefas.forEach((s) => {
       eventos.push({ em: s.criada_em, texto: `Subtarefa criada: ${s.titulo}`, cor: 'bg-slate-300 dark:bg-zinc-600' });
-      if (s.concluida_em) eventos.push({ em: s.concluida_em, texto: `Subtarefa concluída: ${s.titulo}`, cor: 'bg-[#4d7c0f] dark:bg-[#84cc16]' });
+      if (s.concluida_em) eventos.push({ em: s.concluida_em, texto: `Subtarefa concluída: ${s.titulo}`, cor: 'bg-rm-acento dark:bg-rm-acento-escuro' });
     });
-    entregas.forEach((n) => eventos.push({ em: `${n.data}T12:00:00`, texto: `Entregue na novidade "${n.titulo}"`, cor: 'bg-[#4d7c0f] dark:bg-[#84cc16]' }));
+    entregas.forEach((n) => eventos.push({ em: `${n.data}T12:00:00`, texto: `Entregue na novidade "${n.titulo}"`, cor: 'bg-rm-acento dark:bg-rm-acento-escuro' }));
     return eventos.filter((e) => e.em).sort((a, b) => new Date(b.em) - new Date(a.em));
   }, [fb, subtarefas, entregas, nomesEtapas, autor]);
 
@@ -365,10 +365,10 @@ export default function FeedbackEstacao({ fb, lista = [], onNavegar, onFechar, n
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.985, transition: { duration: 0.16 } }}
           transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-          className="fixed inset-0 z-[9990] bg-[#f5f5f7] dark:bg-[#141416] text-[#1d1d1f] dark:text-[#f5f5f7] flex flex-col"
+          className="fixed inset-0 z-[9990] bg-rm-fundo dark:bg-rm-fundo-escuro text-[#1d1d1f] dark:text-[#f5f5f7] flex flex-col"
         >
           {/* Barra superior */}
-          <div className="flex-shrink-0 h-16 px-4 sm:px-8 flex items-center gap-3 border-b border-black/[0.06] dark:border-white/[0.08] bg-white/70 dark:bg-[#1c1c1f]/70 backdrop-blur-2xl">
+          <div className="flex-shrink-0 h-16 px-4 sm:px-8 flex items-center gap-3 border-b border-black/[0.06] dark:border-white/[0.08] bg-white/70 dark:bg-rm-elevado-escuro/70 backdrop-blur-2xl">
             <button type="button" onClick={onFechar} className="h-9 pl-2.5 pr-3.5 rounded-full text-[13.5px] font-medium hover:bg-black/[0.05] dark:hover:bg-white/[0.08] cursor-pointer flex items-center gap-1.5">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="m15 18-6-6 6-6" />
@@ -466,7 +466,7 @@ export default function FeedbackEstacao({ fb, lista = [], onNavegar, onFechar, n
                         className={`group/etapa text-left ${podeEditar && !atual ? 'cursor-pointer' : 'cursor-default'}`}
                       >
                         <span className="block h-1.5 rounded-full bg-black/[0.07] dark:bg-white/[0.09] overflow-hidden">
-                          <motion.span className={`block h-full rounded-full ${id === 'resolvido' && passou ? 'bg-[#4d7c0f] dark:bg-[#84cc16]' : 'bg-[#1d1d1f] dark:bg-white'}`} initial={false} animate={{ width: passou ? '100%' : '0%' }} transition={{ duration: 0.45, delay: passou ? i * 0.06 : 0, ease: [0.16, 1, 0.3, 1] }} />
+                          <motion.span className={`block h-full rounded-full ${id === 'resolvido' && passou ? 'bg-rm-acento dark:bg-rm-acento-escuro' : 'bg-[#1d1d1f] dark:bg-white'}`} initial={false} animate={{ width: passou ? '100%' : '0%' }} transition={{ duration: 0.45, delay: passou ? i * 0.06 : 0, ease: [0.16, 1, 0.3, 1] }} />
                         </span>
                         <span className={`mt-2.5 flex items-center gap-1.5 text-[12.5px] leading-tight ${atual ? 'font-semibold text-[#1d1d1f] dark:text-white' : 'text-slate-500 dark:text-zinc-400 group-hover/etapa:text-[#1d1d1f] dark:group-hover/etapa:text-white'}`}>
                           <span className="text-slate-400 tabular-nums">{i + 1}</span>
@@ -525,7 +525,7 @@ export default function FeedbackEstacao({ fb, lista = [], onNavegar, onFechar, n
                         <ul className="space-y-3">
                           {entregas.map((n) => (
                             <li key={n.id} className="flex gap-3">
-                              <span className="mt-1.5 w-2 h-2 rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] flex-shrink-0" />
+                              <span className="mt-1.5 w-2 h-2 rounded-full bg-rm-acento dark:bg-rm-acento-escuro flex-shrink-0" />
                               <span>
                                 <span className="block text-[14px] font-semibold">{n.titulo}</span>
                                 <span className="block text-[12.5px] text-slate-500 dark:text-zinc-400">{dataLonga(`${n.data}T12:00:00`)}</span>
@@ -570,7 +570,7 @@ export default function FeedbackEstacao({ fb, lista = [], onNavegar, onFechar, n
                         </ul>
                       )}
                       {podeEditar && (
-                        <form onSubmit={adicionar} className="mt-2 rounded-2xl ring-1 ring-black/[0.1] dark:ring-white/[0.12] bg-black/[0.015] dark:bg-white/[0.03] p-2 pl-3.5 focus-within:ring-2 focus-within:ring-[#4d7c0f]/30">
+                        <form onSubmit={adicionar} className="mt-2 rounded-2xl ring-1 ring-black/[0.1] dark:ring-white/[0.12] bg-black/[0.015] dark:bg-white/[0.03] p-2 pl-3.5 focus-within:ring-2 focus-within:ring-rm-acento/30">
                           <div className="flex items-center gap-2">
                             <input ref={campoNova} value={novaTexto} onChange={(e) => setNovaTexto(e.target.value)} placeholder="Nova subtarefa" maxLength={200} aria-label="Nova subtarefa" className="flex-1 min-w-0 bg-transparent text-[14px] outline-none placeholder:text-slate-400" />
                             <button type="submit" disabled={!novaTexto.trim()} className="h-8 px-3.5 rounded-full bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] text-[12.5px] font-semibold cursor-pointer disabled:opacity-30 transition-opacity">

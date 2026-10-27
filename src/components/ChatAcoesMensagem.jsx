@@ -53,7 +53,7 @@ function Flutuante({ ancora, largura, altura, onFechar, children, rotulo }) {
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.13 }}
       style={{ position: 'fixed', left: pos.left, top: pos.top, width: largura, transformOrigin: pos.origem }}
-      className="z-[250] rounded-2xl bg-white dark:bg-[#233138] ring-1 ring-black/[0.08] dark:ring-white/[0.08] shadow-[0_18px_50px_-12px_rgba(0,0,0,0.35)] text-[#111b21] dark:text-[#e9edef]"
+      className="z-[250] rounded-2xl bg-white dark:bg-rm-elevado-escuro ring-1 ring-black/[0.08] dark:ring-white/[0.08] shadow-[0_18px_50px_-12px_rgba(0,0,0,0.35)] text-[#111b21] dark:text-[#e9edef]"
     >
       {children}
     </motion.div>,

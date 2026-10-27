@@ -44,7 +44,7 @@ function linkCalendario(r) {
 }
 
 const RESULTADOS = {
-  confirmada: { titulo: 'Presença confirmada', texto: 'Obrigado! Está tudo certo, esperamos você no horário marcado.', cor: 'bg-[#4d7c0f] dark:bg-[#84cc16]' },
+  confirmada: { titulo: 'Presença confirmada', texto: 'Obrigado! Está tudo certo, esperamos você no horário marcado.', cor: 'bg-rm-acento dark:bg-rm-acento-escuro' },
   remarcar: { titulo: 'Pedido de novo horário enviado', texto: 'A equipe vai falar com você pelo WhatsApp para combinar um horário melhor.', cor: 'bg-violet-500' },
   cancelada: { titulo: 'Reunião cancelada', texto: 'Avisamos a equipe. Se quiser marcar outra vez, é só responder a mensagem no WhatsApp.', cor: 'bg-rose-500' },
 };
@@ -119,7 +119,7 @@ export default function ConfirmacaoReuniao({ token }) {
           )}
 
           {(estado === 'invalido' || estado === 'erro') && (
-            <motion.section key="invalido" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="text-center rounded-[32px] bg-white dark:bg-[#1c1c1f] ring-1 ring-black/[0.06] dark:ring-white/[0.08] px-8 py-12 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.25)]">
+            <motion.section key="invalido" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="text-center rounded-[32px] bg-white dark:bg-rm-elevado-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.08] px-8 py-12 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.25)]">
               <h1 className="text-[24px] font-semibold tracking-[-0.02em]">{estado === 'invalido' ? 'Link expirado' : 'Algo deu errado'}</h1>
               <p className="mt-3 text-[15px] leading-relaxed text-slate-500 dark:text-zinc-400">
                 {estado === 'invalido' ? 'Este link não está mais disponível. Se precisar de ajuda, responda a mensagem que você recebeu no WhatsApp.' : 'Não conseguimos carregar sua reunião agora. Tente de novo em instantes.'}
@@ -128,13 +128,13 @@ export default function ConfirmacaoReuniao({ token }) {
           )}
 
           {estado === 'pronto' && reuniao && (
-            <motion.section key="reuniao" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: EASE }} className="rounded-[32px] bg-white dark:bg-[#1c1c1f] ring-1 ring-black/[0.06] dark:ring-white/[0.08] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.25)] dark:shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8)] overflow-hidden">
+            <motion.section key="reuniao" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: EASE }} className="rounded-[32px] bg-white dark:bg-rm-elevado-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.08] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.25)] dark:shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8)] overflow-hidden">
               {/* Data em destaque */}
               <div className="px-8 pt-9 pb-7 text-center">
                 <p className="text-[14px] text-slate-500 dark:text-zinc-400">{reuniao.cliente ? `Olá, ${reuniao.cliente}. Sua reunião é` : 'Sua reunião é'}</p>
                 {data && (
                   <>
-                    <p className="mt-4 text-[13px] font-semibold uppercase tracking-[0.12em] text-[#4d7c0f] dark:text-[#a3e635]">{data.semana}</p>
+                    <p className="mt-4 text-[13px] font-semibold uppercase tracking-[0.12em] text-rm-acento dark:text-rm-acento-vivo">{data.semana}</p>
                     <p className="mt-1 text-[64px] leading-none font-semibold tracking-[-0.04em] tabular-nums">{data.dia}</p>
                     <p className="mt-1 text-[17px] font-medium">
                       de {data.mes}, {reuniao.hora_inicio}
@@ -186,7 +186,7 @@ export default function ConfirmacaoReuniao({ token }) {
                         whileTap={{ scale: 0.98 }}
                         disabled={enviando}
                         onClick={() => responder('confirmar')}
-                        className="w-full h-[52px] rounded-full bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950 text-[16px] font-semibold shadow-[0_10px_30px_-10px_rgba(77,124,15,0.6)] cursor-pointer disabled:opacity-60"
+                        className="w-full h-[52px] rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 text-[16px] font-semibold shadow-[0_10px_30px_-10px_rgba(77,124,15,0.6)] cursor-pointer disabled:opacity-60"
                       >
                         Confirmar presença
                       </motion.button>
@@ -220,7 +220,7 @@ export default function ConfirmacaoReuniao({ token }) {
                                 maxLength={500}
                                 rows={3}
                                 placeholder={acaoAberta === 'remarcar' ? 'Ex.: quinta à tarde, depois das 15h' : 'Ex.: surgiu um imprevisto'}
-                                className="w-full rounded-2xl px-4 py-3 text-[15px] bg-black/[0.03] dark:bg-white/[0.05] ring-1 ring-black/[0.08] dark:ring-white/[0.1] outline-none focus:ring-2 focus:ring-[#4d7c0f]/40 resize-none"
+                                className="w-full rounded-2xl px-4 py-3 text-[15px] bg-black/[0.03] dark:bg-white/[0.05] ring-1 ring-black/[0.08] dark:ring-white/[0.1] outline-none focus:ring-2 focus:ring-rm-acento/40 resize-none"
                               />
                               <button
                                 type="button"

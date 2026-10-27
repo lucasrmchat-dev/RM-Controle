@@ -500,7 +500,7 @@ export default function AgendaEventoModal({
                 <>
                   <div className="rounded-2xl ring-1 ring-black/[0.08] dark:ring-white/[0.1] p-3.5">
                     <label className="flex items-start gap-3 cursor-pointer">
-                      <input type="checkbox" checked={enviarConfirmacao} onChange={(e) => setEnviarConfirmacao(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#4d7c0f] cursor-pointer" />
+                      <input type="checkbox" checked={enviarConfirmacao} onChange={(e) => setEnviarConfirmacao(e.target.checked)} className="mt-0.5 w-4 h-4 accent-rm-acento cursor-pointer" />
                       <span>
                         <span className="block text-sm font-medium">{editando ? 'Enviar de novo o pedido de confirmação' : 'Pedir confirmação ao cliente'}</span>
                         <span className="block text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
@@ -510,7 +510,7 @@ export default function AgendaEventoModal({
                     </label>
                     {prefsWhatsapp.confirmacao === 'perguntar' && (
                       <label className="mt-2.5 ml-7 flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-400 cursor-pointer">
-                        <input type="checkbox" checked={lembrarConfirmacao} onChange={(e) => setLembrarConfirmacao(e.target.checked)} className="w-3.5 h-3.5 accent-[#4d7c0f] cursor-pointer" />
+                        <input type="checkbox" checked={lembrarConfirmacao} onChange={(e) => setLembrarConfirmacao(e.target.checked)} className="w-3.5 h-3.5 accent-rm-acento cursor-pointer" />
                         {enviarConfirmacao ? 'Sempre pedir confirmação nos próximos agendamentos' : 'Não perguntar mais (nunca enviar)'}
                       </label>
                     )}
@@ -539,10 +539,10 @@ export default function AgendaEventoModal({
                         );
                       })}
                     </div>
-                    {evento?.lembrete_enviado_em && !remarcou && lembreteMin === evento.lembrete_minutos && <p className="mt-2 text-xs text-[#4d7c0f] dark:text-[#a3e635]">Lembrete já enviado.</p>}
+                    {evento?.lembrete_enviado_em && !remarcou && lembreteMin === evento.lembrete_minutos && <p className="mt-2 text-xs text-rm-acento dark:text-rm-acento-vivo">Lembrete já enviado.</p>}
                     {prefsWhatsapp.lembrete !== 'sempre' || (lembreteMin || null) !== prefsWhatsapp.lembrete_minutos ? (
                       <label className="mt-2.5 flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-400 cursor-pointer">
-                        <input type="checkbox" checked={lembrarLembrete} onChange={(e) => setLembrarLembrete(e.target.checked)} className="w-3.5 h-3.5 accent-[#4d7c0f] cursor-pointer" />
+                        <input type="checkbox" checked={lembrarLembrete} onChange={(e) => setLembrarLembrete(e.target.checked)} className="w-3.5 h-3.5 accent-rm-acento cursor-pointer" />
                         {lembreteMin ? `Usar ${textoTempoAntes(lembreteMin)} antes em todos os próximos agendamentos` : 'Não sugerir lembrete nos próximos agendamentos'}
                       </label>
                     ) : null}

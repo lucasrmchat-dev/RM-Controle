@@ -353,7 +353,7 @@ export default function NovaDemandaModal({
                         onClick={() => setTipoDescricao(id)}
                         title={t.rotulo}
                         className={`min-h-9 py-1.5 px-2 rounded-xl text-[12.5px] leading-tight font-medium cursor-pointer transition-colors ${
-                          ativo ? 'bg-white dark:bg-[#3a3a3f] text-[#1d1d1f] dark:text-white shadow-sm' : 'text-slate-500 dark:text-zinc-400 hover:text-[#1d1d1f] dark:hover:text-white'
+                          ativo ? 'bg-white dark:bg-rm-campo-escuro text-[#1d1d1f] dark:text-white shadow-sm' : 'text-slate-500 dark:text-zinc-400 hover:text-[#1d1d1f] dark:hover:text-white'
                         }`}
                       >
                         {t.curto}
@@ -520,7 +520,7 @@ export default function NovaDemandaModal({
                   <SeletorHorario valor={prazoHora} onMudar={setPrazoHora} rotuloId="nd-prazo-hora" />
                 </div>
                 <label className="flex items-start gap-3 cursor-pointer">
-                  <input type="checkbox" checked={lembrete} onChange={(e) => setLembrete(e.target.checked)} className="mt-0.5 w-4 h-4 rounded accent-[#4d7c0f]" />
+                  <input type="checkbox" checked={lembrete} onChange={(e) => setLembrete(e.target.checked)} className="mt-0.5 w-4 h-4 rounded accent-rm-acento" />
                   <span>
                     <span className="block text-[13px] font-medium">Marcar como lembrete</span>
                     <span className="block text-xs text-slate-500 dark:text-zinc-400">Aparece em destaque na fila e na Agenda da equipe.</span>

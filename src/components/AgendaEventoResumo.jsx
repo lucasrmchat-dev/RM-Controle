@@ -11,7 +11,7 @@ import { showToast } from './ToastNotification';
 
 const COR_CONFIRMACAO = {
   amber: 'bg-amber-500/12 text-amber-700 dark:text-amber-300',
-  green: 'bg-[#4d7c0f]/12 text-[#4d7c0f] dark:text-[#a3e635]',
+  green: 'bg-rm-acento/12 text-rm-acento dark:text-rm-acento-vivo',
   violet: 'bg-violet-500/12 text-violet-700 dark:text-violet-300',
   rose: 'bg-rose-500/12 text-rose-700 dark:text-rose-300',
 };
@@ -158,7 +158,7 @@ export default function AgendaEventoResumo({ evento, agendas = [], userEmail, on
           {STATUS_CONFIRMACAO[e.confirmacao_status] && e.confirmacao_status !== 'enviada' && (
             <span className={`inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-semibold ${COR_CONFIRMACAO[STATUS_CONFIRMACAO[e.confirmacao_status].cor]}`}>{STATUS_CONFIRMACAO[e.confirmacao_status].rotulo}</span>
           )}
-          {acontecendo && <span className="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-semibold bg-[#4d7c0f]/12 text-[#4d7c0f] dark:text-[#a3e635]">Acontecendo agora</span>}
+          {acontecendo && <span className="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-semibold bg-rm-acento/12 text-rm-acento dark:text-rm-acento-vivo">Acontecendo agora</span>}
         </div>
       }
       rodape={rodape}

@@ -22,7 +22,7 @@ export const classeCampo =
   'w-full h-11 px-3.5 rounded-xl text-sm text-[#1d1d1f] dark:text-white bg-white dark:bg-white/[0.06] ' +
   'border border-black/[0.14] dark:border-white/[0.16] placeholder:text-slate-400 dark:placeholder:text-zinc-400 ' +
   'transition-[border-color,box-shadow] hover:border-black/25 dark:hover:border-white/25 ' +
-  'focus:outline-none focus:border-[#4d7c0f] dark:focus:border-[#84cc16] focus:ring-4 focus:ring-[#4d7c0f]/10 dark:focus:ring-[#84cc16]/10';
+  'focus:outline-none focus:border-rm-acento dark:focus:border-rm-acento-escuro focus:ring-4 focus:ring-rm-acento/10 dark:focus:ring-rm-acento-escuro/10';
 
 export const classeRotulo = 'block text-[13px] font-medium text-[#1d1d1f]/80 dark:text-white/80 mb-1.5';
 
@@ -35,7 +35,7 @@ function Opcao({ ativo, titulo, desc, onClick }) {
       onClick={onClick}
       className={`relative p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
         ativo
-          ? 'border-[#4d7c0f] dark:border-[#84cc16] bg-[#4d7c0f]/[0.07] dark:bg-[#84cc16]/[0.08] ring-1 ring-[#4d7c0f]/30 dark:ring-[#84cc16]/30'
+          ? 'border-rm-acento dark:border-rm-acento-escuro bg-rm-acento/[0.07] dark:bg-rm-acento-escuro/[0.08] ring-1 ring-rm-acento/30 dark:ring-rm-acento-escuro/30'
           : 'border-black/[0.12] dark:border-white/[0.14] bg-white dark:bg-white/[0.03] hover:border-black/25 dark:hover:border-white/25'
       }`}
     >
@@ -43,7 +43,7 @@ function Opcao({ ativo, titulo, desc, onClick }) {
         <span className="text-sm font-semibold text-[#1d1d1f] dark:text-white">{titulo}</span>
         <span
           className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
-            ativo ? 'bg-[#4d7c0f] dark:bg-[#84cc16] text-white dark:text-zinc-950' : 'border border-black/20 dark:border-white/25'
+            ativo ? 'bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950' : 'border border-black/20 dark:border-white/25'
           }`}
         >
           {ativo && <CheckIcon className="w-2.5 h-2.5 stroke-[3]" />}

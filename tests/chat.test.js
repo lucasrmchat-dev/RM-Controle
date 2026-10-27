@@ -582,8 +582,10 @@ test('mesclar canais: só do mesmo número e desconectado; conversas passam e a 
   assert.equal((await pedir('bia@a.com', { acao: 'mesclar', origem: antigo.id })).status, 403, 'só administrador');
   assert.match((await pedir('ana@a.com', { acao: 'mesclar', origem: outroNumero.id })).mensagem, /mesmo número/);
   antigo.status = 'conectado';
-  assert.match((await pedir('ana@a.com', { acao: 'mesclar', origem: antigo.id })).mensagem, /Desconecte/);
-  antigo.status = 'desconectado';
+  antigo.ativo = true;
+  assert.match((await pedir('ana@a.com', { acao: 'mesclar', origem: antigo.id })).mensagem, /Desconecte ou desative/);
+  // Desativado, mesmo constando conectado: mescla e desliga a conexão antiga
+  antigo.ativo = false;
 
   const r = await pedir('ana@a.com', { acao: 'mesclar', origem: antigo.id });
   assert.equal(r.ok, true);
@@ -596,5 +598,7 @@ test('mesclar canais: só do mesmo número e desconectado; conversas passam e a 
   assert.equal(juntada.criado_em, ontem, 'a conversa começa quando começou a antiga');
   assert.deepEqual(db.tables.mensagens.filter((m) => m.conversa_id === convVendas.id).map((m) => m.conteudo).sort(), ['Oi, quero um orçamento', 'mensagem antiga']);
   assert.equal(db.tables.canais.find((c) => c.id === antigo.id).ativo, false);
+  assert.equal(db.tables.canais.find((c) => c.id === antigo.id).status, 'desconectado');
+  assert.ok(enviados.some((e) => e.url.includes('/instance/logout/')), 'desconecta a conexão antiga');
   assert.equal(db.tables.auditoria_logs.some((l) => l.acao === 'chat_mesclou' && l.detalhes.de_conversa_id === velhaMesmoContato.id), true);
 });

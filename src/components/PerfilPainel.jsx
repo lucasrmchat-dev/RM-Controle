@@ -32,7 +32,7 @@ function Segmentado({ opcoes, valor, onMudar, id, rotulo }) {
               ativo ? 'text-[#1d1d1f] dark:text-white' : 'text-slate-500 dark:text-zinc-400 hover:text-[#1d1d1f] dark:hover:text-white'
             }`}
           >
-            {ativo && <motion.span layoutId={`seg-${id}`} transition={MOLA} className="absolute inset-0 rounded-lg bg-white dark:bg-[#3a3a3f] shadow-[0_1px_3px_rgba(0,0,0,0.12)]" />}
+            {ativo && <motion.span layoutId={`seg-${id}`} transition={MOLA} className="absolute inset-0 rounded-lg bg-white dark:bg-rm-campo-escuro shadow-[0_1px_3px_rgba(0,0,0,0.12)]" />}
             <span className="relative flex items-center gap-1.5">
               {op.icone}
               {op.rotulo}
@@ -52,7 +52,7 @@ function Interruptor({ ligado, onMudar, rotulo }) {
       aria-checked={ligado}
       aria-label={rotulo}
       onClick={() => onMudar(!ligado)}
-      className={`relative w-[42px] h-[26px] rounded-full flex-shrink-0 cursor-pointer transition-colors duration-200 ${ligado ? 'bg-[#4d7c0f] dark:bg-[#84cc16]' : 'bg-black/[0.12] dark:bg-white/[0.18]'}`}
+      className={`relative w-[42px] h-[26px] rounded-full flex-shrink-0 cursor-pointer transition-colors duration-200 ${ligado ? 'bg-rm-acento dark:bg-rm-acento-escuro' : 'bg-black/[0.12] dark:bg-white/[0.18]'}`}
     >
       <motion.span
         animate={{ x: ligado ? 18 : 2 }}
@@ -101,6 +101,8 @@ export default function PerfilPainel({
   segundosRestantes = LIMITE_SESSAO,
   podeConfigurar,
   onConfiguracoes,
+  podeFeedbacks = false,
+  onFeedbacks,
   mostrarDemo,
   onDemo,
   onSair,
@@ -121,15 +123,15 @@ export default function PerfilPainel({
       style={folha ? undefined : { transformOrigin: 'top right' }}
       className={
         folha
-          ? 'fixed inset-x-0 bottom-0 z-[60] rounded-t-[28px] bg-[#f9f9fb] dark:bg-[#26262a] border-t border-black/[0.06] dark:border-white/[0.1] px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] max-h-[88dvh] overflow-y-auto text-[#1d1d1f] dark:text-[#f5f5f7]'
-          : 'absolute right-0 top-[calc(100%+10px)] w-[340px] rounded-[22px] bg-white/95 dark:bg-[#26262a]/95 backdrop-blur-2xl border border-black/[0.08] dark:border-white/[0.12] shadow-[0_24px_60px_-12px_rgba(0,0,0,0.25)] dark:shadow-[0_24px_60px_-12px_rgba(0,0,0,0.7)] p-4 text-[#1d1d1f] dark:text-[#f5f5f7] z-50'
+          ? 'fixed inset-x-0 bottom-0 z-[60] rounded-t-[28px] bg-[#f9f9fb] dark:bg-rm-elevado-escuro border-t border-black/[0.06] dark:border-white/[0.1] px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] max-h-[88dvh] overflow-y-auto text-[#1d1d1f] dark:text-[#f5f5f7]'
+          : 'absolute right-0 top-[calc(100%+10px)] w-[340px] rounded-[22px] bg-white/95 dark:bg-rm-elevado-escuro/95 backdrop-blur-2xl border border-black/[0.08] dark:border-white/[0.12] shadow-[0_24px_60px_-12px_rgba(0,0,0,0.25)] dark:shadow-[0_24px_60px_-12px_rgba(0,0,0,0.7)] p-4 text-[#1d1d1f] dark:text-[#f5f5f7] z-50'
       }
     >
       {folha && <div className="mx-auto mb-4 w-9 h-1 rounded-full bg-black/15 dark:bg-white/20" aria-hidden="true" />}
 
       {/* Quem está conectado */}
       <div className="flex items-center gap-3.5 px-1">
-        <div className="w-12 h-12 rounded-full bg-[#1d1d1f] dark:bg-[#f5f5f7] text-white dark:text-[#1d1d1f] flex items-center justify-center text-[15px] font-semibold tracking-wide flex-shrink-0">
+        <div className="w-12 h-12 rounded-full bg-[#1d1d1f] dark:bg-rm-fundo text-white dark:text-[#1d1d1f] flex items-center justify-center text-[15px] font-semibold tracking-wide flex-shrink-0">
           {iniciais(nome)}
         </div>
         <div className="min-w-0">
@@ -185,7 +187,7 @@ export default function PerfilPainel({
                 value={verComo || ''}
                 onChange={(e) => onVerComo?.(e.target.value || null)}
                 aria-label="Ver o sistema como"
-                className="w-full h-9 px-3 rounded-xl bg-black/[0.05] dark:bg-white/[0.07] text-[13px] font-medium cursor-pointer outline-none focus:ring-2 focus:ring-[#4d7c0f]/30"
+                className="w-full h-9 px-3 rounded-xl bg-black/[0.05] dark:bg-white/[0.07] text-[13px] font-medium cursor-pointer outline-none focus:ring-2 focus:ring-rm-acento/30"
               >
                 <option value="">Eu (acesso completo)</option>
                 {perfis.map((p) => (
@@ -216,6 +218,18 @@ export default function PerfilPainel({
               <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />
             </svg>
             <span className="flex-1 text-left">Configurações gerais</span>
+            <svg className="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m9 18 6-6-6-6" />
+            </svg>
+          </button>
+        )}
+        {podeFeedbacks && (
+          <button type="button" onClick={onFeedbacks} className={linhaMenu}>
+            <svg className="w-[18px] h-[18px] text-slate-500 dark:text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 18h6M10 21.5h4" />
+              <path d="M12 2.5a6.5 6.5 0 0 0-4 11.6c.6.5 1 1.2 1 2V16h6v-.1c0-.8.4-1.5 1-2A6.5 6.5 0 0 0 12 2.5z" />
+            </svg>
+            <span className="flex-1 text-left">Feedbacks</span>
             <svg className="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="m9 18 6-6-6-6" />
             </svg>

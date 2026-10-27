@@ -33,6 +33,8 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { ModalEtapas, ErroRodape, Spinner, classeBotaoPrimario, classeBotaoTexto } from './FormularioEtapas';
 import { classeCampo, classeRotulo } from './NovaEmpresaCampos';
 import { showToast } from './ToastNotification';
+import EncaixeCabecalho, { ACOES_TITULO, LINHA_TITULO } from './EncaixeCabecalho';
+import { removerGrupo } from '@/lib/notificacoes';
 
 // ------------------------------------------------------------------------------
 // Visual
@@ -98,12 +100,12 @@ function Avatar({ conversa, tamanho = 'w-11 h-11 text-[14px]', versao = 0 }) {
           if (!contato?.id) return setFalhou(true);
           linkDaFoto(contato.id, { renovar: true }).then((url) => (url && url !== foto ? setFoto(url) : setFalhou(true)));
         }}
-        className={`${tamanho} rounded-full object-cover flex-shrink-0 bg-[#dfe5e7] dark:bg-[#2a3942]`}
+        className={`${tamanho} rounded-full object-cover flex-shrink-0 bg-[#dfe5e7] dark:bg-rm-campo-escuro`}
       />
     );
   if (ehGrupo(contato?.telefone))
     return (
-      <span className={`${tamanho} rounded-full flex items-center justify-center flex-shrink-0 bg-[#dfe5e7] dark:bg-[#2a3942] text-[#8696a0]`} aria-hidden="true">
+      <span className={`${tamanho} rounded-full flex items-center justify-center flex-shrink-0 bg-[#dfe5e7] dark:bg-rm-campo-escuro text-[#8696a0]`} aria-hidden="true">
         <svg className="w-1/2 h-1/2" viewBox="0 0 24 24" fill="currentColor">
           <path d="M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm7.5 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM9 13c-3.3 0-6 1.7-6 4v2h12v-2c0-2.3-2.7-4-6-4zm7.5.2c-.6 0-1.2.1-1.7.2 1.3.9 2.2 2.1 2.2 3.6v2h5v-1.8c0-2.2-2.5-4-5.5-4z" />
         </svg>
@@ -219,7 +221,7 @@ function ControlesMensagem({ m, minha, reacaoAtual, onAcao, fundo }) {
           type="button"
           onClick={() => setReagir((v) => !v)}
           aria-label="Reagir"
-          className={`absolute top-1/2 -translate-y-1/2 ${minha ? '-left-10' : '-right-10'} w-8 h-8 rounded-full bg-white/90 dark:bg-[#202c33]/90 shadow-sm flex items-center justify-center text-[#54656f] dark:text-[#aebac1] cursor-pointer transition-opacity ${fixo ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'}`}
+          className={`absolute top-1/2 -translate-y-1/2 ${minha ? '-left-10' : '-right-10'} w-8 h-8 rounded-full bg-white/90 dark:bg-rm-elevado-escuro/90 shadow-sm flex items-center justify-center text-[#54656f] dark:text-[#aebac1] cursor-pointer transition-opacity ${fixo ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'}`}
         >
           <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
             <circle cx="12" cy="12" r="9" />
@@ -295,7 +297,7 @@ function Reacoes({ lista, minha }) {
   const emojis = [...new Set(lista.map((r) => r.conteudo))].slice(0, 3);
   const quem = lista.map((r) => `${r.conteudo} ${r.direcao === 'saida' ? 'Você' : r.autor_nome || 'Cliente'}`).join(' · ');
   return (
-    <span title={quem} className={`absolute -bottom-[18px] ${minha ? 'right-2' : 'left-2'} z-[1] h-[22px] px-1.5 rounded-full bg-white dark:bg-[#202c33] ring-1 ring-black/[0.06] dark:ring-white/[0.08] shadow-sm flex items-center gap-0.5 text-[13px] leading-none select-none`}>
+    <span title={quem} className={`absolute -bottom-[18px] ${minha ? 'right-2' : 'left-2'} z-[1] h-[22px] px-1.5 rounded-full bg-white dark:bg-rm-elevado-escuro ring-1 ring-black/[0.06] dark:ring-white/[0.08] shadow-sm flex items-center gap-0.5 text-[13px] leading-none select-none`}>
       {emojis.join('')}
       {lista.length > 1 && <span className="text-[11px] text-[#667781] dark:text-[#8696a0] ml-0.5 tabular-nums">{lista.length}</span>}
     </span>
@@ -307,7 +309,7 @@ function Balao({ m, primeiraDoGrupo, reacoes = [], acoes }) {
   if (m.tipo === 'sistema')
     return (
       <div className="flex justify-center my-2">
-        <span className="px-3 py-1 rounded-lg text-[12px] bg-white/90 dark:bg-[#182229] text-slate-600 dark:text-[#8696a0] shadow-sm">
+        <span className="px-3 py-1 rounded-lg text-[12px] bg-white/90 dark:bg-rm-elevado-escuro text-slate-600 dark:text-[#8696a0] shadow-sm">
           {m.conteudo} · {hora(m.criado_em)}
         </span>
       </div>
@@ -355,7 +357,7 @@ function Balao({ m, primeiraDoGrupo, reacoes = [], acoes }) {
     <div id={`msg-${m.id}`} className={`group flex ${minha ? 'justify-end' : 'justify-start'} ${primeiraDoGrupo ? 'mt-2' : 'mt-0.5'} ${reacoes.length ? 'mb-4' : ''}`}>
       <div
         className={`relative max-w-[min(560px,85%)] px-2.5 pt-1.5 pb-1 rounded-lg shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] text-[14.2px] leading-[1.38] text-[#111b21] dark:text-[#e9edef] ${
-          minha ? 'bg-[#d9fdd3] dark:bg-[#005c4b]' : 'bg-white dark:bg-[#202c33]'
+          minha ? 'bg-[#d9fdd3] dark:bg-[#005c4b]' : 'bg-white dark:bg-rm-elevado-escuro'
         } ${primeiraDoGrupo ? (minha ? 'rounded-tr-none' : 'rounded-tl-none') : ''}`}
       >
         {primeiraDoGrupo && (
@@ -433,7 +435,7 @@ function SeletorEmoji({ onEscolher, onFechar }) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 8 }}
       transition={{ duration: 0.15 }}
-      className="absolute bottom-[calc(100%+8px)] left-0 z-30 w-[min(340px,calc(100vw-32px))] rounded-2xl bg-white dark:bg-[#233138] ring-1 ring-black/[0.08] dark:ring-white/[0.08] shadow-[0_18px_50px_-12px_rgba(0,0,0,0.35)] overflow-hidden"
+      className="absolute bottom-[calc(100%+8px)] left-0 z-30 w-[min(340px,calc(100vw-32px))] rounded-2xl bg-white dark:bg-rm-elevado-escuro ring-1 ring-black/[0.08] dark:ring-white/[0.08] shadow-[0_18px_50px_-12px_rgba(0,0,0,0.35)] overflow-hidden"
     >
       <div className="flex gap-1 p-1.5 border-b border-black/[0.06] dark:border-white/[0.06] overflow-x-auto">
         {Object.keys(EMOJIS).map((g) => (
@@ -619,11 +621,27 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
     if (edicao || resposta) requestAnimationFrame(() => campo.current?.focus());
   }, [edicao?.id, resposta?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Altura do campo acompanha o texto. Vazio, fica com uma linha (medido antes do painel ter largura,
+  // o texto de exemplo quebrava letra por letra e o campo nascia gigante); a largura mudando, mede de novo.
   useLayoutEffect(() => {
     const el = campo.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    if (!el) return undefined;
+    const medir = () => {
+      el.style.height = '';
+      if (!texto || !el.clientWidth) return;
+      el.style.height = 'auto';
+      el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    };
+    medir();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    let largura = el.clientWidth;
+    const observador = new ResizeObserver(() => {
+      if (el.clientWidth === largura) return;
+      largura = el.clientWidth;
+      medir();
+    });
+    observador.observe(el);
+    return () => observador.disconnect();
   }, [texto]);
 
   const busca = /^\/([\w-]*)$/.exec(texto.trimStart())?.[1];
@@ -757,7 +775,7 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
 
   if (bloqueio && (bloqueio.semNota || !nota)) {
     return (
-      <div className="px-4 py-3 bg-[#f0f2f5] dark:bg-[#202c33] flex flex-col sm:flex-row sm:items-center gap-2 text-[13px] text-slate-600 dark:text-[#aebac1]">
+      <div className="px-4 py-3 bg-rm-fundo dark:bg-rm-elevado-escuro flex flex-col sm:flex-row sm:items-center gap-2 text-[13px] text-slate-600 dark:text-[#aebac1]">
         <span className="flex-1 flex items-center gap-2">
           {bloqueio.semNota && (
             <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -778,10 +796,10 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
   }
 
   return (
-    <div className={`relative px-2.5 sm:px-4 pt-2 pb-2.5 ${nota ? 'bg-amber-50 dark:bg-[#2a2516]' : 'bg-[#f0f2f5] dark:bg-[#202c33]'}`}>
+    <div className={`relative px-2.5 sm:px-4 pt-2 pb-2.5 ${nota ? 'bg-amber-50 dark:bg-[#2a2516]' : 'bg-rm-fundo dark:bg-rm-elevado-escuro'}`}>
       <AnimatePresence>
         {sugestoesMencao.length > 0 && (
-          <motion.ul initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute left-2.5 right-2.5 sm:left-4 sm:right-auto sm:w-[340px] bottom-[calc(100%-4px)] z-20 rounded-2xl bg-white dark:bg-[#233138] ring-1 ring-black/[0.08] dark:ring-white/[0.08] shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.3)] p-1.5 max-h-[300px] overflow-y-auto" role="listbox" aria-label={nota ? 'Mencionar alguém da equipe' : 'Mencionar participante do grupo'}>
+          <motion.ul initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute left-2.5 right-2.5 sm:left-4 sm:right-auto sm:w-[340px] bottom-[calc(100%-4px)] z-20 rounded-2xl bg-white dark:bg-rm-elevado-escuro ring-1 ring-black/[0.08] dark:ring-white/[0.08] shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.3)] p-1.5 max-h-[300px] overflow-y-auto" role="listbox" aria-label={nota ? 'Mencionar alguém da equipe' : 'Mencionar participante do grupo'}>
             <li className="px-3 pt-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{nota ? 'Mencionar na nota' : 'Participantes do grupo'}</li>
             {sugestoesMencao.map((p, i) => (
               <li key={p.chave || p.jid || p.nome} role="option" aria-selected={i === indice}>
@@ -799,7 +817,7 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
           </motion.ul>
         )}
         {sugestoes.length > 0 && (
-          <motion.ul initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute left-2.5 right-2.5 sm:left-4 sm:right-4 bottom-[calc(100%-4px)] z-20 rounded-2xl bg-white dark:bg-[#233138] ring-1 ring-black/[0.08] dark:ring-white/[0.08] shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.3)] p-1.5" role="listbox">
+          <motion.ul initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute left-2.5 right-2.5 sm:left-4 sm:right-4 bottom-[calc(100%-4px)] z-20 rounded-2xl bg-white dark:bg-rm-elevado-escuro ring-1 ring-black/[0.08] dark:ring-white/[0.08] shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.3)] p-1.5" role="listbox">
             {sugestoes.map((r, i) => (
               <li key={r.id} role="option" aria-selected={i === indice}>
                 <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => usar(r)} onMouseEnter={() => setIndice(i)} className={`w-full text-left px-3 py-2 rounded-xl cursor-pointer ${i === indice ? 'bg-black/[0.05] dark:bg-white/[0.07]' : ''}`}>
@@ -835,7 +853,7 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
             title={assinar ? `O cliente recebe *${eu?.nome || ''}:* no início da mensagem` : 'Mensagens sem assinatura'}
             className="ml-auto h-7 pl-2 pr-3 rounded-full text-[12px] font-medium text-slate-500 dark:text-[#8696a0] hover:bg-black/[0.05] dark:hover:bg-white/[0.06] cursor-pointer inline-flex items-center gap-1.5"
           >
-            <span className={`relative w-7 h-4 rounded-full transition-colors ${assinar ? 'bg-[#00a884]' : 'bg-black/20 dark:bg-white/20'}`}>
+            <span className={`relative w-7 h-4 rounded-full transition-colors ${assinar ? 'bg-rm-acento-medio' : 'bg-black/20 dark:bg-white/20'}`}>
               <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${assinar ? 'left-[14px]' : 'left-0.5'}`} />
             </span>
             Assinatura
@@ -847,9 +865,9 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
       </div>
 
       {(resposta || edicao) && !nota && (
-        <div className="flex items-center gap-2 mb-1.5 rounded-xl bg-white dark:bg-[#2a3942] pl-3 pr-1.5 py-1.5 border-l-4 border-[#00a884]">
+        <div className="flex items-center gap-2 mb-1.5 rounded-xl bg-white dark:bg-rm-campo-escuro pl-3 pr-1.5 py-1.5 border-l-4 border-rm-acento-medio">
           <div className="min-w-0 flex-1">
-            <p className="text-[12.5px] font-semibold text-[#008069] dark:text-[#00d4a4]">
+            <p className="text-[12.5px] font-semibold text-rm-acento dark:text-rm-acento-vivo">
               {edicao ? 'Editando mensagem' : `Respondendo a ${resposta.direcao === 'saida' ? resposta.autor_nome || 'você' : resposta.direcao === 'nota' ? 'nota interna' : resposta.autor_nome || nomeContato}`}
             </p>
             <p className="text-[12.5px] text-[#667781] dark:text-[#8696a0] truncate">{(edicao || resposta).conteudo || ROTULO_MIDIA[(edicao || resposta).tipo] || 'Mensagem'}</p>
@@ -879,12 +897,12 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
               <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />
             </svg>
           </button>
-          <div className="flex-1 flex items-center gap-2.5 h-[42px] rounded-[21px] px-4 bg-white dark:bg-[#2a3942]">
+          <div className="flex-1 flex items-center gap-2.5 h-[42px] rounded-[21px] px-4 bg-white dark:bg-rm-campo-escuro">
             <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
             <span className="text-[15px] tabular-nums text-[#111b21] dark:text-[#e9edef]">{gravador.relogio}</span>
             <span className="text-[12.5px] text-[#8696a0]">Gravando áudio…</span>
           </div>
-          <motion.button whileTap={{ scale: 0.92 }} type="button" onClick={enviarGravacao} aria-label="Enviar áudio" className="w-[42px] h-[42px] rounded-full flex items-center justify-center text-white bg-[#00a884] cursor-pointer">
+          <motion.button whileTap={{ scale: 0.92 }} type="button" onClick={enviarGravacao} aria-label="Enviar áudio" className="w-[42px] h-[42px] rounded-full flex items-center justify-center text-white bg-rm-acento-medio cursor-pointer">
             <svg className="w-5 h-5 translate-x-px" viewBox="0 0 24 24" fill="currentColor">
               <path d="M3.4 20.4l17.45-7.48a1 1 0 0 0 0-1.84L3.4 3.6a.99.99 0 0 0-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z" />
             </svg>
@@ -940,7 +958,7 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
           placeholder={nota ? 'Nota para a equipe (o cliente não vê)' : 'Mensagem (/ para atalhos)'}
           aria-label={nota ? 'Nota interna' : 'Mensagem'}
           className={`flex-1 min-h-[42px] max-h-[160px] resize-none rounded-[21px] px-4 py-[10px] text-[15px] leading-[1.4] outline-none placeholder:text-slate-400 dark:placeholder:text-[#8696a0] text-[#111b21] dark:text-[#e9edef] ${
-            nota ? 'bg-white dark:bg-[#3a3320] ring-1 ring-amber-300/70 dark:ring-amber-400/25' : 'bg-white dark:bg-[#2a3942]'
+            nota ? 'bg-white dark:bg-[#3a3320] ring-1 ring-amber-300/70 dark:ring-amber-400/25' : 'bg-white dark:bg-rm-campo-escuro'
           }`}
         />
         {!nota && !texto.trim() && !enviando ? (
@@ -957,7 +975,7 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
           onClick={enviar}
           disabled={!texto.trim() || enviando}
           aria-label={nota ? 'Salvar nota' : 'Enviar'}
-          className={`w-[42px] h-[42px] rounded-full flex items-center justify-center text-white cursor-pointer disabled:opacity-40 transition-colors ${nota ? 'bg-amber-500' : 'bg-[#00a884]'}`}
+          className={`w-[42px] h-[42px] rounded-full flex items-center justify-center text-white cursor-pointer disabled:opacity-40 transition-colors ${nota ? 'bg-amber-500' : 'bg-rm-acento-medio'}`}
         >
           {enviando ? (
             <Spinner />
@@ -1001,7 +1019,7 @@ function MenuTransferir({ conversa, onTransferir }) {
       </button>
       <AnimatePresence>
         {aberto && (
-          <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.14 }} className="absolute right-0 top-[calc(100%+6px)] z-30 w-[260px] max-h-[380px] overflow-y-auto rounded-2xl bg-white dark:bg-[#233138] ring-1 ring-black/[0.08] dark:ring-white/[0.08] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.35)] p-1.5">
+          <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.14 }} className="absolute right-0 top-[calc(100%+6px)] z-30 w-[260px] max-h-[380px] overflow-y-auto rounded-2xl bg-white dark:bg-rm-elevado-escuro ring-1 ring-black/[0.08] dark:ring-white/[0.08] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.35)] p-1.5">
             <p className="px-3 pt-1.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Departamento</p>
             {departamentos.map((d) => (
               <button key={d} type="button" onClick={() => escolher({ departamento: d, responsavel_email: '' })} className={`w-full text-left px-3 py-2 rounded-xl text-[13.5px] hover:bg-black/[0.04] dark:hover:bg-white/[0.06] cursor-pointer ${conversa.departamento === d ? 'font-semibold' : ''}`}>
@@ -1037,7 +1055,7 @@ function JanelaOficial({ conversa }) {
   const h = Math.floor(j.restanteMs / 36e5);
   const m = Math.floor((j.restanteMs % 36e5) / 6e4);
   return (
-    <span className={`h-6 px-2.5 rounded-full text-[11px] font-semibold inline-flex items-center ${h < 2 ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300' : 'bg-[#00a884]/12 text-[#008069] dark:text-[#00d4a4]'}`} title="Pela API oficial, só dá para mandar texto livre até 24h depois da última mensagem do cliente">
+    <span className={`h-6 px-2.5 rounded-full text-[11px] font-semibold inline-flex items-center ${h < 2 ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300' : 'bg-rm-acento-medio/12 text-rm-acento dark:text-rm-acento-vivo'}`} title="Pela API oficial, só dá para mandar texto livre até 24h depois da última mensagem do cliente">
       Janela 24h · {h}h {String(m).padStart(2, '0')}min
     </span>
   );
@@ -1049,6 +1067,17 @@ const guardarConversa = (id, dados) => {
   if (CONVERSAS_GUARDADAS.size > 30) CONVERSAS_GUARDADAS.delete(CONVERSAS_GUARDADAS.keys().next().value);
   CONVERSAS_GUARDADAS.set(id, dados);
 };
+
+/** A mensagem gravada `r` é a mesma que o balão provisório `tmp` (mesmo autor, texto ou arquivo, e hora próxima)? */
+function mesmaMensagem(tmp, r) {
+  if (String(r.id).startsWith('tmp-') || r.direcao !== tmp.direcao) return false;
+  if (new Date(r.criado_em).getTime() < new Date(tmp.criado_em).getTime() - 15000) return false;
+  if (tmp.midia) return Boolean(r.midia) && r.midia.nome === tmp.midia.nome;
+  const texto = String(tmp.conteudo || '').trim();
+  const gravado = String(r.conteudo || '').trim();
+  // A assinatura ("*Nome:*") entra antes do texto
+  return Boolean(texto) && (gravado === texto || gravado.endsWith(texto));
+}
 
 function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, respostas, onAtualizada, onContatoMudou, onAbrirConversa, onExcluida, onVoltar, onRecolher, onGerenciarRespostas }) {
   const [participantes, setParticipantes] = useState([]);
@@ -1076,7 +1105,15 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
   const juntar = (lista, novas) => {
     const porId = new Map(lista.filter((m) => !String(m.id).startsWith('tmp-')).map((m) => [m.id, m]));
     novas.forEach((m) => porId.set(m.id, m));
-    const pendentes = lista.filter((m) => String(m.id).startsWith('tmp-'));
+    // Enquanto o envio não responde, a atualização ao vivo pode trazer a mesma mensagem já gravada:
+    // o balão provisório sai assim que a de verdade aparece (nunca os dois ao mesmo tempo)
+    const usadas = new Set();
+    const pendentes = lista.filter((m) => {
+      if (!String(m.id).startsWith('tmp-')) return false;
+      const igual = [...porId.values()].find((r) => !usadas.has(r.id) && mesmaMensagem(m, r));
+      if (igual) usadas.add(igual.id);
+      return !igual;
+    });
     return [...porId.values(), ...pendentes].sort((a, b) => new Date(a.criado_em) - new Date(b.criado_em));
   };
 
@@ -1378,7 +1415,7 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
     ? {
         texto: 'Conversa resolvida.',
         acao: (
-          <button type="button" onClick={() => acao('reabrir', { acao: 'reabrir' }, 'Conversa reaberta.')} className="h-9 px-4 rounded-full text-[13px] font-semibold bg-[#00a884] text-white cursor-pointer">
+          <button type="button" onClick={() => acao('reabrir', { acao: 'reabrir' }, 'Conversa reaberta.')} className="h-9 px-4 rounded-full text-[13px] font-semibold bg-rm-acento-medio text-white cursor-pointer">
             Reabrir
           </button>
         ),
@@ -1388,7 +1425,7 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
           semNota: true,
           texto: conversa.responsavel_email ? `Esta conversa está com ${conversa.responsavel_nome || 'outra pessoa'}. Assuma para responder.` : 'Conversa na fila de pendentes. Assuma para responder.',
           acao: (
-            <button type="button" onClick={() => acao('assumir', { acao: 'assumir' }, 'Conversa assumida.')} disabled={Boolean(ocupado)} className="h-9 px-4 rounded-full text-[13px] font-semibold bg-[#00a884] text-white cursor-pointer disabled:opacity-50">
+            <button type="button" onClick={() => acao('assumir', { acao: 'assumir' }, 'Conversa assumida.')} disabled={Boolean(ocupado)} className="h-9 px-4 rounded-full text-[13px] font-semibold bg-rm-acento-medio text-white cursor-pointer disabled:opacity-50">
               Assumir conversa
             </button>
           ),
@@ -1403,7 +1440,7 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
   return (
     <div className="flex-1 min-w-0 flex relative">
     <div className="flex-1 min-w-0 flex flex-col relative">
-      <header className="h-[60px] flex-shrink-0 px-2 sm:px-4 flex items-center gap-2.5 bg-[#f0f2f5] dark:bg-[#202c33] border-b border-black/[0.06] dark:border-white/[0.04]">
+      <header className="h-[60px] flex-shrink-0 px-2 sm:px-4 flex items-center gap-2.5 bg-rm-fundo dark:bg-rm-elevado-escuro border-b border-black/[0.06] dark:border-white/[0.04]">
         {onRecolher && (
           <button type="button" onClick={onRecolher} aria-label="Recolher conversa" title="Recolher conversa (voltar ao Kanban)" className="hidden md:flex w-9 h-9 rounded-full items-center justify-center text-[#54656f] dark:text-[#aebac1] hover:bg-black/[0.05] dark:hover:bg-white/[0.06] cursor-pointer flex-shrink-0">
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
@@ -1450,7 +1487,7 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
             <div className="hidden sm:block">
               <MenuTransferir conversa={conversa} onTransferir={(corpo) => acao('transferir', { acao: 'transferir', ...corpo }, 'Conversa transferida.')} />
             </div>
-            <button type="button" onClick={() => acao('resolver', { acao: 'resolver' }, 'Conversa resolvida.')} disabled={Boolean(ocupado)} className="h-9 px-3.5 rounded-full text-[13px] font-semibold text-[#008069] dark:text-[#00d4a4] hover:bg-[#00a884]/10 cursor-pointer disabled:opacity-50">
+            <button type="button" onClick={() => acao('resolver', { acao: 'resolver' }, 'Conversa resolvida.')} disabled={Boolean(ocupado)} className="h-9 px-3.5 rounded-full text-[13px] font-semibold text-rm-acento dark:text-rm-acento-vivo hover:bg-rm-acento-medio/10 cursor-pointer disabled:opacity-50">
               Resolver
             </button>
           </div>
@@ -1458,7 +1495,7 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
       </header>
 
       {fixadas.length > 0 && (
-        <div className="flex-shrink-0 flex items-center gap-2 px-3 sm:px-4 h-11 bg-white/95 dark:bg-[#111b21] border-b border-black/[0.06] dark:border-white/[0.05]">
+        <div className="flex-shrink-0 flex items-center gap-2 px-3 sm:px-4 h-11 bg-white/95 dark:bg-rm-cartao-escuro border-b border-black/[0.06] dark:border-white/[0.05]">
           <button
             type="button"
             onClick={() => {
@@ -1471,7 +1508,7 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
           >
             <span className="flex flex-col gap-0.5 flex-shrink-0" aria-hidden="true">
               {fixadas.map((f, i) => (
-                <span key={f.id} className={`w-[3px] rounded-full ${fixadas.length > 1 ? 'h-2' : 'h-6'} ${i === fixadaAtual % fixadas.length ? 'bg-[#00a884]' : 'bg-black/15 dark:bg-white/20'}`} />
+                <span key={f.id} className={`w-[3px] rounded-full ${fixadas.length > 1 ? 'h-2' : 'h-6'} ${i === fixadaAtual % fixadas.length ? 'bg-rm-acento-medio' : 'bg-black/15 dark:bg-white/20'}`} />
               ))}
             </span>
             <span className="text-[15px]">📌</span>
@@ -1501,28 +1538,31 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
           role="log"
           aria-live="polite"
         >
+          {/* Poucas mensagens ficam embaixo, perto do campo de digitar (como no WhatsApp) */}
+          <div className="min-h-full flex flex-col justify-end">
           {temMais && (
             <div className="flex justify-center mb-2">
-              <button type="button" onClick={anteriores} className="h-8 px-4 rounded-full text-[12.5px] font-medium bg-white/90 dark:bg-[#182229] text-slate-600 dark:text-[#aebac1] shadow-sm cursor-pointer">
+              <button type="button" onClick={anteriores} className="h-8 px-4 rounded-full text-[12.5px] font-medium bg-white/90 dark:bg-rm-elevado-escuro text-slate-600 dark:text-[#aebac1] shadow-sm cursor-pointer">
                 Carregar mensagens anteriores
               </button>
             </div>
           )}
           {!carregada && mensagens.length === 0 && (
-            <div className="flex justify-center mt-16 text-slate-400">
+            <div className="flex justify-center my-auto text-slate-400">
               <Spinner />
             </div>
           )}
-          {carregada && mensagens.length === 0 && <p className="text-center text-[13px] text-slate-500 dark:text-[#8696a0] mt-10">Nenhuma mensagem ainda.</p>}
+          {carregada && mensagens.length === 0 && <p className="text-center text-[13px] text-slate-500 dark:text-[#8696a0] my-auto">Nenhuma mensagem ainda.</p>}
           {grupos.map((g) =>
             g.dia ? (
               <div key={g.chave} className="flex justify-center my-3 sticky top-0 z-10">
-                <span className="px-3 py-1 rounded-lg text-[12px] font-medium bg-white/95 dark:bg-[#182229] text-[#54656f] dark:text-[#8696a0] shadow-sm">{rotuloDoDia(g.dia)}</span>
+                <span className="px-3 py-1 rounded-lg text-[12px] font-medium bg-white/95 dark:bg-rm-elevado-escuro text-[#54656f] dark:text-[#8696a0] shadow-sm">{rotuloDoDia(g.dia)}</span>
               </div>
             ) : (
               <Balao key={g.m.id} m={g.m} primeiraDoGrupo={g.primeira} reacoes={g.reacoes} acoes={String(g.m.id).startsWith('tmp-') ? null : acoesDoBalao} />
             )
           )}
+          </div>
         </div>
       </div>
 
@@ -1612,19 +1652,19 @@ function ItemConversa({ c, ativa, eu, onAbrir, cartao = false }) {
       onClick={() => onAbrir(c.id)}
       className={
         cartao
-          ? `w-full flex items-start gap-2.5 p-3 rounded-2xl text-left cursor-pointer transition-all bg-white dark:bg-[#202c33] ring-1 ${ativa ? 'ring-2 ring-[#00a884]' : 'ring-black/[0.06] dark:ring-white/[0.06] hover:ring-black/[0.14] dark:hover:ring-white/[0.16] hover:shadow-sm'}`
-          : `w-full flex items-center gap-3 pl-3 pr-3.5 py-2.5 text-left cursor-pointer transition-colors ${ativa ? 'bg-[#f0f2f5] dark:bg-[#2a3942]' : 'hover:bg-[#f5f6f6] dark:hover:bg-[#202c33]'}`
+          ? `w-full flex items-start gap-2.5 p-3 rounded-2xl text-left cursor-pointer transition-all bg-white dark:bg-rm-elevado-escuro ring-1 ${ativa ? 'ring-2 ring-rm-acento-medio' : 'ring-black/[0.06] dark:ring-white/[0.06] hover:ring-black/[0.14] dark:hover:ring-white/[0.16] hover:shadow-sm'}`
+          : `w-full flex items-center gap-3 pl-3 pr-3.5 py-2.5 text-left cursor-pointer transition-colors ${ativa ? 'bg-rm-fundo dark:bg-rm-campo-escuro' : 'hover:bg-[#f5f6f6] dark:hover:bg-rm-elevado-escuro'}`
       }
     >
       <Avatar conversa={c} tamanho={cartao ? 'w-9 h-9 text-[12px]' : undefined} />
       <div className={`min-w-0 flex-1 ${cartao ? '' : 'border-b border-black/[0.05] dark:border-white/[0.05] pb-2.5 -mb-2.5'}`}>
         <div className="flex items-baseline gap-2">
           <span className={`flex-1 truncate text-[#111b21] dark:text-[#e9edef] ${cartao ? 'text-[14px] font-medium' : 'text-[15.5px]'}`}>{nomeDoContato(c)}</span>
-          <span className={`text-[11.5px] flex-shrink-0 ${c.nao_lidas ? 'text-[#00a884] font-semibold' : 'text-[#667781] dark:text-[#8696a0]'}`}>{quandoNaLista(c.ultima_mensagem_em || c.criado_em)}</span>
+          <span className={`text-[11.5px] flex-shrink-0 ${c.nao_lidas ? 'text-rm-acento-medio font-semibold' : 'text-[#667781] dark:text-[#8696a0]'}`}>{quandoNaLista(c.ultima_mensagem_em || c.criado_em)}</span>
         </div>
         <div className="flex items-center gap-2 mt-0.5">
           <span className={`flex-1 text-[13px] text-[#667781] dark:text-[#8696a0] ${cartao ? 'line-clamp-2' : 'truncate text-[13.5px]'}`}>{c.ultima_mensagem_texto || 'Sem mensagens'}</span>
-          {c.nao_lidas > 0 && <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#00a884] text-white dark:text-[#111b21] text-[11.5px] font-bold flex items-center justify-center tabular-nums flex-shrink-0">{c.nao_lidas > 99 ? '99+' : c.nao_lidas}</span>}
+          {c.nao_lidas > 0 && <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-rm-acento-medio text-white dark:text-[#111b21] text-[11.5px] font-bold flex items-center justify-center tabular-nums flex-shrink-0">{c.nao_lidas > 99 ? '99+' : c.nao_lidas}</span>}
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-1">
           <Etiquetas conversa={c} eu={eu} />
@@ -1644,7 +1684,7 @@ function Trecho({ texto, termo }) {
     <>
       {ini > 0 ? '…' : ''}
       {t.slice(ini, i)}
-      <mark className="bg-[#00a884]/20 text-inherit rounded px-0.5">{t.slice(i, i + termo.length)}</mark>
+      <mark className="bg-rm-acento-medio/20 text-inherit rounded px-0.5">{t.slice(i, i + termo.length)}</mark>
       {t.slice(i + termo.length, i + termo.length + 80)}
     </>
   );
@@ -1660,7 +1700,9 @@ export default function ChatView() {
   const [visao, setVisao] = useState('lista');
   useEffect(() => {
     try {
-      if (localStorage.getItem('rm_chat_visao') === 'kanban') setVisao('kanban');
+      const propria = localStorage.getItem('rm_chat_visao');
+      // Sem escolha própria no Chat, segue o padrão do sistema (Configurações › Aparência)
+      if (propria === 'kanban' || (!propria && localStorage.getItem('rm_default_view_mode') === 'kanban')) setVisao('kanban');
     } catch {}
   }, []);
   const trocarVisao = () =>
@@ -1886,6 +1928,20 @@ export default function ChatView() {
       window.__rmChatMontado = false;
     };
   }, []);
+  // Abrir a conversa tira os avisos dela da central de notificações
+  useEffect(() => {
+    if (selecionada) removerGrupo(`chat-${selecionada}`);
+  }, [selecionada]);
+  // Clique num aviso do Chat na central: abre a conversa
+  useEffect(() => {
+    const abrir = (e) => e.detail?.conversaId && setSelecionada(e.detail.conversaId);
+    window.addEventListener('rm_chat_abrir', abrir);
+    if (window.__rmChatAbrirPendente) {
+      setSelecionada(window.__rmChatAbrirPendente);
+      window.__rmChatAbrirPendente = null;
+    }
+    return () => window.removeEventListener('rm_chat_abrir', abrir);
+  }, []);
   useEffect(() => {
     window.__rmChatAberta = selecionada;
     return () => {
@@ -1931,15 +1987,15 @@ export default function ChatView() {
   }[aba];
 
   return (
-    <div className="h-[calc(100dvh-178px)] sm:h-[calc(100dvh-40px-var(--rm-cabecalho,78px))] sm:transition-[height] sm:duration-500 min-h-[460px] flex rounded-[22px] overflow-hidden ring-1 ring-black/[0.08] dark:ring-white/[0.08] bg-white dark:bg-[#111b21] shadow-[0_10px_40px_-18px_rgba(0,0,0,0.25)]">
-      {/* Lista */}
-      <aside
-        className={`${selecionada ? 'hidden md:flex' : 'flex'} ${
-          kanban ? (selecionada ? 'md:w-[44%] lg:w-[46%]' : 'w-full') : 'w-full md:w-[340px] lg:w-[380px]'
-        } flex-shrink-0 flex-col border-r border-black/[0.07] dark:border-white/[0.06] bg-white dark:bg-[#111b21] transition-[width] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]`}
-      >
-        <div className="px-4 pt-4 pb-2 flex items-center gap-1">
-          <h1 className="text-[22px] font-semibold tracking-tight text-[#111b21] dark:text-[#e9edef] flex-1">Chat</h1>
+    <div className="h-[calc(100dvh-178px)] sm:h-[calc(100dvh-24px-var(--rm-cabecalho,0px))] min-h-[460px] flex flex-col rounded-[22px] overflow-hidden ring-1 ring-black/[0.08] dark:ring-white/[0.08] bg-white dark:bg-rm-cartao-escuro shadow-[0_10px_40px_-18px_rgba(0,0,0,0.25)]">
+      {/* Barra do Chat em toda a largura: título | lugar da ilha do cabeçalho | ferramentas */}
+      <div className={`${selecionada ? 'hidden md:flex' : 'flex'} ${LINHA_TITULO} lg:items-center items-center gap-1 px-4 h-16 flex-shrink-0 border-b border-black/[0.07] dark:border-white/[0.06]`}>
+          {/* O nome da tela já está no cabeçalho */}
+          <h1 className="sr-only">Chat</h1>
+          <span className="mr-auto lg:hidden" />
+          <div className="hidden lg:block" />
+          <EncaixeCabecalho />
+          <div className={`flex items-center gap-1 ${ACOES_TITULO}`}>
           {[
             {
               rotulo: 'Contatos',
@@ -1963,11 +2019,19 @@ export default function ChatView() {
                   <path key={d} d={d} />
                 ))}
               </svg>
-              {b.marcado && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#00a884] ring-2 ring-white dark:ring-[#111b21]" />}
+              {b.marcado && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rm-acento-medio ring-2 ring-white dark:ring-[#111b21]" />}
             </button>
           ))}
-        </div>
-        <div className="px-3 pb-2">
+          </div>
+      </div>
+      <div className="flex-1 min-h-0 flex">
+      {/* Lista */}
+      <aside
+        className={`${selecionada ? 'hidden md:flex' : 'flex'} ${
+          kanban ? (selecionada ? 'md:w-[44%] lg:w-[46%]' : 'w-full') : 'w-full md:w-[340px] lg:w-[380px]'
+        } flex-shrink-0 flex-col border-r border-black/[0.07] dark:border-white/[0.06] bg-white dark:bg-rm-cartao-escuro transition-[width] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]`}
+      >
+        <div className="px-3 pt-3 pb-2">
           <div className="relative">
             <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#54656f] dark:text-[#8696a0]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <circle cx="11" cy="11" r="7" />
@@ -1978,7 +2042,7 @@ export default function ChatView() {
               onChange={(e) => setBusca(e.target.value)}
               placeholder={modoBusca === 'mensagens' ? 'Buscar em todas as mensagens' : 'Pesquisar nome ou número'}
               aria-label={modoBusca === 'mensagens' ? 'Buscar em todas as mensagens' : 'Pesquisar conversas'}
-              className="w-full h-9 rounded-lg pl-10 pr-3 text-[14px] bg-[#f0f2f5] dark:bg-[#202c33] text-[#111b21] dark:text-[#e9edef] placeholder:text-[#667781] dark:placeholder:text-[#8696a0] outline-none focus:ring-2 focus:ring-[#00a884]/40"
+              className="w-full h-9 rounded-lg pl-10 pr-3 text-[14px] bg-rm-fundo dark:bg-rm-elevado-escuro text-[#111b21] dark:text-[#e9edef] placeholder:text-[#667781] dark:placeholder:text-[#8696a0] outline-none focus:ring-2 focus:ring-rm-acento-medio/40"
             />
           </div>
           <div className="flex items-center gap-1 mt-2 text-[12px]">
@@ -1991,7 +2055,7 @@ export default function ChatView() {
               </button>
             ))}
             {modoBusca === 'mensagens' && (
-              <select value={periodo} onChange={(e) => setPeriodo(Number(e.target.value))} aria-label="Período da busca" className="ml-auto h-6 rounded-full px-2 bg-[#f0f2f5] dark:bg-[#202c33] text-[12px] cursor-pointer outline-none">
+              <select value={periodo} onChange={(e) => setPeriodo(Number(e.target.value))} aria-label="Período da busca" className="ml-auto h-6 rounded-full px-2 bg-rm-fundo dark:bg-rm-elevado-escuro text-[12px] cursor-pointer outline-none">
                 {PERIODOS_BUSCA.map((p) => (
                   <option key={p.dias} value={p.dias}>
                     Últimos {p.rotulo}
@@ -2009,7 +2073,7 @@ export default function ChatView() {
                   role="tab"
                   aria-selected={aba === a.id}
                   onClick={() => setAba(a.id)}
-                  className={`h-8 px-2.5 rounded-full text-[13px] font-medium whitespace-nowrap cursor-pointer transition-colors ${aba === a.id ? 'bg-[#d9fdd3] text-[#008069] dark:bg-[#0a332c] dark:text-[#00d4a4]' : 'bg-[#f0f2f5] dark:bg-[#202c33] text-[#54656f] dark:text-[#8696a0] hover:bg-[#e6e8eb] dark:hover:bg-[#26353d]'}`}
+                  className={`h-8 px-2.5 rounded-full text-[13px] font-medium whitespace-nowrap cursor-pointer transition-colors ${aba === a.id ? 'bg-[#d9fdd3] text-rm-acento dark:bg-[#0a332c] dark:text-rm-acento-vivo' : 'bg-rm-fundo dark:bg-rm-elevado-escuro text-[#54656f] dark:text-[#8696a0] hover:bg-[#e6e8eb] dark:hover:bg-rm-elevado-escuro'}`}
                 >
                   {a.rotulo}
                   {contagem[a.id] ? <span className="ml-1.5 tabular-nums opacity-80">{contagem[a.id]}</span> : null}
@@ -2038,7 +2102,7 @@ export default function ChatView() {
                         if (m.conversa.status === 'resolvida') setAba('resolvidas');
                         abrir(m.conversa_id, { id: m.id, criado_em: m.criado_em });
                       }}
-                      className={`w-full flex items-start gap-3 px-3 py-2.5 text-left cursor-pointer hover:bg-[#f5f6f6] dark:hover:bg-[#202c33] ${selecionada === m.conversa_id ? 'bg-[#f0f2f5] dark:bg-[#2a3942]' : ''}`}
+                      className={`w-full flex items-start gap-3 px-3 py-2.5 text-left cursor-pointer hover:bg-[#f5f6f6] dark:hover:bg-rm-elevado-escuro ${selecionada === m.conversa_id ? 'bg-rm-fundo dark:bg-rm-campo-escuro' : ''}`}
                     >
                       <Avatar conversa={m.conversa} tamanho="w-10 h-10 text-[13px]" />
                       <span className="min-w-0 flex-1 border-b border-black/[0.05] dark:border-white/[0.05] pb-2.5 -mb-2.5">
@@ -2069,11 +2133,11 @@ export default function ChatView() {
                     aria-label={col.rotulo}
                     className={`${selecionada ? 'w-[280px]' : 'flex-1 min-w-[260px]'} flex-shrink-0 flex flex-col min-h-0 rounded-2xl bg-white/70 dark:bg-white/[0.03] ring-1 ring-black/[0.05] dark:ring-white/[0.05] overflow-hidden`}
                   >
-                    <div className={`h-[3px] ${{ ativos: 'bg-sky-500', pendentes: 'bg-amber-500', grupos: 'bg-violet-500', resolvidas: 'bg-[#4d7c0f]' }[col.id]}`} />
+                    <div className={`h-[3px] ${{ ativos: 'bg-sky-500', pendentes: 'bg-amber-500', grupos: 'bg-violet-500', resolvidas: 'bg-rm-acento' }[col.id]}`} />
                     <header className="flex items-center gap-2 px-3.5 pt-3 pb-2.5">
                       <h2 className="text-[14px] font-semibold text-[#111b21] dark:text-[#e9edef]">{col.rotulo}</h2>
                       {!carregandoColuna && (
-                        <span className={`min-w-[22px] h-[22px] px-1.5 rounded-full text-[11.5px] font-semibold tabular-nums flex items-center justify-center ${{ ativos: 'bg-sky-500/12 text-sky-700 dark:text-sky-300', pendentes: 'bg-amber-500/14 text-amber-700 dark:text-amber-300', grupos: 'bg-violet-500/12 text-violet-700 dark:text-violet-300', resolvidas: 'bg-[#4d7c0f]/12 text-[#4d7c0f] dark:text-[#a3e635]' }[col.id]}`}>
+                        <span className={`min-w-[22px] h-[22px] px-1.5 rounded-full text-[11.5px] font-semibold tabular-nums flex items-center justify-center ${{ ativos: 'bg-sky-500/12 text-sky-700 dark:text-sky-300', pendentes: 'bg-amber-500/14 text-amber-700 dark:text-amber-300', grupos: 'bg-violet-500/12 text-violet-700 dark:text-violet-300', resolvidas: 'bg-rm-acento/12 text-rm-acento dark:text-rm-acento-vivo' }[col.id]}`}>
                           {itens.length}
                         </span>
                       )}
@@ -2144,8 +2208,8 @@ export default function ChatView() {
             onGerenciarRespostas={() => setGerenciar(true)}
           />
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center px-8 bg-[#f0f2f5] dark:bg-[#222e35] border-b-[6px] border-[#25d366]">
-            <span className="w-16 h-16 rounded-full bg-[#00a884]/12 text-[#008069] dark:text-[#00d4a4] flex items-center justify-center">
+          <div className="flex-1 flex flex-col items-center justify-center text-center px-8 bg-rm-fundo dark:bg-rm-elevado-escuro border-b-[6px] border-[#25d366]">
+            <span className="w-16 h-16 rounded-full bg-rm-acento-medio/12 text-rm-acento dark:text-rm-acento-vivo flex items-center justify-center">
               <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 21l1.65-4.95A8.5 8.5 0 1 1 8 19.4L3 21z" />
               </svg>
@@ -2161,6 +2225,7 @@ export default function ChatView() {
           </div>
         )}
       </section>
+      </div>
 
       <GerenciarRespostas aberto={gerenciar} onFechar={() => setGerenciar(false)} respostas={respostas} admin={Boolean(eu?.admin)} onMudou={carregarRespostas} />
       <FiltrosAvancados

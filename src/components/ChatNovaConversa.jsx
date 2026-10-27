@@ -48,7 +48,7 @@ function SeletorPais({ valor, onMudar }) {
       </button>
       <AnimatePresence>
         {aberto && (
-          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute left-0 top-[calc(100%+6px)] z-40 w-[280px] rounded-2xl bg-white dark:bg-[#26262a] ring-1 ring-black/[0.08] dark:ring-white/[0.12] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.3)] p-1.5">
+          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute left-0 top-[calc(100%+6px)] z-40 w-[280px] rounded-2xl bg-white dark:bg-rm-elevado-escuro ring-1 ring-black/[0.08] dark:ring-white/[0.12] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.3)] p-1.5">
             <input value={busca} onChange={(e) => setBusca(e.target.value)} autoFocus placeholder="Procurar país ou código" className="w-full h-9 rounded-xl px-3 mb-1 bg-black/[0.04] dark:bg-white/[0.06] outline-none text-[13.5px]" />
             <ul className="max-h-[240px] overflow-y-auto">
               {lista.map((p) => (
@@ -60,7 +60,7 @@ function SeletorPais({ valor, onMudar }) {
                       setAberto(false);
                       setBusca('');
                     }}
-                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left text-[13.5px] cursor-pointer ${p.ddi === valor ? 'bg-[#4d7c0f]/10 font-semibold' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'}`}
+                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left text-[13.5px] cursor-pointer ${p.ddi === valor ? 'bg-rm-acento/10 font-semibold' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'}`}
                   >
                     <span className="text-[18px] leading-none">{p.bandeira}</span>
                     <span className="tabular-nums w-12 text-slate-500">+{p.ddi}</span>
@@ -222,12 +222,12 @@ export default function ChatNovaConversa({ aberto, onFechar, onCriada, telefoneI
           <h3 className="text-[12px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400 mb-2">Contato</h3>
           {contato ? (
             <div className="flex items-center gap-3 rounded-2xl ring-1 ring-black/[0.08] dark:ring-white/[0.1] px-3.5 py-2.5">
-              <span className="w-9 h-9 rounded-full bg-[#4d7c0f]/12 text-[#4d7c0f] dark:text-[#a3e635] flex items-center justify-center text-[13px] font-semibold">{String(contato.nome || '#').slice(0, 1).toUpperCase()}</span>
+              <span className="w-9 h-9 rounded-full bg-rm-acento/12 text-rm-acento dark:text-rm-acento-vivo flex items-center justify-center text-[13px] font-semibold">{String(contato.nome || '#').slice(0, 1).toUpperCase()}</span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[14px] font-medium truncate">{contato.nome || 'Sem nome'}</span>
                 <span className="block text-[12.5px] text-slate-500 tabular-nums">{formatarTelefone(contato.telefone)}</span>
               </span>
-              <button type="button" onClick={() => setContato(null)} className="text-[13px] text-[#4d7c0f] dark:text-[#a3e635] font-medium cursor-pointer">
+              <button type="button" onClick={() => setContato(null)} className="text-[13px] text-rm-acento dark:text-rm-acento-vivo font-medium cursor-pointer">
                 Trocar
               </button>
             </div>
@@ -241,7 +241,7 @@ export default function ChatNovaConversa({ aberto, onFechar, onCriada, telefoneI
                 <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Ou localize e selecione o contato" aria-label="Buscar contato" className={classeCampo} autoComplete="off" name="rm-busca-contato" spellCheck={false} onKeyDown={teclaBusca} role="combobox" aria-expanded={sugestoes.length > 0} aria-controls="rm-sugestoes-contato" aria-activedescendant={sugestoes[destaque] ? `rm-contato-${sugestoes[destaque].id}` : undefined} />
                 <p className="mt-1 pl-1 text-[11.5px] text-slate-400">Digite ao menos duas letras para localizar o contato.</p>
                 {sugestoes.length > 0 && (
-                  <ul id="rm-sugestoes-contato" role="listbox" className="absolute left-0 right-0 top-[46px] z-30 rounded-2xl bg-white dark:bg-[#26262a] ring-1 ring-black/[0.08] dark:ring-white/[0.12] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.3)] p-1.5">
+                  <ul id="rm-sugestoes-contato" role="listbox" className="absolute left-0 right-0 top-[46px] z-30 rounded-2xl bg-white dark:bg-rm-elevado-escuro ring-1 ring-black/[0.08] dark:ring-white/[0.12] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.3)] p-1.5">
                     {sugestoes.map((c, i) => (
                       <li key={c.id} id={`rm-contato-${c.id}`} role="option" aria-selected={i === destaque}>
                         <button
@@ -249,7 +249,7 @@ export default function ChatNovaConversa({ aberto, onFechar, onCriada, telefoneI
                           onMouseDown={(e) => e.preventDefault()}
                           onMouseEnter={() => setDestaque(i)}
                           onClick={() => escolherContato(c)}
-                          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left cursor-pointer ${i === destaque ? 'bg-[#4d7c0f]/10 dark:bg-[#84cc16]/12' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'}`}
+                          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left cursor-pointer ${i === destaque ? 'bg-rm-acento/10 dark:bg-rm-acento-escuro/12' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'}`}
                         >
                           <span className="min-w-0 flex-1">
                             <span className="block text-[13.5px] font-medium truncate">{c.nome || 'Sem nome'}</span>
@@ -325,7 +325,7 @@ export default function ChatNovaConversa({ aberto, onFechar, onCriada, telefoneI
               😊
             </button>
             {emojis && (
-              <div className="absolute right-0 bottom-[calc(100%+6px)] z-30 grid grid-cols-10 gap-0.5 p-1.5 rounded-2xl bg-white dark:bg-[#26262a] ring-1 ring-black/[0.08] dark:ring-white/[0.12] shadow-lg">
+              <div className="absolute right-0 bottom-[calc(100%+6px)] z-30 grid grid-cols-10 gap-0.5 p-1.5 rounded-2xl bg-white dark:bg-rm-elevado-escuro ring-1 ring-black/[0.08] dark:ring-white/[0.12] shadow-lg">
                 {EMOJIS.map((e) => (
                   <button key={e} type="button" onClick={() => setTexto((t) => t + e)} className="w-8 h-8 rounded-lg text-[18px] hover:bg-black/[0.05] cursor-pointer">
                     {e}
