@@ -1,4 +1,5 @@
 import { consumirLimite } from '@/lib/server/protecao';
+import { avisarAoVivo } from '@/lib/server/canais/aoVivo';
 import { enviarTextoNaConversa } from '@/lib/server/canais/index';
 import { isValidUUID } from '@/lib/sanitize';
 import { auditarChat, bloqueioSemAssumir, carregarConversa, juntarDetalhes, listarMensagens, prepararMensagem, registrarSistema, registrarVisualizacao } from '@/lib/server/canais/chat';
@@ -42,10 +43,19 @@ export async function GET(request, { params }) {
   return json({ ok: true, conversa, ...lista });
 }
 
-export async function POST(request, { params }) {
+// Depois de uma ação que deu certo, as telas da empresa atualizam na hora
+export async function POST(request, contexto) {
+  const aviso = {};
+  const resposta = await processar(request, contexto.params, aviso);
+  if (resposta.ok && aviso.org !== undefined) await avisarAoVivo(aviso.org);
+  return resposta;
+}
+
+async function processar(request, params, aviso) {
   const r = await carregar(request, params);
   if (r.erro) return r.erro;
   const { ctx, perm, conversa } = r;
+  aviso.org = conversa.organizacao_id || null;
   const { db } = ctx;
   if (!(await consumirLimite(`chat_${perm.email}`, 120, 60))) return json({ ok: false, mensagem: 'Muitas ações seguidas. Aguarde um instante.' }, 429);
   const body = (await request.json().catch(() => null)) || {};

@@ -86,8 +86,8 @@ export default function AcessoChatUsuario({ email, administrador = false }) {
             ligado={acesso.controleCanais}
             onMudar={(v) => salvar({ ...acesso, controleCanais: v })}
             desabilitado={salvando}
-            titulo="Fluxo de controle de canais"
-            descricao="Quando ativo, a pessoa vê apenas conversas e mensagens dos canais liberados a ela, mesmo que outros canais sejam do departamento dela."
+            titulo="Escolher os canais que a pessoa atende (fluxo de controle de canais)"
+            descricao="Ativo, a pessoa vê apenas conversas, mensagens e avisos dos canais marcados abaixo, mesmo que outros canais sejam do departamento dela. Desligado, vê os canais dos seus departamentos."
           />
           {acesso.controleCanais && (
             <div className="rounded-2xl ring-1 ring-black/[0.08] dark:ring-white/[0.1] p-2">

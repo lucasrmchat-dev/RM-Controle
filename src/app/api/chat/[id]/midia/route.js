@@ -2,6 +2,7 @@ import { consumirLimite } from '@/lib/server/protecao';
 import { enviarMidiaNaConversa } from '@/lib/server/canais/index';
 import { bloqueioSemAssumir, carregarConversa, juntarDetalhes, prepararMensagem } from '@/lib/server/canais/chat';
 import { LIMITE_ENVIO, mimeBase, tipoDoArquivo } from '@/lib/server/canais/midia';
+import { avisarAoVivo } from '@/lib/server/canais/aoVivo';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -44,6 +45,7 @@ export async function POST(request, { params }) {
       assinar: form.get('assinar') !== 'false',
     });
     const [{ data }, { data: canal }] = await Promise.all([ctx.db.from('conversas').select('*').eq('id', conversa.id).single(), ctx.db.from('canais').select('*').eq('id', conversa.canal_id).maybeSingle()]);
+    await avisarAoVivo(conversa.organizacao_id || null);
     return json({ ok: true, mensagem: prepararMensagem(mensagem, perm, canal), conversa: (await juntarDetalhes(ctx.db, [data]))[0] });
   } catch (e) {
     return json({ ok: false, mensagem: e.message }, 502);

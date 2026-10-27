@@ -37,7 +37,7 @@ import {
   getAgendaEventos,
   definirOrganizacaoAtual
 } from '@/lib/storage';
-import { triggerSupportNotification, stopSupportNotificationLoop, playMeetingAlertTone, deveNotificarChamado, getAudioConfig } from '@/lib/audioNotifications';
+import { triggerSupportNotification, stopSupportNotificationLoop, tocarSomDoModulo, deveNotificarChamado, getAudioConfig } from '@/lib/audioNotifications';
 import { definirDonoNotificacoes, notificar } from '@/lib/notificacoes';
 import { iniciarVigiaNotificacoes } from '@/lib/vigiaNotificacoes';
 import CentralNotificacoes from '@/components/CentralNotificacoes';
@@ -677,7 +677,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
             if (sessionStorage.getItem(sessionKey)) return;
             sessionStorage.setItem(sessionKey, 'true');
 
-            playMeetingAlertTone();
+            tocarSomDoModulo('reunioes');
             const tempoTexto = diffMins === 0 ? 'acontecendo agora' : `em ${diffMins} min`;
             notificar({
               id: `reuniao_${evt.id}_${evt.data}_${evt.hora_inicio}`,

@@ -169,9 +169,121 @@ export function playNotificationTone(tipo = 'harmonico') {
       break;
     }
 
+    case 'mensagem': {
+      // 5. Mensagem (dois toques curtos e suaves, estilo aplicativo de conversa)
+      [[987.77, 0], [1318.51, 0.11]].forEach(([f, offset]) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(f, now + offset);
+
+        gain.gain.setValueAtTime(0, now + offset);
+        gain.gain.linearRampToValueAtTime(0.22, now + offset + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.22);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(now + offset);
+        osc.stop(now + offset + 0.25);
+      });
+      break;
+    }
+
+    case 'reuniao':
+      // 6. Chime de calendário (o mesmo das reuniões)
+      playMeetingAlertTone();
+      break;
+
     default:
       playNotificationTone('harmonico');
   }
+}
+
+// ------------------------------------------------------------------------------
+// Som de cada módulo (Chat, Reuniões): ligado/desligado, toque e repetição próprios, por navegador.
+// A Fila de Demandas continua com a configuração acima (getAudioConfig).
+// ------------------------------------------------------------------------------
+export const SONS_DOS_MODULOS = {
+  chat: { habilitado: true, tipoSom: 'mensagem', modoRepeticao: 'uma_vez', intervaloSegundos: 30 },
+  reunioes: { habilitado: true, tipoSom: 'reuniao', modoRepeticao: 'uma_vez', intervaloSegundos: 30 },
+};
+const TOQUES = ['harmonico', 'dinamico', 'sino', 'incisivo', 'mensagem', 'reuniao'];
+const MODOS = ['uma_vez', 'intermitente', 'intervalo'];
+
+export function getSomDoModulo(modulo) {
+  const padrao = SONS_DOS_MODULOS[modulo] || SONS_DOS_MODULOS.chat;
+  if (typeof window === 'undefined') return { ...padrao };
+  let salvo = {};
+  try {
+    salvo = JSON.parse(localStorage.getItem(`rm_som_${modulo}`) || '{}') || {};
+  } catch {
+    salvo = {};
+  }
+  return {
+    habilitado: typeof salvo.habilitado === 'boolean' ? salvo.habilitado : padrao.habilitado,
+    tipoSom: TOQUES.includes(salvo.tipoSom) ? salvo.tipoSom : padrao.tipoSom,
+    modoRepeticao: MODOS.includes(salvo.modoRepeticao) ? salvo.modoRepeticao : padrao.modoRepeticao,
+    intervaloSegundos: Math.min(300, Math.max(5, parseInt(salvo.intervaloSegundos, 10) || padrao.intervaloSegundos)),
+  };
+}
+
+export function setSomDoModulo(modulo, config) {
+  if (typeof window === 'undefined' || !SONS_DOS_MODULOS[modulo]) return;
+  try {
+    localStorage.setItem(`rm_som_${modulo}`, JSON.stringify({ ...getSomDoModulo(modulo), ...config }));
+  } catch {}
+  window.dispatchEvent(new Event('rm_audio_config_updated'));
+}
+
+const repeticoes = {};
+
+export function pararSomDoModulo(modulo) {
+  const r = repeticoes[modulo];
+  if (!r) return;
+  clearInterval(r.intervalo);
+  r.desligar?.();
+  delete repeticoes[modulo];
+}
+
+/**
+ * Toca o som do módulo e, se configurado, repete até `aindaPendente()` responder false
+ * (sem essa função: até a pessoa mexer no mouse ou no teclado). Nunca passa de 10 minutos.
+ */
+export function tocarSomDoModulo(modulo, { aindaPendente } = {}) {
+  const config = getSomDoModulo(modulo);
+  if (!config.habilitado) return;
+  playNotificationTone(config.tipoSom);
+  if (config.modoRepeticao === 'uma_vez' || typeof window === 'undefined') return;
+  pararSomDoModulo(modulo);
+  const inicio = Date.now();
+  let mexeu = false;
+  const aoMexer = () => {
+    mexeu = true;
+  };
+  if (!aindaPendente) {
+    window.addEventListener('pointerdown', aoMexer, true);
+    window.addEventListener('keydown', aoMexer, true);
+  }
+  const pendente = aindaPendente || (() => !mexeu);
+  const intervalo = setInterval(
+    () => {
+      const atual = getSomDoModulo(modulo);
+      if (!atual.habilitado || atual.modoRepeticao === 'uma_vez' || Date.now() - inicio > DURACAO_MAXIMA_LOOP_MS || !pendente()) {
+        pararSomDoModulo(modulo);
+        return;
+      }
+      playNotificationTone(atual.tipoSom);
+    },
+    config.modoRepeticao === 'intermitente' ? 1600 : config.intervaloSegundos * 1000
+  );
+  repeticoes[modulo] = {
+    intervalo,
+    desligar: () => {
+      window.removeEventListener('pointerdown', aoMexer, true);
+      window.removeEventListener('keydown', aoMexer, true);
+    },
+  };
 }
 
 // Fonte oficial dos chamados ativos (registrada por storage.js): a MESMA lista que a tela mostra,

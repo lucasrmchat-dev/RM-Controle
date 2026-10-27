@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import ConfirmModal from './ConfirmModal';
 import AcessoChatUsuario from './AcessoChatUsuario';
+import { permissoesEfetivas } from '@/lib/perfis';
 import { showToast } from './ToastNotification';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -986,8 +987,13 @@ export default function ServerConfigView() {
                         />
                       </div>
 
-                      {/* Acesso ao Chat (salva na hora, independente do botão abaixo) */}
-                      <AcessoChatUsuario email={usuarioEditando.email} administrador={editPapel === 'administrador' || Boolean(perfis.find((p) => p.id === editPerfil)?.administrador)} />
+                      {/* Acesso ao Chat (salva na hora, independente do botão abaixo); só com o módulo Chat liberado à pessoa */}
+                      {(() => {
+                        const acesso = permissoesEfetivas({ email: usuarioEditando.email, equipe: [{ email: usuarioEditando.email, papel: editPapel, perfil_id: editPerfil || null }], perfis });
+                        if (!acesso.modulos.includes('chat'))
+                          return <p className="pt-2 border-t border-black/[0.05] dark:border-white/[0.09] text-[11px] text-slate-500 dark:text-zinc-400 pl-1">Chat do WhatsApp: o perfil desta pessoa não inclui o módulo Chat. Libere-o no perfil para escolher os canais que ela atende.</p>;
+                        return <AcessoChatUsuario email={usuarioEditando.email} administrador={acesso.administrador} />;
+                      })()}
 
                       <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-black/[0.06] dark:border-white/[0.11]">
                         <button

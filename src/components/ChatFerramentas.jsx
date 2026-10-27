@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { criarContatoChat, fetchListaContatos, getEquipeUsuarios, salvarContatoChat } from '@/lib/storage';
+import { criarContatoChat, fetchListaContatos, getCategoriasDemandas, getEquipeUsuarios, salvarContatoChat } from '@/lib/storage';
 import { PAISES } from '@/lib/paises';
 import { showToast } from './ToastNotification';
 import { formatarTelefone } from '@/lib/whatsappAgenda';
@@ -11,7 +11,8 @@ import { classeCampo, classeRotulo } from './NovaEmpresaCampos';
 // ------------------------------------------------------------------------------
 // Filtros avançados do Chat (como no RM Chat)
 // ------------------------------------------------------------------------------
-export const FILTROS_PADRAO = { ordem: 'recentes', verTodos: false, usuario: '', naoRespondidos: false, naoLidas: false };
+export const FILTROS_PADRAO = { ordem: 'recentes', verTodos: false, usuario: '', naoRespondidos: false, naoLidas: false, departamento: '', canal: '' };
+export const SEM_DEPARTAMENTO = '__sem__';
 const CHAVE_FILTROS = 'rm_chat_filtros';
 
 /** Filtros guardados ("lembrar") ou o padrão. */
@@ -29,7 +30,11 @@ function guardarFiltros(filtros, lembrar) {
     else localStorage.removeItem(CHAVE_FILTROS);
   } catch {}
 }
-export const filtrosAtivos = (f) => f.ordem !== 'recentes' || f.verTodos || f.usuario || f.naoRespondidos || f.naoLidas;
+export const filtrosAtivos = (f) => f.ordem !== 'recentes' || f.verTodos || f.usuario || f.naoRespondidos || f.naoLidas || f.departamento || f.canal;
+
+/** A conversa passa nos filtros de departamento e canal? */
+export const noDepartamentoECanal = (f, c) =>
+  (!f.departamento || (f.departamento === SEM_DEPARTAMENTO ? !String(c.departamento || '').trim() : c.departamento === f.departamento)) && (!f.canal || c.canal_id === f.canal);
 
 /** A conversa ainda espera resposta? (a última mensagem é do cliente) */
 export const naoRespondida = (c) => Boolean(c.ultima_entrada_cliente_em) && new Date(c.ultima_entrada_cliente_em) >= new Date(c.ultima_mensagem_em || 0);
@@ -55,7 +60,7 @@ function Chave({ ligado, onMudar, titulo, descricao, desabilitado = false }) {
   );
 }
 
-export function FiltrosAvancados({ aberto, onFechar, admin, valor, lembrarInicial, onAplicar }) {
+export function FiltrosAvancados({ aberto, onFechar, admin, valor, lembrarInicial, onAplicar, conversas = [] }) {
   const [f, setF] = useState(valor);
   const [lembrar, setLembrar] = useState(lembrarInicial);
   useEffect(() => {
@@ -65,6 +70,9 @@ export function FiltrosAvancados({ aberto, onFechar, admin, valor, lembrarInicia
     }
   }, [aberto]); // eslint-disable-line react-hooks/exhaustive-deps
   const equipe = getEquipeUsuarios().filter((u) => u.ativo !== false && u.email);
+  // Departamentos cadastrados e os que aparecem nas conversas; canais das conversas que a pessoa vê
+  const departamentos = [...new Set([...getCategoriasDemandas(), ...conversas.map((c) => String(c.departamento || '').trim()).filter(Boolean)])].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const canais = [...new Map(conversas.filter((c) => c.canal?.id).map((c) => [c.canal.id, c.canal])).values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   const aplicar = () => {
     guardarFiltros(f, lembrar);
     onAplicar(f, lembrar);
@@ -99,6 +107,32 @@ export function FiltrosAvancados({ aberto, onFechar, admin, valor, lembrarInicia
             <option value="recentes">Recentes primeiro</option>
             <option value="antigos">Mais antigos primeiro</option>
           </select>
+        </section>
+
+        <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="block">
+            <span className={classeRotulo}>Departamento</span>
+            <select value={f.departamento || ''} onChange={(e) => setF({ ...f, departamento: e.target.value })} className={`${classeCampo} cursor-pointer`}>
+              <option value="">Todos</option>
+              <option value={SEM_DEPARTAMENTO}>Sem departamento</option>
+              {departamentos.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className={classeRotulo}>Canal</span>
+            <select value={f.canal || ''} onChange={(e) => setF({ ...f, canal: e.target.value })} className={`${classeCampo} cursor-pointer`}>
+              <option value="">Todos</option>
+              {canais.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nome}
+                </option>
+              ))}
+            </select>
+          </label>
         </section>
 
         {admin && (

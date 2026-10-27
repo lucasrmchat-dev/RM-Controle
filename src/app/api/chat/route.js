@@ -1,6 +1,7 @@
 import { contextoDaRequisicao } from '@/lib/server/organizacao';
 import { consumirLimite } from '@/lib/server/protecao';
 import { abrirConversaComNumero, configDoChat, enviarTextoParaNumero } from '@/lib/server/canais/index';
+import { avisarAoVivo, topicoAoVivo } from '@/lib/server/canais/aoVivo';
 import { auditarChat, juntarDetalhes, listarConversas, permissaoDoChat } from '@/lib/server/canais/chat';
 import { isValidUUID } from '@/lib/sanitize';
 
@@ -22,7 +23,7 @@ export async function GET(request) {
   const aba = new URL(request.url).searchParams.get('aba') === 'resolvidas' ? 'resolvidas' : 'abertas';
   try {
     const conversas = await listarConversas(ctx.db, perm, { aba });
-    return json({ ok: true, conversas, eu: { email: perm.email, nome: perm.nome, admin: perm.administrador }, config: await configDoChat(ctx.db) });
+    return json({ ok: true, conversas, eu: { email: perm.email, nome: perm.nome, admin: perm.administrador }, config: await configDoChat(ctx.db), aoVivo: topicoAoVivo(ctx.org?.id || null) });
   } catch (e) {
     return json({ ok: false, mensagem: /conversas/.test(e.message) ? 'Rode supabase/migration_canais_chat.sql no Supabase.' : e.message }, 500);
   }
@@ -44,6 +45,7 @@ export async function POST(request) {
     if (departamento) await ctx.db.from('conversas').update({ departamento }).eq('id', conversaId);
     const { data } = await ctx.db.from('conversas').select('*').eq('id', conversaId).single();
     await auditarChat(ctx.db, perm, 'chat_iniciou', data);
+    await avisarAoVivo(data.organizacao_id || null);
     return json({ ok: true, conversa: (await juntarDetalhes(ctx.db, [data]))[0] }, 201);
   };
   // Só abrir: não manda nada ao cliente (vale também para a API oficial)

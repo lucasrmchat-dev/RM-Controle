@@ -97,7 +97,9 @@ export async function listarConversas(db, perm, { aba = 'abertas' } = {}) {
   const { data, error } = await q.order('ultima_mensagem_em', { ascending: false, nullsFirst: false }).limit(aba === 'resolvidas' ? 100 : 300);
   if (error) throw new Error(error.message);
   const visiveis = (data || []).filter((c) => podeVerConversa(perm, c));
-  return trocarMencoesNasPrevias(db, await juntarDetalhes(db, visiveis));
+  // Grupos de um canal marcado para não receber grupos ficam de fora (o mesmo grupo segue no outro número)
+  const lista = (await juntarDetalhes(db, visiveis)).filter((c) => !(c.canal?.ignorarGrupos && ehGrupo(c.contato?.telefone)));
+  return trocarMencoesNasPrevias(db, lista);
 }
 
 /** Prévia "@279619886420042" → "@Maria" (ou o número) nos grupos da lista, numa consulta só. */
@@ -132,7 +134,7 @@ export async function juntarDetalhes(db, conversas) {
   return conversas.map((c) => {
     const canal = porCanal.get(c.canal_id);
     const contato = porContato.get(c.contato_id);
-    return { ...c, contato: contato ? { ...contato, foto_url: undefined, tem_foto: Boolean(contato.foto_url) } : null, canal: canal ? { id: canal.id, nome: canal.nome, tipo: canal.tipo, status: canal.status, ativo: canal.ativo } : null };
+    return { ...c, contato: contato ? { ...contato, foto_url: undefined, tem_foto: Boolean(contato.foto_url) } : null, canal: canal ? { id: canal.id, nome: canal.nome, tipo: canal.tipo, status: canal.status, ativo: canal.ativo, ignorarGrupos: Boolean(canal.config?.ignorarGrupos) } : null };
   });
 }
 
@@ -225,7 +227,7 @@ export function validarResposta(valor, { admin }) {
 // ------------------------------------------------------------------------------
 // Auditoria da conversa (tabela auditoria_logs, imutável): quem viu, assumiu, transferiu, fechou, excluiu
 // ------------------------------------------------------------------------------
-export const ACOES_AUDITORIA_CHAT = ['chat_iniciou', 'chat_visualizou', 'chat_assumiu', 'chat_transferiu', 'chat_resolveu', 'chat_reabriu', 'chat_apagou_mensagem', 'chat_editou_mensagem', 'chat_excluiu'];
+export const ACOES_AUDITORIA_CHAT = ['chat_iniciou', 'chat_visualizou', 'chat_assumiu', 'chat_transferiu', 'chat_resolveu', 'chat_reabriu', 'chat_apagou_mensagem', 'chat_editou_mensagem', 'chat_excluiu', 'chat_mesclou'];
 const JANELA_VISUALIZACAO_MS = 10 * 60 * 1000;
 
 export async function auditarChat(db, perm, acao, conversa, extra = {}) {
@@ -257,14 +259,19 @@ export async function registrarVisualizacao(db, perm, conversa) {
 /** Linha do tempo da conversa, da mais recente para a mais antiga. */
 export async function auditoriaDaConversa(db, conversa) {
   // Filtra pela conversa no próprio banco (índice auditoria_chat_conversa_idx)
-  const { data } = await db
-    .from('auditoria_logs')
-    .select('*')
-    .eq('detalhes->>conversa_id', conversa.id)
-    .in('acao', ACOES_AUDITORIA_CHAT)
-    .order('created_at', { ascending: false })
-    .limit(500)
-    .then((r) => r, () => ({ data: [] }));
+  const daConversa = (id) =>
+    db
+      .from('auditoria_logs')
+      .select('*')
+      .eq('detalhes->>conversa_id', id)
+      .in('acao', ACOES_AUDITORIA_CHAT)
+      .order('created_at', { ascending: false })
+      .limit(500)
+      .then((r) => r.data || [], () => []);
+  let data = await daConversa(conversa.id);
+  // Conversas de um canal antigo que foram juntadas a esta: a história delas continua aqui
+  const juntadas = data.filter((l) => l.acao === 'chat_mesclou' && l.detalhes?.de_conversa_id).map((l) => l.detalhes.de_conversa_id);
+  if (juntadas.length) data = [...data, ...(await Promise.all(juntadas.slice(0, 10).map(daConversa))).flat()];
   const eventos = (data || []).map((l) => ({ id: l.id, acao: l.acao, quem: l.usuario_nome || l.usuario_email, email: l.usuario_email, em: l.created_at, detalhes: l.detalhes }));
   // Início da conversa: mensagem do cliente (ou "Nova conversa" pela equipe, já registrada como chat_iniciou)
   if (!eventos.some((e) => e.acao === 'chat_iniciou')) eventos.push({ id: 'inicio', acao: 'chat_iniciou', quem: 'Cliente (mensagem no WhatsApp)', em: conversa.criado_em });

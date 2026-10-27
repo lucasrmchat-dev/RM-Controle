@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getAudioConfig, setAudioConfig, playNotificationTone, playMeetingAlertTone } from '@/lib/audioNotifications';
+import { getAudioConfig, setAudioConfig, playNotificationTone, getSomDoModulo } from '@/lib/audioNotifications';
+import SonsModulos from './SonsModulos';
 import { 
   getDefaultViewMode, 
   setDefaultViewMode,
@@ -207,7 +208,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
 
   const handleTestarSomAgenda = () => {
     setAgendaSomTocando(true);
-    playMeetingAlertTone();
+    playNotificationTone(getSomDoModulo('reunioes').tipoSom);
     showToast('🔔 Chime harmônico de reunião executado!', 'info');
     setTimeout(() => setAgendaSomTocando(false), 1200);
   };
@@ -217,6 +218,8 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
     { id: 'dinamico', nome: 'Alerta Dinâmico', desc: 'Bip duplo estilo radar/sonar de alta clareza', tag: 'Alerta' },
     { id: 'sino', nome: 'Sino Suave / Marimba', desc: 'Timbre acústico acolhedor, não invasivo', tag: 'Calmo' },
     { id: 'incisivo', nome: 'Incisivo / Alerta Urgente', desc: 'Frequência de atenção imediata para triagem rápida', tag: 'Urgência' },
+    { id: 'mensagem', nome: 'Mensagem', desc: 'Dois toques curtos, estilo aplicativo de conversa', tag: 'Leve' },
+    { id: 'reuniao', nome: 'Chime de Agenda', desc: 'O mesmo toque dos lembretes de reunião', tag: 'Agenda' },
   ];
 
   const gruposNavegacao = [
@@ -588,6 +591,8 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           transition={{ duration: 0.2 }}
           className="space-y-6"
         >
+          <SonsModulos />
+
           <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1e1e21] shadow-sm space-y-4">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -812,7 +817,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {opcoesSons.map((som) => {
                       const isSel = audioConfig.tipoSom === som.id;
                       return (

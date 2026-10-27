@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
 import { escopoDoRegistro } from '@/lib/server/organizacao';
 import { configDoChat, provedorDo, registrarEventos, segredosDo } from '@/lib/server/canais/index';
+import { avisarAoVivo } from '@/lib/server/canais/aoVivo';
 import { consumirLimite } from '@/lib/server/protecao';
 import { isValidUUID } from '@/lib/sanitize';
 
@@ -56,6 +57,7 @@ export async function POST(request, { params }) {
   try {
     const dbEmpresa = escopoDoRegistro(db, canal);
     const resumo = await registrarEventos(dbEmpresa, canal, provedor.lerAviso(payload, canal), { config: await configDoChat(dbEmpresa) });
+    if (resumo.mensagens || resumo.status || resumo.conexao) await avisarAoVivo(canal.organizacao_id);
     return Response.json({ ok: true, ...resumo });
   } catch (e) {
     console.error('[canais] falha ao gravar aviso', canal.id, e.message);

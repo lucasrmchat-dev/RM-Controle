@@ -15,6 +15,60 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-10-27-mesclar-canais',
+    data: '2026-10-27',
+    titulo: 'Mesclar canais e filtrar o Chat por departamento',
+    resumo: 'Refez a conexão de um número? Agora dá para trazer o histórico do canal antigo para o novo, e o Chat filtra por departamento e por canal.',
+    itens: [
+      'Em Canais, o botão Mesclar aparece quando há outro canal do mesmo número: as conversas antigas passam para o canal novo, sem perder mensagens.',
+      'Se o mesmo cliente tinha conversa aberta nos dois, vira uma conversa só, com todo o histórico.',
+      'O canal antigo fica desativado e vazio, pronto para ser excluído.',
+      'Em Chat › Filtros avançados, escolha um departamento (ou "Sem departamento") e um canal.',
+    ],
+    modulo: 'Canais',
+    tickets: [],
+  },
+  {
+    id: '2026-10-27-som-por-modulo',
+    data: '2026-10-27',
+    titulo: 'Som próprio para Chat, Fila e Reuniões',
+    resumo: 'Cada módulo agora tem seu próprio toque, repetição e liga/desliga, e o Chat avisa mesmo com a conversa aberta na tela.',
+    itens: [
+      'Em Configurações › Alertas Sonoros, escolha o toque e a repetição do Chat e das Reuniões; a Fila de Demandas segue com a configuração completa.',
+      'Mensagem nova na conversa aberta também toca: dá para estar longe do computador e ainda ser avisado.',
+      'A repetição do Chat para sozinha quando tudo foi lido; a das reuniões, quando você mexe no computador.',
+      'Dois toques novos: Mensagem e Chime de Agenda.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
+    id: '2026-10-27-grupos-por-canal',
+    data: '2026-10-27',
+    titulo: 'Grupos sem duplicar e canais por pessoa',
+    resumo: 'Quando o mesmo grupo está em dois números da empresa, você escolhe por qual número ele chega, e fica mais claro quais canais cada pessoa atende.',
+    itens: [
+      'Em Canais › Editar, marque "Não receber grupos deste número" e o grupo aparece uma vez só no Chat.',
+      'O histórico dos grupos desse número fica guardado e volta se você desmarcar.',
+      'Em Servidores e equipe › editar membro, escolha os canais que a pessoa atende (aparece quando ela tem o módulo Chat).',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
+    id: '2026-10-27-chat-ao-vivo',
+    data: '2026-10-27',
+    titulo: 'Mensagens do WhatsApp chegam na hora',
+    resumo: 'A tela do Chat agora atualiza no instante em que o cliente escreve, sem esperar a atualização automática.',
+    itens: [
+      'Mensagens recebidas aparecem na conversa e na lista em cerca de um segundo.',
+      'O som e o contador do cabeçalho também avisam na hora, mesmo fora da tela do Chat.',
+      'Envios, transferências e ações da equipe aparecem na hora para os colegas.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
     id: '2026-10-26-contratos-clientes',
     data: '2026-10-26',
     titulo: 'Contratos dos clientes',

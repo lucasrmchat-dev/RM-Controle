@@ -17,6 +17,7 @@ const ACOES_AUDITORIA = {
   chat_reabriu: { texto: 'reabriu', cor: 'bg-amber-500' },
   chat_editou_mensagem: { texto: 'editou uma mensagem', cor: 'bg-slate-500' },
   chat_apagou_mensagem: { texto: 'apagou uma mensagem para todos', cor: 'bg-rose-500' },
+  chat_mesclou: { texto: 'juntou a conversa do canal antigo', cor: 'bg-teal-500' },
 };
 const quando = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '');
 

@@ -376,15 +376,22 @@ test('busca de mensagens respeita o período e quem pode ver; lista de contatos 
   assert.deepEqual(lista.contatos.map((c) => c.nome), ['Carla Mendes']);
 });
 
-test('vigia do chat: avisa conversa nova na fila e mensagem nas minhas; não avisa grupo nem a conversa aberta', async () => {
+test('vigia do chat: avisa conversa nova na fila e mensagem nas minhas (inclusive a aberta); não avisa grupo', async () => {
   const { analisarConversas } = await import('../src/lib/vigiaChat.js');
   const c = (id, extra) => ({ id, status: 'aguardando', nao_lidas: 1, contato: { nome: id, telefone: '5585999990000' }, ...extra });
   const inicio = analisarConversas(null, [c('a')], { email: 'eu@a.com' });
   assert.equal(inicio.avisos.length, 0, 'primeira leitura só registra');
   const r = analisarConversas(inicio.proximo, [c('a', { nao_lidas: 2 }), c('b'), c('g', { contato: { nome: 'G', telefone: '1203@g.us' } }), c('m', { responsavel_email: 'eu@a.com', nao_lidas: 0 }), c('x', { responsavel_email: 'outro@a.com' })], { email: 'eu@a.com', abertaId: null });
   assert.deepEqual(r.avisos.map((a) => a.titulo), ['Na fila de a', 'Nova conversa: b']);
-  const r2 = analisarConversas(r.proximo, [c('m', { responsavel_email: 'eu@a.com', nao_lidas: 3 }), c('b', { nao_lidas: 4 })], { email: 'eu@a.com', abertaId: 'b' });
-  assert.deepEqual(r2.avisos.map((a) => a.titulo), ['Mensagem de m']);
+  const r2 = analisarConversas(r.proximo, [c('m', { responsavel_email: 'eu@a.com', nao_lidas: 3 }), c('b', { nao_lidas: 4 })], { email: 'eu@a.com' });
+  assert.deepEqual(r2.avisos.map((a) => a.titulo), ['Mensagem de m', 'Na fila de b']);
+  // Conversa aberta na tela: chega já lida (não lidas 0), mas a mensagem do cliente é nova → avisa
+  const aberta = (em) => c('m', { responsavel_email: 'eu@a.com', nao_lidas: 0, ultima_entrada_cliente_em: em });
+  const r3 = analisarConversas(analisarConversas(r2.proximo, [aberta('2026-10-27T10:00:00Z')], { email: 'eu@a.com' }).proximo, [aberta('2026-10-27T10:01:00Z')], { email: 'eu@a.com' });
+  assert.deepEqual(r3.avisos.map((a) => a.titulo), ['Mensagem de m']);
+  const { chatEsperando } = await import('../src/lib/vigiaChat.js');
+  assert.equal(chatEsperando([aberta('2026-10-27T10:01:00Z')], { email: 'eu@a.com' }), false, 'lida: a repetição para');
+  assert.equal(chatEsperando([c('b')], { email: 'eu@a.com' }), true);
 });
 
 test('menção a quem nunca escreveu: atualiza a lista do grupo e mostra o nome (ou o número), nunca o código', async () => {
@@ -523,4 +530,71 @@ test('abrir conversa sem mensagem: nada vai ao cliente e quem abriu fica respons
   assert.equal(r.conversa.responsavel_email, 'bia@a.com');
   assert.equal(r.conversa.departamento, 'Vendas');
   assert.equal(r.conversa.contato.telefone, '5584995551234');
+});
+
+test('canal marcado para não receber grupos: o mesmo grupo aparece uma vez só e mensagens de grupo dele são ignoradas', async () => {
+  const { POST: receber } = await import('../src/app/api/canais/webhook/[id]/route.js');
+  const segundo = { ...canal, id: crypto.randomUUID(), nome: 'Comercial 2', config: {}, webhook_token_hash: hashToken('t2') };
+  db.tables.canais.push(segundo);
+  const grupo = { id: crypto.randomUUID(), organizacao_id: A, telefone: '120363777@g.us', nome: 'Equipe' };
+  db.tables.contatos.push(grupo);
+  const agora = new Date().toISOString();
+  db.tables.conversas.push(
+    { id: crypto.randomUUID(), organizacao_id: A, canal_id: canal.id, contato_id: grupo.id, status: 'aguardando', departamento: null, nao_lidas: 1, ultima_mensagem_em: agora },
+    { id: crypto.randomUUID(), organizacao_id: A, canal_id: segundo.id, contato_id: grupo.id, status: 'aguardando', departamento: null, nao_lidas: 1, ultima_mensagem_em: agora }
+  );
+  const grupos = async () => (await ler(await listar(await como('ana@a.com', '/api/chat')))).conversas.filter((c) => c.contato?.telefone === grupo.telefone);
+  assert.equal((await grupos()).length, 2);
+
+  const { PATCH } = await import('../src/app/api/canais/route.js');
+  const r = await ler(await PATCH(await como('ana@a.com', '/api/canais', 'PATCH', { id: segundo.id, ignorarGrupos: true })));
+  assert.equal(r.canal.config.ignorarGrupos, true);
+  assert.ok(enviados.some((e) => e.url.includes('/settings/set/') && e.corpo.groupsIgnore === true), 'avisa o WhatsApp para não mandar grupos');
+  const depois = await grupos();
+  assert.deepEqual(depois.map((c) => c.canal_id), [canal.id]);
+  assert.equal(db.tables.conversas.filter((c) => c.contato_id === grupo.id).length, 2, 'histórico guardado');
+
+  // Mensagem de grupo que ainda chegue pelo canal marcado é ignorada
+  const antes = db.tables.mensagens.length;
+  await receber(new NextRequest(`http://localhost/api/canais/webhook/${segundo.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rm-token': 't2' }, body: JSON.stringify({ event: 'messages.upsert', data: { key: { remoteJid: grupo.telefone, id: 'G-1', participant: '5585988887777@s.whatsapp.net' }, pushName: 'Zé', message: { conversation: 'oi grupo' } } }) }), { params: { id: segundo.id } });
+  assert.equal(db.tables.mensagens.length, antes);
+
+  // Bia (sem administrador) não pode mudar canal
+  assert.equal((await PATCH(await como('bia@a.com', '/api/canais', 'PATCH', { id: segundo.id, ignorarGrupos: false }))).status, 403);
+});
+
+test('mesclar canais: só do mesmo número e desconectado; conversas passam e a aberta do mesmo contato vira uma só', async () => {
+  const { POST: acaoCanal } = await import('../src/app/api/canais/[id]/route.js');
+  canal.numero = '5585999991824';
+  const antigo = { ...canal, id: crypto.randomUUID(), nome: 'Antigo', status: 'desconectado', ativo: false, numero: '558599991824', config: {}, webhook_token_hash: hashToken('t3') };
+  const outroNumero = { ...antigo, id: crypto.randomUUID(), nome: 'Outro', numero: '5585911112222', webhook_token_hash: hashToken('t4') };
+  db.tables.canais.push(antigo, outroNumero);
+  const ontem = new Date(Date.now() - 86400000).toISOString();
+  const outro = { id: crypto.randomUUID(), organizacao_id: A, telefone: '5585977776666', nome: 'Davi' };
+  db.tables.contatos.push(outro);
+  const velhaMesmoContato = { id: crypto.randomUUID(), organizacao_id: A, canal_id: antigo.id, contato_id: contato.id, status: 'em_atendimento', responsavel_email: 'ana@a.com', departamento: 'Vendas', nao_lidas: 1, ultima_mensagem_em: ontem, criado_em: ontem };
+  const velhaOutro = { id: crypto.randomUUID(), organizacao_id: A, canal_id: antigo.id, contato_id: outro.id, status: 'resolvida', nao_lidas: 0, ultima_mensagem_em: ontem };
+  db.tables.conversas.push(velhaMesmoContato, velhaOutro);
+  db.tables.mensagens.push({ id: crypto.randomUUID(), organizacao_id: A, conversa_id: velhaMesmoContato.id, direcao: 'entrada', tipo: 'texto', conteudo: 'mensagem antiga', status: 'recebida', criado_em: ontem });
+  db.tables.auditoria_logs = [];
+  const pedir = async (email, corpo) => ler(await acaoCanal(await como(email, `/api/canais/${canal.id}`, 'POST', corpo), { params: { id: canal.id } }));
+
+  assert.equal((await pedir('bia@a.com', { acao: 'mesclar', origem: antigo.id })).status, 403, 'só administrador');
+  assert.match((await pedir('ana@a.com', { acao: 'mesclar', origem: outroNumero.id })).mensagem, /mesmo número/);
+  antigo.status = 'conectado';
+  assert.match((await pedir('ana@a.com', { acao: 'mesclar', origem: antigo.id })).mensagem, /Desconecte/);
+  antigo.status = 'desconectado';
+
+  const r = await pedir('ana@a.com', { acao: 'mesclar', origem: antigo.id });
+  assert.equal(r.ok, true);
+  assert.deepEqual([r.movidas, r.juntadas], [1, 1]);
+  assert.equal(db.tables.conversas.some((c) => c.canal_id === antigo.id), false, 'canal antigo vazio');
+  assert.equal(db.tables.conversas.some((c) => c.id === velhaMesmoContato.id), false);
+  assert.equal(db.tables.conversas.find((c) => c.id === velhaOutro.id).canal_id, canal.id);
+  const juntada = db.tables.conversas.find((c) => c.id === convVendas.id);
+  assert.equal(juntada.nao_lidas, 3);
+  assert.equal(juntada.criado_em, ontem, 'a conversa começa quando começou a antiga');
+  assert.deepEqual(db.tables.mensagens.filter((m) => m.conversa_id === convVendas.id).map((m) => m.conteudo).sort(), ['Oi, quero um orçamento', 'mensagem antiga']);
+  assert.equal(db.tables.canais.find((c) => c.id === antigo.id).ativo, false);
+  assert.equal(db.tables.auditoria_logs.some((l) => l.acao === 'chat_mesclou' && l.detalhes.de_conversa_id === velhaMesmoContato.id), true);
 });

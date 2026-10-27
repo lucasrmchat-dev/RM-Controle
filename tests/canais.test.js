@@ -295,3 +295,28 @@ test('reação fica presa à mensagem reagida; trocar substitui e vazia remove',
   assert.equal(db.tables.mensagens.filter((m) => m.tipo === 'reacao').length, 0, 'reação removida');
   assert.equal(db.tables.conversas[0].ultima_mensagem_texto, 'Segue a figurinha', 'reação não vira a última mensagem');
 });
+
+test('Aviso ao vivo: tópico secreto por empresa e aviso sem conteúdo', async () => {
+  const { topicoAoVivo, avisarAoVivo } = await import('../src/lib/server/canais/aoVivo.js');
+  assert.equal(topicoAoVivo('org-a'), topicoAoVivo('org-a'));
+  assert.notEqual(topicoAoVivo('org-a'), topicoAoVivo('org-b'));
+  assert.ok(!topicoAoVivo('org-a').includes('org-a'));
+  const antes = { url: process.env.NEXT_PUBLIC_SUPABASE_URL, chave: process.env.SUPABASE_SERVICE_ROLE_KEY, fetch: globalThis.fetch };
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://exemplo.supabase.co';
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'chave-de-teste';
+  const chamadas = [];
+  globalThis.fetch = async (url, opcoes) => {
+    chamadas.push({ url, corpo: JSON.parse(opcoes.body) });
+    throw new Error('fora do ar');
+  };
+  try {
+    await avisarAoVivo('org-a'); // erro de rede não derruba quem chamou
+    assert.equal(chamadas.length, 1);
+    assert.equal(chamadas[0].url, 'https://exemplo.supabase.co/realtime/v1/api/broadcast');
+    assert.deepEqual(chamadas[0].corpo.messages[0], { topic: topicoAoVivo('org-a'), event: 'mudou', payload: {} });
+  } finally {
+    globalThis.fetch = antes.fetch;
+    if (antes.url === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL; else process.env.NEXT_PUBLIC_SUPABASE_URL = antes.url;
+    if (antes.chave === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY; else process.env.SUPABASE_SERVICE_ROLE_KEY = antes.chave;
+  }
+});

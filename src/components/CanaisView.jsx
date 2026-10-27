@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { acaoCanal, criarCanal, editarCanal, excluirCanal, fetchCanais, getCategoriasDemandas } from '@/lib/storage';
-import { STATUS_CANAL, TIPOS_CANAL } from '@/lib/canais';
+import { STATUS_CANAL, TIPOS_CANAL, telefoneCanonico } from '@/lib/canais';
 import { formatarTelefone } from '@/lib/whatsappAgenda';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { ModalEtapas, Etapa, ErroRodape, Spinner, classeBotaoPrimario, classeBotaoTexto } from './FormularioEtapas';
@@ -345,21 +345,21 @@ function TesteModal({ canal, onFechar }) {
 }
 
 function EditarCanalModal({ canal, onFechar, onSalvo }) {
-  const [dados, setDados] = useState({ nome: '', departamento_padrao: '' });
+  const [dados, setDados] = useState({ nome: '', departamento_padrao: '', ignorarGrupos: false });
   const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
   const departamentos = getCategoriasDemandas();
   useEffect(() => {
-    if (canal) setDados({ nome: canal.nome || '', departamento_padrao: canal.departamento_padrao || '' });
+    if (canal) setDados({ nome: canal.nome || '', departamento_padrao: canal.departamento_padrao || '', ignorarGrupos: Boolean(canal.config?.ignorarGrupos) });
     setErro('');
   }, [canal]);
   const salvar = async () => {
     setSalvando(true);
     setErro('');
     try {
-      const r = await editarCanal({ id: canal.id, nome: dados.nome, departamento_padrao: dados.departamento_padrao });
+      const r = await editarCanal({ id: canal.id, nome: dados.nome, departamento_padrao: dados.departamento_padrao, ...(canal.tipo === 'whatsapp_oficial' ? {} : { ignorarGrupos: dados.ignorarGrupos }) });
       onSalvo(r.canal);
-      showToast('Canal atualizado.', 'success');
+      showToast(r.aviso || 'Canal atualizado.', r.aviso ? 'warning' : 'success');
       onFechar();
     } catch (e) {
       setErro(e.message);
@@ -408,6 +408,98 @@ function EditarCanalModal({ canal, onFechar, onSalvo }) {
           </select>
           <span className="block mt-1.5 text-[12.5px] text-slate-500 dark:text-zinc-400">Conversas novas deste número entram nesse departamento. As que já existem continuam onde estão (mude em Chat › Transferir).</span>
         </label>
+        {canal?.tipo !== 'whatsapp_oficial' && (
+          <label className="flex items-start gap-3 rounded-2xl px-3.5 py-3 ring-1 ring-black/[0.08] dark:ring-white/[0.1] cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03]">
+            <input type="checkbox" checked={dados.ignorarGrupos} onChange={(e) => setDados({ ...dados, ignorarGrupos: e.target.checked })} className="mt-0.5 w-4 h-4 accent-[#4d7c0f]" />
+            <span className="min-w-0">
+              <span className="block text-[13.5px] font-semibold text-[#1d1d1f] dark:text-white">Não receber grupos deste número</span>
+              <span className="block mt-0.5 text-[12.5px] leading-relaxed text-slate-500 dark:text-zinc-400">
+                Use quando o mesmo grupo está em dois números da empresa, para ele não aparecer duplicado no Chat. As conversas de grupo deste canal saem da lista (o histórico fica guardado) e voltam se você desmarcar.
+              </span>
+            </span>
+          </label>
+        )}
+      </div>
+    </ModalEtapas>
+  );
+}
+
+/** Outros canais do mesmo número (candidatos a ter o histórico trazido para este). */
+const mesmoNumero = (canal, canais) => (canal?.numero ? (canais || []).filter((c) => c.id !== canal.id && c.numero && telefoneCanonico(c.numero) === telefoneCanonico(canal.numero)) : []);
+
+function MesclarCanalModal({ canal, canais, onFechar, onMesclado }) {
+  const candidatos = mesmoNumero(canal, canais);
+  const [origem, setOrigem] = useState('');
+  const [erro, setErro] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  useEffect(() => {
+    setOrigem(candidatos.length === 1 ? candidatos[0].id : '');
+    setErro('');
+  }, [canal]); // eslint-disable-line react-hooks/exhaustive-deps
+  const escolhido = candidatos.find((c) => c.id === origem);
+  const mesclar = async () => {
+    setSalvando(true);
+    setErro('');
+    try {
+      const r = await acaoCanal(canal.id, { acao: 'mesclar', origem });
+      onMesclado(r.origem);
+      showToast(`Histórico trazido: ${r.movidas + r.juntadas} conversa${r.movidas + r.juntadas === 1 ? '' : 's'}${r.juntadas ? ` (${r.juntadas} juntada${r.juntadas === 1 ? '' : 's'} com a conversa aberta)` : ''}.`, 'success');
+      onFechar();
+    } catch (e) {
+      setErro(e.message);
+    } finally {
+      setSalvando(false);
+    }
+  };
+  return (
+    <ModalEtapas
+      aberto={Boolean(canal)}
+      onFechar={onFechar}
+      bloqueado={salvando}
+      largura="max-w-md"
+      idTitulo="mesclar-canal-titulo"
+      titulo="Mesclar canal antigo"
+      subtitulo={canal ? `Trazer para ${canal.nome} o histórico de outro canal do mesmo número` : ''}
+      rodape={
+        <>
+          <ErroRodape erro={erro} />
+          <div className="flex justify-end gap-2.5">
+            <button type="button" onClick={onFechar} className={classeBotaoTexto}>
+              Cancelar
+            </button>
+            <button type="button" onClick={mesclar} disabled={salvando || !escolhido || escolhido.status === 'conectado'} className={classeBotaoPrimario}>
+              {salvando && <Spinner />}
+              Mesclar
+            </button>
+          </div>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        {candidatos.length === 0 ? (
+          <p className="text-[13.5px] text-slate-500 dark:text-zinc-400">Nenhum outro canal com o número {canal?.numero ? formatarTelefone(canal.numero) : ''}. Só dá para mesclar canais do mesmo número de WhatsApp.</p>
+        ) : (
+          <>
+            <span className={classeRotulo}>Canal antigo</span>
+            {candidatos.map((c) => (
+              <label key={c.id} className={`flex items-start gap-3 rounded-2xl px-3.5 py-3 ring-1 cursor-pointer ${origem === c.id ? 'ring-[#4d7c0f] dark:ring-[#84cc16] bg-[#4d7c0f]/5' : 'ring-black/[0.08] dark:ring-white/[0.1]'}`}>
+                <input type="radio" name="origem-mescla" checked={origem === c.id} onChange={() => setOrigem(c.id)} className="mt-1 accent-[#4d7c0f]" />
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-semibold">{c.nome}</span>
+                  <span className="block text-[12.5px] text-slate-500 dark:text-zinc-400">
+                    {c.ativo ? (STATUS_CANAL[c.status] || STATUS_CANAL.desconectado).rotulo : 'Desativado'} · {TIPOS_CANAL[c.tipo]?.rotulo}
+                  </span>
+                  {c.status === 'conectado' && <span className="block mt-1 text-[12px] text-amber-700 dark:text-amber-400">Desconecte este canal antes de mesclar.</span>}
+                </span>
+              </label>
+            ))}
+            <ul className="text-[12.5px] leading-relaxed text-slate-500 dark:text-zinc-400 list-disc pl-4 space-y-1">
+              <li>As conversas do canal antigo passam para {canal?.nome}, com todas as mensagens, arquivos e responsáveis.</li>
+              <li>Se o mesmo contato tem conversa aberta nos dois, as mensagens viram uma conversa só.</li>
+              <li>O canal antigo fica desativado e vazio; depois você pode excluí-lo. Isso não pode ser desfeito.</li>
+            </ul>
+          </>
+        )}
       </div>
     </ModalEtapas>
   );
@@ -416,7 +508,7 @@ function EditarCanalModal({ canal, onFechar, onSalvo }) {
 // ------------------------------------------------------------------------------
 // Tela
 // ------------------------------------------------------------------------------
-function CartaoCanal({ canal, admin, onConectar, onAtualizado, onTestar, onRemovido, onEditar }) {
+function CartaoCanal({ canal, admin, onConectar, onAtualizado, onTestar, onRemovido, onEditar, onMesclar, podeMesclar }) {
   const [ocupado, setOcupado] = useState(null);
   const st = STATUS_CANAL[canal.status] || STATUS_CANAL.desconectado;
   const oficial = canal.tipo === 'whatsapp_oficial';
@@ -510,6 +602,11 @@ function CartaoCanal({ canal, admin, onConectar, onAtualizado, onTestar, onRemov
             </BotaoAcao>
           )}
           <span className="ml-auto" />
+          {canal.ativo && podeMesclar && (
+            <BotaoAcao titulo="Trazer para este canal o histórico de um canal antigo do mesmo número" onClick={() => onMesclar(canal)} desabilitado={Boolean(ocupado)}>
+              Mesclar
+            </BotaoAcao>
+          )}
           <BotaoAcao onClick={() => onEditar(canal)} desabilitado={Boolean(ocupado)}>
             Editar
           </BotaoAcao>
@@ -547,6 +644,7 @@ export default function CanaisView() {
   const [conectando, setConectando] = useState(null);
   const [testando, setTestando] = useState(null);
   const [editando, setEditando] = useState(null);
+  const [mesclando, setMesclando] = useState(null);
   const [servidorQr, setServidorQr] = useState(false);
 
   const carregar = () =>
@@ -637,7 +735,7 @@ export default function CanaisView() {
         <motion.ul layout className="grid gap-3 grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3">
           <AnimatePresence initial={false}>
             {(canais || []).map((c) => (
-              <CartaoCanal key={c.id} canal={c} admin={admin} onConectar={setConectando} onAtualizado={atualizar} onTestar={setTestando} onRemovido={(id) => setCanais((l) => (l || []).filter((x) => x.id !== id))} onEditar={setEditando} />
+              <CartaoCanal key={c.id} canal={c} admin={admin} onConectar={setConectando} onAtualizado={atualizar} onTestar={setTestando} onRemovido={(id) => setCanais((l) => (l || []).filter((x) => x.id !== id))} onEditar={setEditando} onMesclar={setMesclando} podeMesclar={mesmoNumero(c, canais).length > 0} />
             ))}
           </AnimatePresence>
         </motion.ul>
@@ -655,6 +753,7 @@ export default function CanaisView() {
       <QrModal canal={conectando} onFechar={() => setConectando(null)} onAtualizado={atualizar} />
       <TesteModal canal={testando} onFechar={() => setTestando(null)} />
       <EditarCanalModal canal={editando} onFechar={() => setEditando(null)} onSalvo={atualizar} />
+      <MesclarCanalModal canal={mesclando} canais={canais} onFechar={() => setMesclando(null)} onMesclado={atualizar} />
     </div>
   );
 }

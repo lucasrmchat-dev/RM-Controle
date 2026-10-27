@@ -72,6 +72,14 @@ export function nomePeloEmail(email) {
 export const ehGrupo = (telefone) => /@g\.us$/.test(String(telefone || ''));
 
 /**
+ * O canal recebe grupos? Desligado em Configurações › Chat para a empresa toda, ou só neste canal
+ * (o mesmo grupo em dois números da empresa apareceria duas vezes).
+ */
+export function canalRecebeGrupos(canal, config) {
+  return config?.grupos !== 'desligado' && !canal?.config?.ignorarGrupos;
+}
+
+/**
  * Configuração do Chat da empresa (Configurações avançadas › Chat).
  *  grupos: 'desligado' (não recebe) | 'aba' (aba própria, fora da fila) | 'fila' (como conversa normal)
  */

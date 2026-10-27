@@ -27,7 +27,7 @@ import ChatPerfilContato from './ChatPerfilContato';
 import { fotoGuardada, linkDaFoto } from '@/lib/fotosContatos';
 import { BarraReacao, DadosMensagem, MenuMensagem } from './ChatAcoesMensagem';
 import ChatNovaConversa from './ChatNovaConversa';
-import { ContatosModal, FILTROS_PADRAO, FiltrosAvancados, filtrosAtivos, lerFiltrosSalvos, naoRespondida } from './ChatFerramentas';
+import { ContatosModal, FILTROS_PADRAO, FiltrosAvancados, filtrosAtivos, lerFiltrosSalvos, naoRespondida, noDepartamentoECanal } from './ChatFerramentas';
 import { formatarTelefone } from '@/lib/whatsappAgenda';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { ModalEtapas, ErroRodape, Spinner, classeBotaoPrimario, classeBotaoTexto } from './FormularioEtapas';
@@ -1675,6 +1675,7 @@ export default function ChatView() {
   const [selecionada, setSelecionada] = useState(null);
   const [mensagemAlvo, setMensagemAlvo] = useState(null);
   const [sinal, setSinal] = useState(0);
+  const topicoAoVivo = useRef(null);
   const [respostas, setRespostas] = useState([]);
   const [gerenciar, setGerenciar] = useState(false);
   const [novaConversa, setNovaConversa] = useState(null);
@@ -1703,6 +1704,7 @@ export default function ChatView() {
       setAbertas(r.conversas);
       setEu(r.eu);
       if (r.config) setConfig(r.config);
+      if (r.aoVivo) topicoAoVivo.current = r.aoVivo;
       setErro('');
       escolhidaPorPadrao.current = true;
     } catch (e) {
@@ -1740,6 +1742,24 @@ export default function ChatView() {
     };
   }, [carregar, carregarRespostas]);
 
+  // Aviso do servidor (mensagem recebida pelo WhatsApp ou ação da equipe), repassado pelo cabeçalho:
+  // atualiza na hora, sem esperar a consulta periódica
+  useEffect(() => {
+    let espera = null;
+    const aoMudar = () => {
+      clearTimeout(espera);
+      espera = setTimeout(() => {
+        carregar();
+        setSinal((n) => n + 1);
+      }, 250);
+    };
+    window.addEventListener('rm_chat_mudou', aoMudar);
+    return () => {
+      clearTimeout(espera);
+      window.removeEventListener('rm_chat_mudou', aoMudar);
+    };
+  }, [carregar]);
+
   useEffect(() => {
     if (aba === 'resolvidas') carregarResolvidas();
   }, [aba, carregarResolvidas]);
@@ -1763,7 +1783,7 @@ export default function ChatView() {
     },
     [eu, filtros.verTodos, filtros.usuario]
   );
-  const comportamento = useCallback((c) => (!filtros.naoLidas || c.nao_lidas > 0) && (!filtros.naoRespondidos || naoRespondida(c)), [filtros.naoLidas, filtros.naoRespondidos]);
+  const comportamento = useCallback((c) => (!filtros.naoLidas || c.nao_lidas > 0) && (!filtros.naoRespondidos || naoRespondida(c)) && noDepartamentoECanal(filtros, c), [filtros]);
 
   const contagem = useMemo(() => {
     const todas = abertas || [];
@@ -1858,7 +1878,7 @@ export default function ChatView() {
   // O número da aba Chat no cabeçalho acompanha a tela na hora
   // e o vigia de avisos (som + central) usa a mesma lista, sem consultar o servidor de novo
   useEffect(() => {
-    if (abertas) window.dispatchEvent(new CustomEvent('rm_chat_conversas', { detail: { conversas: abertas, config } }));
+    if (abertas) window.dispatchEvent(new CustomEvent('rm_chat_conversas', { detail: { conversas: abertas, config, aoVivo: topicoAoVivo.current } }));
   }, [abertas, config]);
   useEffect(() => {
     window.__rmChatMontado = true;
@@ -2149,6 +2169,7 @@ export default function ChatView() {
         admin={Boolean(eu?.admin)}
         valor={filtros}
         lembrarInicial={lembrarFiltros}
+        conversas={[...(abertas || []), ...(resolvidas || [])]}
         onAplicar={(f, lembrar) => {
           setFiltros(f);
           setLembrarFiltros(lembrar);

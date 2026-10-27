@@ -21,12 +21,13 @@ import {
   fetchConversas,
 } from '@/lib/storage';
 import { contarConversasNovas } from '@/lib/canais';
-import { analisarConversas } from '@/lib/vigiaChat';
-import { getAudioConfig, playNotificationTone } from '@/lib/audioNotifications';
+import { analisarConversas, chatEsperando } from '@/lib/vigiaChat';
+import { pararSomDoModulo, tocarSomDoModulo } from '@/lib/audioNotifications';
 import { notificar } from '@/lib/notificacoes';
 import { permissoesEfetivas, podeVerDemanda } from '@/lib/perfis';
 import { ROTULOS_PAPEL } from '@/lib/roles';
 import { SupportQueueIcon, CalendarIcon, BuildingIcon } from './Icons';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 // Mola única do cabeçalho: tudo se move junto, como uma peça só
 const MOLA = { type: 'spring', bounce: 0.2, duration: 0.55 };
@@ -249,27 +250,57 @@ export default function Navbar({
   const vigiaChat = useRef(null);
   useEffect(() => {
     if (!getAbasPermitidas(userEmail).includes('chat')) return undefined;
+    const email = String(userEmail || '').toLowerCase();
+    let ultimas = [];
     const processar = (conversas, config) => {
+      ultimas = conversas;
       setTotalChat(contarConversasNovas(conversas, config));
-      const { proximo, avisos } = analisarConversas(vigiaChat.current, conversas, { email: String(userEmail || '').toLowerCase(), abertaId: document.visibilityState === 'visible' ? window.__rmChatAberta : null });
+      const { proximo, avisos } = analisarConversas(vigiaChat.current, conversas, { email });
       vigiaChat.current = proximo;
       if (!avisos.length) return;
       avisos.forEach((a) => notificar({ id: `chat-${a.chave}`, tipo: 'chat', titulo: a.titulo, detalhe: a.detalhe, aba: 'chat' }));
-      const som = getAudioConfig();
-      if (som.habilitado) playNotificationTone(som.tipoSom);
+      // Som do Chat (Configurações › Sons e alertas). A repetição para quando não houver mais nada sem ler;
+      // na conversa aberta (que já chega lida), para quando a pessoa voltar a mexer no computador
+      const naAberta = avisos.some((a) => a.conversaId === window.__rmChatAberta);
+      tocarSomDoModulo('chat', naAberta ? {} : { aindaPendente: () => chatEsperando(ultimas, { email }) });
     };
-    const aoReceber = (e) => e.detail?.conversas && processar(e.detail.conversas, e.detail.config);
+    let aoVivo = null;
+    let espera = null;
+    // Mensagem nova avisa na hora (aviso do servidor, sem conteúdo); a consulta a cada 20 s fica de reserva.
+    // Uma única inscrição por aba do navegador: a tela do Chat, se aberta, recebe o aviso por aqui.
+    const inscrever = (topico) => {
+      if (aoVivo || !topico || !isSupabaseConfigured || !supabase) return;
+      aoVivo = supabase
+        .channel(topico)
+        .on('broadcast', { event: 'mudou' }, () => {
+          window.dispatchEvent(new Event('rm_chat_mudou'));
+          clearTimeout(espera);
+          espera = setTimeout(consultar, 400);
+        })
+        .subscribe();
+    };
+    const aoReceber = (e) => {
+      if (!e.detail?.conversas) return;
+      processar(e.detail.conversas, e.detail.config);
+      inscrever(e.detail.aoVivo);
+    };
     window.addEventListener('rm_chat_conversas', aoReceber);
     const consultar = () =>
       // Com a tela do Chat aberta, ela já manda a lista (evita consultar duas vezes)
       !window.__rmChatMontado &&
       fetchConversas('abertas')
-        .then((r) => processar(r.conversas, r.config))
+        .then((r) => {
+          processar(r.conversas, r.config);
+          inscrever(r.aoVivo);
+        })
         .catch(() => {});
     consultar();
     const t = setInterval(consultar, 20000);
     return () => {
       clearInterval(t);
+      clearTimeout(espera);
+      if (aoVivo) supabase.removeChannel(aoVivo);
+      pararSomDoModulo('chat');
       window.removeEventListener('rm_chat_conversas', aoReceber);
     };
   }, [userEmail]);

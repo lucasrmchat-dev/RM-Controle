@@ -1,8 +1,8 @@
 import { contextoDaRequisicao, mensagemLimite } from '@/lib/server/organizacao';
 import { validarUrlWebhook } from '@/lib/server/whatsappAgenda';
 import { cifrarSegredos, hashToken, novoToken } from '@/lib/server/canais/cofre';
-import { canalPublico, enderecoWebhook, provedorDo, segredosDo, servidorQrDaPlataforma } from '@/lib/server/canais/index';
-import { validarCanal } from '@/lib/canais';
+import { canalPublico, configDoChat, enderecoWebhook, provedorDo, segredosDo, servidorQrDaPlataforma } from '@/lib/server/canais/index';
+import { canalRecebeGrupos, validarCanal } from '@/lib/canais';
 import { isValidUUID } from '@/lib/sanitize';
 
 export const dynamic = 'force-dynamic';
@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
  * Canais de WhatsApp da empresa.
  *  GET              lista (sem segredos)                      — qualquer pessoa da equipe
  *  POST             cria (segredos cifrados)                  — administradores
- *  PATCH { id, … }  nome, departamento padrão, ativo           — administradores
+ *  PATCH { id, … }  nome, departamento padrão, ativo, ignorarGrupos           — administradores
  *  DELETE { id }    exclui (só sem conversas; senão, desative) — administradores
  */
 const json = (corpo, status = 200) => Response.json(corpo, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -81,10 +81,25 @@ export async function PATCH(request) {
   }
   if (body.departamento_padrao !== undefined) campos.departamento_padrao = String(body.departamento_padrao || '').trim().slice(0, 60) || null;
   if (body.ativo !== undefined) campos.ativo = Boolean(body.ativo);
+  let antes = null;
+  if (body.ignorarGrupos !== undefined) {
+    ({ data: antes } = await ctx.db.from('canais').select('*').eq('id', body.id).maybeSingle());
+    if (!antes) return json({ ok: false, mensagem: 'Canal não encontrado.' }, 404);
+    campos.config = { ...(antes.config || {}), ignorarGrupos: Boolean(body.ignorarGrupos) };
+  }
   const { data, error } = await ctx.db.from('canais').update(campos).eq('id', body.id).select('*').maybeSingle();
   if (error) return json({ ok: false, mensagem: error.message }, 500);
   if (!data) return json({ ok: false, mensagem: 'Canal não encontrado.' }, 404);
-  return json({ ok: true, canal: canalPublico(data) });
+  // Grupos ligados/desligados neste número: avisa o WhatsApp (QR Code) para nem mandar as mensagens de grupo
+  let aviso = null;
+  if (antes && Boolean(antes.config?.ignorarGrupos) !== Boolean(data.config?.ignorarGrupos) && data.provedor === 'evolution' && data.status === 'conectado') {
+    await provedorDo(data)
+      .ajustarGrupos(data, segredosDo(data), canalRecebeGrupos(data, await configDoChat(ctx.db)))
+      .catch(() => {
+        aviso = 'Salvo, mas o WhatsApp não confirmou a mudança agora. Use Reiniciar no canal se os grupos continuarem chegando.';
+      });
+  }
+  return json({ ok: true, canal: canalPublico(data), ...(aviso ? { aviso } : {}) });
 }
 
 export async function DELETE(request) {

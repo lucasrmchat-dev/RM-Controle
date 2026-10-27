@@ -8,7 +8,7 @@
 import { evolution } from './evolution';
 import { meta } from './meta';
 import { decifrarSegredos } from './cofre';
-import { CONFIG_CHAT_PADRAO, ORDEM_STATUS, assinarMensagem, ehGrupo, formasDoTelefone, podeEnviarTextoLivre, previaMensagem, telefoneCanonico, trocarMencoes, validarConfigChat } from '@/lib/canais';
+import { CONFIG_CHAT_PADRAO, ORDEM_STATUS, assinarMensagem, canalRecebeGrupos, ehGrupo, formasDoTelefone, podeEnviarTextoLivre, previaMensagem, telefoneCanonico, trocarMencoes, validarConfigChat } from '@/lib/canais';
 import { formatarTelefone, normalizarTelefone } from '@/lib/whatsappAgenda';
 import { urlPublica } from '@/lib/server/googleAgenda';
 import { LIMITE_RECEBIDO, guardarArquivo } from './midia';
@@ -74,7 +74,7 @@ export async function aplicarGruposNosCanais(db, config, { fetchImpl = fetch } =
   const falhas = [];
   for (const canal of canais || []) {
     try {
-      await provedorDo(canal).ajustarGrupos(canal, segredosDo(canal), config.grupos !== 'desligado', { fetchImpl });
+      await provedorDo(canal).ajustarGrupos(canal, segredosDo(canal), canalRecebeGrupos(canal, config), { fetchImpl });
     } catch (e) {
       falhas.push(`${canal.nome}: ${e.message}`);
     }
@@ -137,7 +137,7 @@ export async function registrarEventos(db, canal, eventos, { config = CONFIG_CHA
       continue;
     }
     if (ev.tipo === 'mensagem') {
-      if (ev.grupo && config.grupos === 'desligado') continue;
+      if (ev.grupo && !canalRecebeGrupos(canal, config)) continue;
       let nome = ev.deMim ? null : ev.nome;
       if (ev.grupo) {
         // Nome do grupo: perguntado ao WhatsApp uma vez (e só se o contato ainda não tem nome)

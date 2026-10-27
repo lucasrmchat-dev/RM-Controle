@@ -4,6 +4,9 @@ import { hashToken, novoToken } from '@/lib/server/canais/cofre';
 import { canalPublico, configDoChat, enderecoWebhook, enviarTextoParaNumero, provedorDo, segredosDo } from '@/lib/server/canais/index';
 import { getNomeEquipe } from '@/lib/server/canais/equipe';
 import { isValidUUID } from '@/lib/sanitize';
+import { canalRecebeGrupos } from '@/lib/canais';
+import { mesclarCanais } from '@/lib/server/canais/mesclar';
+import { avisarAoVivo } from '@/lib/server/canais/aoVivo';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +17,7 @@ export const dynamic = 'force-dynamic';
  *  { acao: 'desconectar' } | { acao: 'reiniciar' }
  *  { acao: 'testar', telefone, texto }  envia uma mensagem de teste (abre a conversa)
  *  { acao: 'novo_token' }               Meta: novo token de verificação do webhook (mostrado uma vez)
+ *  { acao: 'mesclar', origem }          traz para este canal o histórico de um canal antigo do mesmo número
  */
 const json = (corpo, status = 200) => Response.json(corpo, { status, headers: { 'Cache-Control': 'no-store' } });
 
@@ -36,8 +40,7 @@ export async function POST(request, { params }) {
   try {
     if (body.acao === 'conectar') {
       const token = novoToken();
-      const { grupos } = await configDoChat(db);
-      const r = await provedor.conectar(canal, segredos, { urlWebhook: enderecoWebhook(request, canal.id), tokenWebhook: token, receberGrupos: grupos !== 'desligado' });
+      const r = await provedor.conectar(canal, segredos, { urlWebhook: enderecoWebhook(request, canal.id), tokenWebhook: token, receberGrupos: canalRecebeGrupos(canal, await configDoChat(db)) });
       const campos = { status: r.status, status_detalhe: null, config: { ...canal.config, ...(r.config || {}) }, qr_codigo: r.qr || null, qr_atualizado_em: r.qr ? new Date().toISOString() : null };
       // Evolution: o token novo vai junto na configuração do webhook da instância
       if (canal.provedor === 'evolution') campos.webhook_token_hash = hashToken(token);
@@ -71,6 +74,18 @@ export async function POST(request, { params }) {
       const autor = { email: ctx.email, nome: await getNomeEquipe(db, ctx.email) };
       const msg = await enviarTextoParaNumero(db, { canal, telefone: body.telefone, texto: body.texto || 'Teste do RM Controle ✅', autor });
       return json({ ok: true, mensagem: msg });
+    }
+
+    if (body.acao === 'mesclar') {
+      if (!isValidUUID(body.origem)) return json({ ok: false, mensagem: 'Escolha o canal antigo.' }, 400);
+      const { data: origem } = await db.from('canais').select('*').eq('id', body.origem).maybeSingle();
+      try {
+        const r = await mesclarCanais(db, { email: ctx.email, nome: await getNomeEquipe(db, ctx.email) }, origem, canal);
+        await avisarAoVivo(canal.organizacao_id || null);
+        return json({ ok: true, movidas: r.movidas, juntadas: r.juntadas, origem: canalPublico(r.origem) });
+      } catch (e) {
+        return json({ ok: false, mensagem: e.message }, e.status || 500);
+      }
     }
 
     if (body.acao === 'novo_token' && canal.provedor === 'meta') {
