@@ -18,7 +18,8 @@ import {
   removeCategoriaDemanda,
   getPermissoesAtuais,
   getAgendaConfig,
-  setAgendaConfig
+  setAgendaConfig,
+  getGestaoAtual
 } from '@/lib/storage';
 import { generateSecurePassword } from '@/lib/security';
 import ChannelsManagement from '@/components/ChannelsManagement';
@@ -32,6 +33,7 @@ import TitulosReuniaoSettings from './TitulosReuniaoSettings';
 import FeedbacksSettings from './FeedbacksSettings';
 import ChatSettings from './ChatSettings';
 import WhatsappAgendaSettings, { PreferenciasWhatsapp } from './WhatsappAgendaSettings';
+import PlataformaView from './PlataformaView';
 import { podeVerConfiguracoesAvancadas, podeAcessarAbaConfiguracao, ROTULOS_PAPEL } from '@/lib/roles';
 import { 
   SparklesIcon, 
@@ -54,6 +56,8 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
   const [, atualizarPermissoes] = useState(0);
   const currentRole = getPermissoesAtuais(userEmail).administrador ? 'administrador' : 'suporte';
   const isAdmin = podeVerConfiguracoesAvancadas(currentRole);
+  // Celular: primeiro o menu, depois a seção escolhida
+  const [menuCelular, setMenuCelular] = useState(true);
   const [subTab, setSubTab] = useState(() =>
     podeAcessarAbaConfiguracao(currentRole, initialSubTab) ? initialSubTab : 'visualizacao'
   );
@@ -365,6 +369,52 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
     },
   ];
 
+  // Menu das configurações por assunto (os itens reaproveitam ícones e selos acima)
+  const porId = Object.fromEntries(gruposNavegacao.flatMap((g) => g.abas).map((a) => [a.id, a]));
+  const gestao = getGestaoAtual();
+  porId.plataforma = {
+    id: 'plataforma',
+    label: gestao?.nivel === 'revenda' ? 'Revenda' : 'Plataforma',
+    icon: (
+      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1.5" />
+        <rect x="14" y="3" width="7" height="7" rx="1.5" />
+        <rect x="3" y="14" width="7" height="7" rx="1.5" />
+        <path d="M17.5 14v7M14 17.5h7" />
+      </svg>
+    ),
+  };
+  const ROTULOS_MENU = {
+    visualizacao: 'Aparência',
+    audio: 'Sons e alertas',
+    regras_suporte: 'Regras e senha padrão',
+    canais: 'Canais de atendimento',
+    chat: 'Chat e grupos',
+    whatsapp_envio: 'Mensagens da agenda',
+    whatsapp: 'Minhas preferências',
+    agenda: 'Google Agenda e lembretes',
+    titulos_reuniao: 'Títulos das reuniões',
+    comercial: 'Comercial e pipelines',
+    perfis: 'Perfis de acesso',
+    servidores: 'Servidores e equipe',
+    suporte_automatico: 'Suporte automático (API)',
+    auditoria: 'Auditoria e LGPD',
+  };
+  const BASICAS = ['visualizacao', 'audio', 'agenda', 'whatsapp', 'regras_suporte'];
+  const categoriasMenu = [
+    { id: 'geral', titulo: 'Geral', cor: 'bg-slate-500/12 text-slate-600 dark:text-zinc-300', ids: ['visualizacao', 'audio'] },
+    { id: 'atendimento', titulo: 'Atendimento', cor: 'bg-amber-500/14 text-amber-700 dark:text-amber-300', ids: ['regras_suporte', 'departamentos', 'canais', 'feedbacks'] },
+    { id: 'whatsapp', titulo: 'WhatsApp', cor: 'bg-[#00a884]/14 text-[#008069] dark:text-[#00d4a4]', ids: ['chat', 'whatsapp_envio', 'whatsapp'] },
+    { id: 'agenda', titulo: 'Agenda e Comercial', cor: 'bg-sky-500/12 text-sky-700 dark:text-sky-300', ids: ['agenda', 'titulos_reuniao', 'comercial'] },
+    { id: 'equipe', titulo: 'Equipe e acesso', cor: 'bg-violet-500/12 text-violet-700 dark:text-violet-300', ids: ['perfis', 'servidores'] },
+    { id: 'integracoes', titulo: 'Integrações', cor: 'bg-indigo-500/12 text-indigo-700 dark:text-indigo-300', ids: ['suporte_automatico'] },
+    { id: 'plataforma', titulo: 'Plataforma', cor: 'bg-[#4d7c0f]/12 text-[#4d7c0f] dark:text-[#a3e635]', ids: gestao ? ['plataforma'] : [] },
+    { id: 'seguranca', titulo: 'Segurança', cor: 'bg-rose-500/12 text-rose-700 dark:text-rose-300', ids: ['auditoria'] },
+  ]
+    .map((c) => ({ ...c, itens: c.ids.filter((id) => porId[id] && (isAdmin || BASICAS.includes(id))).map((id) => ({ ...porId[id], rotulo: ROTULOS_MENU[id] || porId[id].label, categoria: c.titulo })) }))
+    .filter((c) => c.itens.length);
+  const itemAtual = categoriasMenu.flatMap((c) => c.itens).find((i) => i.id === subTab || (subTab === 'categorias_demandas' && i.id === 'departamentos'));
+
   const renderRestrictedNotice = (tituloSecao) => (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -383,77 +433,64 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
 
   return (
     <div className="space-y-6 text-[#1d1d1f] dark:text-[#f5f5f7]">
-      {/* Cabeçalho Unificado de Configurações Padronizado */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-zinc-400 font-mono">
-              Sistema & Regras Operacionais
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-white">
-            Configurações Gerais
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
-            Gerencie modo de visualização, alertas sonoros, links de servidores e auditoria.
-          </p>
-        </div>
+      <div>
+        <h1 className="text-[30px] sm:text-[34px] font-semibold tracking-[-0.025em] leading-tight">Configurações</h1>
+        <p className="mt-1.5 text-[14.5px] text-slate-500 dark:text-zinc-400 max-w-2xl">Preferências do sistema, do WhatsApp, da agenda e da equipe, organizadas por assunto.</p>
       </div>
 
-      {/* Setorização em Configurações Básicas e Avançadas */}
-      <div className="space-y-4">
-        <div className={`grid grid-cols-1 gap-4 ${isAdmin ? 'md:grid-cols-2' : ''}`}>
-          {gruposNavegacao.filter((_, idx) => idx === 0 || isAdmin).map((grp, idx) => (
-            <div
-              key={idx}
-              className="p-4 sm:p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-[#1e1e21] space-y-3 shadow-xs"
-            >
-              <div className="border-b border-black/[0.04] dark:border-white/[0.09] pb-2">
-                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block mb-1 ${
-                  idx === 0 
-                    ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20'
-                    : 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20'
-                }`}>
-                  {grp.titulo}
-                </span>
-                <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                  {grp.descricao}
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {grp.abas.map((tab) => {
-                  const isSel = subTab === tab.id;
+      <div className="lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-8 lg:items-start">
+        {/* Menu por categorias (no celular aparece primeiro; no computador fica ao lado) */}
+        <nav aria-label="Seções das configurações" className={`${menuCelular ? 'block' : 'hidden'} lg:block lg:sticky lg:top-[calc(var(--rm-cabecalho,78px)+16px)] space-y-5`}>
+          {categoriasMenu.map((cat) => (
+            <section key={cat.id}>
+              <h2 className="px-3 mb-1.5 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-slate-400 dark:text-zinc-500">{cat.titulo}</h2>
+              <ul className="rounded-2xl lg:rounded-none bg-white lg:bg-transparent dark:bg-[#1e1e21] lg:dark:bg-transparent ring-1 ring-black/[0.06] dark:ring-white/[0.09] lg:ring-0 overflow-hidden lg:overflow-visible divide-y divide-black/[0.05] dark:divide-white/[0.06] lg:divide-y-0">
+                {cat.itens.map((item) => {
+                  const ativo = subTab === item.id;
                   return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setSubTab(tab.id)}
-                      className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                        isSel
-                          ? 'text-white bg-black dark:bg-white dark:text-black shadow-sm font-bold'
-                          : 'text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.06]'
-                      }`}
-                    >
-                      {tab.icon}
-                      <span>{tab.label}</span>
-                      {tab.badge && (
-                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
-                          isSel
-                            ? 'bg-white/20 text-white dark:bg-black/20 dark:text-black'
-                            : 'bg-black/[0.06] dark:bg-white/[0.08] text-slate-600 dark:text-zinc-300'
-                        }`}>
-                          {tab.badge}
-                        </span>
-                      )}
-                    </button>
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSubTab(item.id);
+                          setMenuCelular(false);
+                          window.scrollTo({ top: 0, behavior: 'instant' });
+                        }}
+                        aria-current={ativo ? 'page' : undefined}
+                        className={`w-full flex items-center gap-3 px-3 h-12 lg:h-10 lg:rounded-xl text-left text-[14px] cursor-pointer transition-colors ${
+                          ativo ? 'lg:bg-black/[0.06] lg:dark:bg-white/[0.1] font-semibold' : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-700 dark:text-zinc-300'
+                        }`}
+                      >
+                        <span className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${cat.cor}`}>{item.icon}</span>
+                        <span className="flex-1 min-w-0 truncate">{item.rotulo}</span>
+                        {item.badge && <span className="text-[11px] text-slate-400 dark:text-zinc-500 flex-shrink-0">{item.badge}</span>}
+                        <svg className="w-4 h-4 text-slate-300 dark:text-zinc-600 flex-shrink-0 lg:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                          <path d="M9 6l6 6-6 6" />
+                        </svg>
+                      </button>
+                    </li>
                   );
                 })}
-              </div>
-            </div>
+              </ul>
+            </section>
           ))}
-        </div>
-      </div>
+          {!isAdmin && <p className="px-3 text-[12px] text-slate-400 dark:text-zinc-500 leading-relaxed">As demais configurações são exclusivas de administradores.</p>}
+        </nav>
+
+        <div className={`${menuCelular ? 'hidden' : 'block'} lg:block min-w-0 space-y-6`}>
+          <div className="flex items-center gap-2 text-[13px]">
+            <button type="button" onClick={() => setMenuCelular(true)} className="lg:hidden h-9 pl-1.5 pr-3 -ml-1.5 rounded-full flex items-center gap-1 text-[#4d7c0f] dark:text-[#a3e635] font-medium cursor-pointer">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                <path d="M15 6l-6 6 6 6" />
+              </svg>
+              Configurações
+            </button>
+            {itemAtual && (
+              <span className="hidden lg:inline text-slate-400 dark:text-zinc-500">
+                {itemAtual.categoria} <span className="mx-1">›</span> <span className="text-slate-600 dark:text-zinc-300">{itemAtual.rotulo}</span>
+              </span>
+            )}
+          </div>
 
       {/* BÁSICA 1: MODO DE VISUALIZAÇÃO PADRÃO DO SISTEMA */}
       {subTab === 'visualizacao' && (
@@ -1442,6 +1479,9 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
         )
       )}
 
+      {subTab === 'plataforma' && (getGestaoAtual() ? <PlataformaView /> : renderRestrictedNotice('Plataforma'))}
+        </div>
+      </div>
     </div>
   );
 }

@@ -74,3 +74,12 @@ export async function apagarArquivosDaConversa(organizacaoId, conversaId) {
   const caminhos = (data || []).map((f) => `${pasta}/${f.name}`);
   if (caminhos.length) await admin.storage.from(PASTA).remove(caminhos).then(() => {}, () => {});
 }
+
+/** Links temporários de vários arquivos numa chamada só ao Storage. */
+export async function linksTemporarios(caminhos, segundos = 3600) {
+  if (!caminhos.length) return {};
+  const admin = getSupabaseAdmin();
+  const { data, error } = await admin.storage.from(PASTA).createSignedUrls(caminhos, segundos);
+  if (error) throw new Error(error.message);
+  return Object.fromEntries((data || []).filter((d) => d.signedUrl && !d.error).map((d) => [d.path, d.signedUrl]));
+}

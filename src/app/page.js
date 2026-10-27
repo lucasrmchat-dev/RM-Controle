@@ -41,7 +41,7 @@ import { triggerSupportNotification, stopSupportNotificationLoop, playMeetingAle
 import { definirDonoNotificacoes, notificar } from '@/lib/notificacoes';
 import { iniciarVigiaNotificacoes } from '@/lib/vigiaNotificacoes';
 import CentralNotificacoes from '@/components/CentralNotificacoes';
-import PlataformaView, { BarraSuporte } from '@/components/PlataformaView';
+import { BarraSuporte } from '@/components/PlataformaView';
 import FirstAccessSetupView from '@/components/FirstAccessSetupView';
 import { lerPreferenciaTema, aplicarTema, salvarPreferenciaTema } from '@/lib/tema';
 import Navbar from '@/components/Navbar';
@@ -152,6 +152,13 @@ export default function Home() {
   const [abasPermitidas, setAbasPermitidas] = useState([]);
   const [organizacao, setOrganizacao] = useState(null);
   const [settingsSubTab, setSettingsSubTab] = useState('audio');
+  // A antiga aba Plataforma agora é uma seção das Configurações
+  useEffect(() => {
+    if (activeTab === 'plataforma') {
+      setSettingsSubTab('plataforma');
+      setActiveTab('configuracoes');
+    }
+  }, [activeTab]);
   const [isRegistrarModalGlobalOpen, setIsRegistrarModalGlobalOpen] = useState(false);
   const [empresaParaRegistrar, setEmpresaParaRegistrar] = useState(null);
   const [confirmModalData, setConfirmModalData] = useState(null); // 'empresas' | 'dashboard' | 'canais' | 'servidores' | 'auditoria'
@@ -1027,7 +1034,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
         acoesFila={activeTab === 'fila' && !selectedEmpresa}
       />
 
-      <main className="flex-1 w-full max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 xl:px-10 py-2 sm:py-4 pb-28 md:pb-16">
+      <main className="flex-1 w-full max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 xl:px-10 py-2 sm:py-4 pb-28 sm:pb-16">
         {selectedEmpresa ? (
           /* TELA CHEIA: GERENCIAR EMPRESA (WIDESCREEN DE ALTA PRODUTIVIDADE) */
           <div key="empresa-detail" className="animate-fade-in">
@@ -1709,7 +1716,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
               {activeTab === 'conexoes' && abasPermitidas.includes('conexoes') && <CanaisView />}
 
               {/* PLATAFORMA: empresas assinantes, revendas, contratos e limites (só para quem gerencia) */}
-              {activeTab === 'plataforma' && abasPermitidas.includes('plataforma') && <PlataformaView />}
+              {/* Plataforma agora fica em Configurações › Plataforma (links antigos caem lá) */}
 
               {/* COMERCIAL: acesso definido pelo perfil */}
               {activeTab === 'comercial' && abasPermitidas.includes('comercial') && (

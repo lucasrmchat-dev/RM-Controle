@@ -1,7 +1,7 @@
 import { consumirLimite } from '@/lib/server/protecao';
 import { enviarTextoNaConversa } from '@/lib/server/canais/index';
 import { isValidUUID } from '@/lib/sanitize';
-import { auditarChat, carregarConversa, juntarDetalhes, listarMensagens, prepararMensagem, registrarSistema, registrarVisualizacao } from '@/lib/server/canais/chat';
+import { auditarChat, bloqueioSemAssumir, carregarConversa, juntarDetalhes, listarMensagens, prepararMensagem, registrarSistema, registrarVisualizacao } from '@/lib/server/canais/chat';
 import { apagarArquivosDaConversa } from '@/lib/server/canais/midia';
 import { apagarMensagem, editarMensagem, favoritarMensagem, fixarMensagem, reagirMensagem } from '@/lib/server/canais/acoes';
 
@@ -31,10 +31,14 @@ export async function GET(request, { params }) {
   if (r.erro) return r.erro;
   const busca = new URL(request.url).searchParams;
   const antes = busca.get('antes');
-  if (busca.get('abrir')) await registrarVisualizacao(r.ctx.db, r.perm, r.conversa);
-  const { data: canal } = await r.ctx.db.from('canais').select('*').eq('id', r.conversa.canal_id).maybeSingle();
-  const lista = await listarMensagens(r.ctx.db, r.conversa, { antes: antes && !Number.isNaN(Date.parse(antes)) ? antes : null, perm: r.perm, canal });
-  const [conversa] = await juntarDetalhes(r.ctx.db, [r.conversa]);
+  const { db } = r.ctx;
+  // Em paralelo: auditoria, canal e detalhes; as mensagens só esperam o canal
+  const canalP = db.from('canais').select('*').eq('id', r.conversa.canal_id).maybeSingle().then((x) => x.data);
+  const [, [conversa], lista] = await Promise.all([
+    busca.get('abrir') ? registrarVisualizacao(db, r.perm, r.conversa) : null,
+    juntarDetalhes(db, [r.conversa]),
+    canalP.then((canal) => listarMensagens(db, r.conversa, { antes: antes && !Number.isNaN(Date.parse(antes)) ? antes : null, perm: r.perm, canal })),
+  ]);
   return json({ ok: true, conversa, ...lista });
 }
 
@@ -52,9 +56,22 @@ export async function POST(request, { params }) {
   };
 
   try {
+    // Responder, nota interna e reagir só depois de assumir a conversa
+    if (['enviar', 'nota', 'reagir'].includes(body.acao) && conversa.status !== 'resolvida') {
+      const bloqueio = await bloqueioSemAssumir(db, perm, conversa);
+      if (bloqueio) return json({ ok: false, mensagem: bloqueio, precisa_assumir: true }, 409);
+    }
+
     if (body.acao === 'enviar') {
       if (conversa.status === 'resolvida') return json({ ok: false, mensagem: 'Reabra a conversa para responder.' }, 409);
-      const mensagem = await enviarTextoNaConversa(db, { conversa, texto: body.texto, autor, assinar: body.assinar !== false, respondeA: isValidUUID(body.responde_a) ? body.responde_a : null });
+      const mensagem = await enviarTextoNaConversa(db, {
+        conversa,
+        texto: body.texto,
+        autor,
+        assinar: body.assinar !== false,
+        respondeA: isValidUUID(body.responde_a) ? body.responde_a : null,
+        mencoes: Array.isArray(body.mencoes) ? body.mencoes.slice(0, 50).map((m) => ({ jid: String(m?.jid || '').slice(0, 80), nome: String(m?.nome || '').slice(0, 120) })) : [],
+      });
       const [{ data }, { data: canal }] = await Promise.all([db.from('conversas').select('*').eq('id', conversa.id).single(), db.from('canais').select('*').eq('id', conversa.canal_id).maybeSingle()]);
       return json({ ok: true, mensagem: prepararMensagem(mensagem, perm, canal), conversa: (await juntarDetalhes(db, [data]))[0] });
     }

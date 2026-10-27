@@ -12,6 +12,11 @@ import {
 import { AlertCircleIcon, CalendarIcon, ClockIcon, LightBulbIcon, SparklesIcon, SupportQueueIcon, XMarkIcon } from './Icons';
 
 const MOLA = { type: 'spring', bounce: 0.22, duration: 0.45 };
+const ChatIcone = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M21 12a8.5 8.5 0 0 1-12.6 7.45L3 21l1.55-5.4A8.5 8.5 0 1 1 21 12z" />
+  </svg>
+);
 
 const TIPOS = {
   demanda: { icone: SupportQueueIcon, cor: 'bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]' },
@@ -19,6 +24,7 @@ const TIPOS = {
   prazo: { icone: ClockIcon, cor: 'bg-amber-500/14 text-amber-700 dark:bg-amber-400/15 dark:text-amber-400' },
   reuniao: { icone: CalendarIcon, cor: 'bg-sky-500/12 text-sky-700 dark:bg-sky-400/15 dark:text-sky-300' },
   feedback: { icone: LightBulbIcon, cor: 'bg-[#4d7c0f]/12 text-[#4d7c0f] dark:bg-[#84cc16]/15 dark:text-[#a3e635]' },
+  chat: { icone: ChatIcone, cor: 'bg-[#00a884]/14 text-[#008069] dark:bg-[#00a884]/20 dark:text-[#00d4a4]' },
   sistema: { icone: SparklesIcon, cor: 'bg-[#4d7c0f]/12 text-[#4d7c0f] dark:bg-[#84cc16]/15 dark:text-[#a3e635]' },
 };
 
@@ -146,7 +152,7 @@ export default function CentralNotificacoes({ onAbrirAba, embutido = false, soCe
   const anteriores = lista.filter((n) => n.lida);
 
   return (
-    <div ref={raiz} className={embutido ? 'relative' : `fixed z-40 right-4 bottom-[88px] md:right-6 md:bottom-6 ${soCelular ? 'md:hidden' : ''}`}>
+    <div ref={raiz} className={embutido ? 'relative' : `fixed z-40 right-4 bottom-[88px] sm:right-6 sm:bottom-6 ${soCelular ? 'sm:hidden' : ''}`}>
       <AnimatePresence>
         {aberto && (
           <motion.div

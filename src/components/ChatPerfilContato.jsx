@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { acaoConversa, atualizarFotoContato, fetchAuditoriaConversa, fetchContatoChat, getEmpresas, salvarContatoChat } from '@/lib/storage';
+import { acaoConversa, atualizarFotoContato, fetchAuditoriaConversa, fetchContatoChat, fetchParticipantesConversa, getEmpresas, salvarContatoChat } from '@/lib/storage';
 import { ehGrupo } from '@/lib/canais';
 import { formatarTelefone } from '@/lib/whatsappAgenda';
 import { Spinner } from './FormularioEtapas';
@@ -58,6 +58,56 @@ function Auditoria({ conversaId }) {
       {eventos.length > 8 && (
         <button type="button" onClick={() => setTodos((v) => !v)} className="mt-2 text-[12.5px] text-[#008069] dark:text-[#00d4a4] font-medium cursor-pointer">
           {todos ? 'Ver menos' : `Ver tudo (${eventos.length})`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Quem participa do grupo: nome (quando o WhatsApp informa) e número de verdade. */
+function Participantes({ conversaId }) {
+  const [lista, setLista] = useState(null);
+  const [todos, setTodos] = useState(false);
+  const [filtro, setFiltro] = useState('');
+  useEffect(() => {
+    let vivo = true;
+    fetchParticipantesConversa(conversaId)
+      .then((r) => vivo && setLista(r.participantes || []))
+      .catch(() => vivo && setLista([]));
+    return () => {
+      vivo = false;
+    };
+  }, [conversaId]);
+  if (!lista) return <Spinner />;
+  if (!lista.length) return <p className="text-[13px] text-[#667781] dark:text-[#8696a0]">O WhatsApp não liberou a lista deste grupo (o número pode ter saído dele). Quem escrever aqui aparece nesta lista.</p>;
+  const f = filtro.trim().toLowerCase();
+  const filtrados = f ? lista.filter((p) => String(p.nome || '').toLowerCase().includes(f) || String(p.telefone || '').includes(f.replace(/\D/g, '') || '§')) : lista;
+  const mostrados = todos || f ? filtrados : filtrados.slice(0, 12);
+  return (
+    <div>
+      {lista.length > 8 && <input value={filtro} onChange={(e) => setFiltro(e.target.value)} placeholder="Buscar participante" aria-label="Buscar participante" className="w-full h-9 mb-2 rounded-lg px-3 bg-[#f0f2f5] dark:bg-[#202c33] outline-none text-[13.5px]" />}
+      <ul className="space-y-0.5">
+        {mostrados.map((p) => (
+          <li key={p.jid} className="flex items-center gap-2.5 py-1.5">
+            <span className="w-8 h-8 rounded-full bg-[#dfe5e7] dark:bg-[#2a3942] text-[#54656f] dark:text-[#aebac1] flex items-center justify-center text-[11px] font-semibold flex-shrink-0">
+              {String(p.nome || '#')
+                .split(/\s+/)
+                .slice(0, 2)
+                .map((x) => x[0])
+                .join('')
+                .toUpperCase()}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13.5px] font-medium truncate">{p.nome || (p.telefone ? formatarTelefone(p.telefone) : 'Participante')}</span>
+              <span className="block text-[12px] text-[#667781] dark:text-[#8696a0] tabular-nums">{p.telefone ? formatarTelefone(p.telefone) : 'Número oculto pelo WhatsApp'}</span>
+            </span>
+            {p.admin && <span className="text-[10.5px] font-semibold text-[#008069] dark:text-[#00d4a4] bg-[#00a884]/12 rounded-md px-1.5 py-0.5">Admin</span>}
+          </li>
+        ))}
+      </ul>
+      {!f && filtrados.length > 12 && (
+        <button type="button" onClick={() => setTodos((v) => !v)} className="mt-1.5 text-[12.5px] text-[#008069] dark:text-[#00d4a4] font-medium cursor-pointer">
+          {todos ? 'Ver menos' : `Ver todos (${filtrados.length})`}
         </button>
       )}
     </div>
@@ -221,6 +271,12 @@ export default function ChatPerfilContato({ contatoId, conversaAtualId, Avatar, 
               </button>
             )}
           </div>
+
+          {grupo && conversaAtualId && (
+            <Secao titulo="Participantes">
+              <Participantes conversaId={conversaAtualId} />
+            </Secao>
+          )}
 
           <Secao titulo="Empresa">
             {escolhendoEmpresa ? (

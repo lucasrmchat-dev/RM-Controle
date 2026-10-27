@@ -2,7 +2,7 @@ import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
 import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
 import { garantirContaAuth, removerContaAuth } from '@/lib/server/acesso';
 import { consumirLimite, ipDaRequisicao } from '@/lib/server/protecao';
-import { escopo, mensagemLimite, organizacaoAtual, perfilDeGestao, podeGerir, ORG_PLATAFORMA } from '@/lib/server/organizacao';
+import { escopo, limparMemoriaOrganizacao, mensagemLimite, organizacaoAtual, perfilDeGestao, podeGerir, ORG_PLATAFORMA } from '@/lib/server/organizacao';
 import { listaAdministradores, normalizarEmail } from '@/lib/roles';
 import { isValidUUID, sanitizeEmail, SENHA_MAX } from '@/lib/sanitize';
 import { validarContrato, validarLimites, validarOrganizacao } from '@/lib/plataforma';
@@ -145,6 +145,9 @@ export async function POST(request) {
     }
 
     // ------------------------------------------------------------ sair do suporte
+    // Troca de empresa ou de situação: vale na hora (sem esperar a memória curta)
+    if (['sair_suporte', 'entrar_suporte', 'status'].includes(body.acao)) limparMemoriaOrganizacao();
+
     if (body.acao === 'sair_suporte') {
       const { data: sessao } = await db.from('sessoes_suporte').select('organizacao_id').eq('email', email).maybeSingle();
       await db.from('sessoes_suporte').delete().eq('email', email);

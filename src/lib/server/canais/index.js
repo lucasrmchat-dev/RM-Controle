@@ -8,10 +8,11 @@
 import { evolution } from './evolution';
 import { meta } from './meta';
 import { decifrarSegredos } from './cofre';
-import { CONFIG_CHAT_PADRAO, ORDEM_STATUS, assinarMensagem, formasDoTelefone, podeEnviarTextoLivre, previaMensagem, telefoneCanonico, validarConfigChat } from '@/lib/canais';
+import { CONFIG_CHAT_PADRAO, ORDEM_STATUS, assinarMensagem, ehGrupo, formasDoTelefone, podeEnviarTextoLivre, previaMensagem, telefoneCanonico, trocarMencoes, validarConfigChat } from '@/lib/canais';
 import { formatarTelefone, normalizarTelefone } from '@/lib/whatsappAgenda';
 import { urlPublica } from '@/lib/server/googleAgenda';
 import { LIMITE_RECEBIDO, guardarArquivo } from './midia';
+import { nomesDoGrupo, prepararMencoes, registrarParticipante, sincronizarParticipantes, telefoneDoParticipante } from './grupos';
 
 const TIPOS_COM_ARQUIVO = ['imagem', 'audio', 'video', 'documento', 'figurinha'];
 
@@ -152,12 +153,33 @@ export async function registrarEventos(db, canal, eventos, { config = CONFIG_CHA
       }
       const contatoId = await contatoPorTelefone(db, ev.telefone, nome, { grupo: ev.grupo });
       const conversa = await conversaAberta(db, canal, contatoId);
+      let textoFinal = ev.texto;
+      if (ev.grupo) {
+        // Quem escreveu: participante do grupo e contato com o número de verdade (nunca o código interno)
+        if (ev.participante?.jid) await registrarParticipante(db, contatoId, ev.participante);
+        // Número de verdade: veio na mensagem ou está na lista do grupo (atualizada se preciso)
+        let telefoneDele = ev.participante?.telefone || (await telefoneDoParticipante(db, contatoId, ev.participante?.jid));
+        if (!telefoneDele && ev.participante?.jid) {
+          await sincronizarParticipantes(db, { canal, provedor: provedorDo(canal), segredos: segredosDo(canal), grupo: { id: contatoId, telefone: ev.telefone } }).catch(() => {});
+          telefoneDele = await telefoneDoParticipante(db, contatoId, ev.participante.jid);
+        }
+        if (telefoneDele) await contatoPorTelefone(db, telefoneDele, ev.participante.nome).catch(() => {});
+        // "@279619886420042" vira "@Maria" (ou o número); quem não é conhecido faz atualizar a lista do grupo
+        if (ev.mencoes?.length) {
+          let nomes = await nomesDoGrupo(db, contatoId);
+          if (ev.mencoes.some((j) => !nomes.has(String(j).split('@')[0]))) {
+            await sincronizarParticipantes(db, { canal, provedor: provedorDo(canal), segredos: segredosDo(canal), grupo: { id: contatoId, telefone: ev.telefone } }).catch(() => {});
+            nomes = await nomesDoGrupo(db, contatoId);
+          }
+          textoFinal = trocarMencoes(ev.texto, nomes);
+        }
+      }
       const { data: gravada, error } = await db.from('mensagens').insert([
         {
           conversa_id: conversa.id,
           direcao: ev.deMim ? 'saida' : 'entrada',
           tipo: ev.tipoMensagem,
-          conteudo: ev.texto || null,
+          conteudo: textoFinal || null,
           midia: ev.midia || null,
           status: ev.deMim ? 'enviada' : 'recebida',
           id_externo: ev.idExterno,
@@ -172,7 +194,7 @@ export async function registrarEventos(db, canal, eventos, { config = CONFIG_CHA
       }
       await guardarDetalhes(db, gravada.id, { chave: ev.chave, respondeAExterno: ev.respondeA });
       if (TIPOS_COM_ARQUIVO.includes(ev.tipoMensagem)) await guardarArquivoRecebido(db, canal, conversa, gravada.id, ev, fetchImpl);
-      const campos = { ultima_mensagem_em: ev.em, ultima_mensagem_texto: previaMensagem(ev) };
+      const campos = { ultima_mensagem_em: ev.em, ultima_mensagem_texto: previaMensagem({ ...ev, texto: textoFinal }) };
       if (!ev.deMim) {
         campos.ultima_entrada_cliente_em = ev.em;
         campos.nao_lidas = (conversa.nao_lidas || 0) + 1;
@@ -262,7 +284,7 @@ async function guardarArquivoRecebido(db, canal, conversa, mensagemId, ev, fetch
  * Envia texto numa conversa. Grava antes como "pendente" (nada se perde se a rede cair) e atualiza
  * com o resultado. API oficial: só com a janela de 24h aberta.
  */
-export async function enviarTextoNaConversa(db, { conversa, texto, autor, assinar = false, respondeA = null, fetchImpl = fetch }) {
+export async function enviarTextoNaConversa(db, { conversa, texto, autor, assinar = false, respondeA = null, mencoes = [], fetchImpl = fetch }) {
   const conteudo = String(texto || '').trim();
   if (!conteudo) throw new Error('Escreva a mensagem.');
   if (conteudo.length > 4096) throw new Error('Mensagem longa demais (máximo de 4.096 caracteres).');
@@ -288,8 +310,11 @@ export async function enviarTextoNaConversa(db, { conversa, texto, autor, assina
 
   try {
     // A tela guarda o texto puro (o nome já aparece no balão); o cliente recebe com a assinatura
-    const r = await provedorDo(canal).enviarTexto(canal, segredosDo(canal), contato.telefone, assinar ? assinarMensagem(conteudo, autor.nome) : conteudo, {
+    // Grupo: "@Maria" vira "@5585..." no WhatsApp e a pessoa é notificada; a tela guarda com o nome
+    const { texto: paraWhatsapp, mencionados } = ehGrupo(contato.telefone) ? await prepararMencoes(db, conversa.contato_id, conteudo, mencoes) : { texto: conteudo, mencionados: [] };
+    const r = await provedorDo(canal).enviarTexto(canal, segredosDo(canal), contato.telefone, assinar ? assinarMensagem(paraWhatsapp, autor.nome) : paraWhatsapp, {
       fetchImpl,
+      mencionados,
       citada: citada?.id_externo ? { idExterno: citada.id_externo, chave: citada.chave_externa || chavePadrao(contato.telefone, citada.direcao === 'saida'), conteudo: citada.conteudo } : null,
     });
     await db.from('mensagens').update({ status: 'enviada', id_externo: r.idExterno }).eq('id', msg.id);

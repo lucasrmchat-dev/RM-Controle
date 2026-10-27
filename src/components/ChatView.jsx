@@ -15,11 +15,18 @@ import {
   enviarArquivoConversa,
   iniciarConversa,
   atualizarFotoContato,
+  fetchParticipantesConversa,
+  getColaboradoresEmpresa,
+  buscarMensagensChat,
+  fetchListaContatos,
+  fetchContatoChat,
 } from '@/lib/storage';
 import { contarConversasNovas, ehGrupo, janelaAtendimento, preencherResposta } from '@/lib/canais';
 import { ACEITOS, LIMITE_ENVIO, MidiaMensagem, PreviaArquivo, comprimirFoto, tipoPeloMime, useGravadorDeAudio } from './ChatMidia';
 import ChatPerfilContato from './ChatPerfilContato';
+import { fotoGuardada, linkDaFoto } from '@/lib/fotosContatos';
 import { BarraReacao, DadosMensagem, MenuMensagem } from './ChatAcoesMensagem';
+import { ContatosModal, FILTROS_PADRAO, FiltrosAvancados, filtrosAtivos, lerFiltrosSalvos, naoRespondida } from './ChatFerramentas';
 import { formatarTelefone } from '@/lib/whatsappAgenda';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { ModalEtapas, ErroRodape, Spinner, classeBotaoPrimario, classeBotaoTexto } from './FormularioEtapas';
@@ -65,15 +72,31 @@ const iniciais = (nome) =>
 function Avatar({ conversa, tamanho = 'w-11 h-11 text-[14px]', versao = 0 }) {
   const nome = nomeDoContato(conversa);
   const contato = conversa?.contato;
-  // 0 = carregando; 1 = falhou uma vez (tenta de novo com outro link); 2 = desiste e mostra as iniciais
-  const [falhas, setFalhas] = useState(0);
-  useEffect(() => setFalhas(0), [contato?.id, versao]);
-  if (contato?.id && contato.tem_foto && falhas < 2)
+  // Link da foto: pedido em lote (uma chamada para todos os avatares da tela) e guardado por 50 minutos
+  const [foto, setFoto] = useState(() => (contato?.tem_foto ? fotoGuardada(contato.id) : null));
+  const [falhou, setFalhou] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    setFalhou(false);
+    if (!contato?.id || !contato.tem_foto) {
+      setFoto(null);
+      return undefined;
+    }
+    linkDaFoto(contato.id, { renovar: versao > 0 }).then((url) => vivo && setFoto(url));
+    return () => {
+      vivo = false;
+    };
+  }, [contato?.id, contato?.tem_foto, versao]);
+  if (foto && !falhou)
     return (
       <img
-        src={`/api/chat/arquivo?c=${contato.id}&v=${versao}${falhas ? '&r=1' : ''}`}
+        src={foto}
         alt=""
-        onError={() => setTimeout(() => setFalhas((n) => n + 1), falhas ? 0 : 1200)}
+        onError={() => {
+          // Link vencido ou foto trocada: pede um novo uma vez; se falhar de novo, ficam as iniciais
+          if (!contato?.id) return setFalhou(true);
+          linkDaFoto(contato.id, { renovar: true }).then((url) => (url && url !== foto ? setFoto(url) : setFalhou(true)));
+        }}
         className={`${tamanho} rounded-full object-cover flex-shrink-0 bg-[#dfe5e7] dark:bg-[#2a3942]`}
       />
     );
@@ -562,8 +585,13 @@ const lerAssinar = () => {
   }
 };
 
-function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEnviarArquivo, onGerenciarRespostas, bloqueio, resposta, onCancelarResposta, edicao, onCancelarEdicao, nomeContato }) {
+const semAcento = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEnviarArquivo, onGerenciarRespostas, bloqueio, resposta, onCancelarResposta, edicao, onCancelarEdicao, nomeContato, participantes = [], pessoasDaEquipe = [] }) {
   const [texto, setTexto] = useState('');
+  // Menções escolhidas na lista do @ (no grupo, viram menção de verdade no WhatsApp)
+  const [mencoes, setMencoes] = useState([]);
+  const [cursor, setCursor] = useState(0);
   const [assinar, setAssinar] = useState(lerAssinar);
   const gravador = useGravadorDeAudio();
   const seletor = useRef(null);
@@ -578,6 +606,7 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
   useEffect(() => {
     setTexto('');
     setModo('responder');
+    setMencoes([]);
   }, [conversa.id]);
 
   // Editar: o campo recebe o texto da mensagem; responder: foco no campo
@@ -598,6 +627,30 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
 
   const busca = /^\/([\w-]*)$/.exec(texto.trimStart())?.[1];
   const sugestoes = busca !== undefined && !nota ? respostas.filter((r) => r.atalho.startsWith(busca.toLowerCase())).slice(0, 6) : [];
+
+  // @ : na nota, equipe e pessoas da empresa do cliente; respondendo no grupo, os participantes do grupo
+  const antesDoCursor = texto.slice(0, cursor);
+  const termoMencao = /(?:^|\s)@([^@\n]{0,30})$/.exec(antesDoCursor)?.[1];
+  const fonteMencao = nota ? pessoasDaEquipe : participantes;
+  const sugestoesMencao =
+    termoMencao !== undefined && !sugestoes.length && fonteMencao.length
+      ? fonteMencao.filter((p) => !termoMencao || semAcento(p.nome).includes(semAcento(termoMencao)) || String(p.telefone || '').includes(termoMencao.replace(/\D/g, '') || '§')).slice(0, 8)
+      : [];
+  const listaAberta = sugestoes.length ? sugestoes : sugestoesMencao;
+  const mencionar = (p) => {
+    const inicio = antesDoCursor.lastIndexOf('@');
+    const nome = p.nome;
+    const novo = `${texto.slice(0, inicio)}@${nome} ${texto.slice(cursor)}`;
+    setTexto(novo);
+    if (!nota && p.jid) setMencoes((l) => [...l.filter((m) => m.jid !== p.jid), { jid: p.jid, nome }]);
+    setIndice(0);
+    const pos = inicio + nome.length + 2;
+    setCursor(pos);
+    requestAnimationFrame(() => {
+      campo.current?.focus();
+      campo.current?.setSelectionRange(pos, pos);
+    });
+  };
   const usar = (r) => {
     setTexto(preencherResposta(r.texto, { contato: conversa.contato, atendente: eu?.nome }));
     setIndice(0);
@@ -609,10 +662,14 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
     if (!t || enviando) return;
     setEnviando(true);
     setTexto('');
+    // Só as menções que continuam no texto
+    const ativas = mencoes.filter((m) => t.includes(`@${m.nome}`));
+    setMencoes([]);
     try {
-      await onEnviar(t, modo, { assinar });
+      await onEnviar(t, modo, { assinar, mencoes: ativas });
     } catch {
       setTexto(t);
+      setMencoes(ativas);
     } finally {
       setEnviando(false);
       requestAnimationFrame(() => campo.current?.focus());
@@ -628,15 +685,17 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
       } else onCancelarResposta();
       return;
     }
-    if (sugestoes.length) {
+    if (listaAberta.length) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
-        setIndice((i) => (i + (e.key === 'ArrowDown' ? 1 : -1) + sugestoes.length) % sugestoes.length);
+        setIndice((i) => (i + (e.key === 'ArrowDown' ? 1 : -1) + listaAberta.length) % listaAberta.length);
         return;
       }
       if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault();
-        usar(sugestoes[Math.min(indice, sugestoes.length - 1)]);
+        const item = listaAberta[Math.min(indice, listaAberta.length - 1)];
+        if (sugestoes.length) usar(item);
+        else mencionar(item);
         return;
       }
     }
@@ -690,14 +749,24 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
     });
   };
 
-  if (bloqueio && !nota) {
+  if (bloqueio && (bloqueio.semNota || !nota)) {
     return (
       <div className="px-4 py-3 bg-[#f0f2f5] dark:bg-[#202c33] flex flex-col sm:flex-row sm:items-center gap-2 text-[13px] text-slate-600 dark:text-[#aebac1]">
-        <span className="flex-1">{bloqueio.texto}</span>
+        <span className="flex-1 flex items-center gap-2">
+          {bloqueio.semNota && (
+            <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="5" y="11" width="14" height="10" rx="2" />
+              <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+            </svg>
+          )}
+          {bloqueio.texto}
+        </span>
         {bloqueio.acao}
-        <button type="button" onClick={() => setModo('nota')} className="h-9 px-3.5 rounded-full text-[13px] font-medium ring-1 ring-black/[0.12] dark:ring-white/[0.15] hover:bg-black/[0.03] dark:hover:bg-white/[0.06] cursor-pointer">
-          Escrever nota interna
-        </button>
+        {!bloqueio.semNota && (
+          <button type="button" onClick={() => setModo('nota')} className="h-9 px-3.5 rounded-full text-[13px] font-medium ring-1 ring-black/[0.12] dark:ring-white/[0.15] hover:bg-black/[0.03] dark:hover:bg-white/[0.06] cursor-pointer">
+            Escrever nota interna
+          </button>
+        )}
       </div>
     );
   }
@@ -705,6 +774,24 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
   return (
     <div className={`relative px-2.5 sm:px-4 pt-2 pb-2.5 ${nota ? 'bg-amber-50 dark:bg-[#2a2516]' : 'bg-[#f0f2f5] dark:bg-[#202c33]'}`}>
       <AnimatePresence>
+        {sugestoesMencao.length > 0 && (
+          <motion.ul initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute left-2.5 right-2.5 sm:left-4 sm:right-auto sm:w-[340px] bottom-[calc(100%-4px)] z-20 rounded-2xl bg-white dark:bg-[#233138] ring-1 ring-black/[0.08] dark:ring-white/[0.08] shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.3)] p-1.5 max-h-[300px] overflow-y-auto" role="listbox" aria-label={nota ? 'Mencionar alguém da equipe' : 'Mencionar participante do grupo'}>
+            <li className="px-3 pt-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{nota ? 'Mencionar na nota' : 'Participantes do grupo'}</li>
+            {sugestoesMencao.map((p, i) => (
+              <li key={p.chave || p.jid || p.nome} role="option" aria-selected={i === indice}>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => mencionar(p)} onMouseEnter={() => setIndice(i)} className={`w-full flex items-center gap-2.5 text-left px-2.5 py-1.5 rounded-xl cursor-pointer ${i === indice ? 'bg-black/[0.05] dark:bg-white/[0.07]' : ''}`}>
+                  <span className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[12px] font-semibold flex-shrink-0" style={{ background: corDe(p.telefone || p.nome) }}>
+                    {iniciais(p.nome)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[14px] font-medium truncate">{p.nome}</span>
+                    <span className="block text-[12px] text-slate-500 dark:text-[#8696a0] truncate">{p.detalhe || (p.telefone ? formatarTelefone(p.telefone) : '')}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </motion.ul>
+        )}
         {sugestoes.length > 0 && (
           <motion.ul initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute left-2.5 right-2.5 sm:left-4 sm:right-4 bottom-[calc(100%-4px)] z-20 rounded-2xl bg-white dark:bg-[#233138] ring-1 ring-black/[0.08] dark:ring-white/[0.08] shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.3)] p-1.5" role="listbox">
             {sugestoes.map((r, i) => (
@@ -836,8 +923,10 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
           value={texto}
           onChange={(e) => {
             setTexto(e.target.value);
+            setCursor(e.target.selectionStart ?? e.target.value.length);
             setIndice(0);
           }}
+          onSelect={(e) => setCursor(e.currentTarget.selectionStart ?? 0)}
           onKeyDown={tecla}
           onPaste={colar}
           rows={1}
@@ -948,8 +1037,19 @@ function JanelaOficial({ conversa }) {
   );
 }
 
-function PainelConversa({ conversaId, eu, sinal, respostas, onAtualizada, onContatoMudou, onAbrirConversa, onExcluida, onVoltar, onGerenciarRespostas }) {
-  const [conversa, setConversa] = useState(null);
+// Conversas já abertas nesta sessão: reabrir mostra na hora e atualiza por trás
+const CONVERSAS_GUARDADAS = new Map();
+const guardarConversa = (id, dados) => {
+  if (CONVERSAS_GUARDADAS.size > 30) CONVERSAS_GUARDADAS.delete(CONVERSAS_GUARDADAS.keys().next().value);
+  CONVERSAS_GUARDADAS.set(id, dados);
+};
+
+function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, respostas, onAtualizada, onContatoMudou, onAbrirConversa, onExcluida, onVoltar, onRecolher, onGerenciarRespostas }) {
+  const [participantes, setParticipantes] = useState([]);
+  const guardada = CONVERSAS_GUARDADAS.get(conversaId);
+  // O topo aparece na hora: da memória ou com os dados que a lista já tem
+  const [conversa, setConversa] = useState(() => guardada?.conversa || conversaInicial || null);
+  const [carregada, setCarregada] = useState(Boolean(guardada));
   const [previa, setPrevia] = useState(null);
   const [perfil, setPerfil] = useState(false);
   const [resposta, setResposta] = useState(null);
@@ -958,8 +1058,8 @@ function PainelConversa({ conversaId, eu, sinal, respostas, onAtualizada, onCont
   const [fixadas, setFixadas] = useState([]);
   const [fixadaAtual, setFixadaAtual] = useState(0);
   const [versaoFoto, setVersaoFoto] = useState(0);
-  const [mensagens, setMensagens] = useState([]);
-  const [temMais, setTemMais] = useState(false);
+  const [mensagens, setMensagens] = useState(() => guardada?.mensagens || []);
+  const [temMais, setTemMais] = useState(() => Boolean(guardada?.temMais));
   const [erro, setErro] = useState('');
   const [ocupado, setOcupado] = useState(null);
   const rolagem = useRef(null);
@@ -994,8 +1094,6 @@ function PainelConversa({ conversaId, eu, sinal, respostas, onAtualizada, onCont
 
   useEffect(() => {
     atual.current = conversaId;
-    setConversa(null);
-    setMensagens([]);
     setErro('');
     colarNoFim.current = true;
     // Primeira abertura: o servidor registra a visualização na auditoria
@@ -1003,9 +1101,10 @@ function PainelConversa({ conversaId, eu, sinal, respostas, onAtualizada, onCont
       .then((r) => {
         if (atual.current !== conversaId) return;
         setConversa(r.conversa);
-        setMensagens(r.mensagens);
+        setMensagens((lista) => (lista.length ? juntar(lista, r.mensagens) : r.mensagens));
         setFixadas(r.fixadas || []);
         setTemMais(r.temMais);
+        setCarregada(true);
         if (r.conversa.nao_lidas > 0) acaoConversa(conversaId, { acao: 'lida' }).then(() => onAtualizada({ ...r.conversa, nao_lidas: 0 })).catch(() => {});
       })
       .catch((e) => setErro(e.message));
@@ -1081,7 +1180,7 @@ function PainelConversa({ conversaId, eu, sinal, respostas, onAtualizada, onCont
     }
   };
 
-  const enviar = async (texto, modo, { assinar = true } = {}) => {
+  const enviar = async (texto, modo, { assinar = true, mencoes = [] } = {}) => {
     // Editando: salva a edição em vez de mandar uma nova mensagem
     if (edicao && modo !== 'nota') {
       const alvo = edicao;
@@ -1102,7 +1201,7 @@ function PainelConversa({ conversaId, eu, sinal, respostas, onAtualizada, onCont
     colarNoFim.current = true;
     setMensagens((l) => [...l, tmp]);
     try {
-      const r = await acaoConversa(conversaId, { acao: modo === 'nota' ? 'nota' : 'enviar', texto, assinar, ...(citada ? { responde_a: citada.id } : {}) });
+      const r = await acaoConversa(conversaId, { acao: modo === 'nota' ? 'nota' : 'enviar', texto, assinar, ...(citada ? { responde_a: citada.id } : {}), ...(mencoes.length && modo !== 'nota' ? { mencoes } : {}) });
       setMensagens((l) => juntar(l.filter((m) => m.id !== tmp.id), [citada ? { ...r.mensagem, citada } : r.mensagem]));
       if (r.conversa) {
         setConversa(r.conversa);
@@ -1115,6 +1214,41 @@ function PainelConversa({ conversaId, eu, sinal, respostas, onAtualizada, onCont
       throw e;
     }
   };
+
+  useEffect(() => {
+    if (carregada && conversa) guardarConversa(conversaId, { conversa, mensagens: mensagens.filter((m) => !String(m.id).startsWith('tmp-')), temMais });
+  }, [carregada, conversa, mensagens, temMais, conversaId]);
+
+  // Participantes do grupo (para o @ respondendo no grupo)
+  const ehDeGrupo = ehGrupo(conversa?.contato?.telefone);
+  useEffect(() => {
+    if (!ehDeGrupo) return;
+    fetchParticipantesConversa(conversaId)
+      .then((r) => setParticipantes((r.participantes || []).map((p) => ({ ...p, nome: p.nome || formatarTelefone(p.telefone) || 'Participante', detalhe: p.admin ? 'Administrador do grupo' : p.telefone ? formatarTelefone(p.telefone) : '' }))))
+      .catch(() => {});
+  }, [conversaId, ehDeGrupo]);
+  // Pessoas para mencionar na nota: a equipe e os colaboradores da empresa ligada ao contato
+  const pessoasDaEquipe = useMemo(() => {
+    const equipe = getEquipeUsuarios()
+      .filter((u) => u.ativo !== false && u.email)
+      .map((u) => ({ chave: u.email, nome: u.nome || u.email.split('@')[0], detalhe: 'Equipe' }));
+    const daEmpresa = getColaboradoresEmpresa(conversa?.contato?.empresa_id).map((c) => ({ chave: `c-${c.id || c.nome}`, nome: c.nome, detalhe: c.cargo ? `${c.cargo} · cliente` : 'Empresa do cliente', telefone: c.telefone }));
+    return [...equipe, ...daEmpresa].filter((p) => p.nome);
+  }, [conversa?.contato?.empresa_id]);
+
+  // Veio da busca: rola até a mensagem (carregando as anteriores, se precisar)
+  const alvoFeito = useRef(null);
+  useEffect(() => {
+    if (!mensagemAlvo || alvoFeito.current === mensagemAlvo.id || !mensagens.length) return;
+    if (mensagens.some((m) => m.id === mensagemAlvo.id)) {
+      alvoFeito.current = mensagemAlvo.id;
+      requestAnimationFrame(() => irPara(mensagemAlvo.id));
+    } else if (temMais && new Date(mensagens[0].criado_em) > new Date(mensagemAlvo.criado_em)) {
+      colarNoFim.current = false;
+      anteriores();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mensagens, mensagemAlvo]);
 
   const irPara = useCallback((id) => {
     const el = document.getElementById(`msg-${id}`);
@@ -1232,6 +1366,8 @@ function PainelConversa({ conversaId, eu, sinal, respostas, onAtualizada, onCont
   const oficial = conversa.canal?.tipo === 'whatsapp_oficial';
   const janelaFechada = oficial && !janelaAtendimento(conversa).aberta;
   const canalFora = !conversa.canal?.ativo || conversa.canal?.status !== 'conectado';
+  // Como no RM Chat: só quem assumiu responde (grupos não têm responsável único)
+  const precisaAssumir = !resolvida && !ehDeGrupo && conversa.responsavel_email !== eu?.email;
   const bloqueio = resolvida
     ? {
         texto: 'Conversa resolvida.',
@@ -1241,6 +1377,16 @@ function PainelConversa({ conversaId, eu, sinal, respostas, onAtualizada, onCont
           </button>
         ),
       }
+    : precisaAssumir
+      ? {
+          semNota: true,
+          texto: conversa.responsavel_email ? `Esta conversa está com ${conversa.responsavel_nome || 'outra pessoa'}. Assuma para responder.` : 'Conversa na fila de pendentes. Assuma para responder.',
+          acao: (
+            <button type="button" onClick={() => acao('assumir', { acao: 'assumir' }, 'Conversa assumida.')} disabled={Boolean(ocupado)} className="h-9 px-4 rounded-full text-[13px] font-semibold bg-[#00a884] text-white cursor-pointer disabled:opacity-50">
+              Assumir conversa
+            </button>
+          ),
+        }
     : canalFora
       ? { texto: `O canal ${conversa.canal?.nome || ''} está desconectado. Reconecte em Canais para responder.` }
       : janelaFechada
@@ -1252,6 +1398,15 @@ function PainelConversa({ conversaId, eu, sinal, respostas, onAtualizada, onCont
     <div className="flex-1 min-w-0 flex relative">
     <div className="flex-1 min-w-0 flex flex-col relative">
       <header className="h-[60px] flex-shrink-0 px-2 sm:px-4 flex items-center gap-2.5 bg-[#f0f2f5] dark:bg-[#202c33] border-b border-black/[0.06] dark:border-white/[0.04]">
+        {onRecolher && (
+          <button type="button" onClick={onRecolher} aria-label="Recolher conversa" title="Recolher conversa (voltar ao Kanban)" className="hidden md:flex w-9 h-9 rounded-full items-center justify-center text-[#54656f] dark:text-[#aebac1] hover:bg-black/[0.05] dark:hover:bg-white/[0.06] cursor-pointer flex-shrink-0">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 4v16" />
+              <path d="M14 9l-3 3 3 3" />
+              <rect x="3" y="4" width="18" height="16" rx="2" />
+            </svg>
+          </button>
+        )}
         <button type="button" onClick={onVoltar} aria-label="Voltar para as conversas" className="md:hidden w-9 h-9 rounded-full flex items-center justify-center hover:bg-black/[0.05] dark:hover:bg-white/[0.06] cursor-pointer">
           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M15 18l-6-6 6-6" />
@@ -1347,7 +1502,12 @@ function PainelConversa({ conversaId, eu, sinal, respostas, onAtualizada, onCont
               </button>
             </div>
           )}
-          {mensagens.length === 0 && <p className="text-center text-[13px] text-slate-500 dark:text-[#8696a0] mt-10">Nenhuma mensagem ainda.</p>}
+          {!carregada && mensagens.length === 0 && (
+            <div className="flex justify-center mt-16 text-slate-400">
+              <Spinner />
+            </div>
+          )}
+          {carregada && mensagens.length === 0 && <p className="text-center text-[13px] text-slate-500 dark:text-[#8696a0] mt-10">Nenhuma mensagem ainda.</p>}
           {grupos.map((g) =>
             g.dia ? (
               <div key={g.chave} className="flex justify-center my-3 sticky top-0 z-10">
@@ -1374,6 +1534,8 @@ function PainelConversa({ conversaId, eu, sinal, respostas, onAtualizada, onCont
         edicao={edicao}
         onCancelarEdicao={() => setEdicao(null)}
         nomeContato={nomeDoContato(conversa)}
+        participantes={participantes}
+        pessoasDaEquipe={pessoasDaEquipe}
       />
       <ModalEtapas aberto={Boolean(dados)} onFechar={() => setDados(null)} largura="max-w-lg" idTitulo="dados-mensagem-titulo" titulo="Dados da mensagem" rodape={null}>
         {dados && <DadosMensagem m={dados} canal={conversa.canal} />}
@@ -1418,7 +1580,7 @@ function PainelConversa({ conversaId, eu, sinal, respostas, onAtualizada, onCont
 // ------------------------------------------------------------------------------
 // Nova conversa
 // ------------------------------------------------------------------------------
-function NovaConversaModal({ aberto, onFechar, onCriada }) {
+function NovaConversaModal({ aberto, onFechar, onCriada, telefoneInicial = '' }) {
   const [canais, setCanais] = useState([]);
   const [dados, setDados] = useState({ canal_id: '', telefone: '', texto: '' });
   const [erro, setErro] = useState('');
@@ -1426,7 +1588,7 @@ function NovaConversaModal({ aberto, onFechar, onCriada }) {
   useEffect(() => {
     if (!aberto) return;
     setErro('');
-    setDados({ canal_id: '', telefone: '', texto: '' });
+    setDados({ canal_id: '', telefone: telefoneInicial, texto: '' });
     fetchCanais()
       .then((r) => {
         const prontos = r.canais.filter((c) => c.ativo && c.status === 'conectado' && c.tipo === 'whatsapp_qr');
@@ -1505,31 +1667,113 @@ function NovaConversaModal({ aberto, onFechar, onCriada }) {
 // ------------------------------------------------------------------------------
 // Tela
 // ------------------------------------------------------------------------------
+// Abas como no RM Chat: quem chega sem atendente fica em Pendentes; quem tem atendente, em Ativos
 const ABAS = [
-  { id: 'fila', rotulo: 'Fila' },
-  { id: 'minhas', rotulo: 'Minhas' },
-  { id: 'todas', rotulo: 'Todas' },
+  { id: 'ativos', rotulo: 'Ativos' },
+  { id: 'pendentes', rotulo: 'Pendentes' },
   { id: 'grupos', rotulo: 'Grupos' },
   { id: 'resolvidas', rotulo: 'Resolvidas' },
 ];
 const ehConversaDeGrupo = (c) => ehGrupo(c?.contato?.telefone);
+const PERIODOS_BUSCA = [
+  { dias: 7, rotulo: '7 dias' },
+  { dias: 30, rotulo: '30 dias' },
+  { dias: 90, rotulo: '90 dias' },
+  { dias: 365, rotulo: '1 ano' },
+];
+
+/** Uma conversa na lista ou no card do Kanban. */
+function ItemConversa({ c, ativa, eu, onAbrir, cartao = false }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onAbrir(c.id)}
+      className={
+        cartao
+          ? `w-full flex items-start gap-2.5 p-3 rounded-2xl text-left cursor-pointer transition-all bg-white dark:bg-[#202c33] ring-1 ${ativa ? 'ring-2 ring-[#00a884]' : 'ring-black/[0.06] dark:ring-white/[0.06] hover:ring-black/[0.14] dark:hover:ring-white/[0.16] hover:shadow-sm'}`
+          : `w-full flex items-center gap-3 pl-3 pr-3.5 py-2.5 text-left cursor-pointer transition-colors ${ativa ? 'bg-[#f0f2f5] dark:bg-[#2a3942]' : 'hover:bg-[#f5f6f6] dark:hover:bg-[#202c33]'}`
+      }
+    >
+      <Avatar conversa={c} tamanho={cartao ? 'w-9 h-9 text-[12px]' : undefined} />
+      <div className={`min-w-0 flex-1 ${cartao ? '' : 'border-b border-black/[0.05] dark:border-white/[0.05] pb-2.5 -mb-2.5'}`}>
+        <div className="flex items-baseline gap-2">
+          <span className={`flex-1 truncate text-[#111b21] dark:text-[#e9edef] ${cartao ? 'text-[14px] font-medium' : 'text-[15.5px]'}`}>{nomeDoContato(c)}</span>
+          <span className={`text-[11.5px] flex-shrink-0 ${c.nao_lidas ? 'text-[#00a884] font-semibold' : 'text-[#667781] dark:text-[#8696a0]'}`}>{quandoNaLista(c.ultima_mensagem_em || c.criado_em)}</span>
+        </div>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className={`flex-1 text-[13px] text-[#667781] dark:text-[#8696a0] ${cartao ? 'line-clamp-2' : 'truncate text-[13.5px]'}`}>{c.ultima_mensagem_texto || 'Sem mensagens'}</span>
+          {c.nao_lidas > 0 && <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#00a884] text-white dark:text-[#111b21] text-[11.5px] font-bold flex items-center justify-center tabular-nums flex-shrink-0">{c.nao_lidas > 99 ? '99+' : c.nao_lidas}</span>}
+        </div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+          <Etiquetas conversa={c} eu={eu} />
+        </div>
+      </div>
+    </button>
+  );
+}
+
+/** Trecho da mensagem com o termo buscado em destaque (texto puro, sem HTML). */
+function Trecho({ texto, termo }) {
+  const t = String(texto || '');
+  const i = semAcento(t).indexOf(semAcento(termo));
+  if (i < 0) return <>{t.slice(0, 120)}</>;
+  const ini = Math.max(0, i - 40);
+  return (
+    <>
+      {ini > 0 ? '…' : ''}
+      {t.slice(ini, i)}
+      <mark className="bg-[#00a884]/20 text-inherit rounded px-0.5">{t.slice(i, i + termo.length)}</mark>
+      {t.slice(i + termo.length, i + termo.length + 80)}
+    </>
+  );
+}
 
 export default function ChatView() {
   const [abertas, setAbertas] = useState(null);
   const [resolvidas, setResolvidas] = useState(null);
   const [eu, setEu] = useState(null);
   const [erro, setErro] = useState('');
-  const [aba, setAba] = useState('fila');
+  const [aba, setAba] = useState('ativos');
+  // Visão: lista (como o WhatsApp) ou Kanban (uma coluna por fila)
+  const [visao, setVisao] = useState('lista');
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('rm_chat_visao') === 'kanban') setVisao('kanban');
+    } catch {}
+  }, []);
+  const trocarVisao = () =>
+    setVisao((v) => {
+      const nova = v === 'kanban' ? 'lista' : 'kanban';
+      try {
+        localStorage.setItem('rm_chat_visao', nova);
+      } catch {}
+      return nova;
+    });
   const [busca, setBusca] = useState('');
   const [selecionada, setSelecionada] = useState(null);
+  const [mensagemAlvo, setMensagemAlvo] = useState(null);
   const [sinal, setSinal] = useState(0);
   const [respostas, setRespostas] = useState([]);
   const [gerenciar, setGerenciar] = useState(false);
-  const [novaConversa, setNovaConversa] = useState(false);
+  const [novaConversa, setNovaConversa] = useState(null);
   const [config, setConfig] = useState({ grupos: 'desligado' });
+  const [filtros, setFiltros] = useState(FILTROS_PADRAO);
+  const [lembrarFiltros, setLembrarFiltros] = useState(false);
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  const [contatosAbertos, setContatosAbertos] = useState(false);
+  // Busca: nas conversas (nome, número) ou em todas as mensagens, num período
+  const [modoBusca, setModoBusca] = useState('conversas');
+  const [periodo, setPeriodo] = useState(30);
+  const [resultados, setResultados] = useState(null);
+  const [buscando, setBuscando] = useState(false);
   const escolhidaPorPadrao = useRef(false);
-  // "Aba própria": grupos ficam fora da Fila, Minhas e Todas
   const gruposAParte = config.grupos === 'aba';
+
+  useEffect(() => {
+    const salvo = lerFiltrosSalvos();
+    setFiltros(salvo.filtros);
+    setLembrarFiltros(salvo.lembrar);
+  }, []);
 
   const carregar = useCallback(async () => {
     try {
@@ -1538,14 +1782,7 @@ export default function ChatView() {
       setEu(r.eu);
       if (r.config) setConfig(r.config);
       setErro('');
-      // Primeira vez: abre na aba que tem algo para fazer
-      if (!escolhidaPorPadrao.current) {
-        escolhidaPorPadrao.current = true;
-        const individuais = r.config?.grupos === 'aba' ? r.conversas.filter((c) => !ehConversaDeGrupo(c)) : r.conversas;
-        const minhas = individuais.some((c) => c.responsavel_email === r.eu.email);
-        const fila = individuais.some((c) => !c.responsavel_email);
-        setAba(fila ? 'fila' : minhas ? 'minhas' : 'todas');
-      }
+      escolhidaPorPadrao.current = true;
     } catch (e) {
       setErro(e.message);
     }
@@ -1585,44 +1822,82 @@ export default function ChatView() {
     if (aba === 'resolvidas') carregarResolvidas();
   }, [aba, carregarResolvidas]);
 
-  const atualizada = useCallback(
+  const atualizada = useCallback((c) => {
+    const aplicar = (lista) => (lista ? (lista.some((x) => x.id === c.id) ? lista.map((x) => (x.id === c.id ? { ...x, ...c } : x)) : [c, ...lista]) : lista);
+    if (c.status === 'resolvida') {
+      setAbertas((l) => (l || []).filter((x) => x.id !== c.id));
+      setResolvidas(aplicar);
+    } else {
+      setAbertas(aplicar);
+      setResolvidas((l) => (l ? l.filter((x) => x.id !== c.id) : l));
+    }
+  }, []);
+
+  // Escopo: cada pessoa vê as suas em Ativos e Resolvidas; administrador pode ver todos (ou de alguém)
+  const doEscopo = useCallback(
     (c) => {
-      const aplicar = (lista) => (lista ? (lista.some((x) => x.id === c.id) ? lista.map((x) => (x.id === c.id ? { ...x, ...c } : x)) : [c, ...lista]) : lista);
-      if (c.status === 'resolvida') {
-        setAbertas((l) => (l || []).filter((x) => x.id !== c.id));
-        setResolvidas(aplicar);
-      } else {
-        setAbertas(aplicar);
-        setResolvidas((l) => (l ? l.filter((x) => x.id !== c.id) : l));
-      }
+      if (eu?.admin && filtros.verTodos) return !filtros.usuario || c.responsavel_email === filtros.usuario;
+      return c.responsavel_email === eu?.email;
     },
-    []
+    [eu, filtros.verTodos, filtros.usuario]
   );
+  const comportamento = useCallback((c) => (!filtros.naoLidas || c.nao_lidas > 0) && (!filtros.naoRespondidos || naoRespondida(c)), [filtros.naoLidas, filtros.naoRespondidos]);
 
   const contagem = useMemo(() => {
     const todas = abertas || [];
-    const l = gruposAParte ? todas.filter((c) => !ehConversaDeGrupo(c)) : todas;
+    const individuais = gruposAParte ? todas.filter((c) => !ehConversaDeGrupo(c)) : todas;
     return {
-      fila: l.filter((c) => !c.responsavel_email).length,
-      minhas: l.filter((c) => c.responsavel_email === eu?.email).length,
-      todas: l.length,
+      pendentes: individuais.filter((c) => !c.responsavel_email && comportamento(c)).length,
+      ativos: individuais.filter((c) => c.responsavel_email && doEscopo(c) && comportamento(c)).length,
       grupos: todas.filter((c) => ehConversaDeGrupo(c) && c.nao_lidas > 0).length,
     };
-  }, [abertas, eu, gruposAParte]);
+  }, [abertas, gruposAParte, doEscopo, comportamento]);
 
-  const lista = useMemo(() => {
-    let l = aba === 'resolvidas' ? resolvidas || [] : abertas || [];
-    if (aba === 'grupos') l = l.filter(ehConversaDeGrupo);
-    else if (gruposAParte && aba !== 'resolvidas') l = l.filter((c) => !ehConversaDeGrupo(c));
-    if (aba === 'fila') l = l.filter((c) => !c.responsavel_email);
-    if (aba === 'minhas') l = l.filter((c) => c.responsavel_email === eu?.email);
-    const b = busca.trim().toLowerCase();
+  const filtrar = useCallback((qual) => {
+    let l = qual === 'resolvidas' ? resolvidas || [] : abertas || [];
+    if (qual === 'grupos') l = l.filter(ehConversaDeGrupo);
+    else if (gruposAParte && qual !== 'resolvidas') l = l.filter((c) => !ehConversaDeGrupo(c));
+    if (qual === 'pendentes') l = l.filter((c) => !c.responsavel_email);
+    if (qual === 'ativos') l = l.filter((c) => c.responsavel_email && doEscopo(c));
+    if (qual === 'resolvidas') l = l.filter((c) => doEscopo(c) || ehConversaDeGrupo(c));
+    l = l.filter(comportamento);
+    const b = modoBusca === 'conversas' ? busca.trim().toLowerCase() : '';
     if (b) {
       const digitos = b.replace(/\D/g, '');
-      l = l.filter((c) => String(c.contato?.nome || '').toLowerCase().includes(b) || (digitos && String(c.contato?.telefone || '').includes(digitos)) || String(c.ultima_mensagem_texto || '').toLowerCase().includes(b));
+      l = l.filter((c) => semAcento(c.contato?.nome).includes(semAcento(b)) || (digitos && String(c.contato?.telefone || '').includes(digitos)) || semAcento(c.ultima_mensagem_texto).includes(semAcento(b)));
     }
-    return [...l].sort((a, b2) => new Date(b2.ultima_mensagem_em || b2.criado_em) - new Date(a.ultima_mensagem_em || a.criado_em));
-  }, [aba, abertas, resolvidas, busca, eu, gruposAParte]);
+    const quando = (c) => new Date(c.ultima_mensagem_em || c.criado_em).getTime();
+    return [...l].sort((x, y) => (filtros.ordem === 'antigos' ? quando(x) - quando(y) : quando(y) - quando(x)));
+  }, [abertas, resolvidas, busca, modoBusca, gruposAParte, doEscopo, comportamento, filtros.ordem]);
+  const lista = useMemo(() => filtrar(aba), [filtrar, aba]);
+  const colunasKanban = ABAS.filter((a) => a.id !== 'grupos' || gruposAParte);
+  const kanban = visao === 'kanban';
+  // O Kanban mostra a coluna Resolvidas desde o início
+  useEffect(() => {
+    if (kanban && resolvidas === null) carregarResolvidas();
+  }, [kanban, resolvidas, carregarResolvidas]);
+
+  // Busca nas mensagens (só quando pedida, com período, para não pesar)
+  useEffect(() => {
+    if (modoBusca !== 'mensagens') return undefined;
+    const termo = busca.trim();
+    if (termo.length < 2) {
+      setResultados(null);
+      return undefined;
+    }
+    let vivo = true;
+    const t = setTimeout(() => {
+      setBuscando(true);
+      buscarMensagensChat(termo, periodo)
+        .then((r) => vivo && setResultados(r.resultados))
+        .catch((e) => vivo && showToast(e.message, 'error'))
+        .finally(() => vivo && setBuscando(false));
+    }, 450);
+    return () => {
+      vivo = false;
+      clearTimeout(t);
+    };
+  }, [modoBusca, busca, periodo]);
 
   // Fotos: busca no WhatsApp a de quem ainda não tem (2 por vez; cada contato no máximo 1 vez por dia)
   const buscandoFotos = useRef(false);
@@ -1659,9 +1934,22 @@ export default function ChatView() {
   }, [abertas?.length]);
 
   // O número da aba Chat no cabeçalho acompanha a tela na hora
+  // e o vigia de avisos (som + central) usa a mesma lista, sem consultar o servidor de novo
   useEffect(() => {
-    if (abertas) window.dispatchEvent(new CustomEvent('rm_chat_contagem', { detail: contarConversasNovas(abertas, config) }));
+    if (abertas) window.dispatchEvent(new CustomEvent('rm_chat_conversas', { detail: { conversas: abertas, config } }));
   }, [abertas, config]);
+  useEffect(() => {
+    window.__rmChatMontado = true;
+    return () => {
+      window.__rmChatMontado = false;
+    };
+  }, []);
+  useEffect(() => {
+    window.__rmChatAberta = selecionada;
+    return () => {
+      window.__rmChatAberta = null;
+    };
+  }, [selecionada]);
 
   const contatoMudou = useCallback((c) => {
     const aplicar = (l) => (l ? l.map((x) => (x.contato?.id === c.id ? { ...x, contato: { ...x.contato, ...c } } : x)) : l);
@@ -1669,19 +1957,73 @@ export default function ChatView() {
     setResolvidas(aplicar);
   }, []);
 
+  const abrir = (id, alvo = null) => {
+    setMensagemAlvo(alvo);
+    setSelecionada(id);
+  };
+
+  // Contato da agenda: abre a conversa dele (a aberta, se houver) ou começa uma nova
+  const abrirContato = async (c) => {
+    try {
+      const r = await fetchContatoChat(c.id);
+      const conversas = r.conversas || [];
+      const alvo = conversas.find((x) => x.status !== 'resolvida') || conversas[0];
+      setContatosAbertos(false);
+      if (alvo) {
+        atualizada(alvo);
+        if (alvo.status === 'resolvida') setAba('resolvidas');
+        abrir(alvo.id);
+      } else setNovaConversa({ telefone: c.telefone });
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  };
+
   const carregando = aba === 'resolvidas' ? resolvidas === null : abertas === null;
+  const mostrandoBuscaMensagens = modoBusca === 'mensagens' && busca.trim().length >= 2;
+  const vazio = {
+    pendentes: ['Ninguém esperando', 'Clientes sem atendente aparecem aqui.'],
+    ativos: ['Nenhum atendimento ativo', eu?.admin && !filtros.verTodos ? 'Conversas que você assumir aparecem aqui. Para ver as da equipe, use os filtros.' : 'Conversas que você assumir aparecem aqui.'],
+    grupos: ['Nenhum grupo com mensagens', ''],
+    resolvidas: ['Nenhuma conversa resolvida', ''],
+  }[aba];
 
   return (
-    <div className="h-[calc(100dvh-178px)] md:h-[calc(100dvh-40px-var(--rm-cabecalho,78px))] md:transition-[height] md:duration-500 min-h-[460px] flex rounded-[22px] overflow-hidden ring-1 ring-black/[0.08] dark:ring-white/[0.08] bg-white dark:bg-[#111b21] shadow-[0_10px_40px_-18px_rgba(0,0,0,0.25)]">
+    <div className="h-[calc(100dvh-178px)] sm:h-[calc(100dvh-40px-var(--rm-cabecalho,78px))] sm:transition-[height] sm:duration-500 min-h-[460px] flex rounded-[22px] overflow-hidden ring-1 ring-black/[0.08] dark:ring-white/[0.08] bg-white dark:bg-[#111b21] shadow-[0_10px_40px_-18px_rgba(0,0,0,0.25)]">
       {/* Lista */}
-      <aside className={`${selecionada ? 'hidden md:flex' : 'flex'} w-full md:w-[340px] lg:w-[380px] flex-shrink-0 flex-col border-r border-black/[0.07] dark:border-white/[0.06] bg-white dark:bg-[#111b21]`}>
-        <div className="px-4 pt-4 pb-2 flex items-center gap-2">
+      <aside
+        className={`${selecionada ? 'hidden md:flex' : 'flex'} ${
+          kanban ? (selecionada ? 'md:w-[44%] lg:w-[46%]' : 'w-full') : 'w-full md:w-[340px] lg:w-[380px]'
+        } flex-shrink-0 flex-col border-r border-black/[0.07] dark:border-white/[0.06] bg-white dark:bg-[#111b21] transition-[width] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]`}
+      >
+        <div className="px-4 pt-4 pb-2 flex items-center gap-1">
           <h1 className="text-[22px] font-semibold tracking-tight text-[#111b21] dark:text-[#e9edef] flex-1">Chat</h1>
-          <button type="button" onClick={() => setNovaConversa(true)} aria-label="Nova conversa" title="Nova conversa" className="w-9 h-9 rounded-full flex items-center justify-center text-[#54656f] dark:text-[#aebac1] hover:bg-black/[0.05] dark:hover:bg-white/[0.06] cursor-pointer">
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
-            </svg>
-          </button>
+          {[
+            {
+              rotulo: 'Contatos',
+              acao: () => setContatosAbertos(true),
+              d: ['M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75'],
+            },
+            {
+              rotulo: 'Filtros avançados',
+              acao: () => setFiltrosAbertos(true),
+              d: ['M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0', 'M16 4v4M10 10v4M18 16v4'],
+              marcado: filtrosAtivos(filtros),
+            },
+            kanban
+              ? { rotulo: 'Ver em lista', acao: trocarVisao, d: ['M8 6h13M8 12h13M8 18h13', 'M3.5 6h.01M3.5 12h.01M3.5 18h.01'] }
+              : { rotulo: 'Ver em Kanban', acao: trocarVisao, d: ['M4 4h4.5v16H4z', 'M10 4h4.5v10H10z', 'M16 4h4.5v13H16z'] },
+            { rotulo: 'Nova conversa', acao: () => setNovaConversa({}), d: ['M12 20h9', 'M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z'] },
+          ].map((b) => (
+            <button key={b.rotulo} type="button" onClick={b.acao} aria-label={b.rotulo} title={b.rotulo} className="relative w-9 h-9 rounded-full flex items-center justify-center text-[#54656f] dark:text-[#aebac1] hover:bg-black/[0.05] dark:hover:bg-white/[0.06] cursor-pointer">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                {b.d.map((d) => (
+                  <path key={d} d={d} />
+                ))}
+              </svg>
+              {b.marcado && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#00a884] ring-2 ring-white dark:ring-[#111b21]" />}
+            </button>
+          ))}
         </div>
         <div className="px-3 pb-2">
           <div className="relative">
@@ -1689,89 +2031,160 @@ export default function ChatView() {
               <circle cx="11" cy="11" r="7" />
               <path d="M20 20l-3.5-3.5" />
             </svg>
-            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Pesquisar nome, número ou mensagem" aria-label="Pesquisar conversas" className="w-full h-9 rounded-lg pl-10 pr-3 text-[14px] bg-[#f0f2f5] dark:bg-[#202c33] text-[#111b21] dark:text-[#e9edef] placeholder:text-[#667781] dark:placeholder:text-[#8696a0] outline-none focus:ring-2 focus:ring-[#00a884]/40" />
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder={modoBusca === 'mensagens' ? 'Buscar em todas as mensagens' : 'Pesquisar nome ou número'}
+              aria-label={modoBusca === 'mensagens' ? 'Buscar em todas as mensagens' : 'Pesquisar conversas'}
+              className="w-full h-9 rounded-lg pl-10 pr-3 text-[14px] bg-[#f0f2f5] dark:bg-[#202c33] text-[#111b21] dark:text-[#e9edef] placeholder:text-[#667781] dark:placeholder:text-[#8696a0] outline-none focus:ring-2 focus:ring-[#00a884]/40"
+            />
           </div>
-          <div className="flex gap-1 mt-2.5 overflow-x-auto pb-0.5 [scrollbar-width:none]" role="tablist">
-            {ABAS.filter((a) => a.id !== 'grupos' || gruposAParte).map((a) => (
-              <button
-                key={a.id}
-                type="button"
-                role="tab"
-                aria-selected={aba === a.id}
-                onClick={() => setAba(a.id)}
-                className={`h-8 px-2.5 rounded-full text-[13px] font-medium whitespace-nowrap cursor-pointer transition-colors ${aba === a.id ? 'bg-[#d9fdd3] text-[#008069] dark:bg-[#0a332c] dark:text-[#00d4a4]' : 'bg-[#f0f2f5] dark:bg-[#202c33] text-[#54656f] dark:text-[#8696a0] hover:bg-[#e6e8eb] dark:hover:bg-[#26353d]'}`}
-              >
-                {a.rotulo}
-                {contagem[a.id] ? <span className="ml-1.5 tabular-nums opacity-80">{contagem[a.id]}</span> : null}
+          <div className="flex items-center gap-1 mt-2 text-[12px]">
+            {[
+              ['conversas', 'Conversas'],
+              ['mensagens', 'Mensagens'],
+            ].map(([id, rotulo]) => (
+              <button key={id} type="button" onClick={() => setModoBusca(id)} aria-pressed={modoBusca === id} className={`h-6 px-2.5 rounded-full font-medium cursor-pointer ${modoBusca === id ? 'bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f]' : 'text-[#54656f] dark:text-[#8696a0] hover:bg-black/[0.05] dark:hover:bg-white/[0.06]'}`}>
+                {rotulo}
               </button>
             ))}
+            {modoBusca === 'mensagens' && (
+              <select value={periodo} onChange={(e) => setPeriodo(Number(e.target.value))} aria-label="Período da busca" className="ml-auto h-6 rounded-full px-2 bg-[#f0f2f5] dark:bg-[#202c33] text-[12px] cursor-pointer outline-none">
+                {PERIODOS_BUSCA.map((p) => (
+                  <option key={p.dias} value={p.dias}>
+                    Últimos {p.rotulo}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
+          {!mostrandoBuscaMensagens && !kanban && (
+            <div className="flex gap-1 mt-2.5 overflow-x-auto pb-0.5 [scrollbar-width:none]" role="tablist">
+              {ABAS.filter((a) => a.id !== 'grupos' || gruposAParte).map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={aba === a.id}
+                  onClick={() => setAba(a.id)}
+                  className={`h-8 px-2.5 rounded-full text-[13px] font-medium whitespace-nowrap cursor-pointer transition-colors ${aba === a.id ? 'bg-[#d9fdd3] text-[#008069] dark:bg-[#0a332c] dark:text-[#00d4a4]' : 'bg-[#f0f2f5] dark:bg-[#202c33] text-[#54656f] dark:text-[#8696a0] hover:bg-[#e6e8eb] dark:hover:bg-[#26353d]'}`}
+                >
+                  {a.rotulo}
+                  {contagem[a.id] ? <span className="ml-1.5 tabular-nums opacity-80">{contagem[a.id]}</span> : null}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="flex-1 overflow-y-auto">
-          {erro ? (
+        <div className={`flex-1 ${kanban && !mostrandoBuscaMensagens ? 'min-h-0 overflow-hidden' : 'overflow-y-auto'}`}>
+          {mostrandoBuscaMensagens ? (
+            buscando && !resultados ? (
+              <div className="flex justify-center py-10 text-slate-400">
+                <Spinner />
+              </div>
+            ) : !resultados?.length ? (
+              <p className="px-6 py-14 text-center text-[13.5px] text-[#667781] dark:text-[#8696a0]">Nenhuma mensagem com “{busca.trim()}” nos últimos {PERIODOS_BUSCA.find((p) => p.dias === periodo)?.rotulo}.</p>
+            ) : (
+              <ul>
+                {resultados.map((m) => (
+                  <li key={m.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        atualizada(m.conversa);
+                        if (m.conversa.status === 'resolvida') setAba('resolvidas');
+                        abrir(m.conversa_id, { id: m.id, criado_em: m.criado_em });
+                      }}
+                      className={`w-full flex items-start gap-3 px-3 py-2.5 text-left cursor-pointer hover:bg-[#f5f6f6] dark:hover:bg-[#202c33] ${selecionada === m.conversa_id ? 'bg-[#f0f2f5] dark:bg-[#2a3942]' : ''}`}
+                    >
+                      <Avatar conversa={m.conversa} tamanho="w-10 h-10 text-[13px]" />
+                      <span className="min-w-0 flex-1 border-b border-black/[0.05] dark:border-white/[0.05] pb-2.5 -mb-2.5">
+                        <span className="flex items-baseline gap-2">
+                          <span className="flex-1 truncate text-[14.5px] text-[#111b21] dark:text-[#e9edef]">{nomeDoContato(m.conversa)}</span>
+                          <span className="text-[11.5px] text-[#667781] dark:text-[#8696a0] flex-shrink-0">{quandoNaLista(m.criado_em)}</span>
+                        </span>
+                        <span className="block text-[13px] text-[#667781] dark:text-[#8696a0] line-clamp-2 break-words">
+                          {m.direcao === 'saida' ? `${m.autor_nome || 'Você'}: ` : m.autor_nome ? `${m.autor_nome}: ` : ''}
+                          <Trecho texto={m.conteudo} termo={busca.trim()} />
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : erro ? (
             <p className="m-4 rounded-2xl bg-amber-500/10 text-amber-800 dark:text-amber-300 px-4 py-3 text-[13.5px]">{erro}</p>
+          ) : kanban ? (
+            <div className="h-full flex gap-3 overflow-x-auto px-3 pb-3 pt-1 bg-[#f7f8fa] dark:bg-[#0d1418]">
+              {colunasKanban.map((col) => {
+                const itens = filtrar(col.id);
+                const carregandoColuna = col.id === 'resolvidas' ? resolvidas === null : abertas === null;
+                return (
+                  <section key={col.id} aria-label={col.rotulo} className="w-[290px] flex-shrink-0 flex flex-col min-h-0 rounded-2xl bg-black/[0.03] dark:bg-white/[0.03]">
+                    <header className="flex items-center gap-2 px-3.5 pt-3 pb-2">
+                      <span className={`w-2 h-2 rounded-full ${{ ativos: 'bg-sky-500', pendentes: 'bg-amber-500', grupos: 'bg-violet-500', resolvidas: 'bg-[#4d7c0f]' }[col.id]}`} />
+                      <h2 className="text-[13.5px] font-semibold text-[#111b21] dark:text-[#e9edef]">{col.rotulo}</h2>
+                      <span className="ml-auto text-[12px] tabular-nums text-[#667781] dark:text-[#8696a0]">{carregandoColuna ? '' : itens.length}</span>
+                    </header>
+                    <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2 space-y-2">
+                      {carregandoColuna ? (
+                        <div className="py-6 flex justify-center text-slate-400">
+                          <Spinner />
+                        </div>
+                      ) : itens.length === 0 ? (
+                        <p className="py-6 text-center text-[12.5px] text-[#8696a0]">Nada por aqui</p>
+                      ) : (
+                        itens.map((c) => <ItemConversa key={c.id} c={c} ativa={c.id === selecionada} eu={eu} onAbrir={(id) => abrir(id)} cartao />)
+                      )}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
           ) : carregando ? (
             <div className="flex justify-center py-10 text-slate-400">
               <Spinner />
             </div>
           ) : lista.length === 0 ? (
             <div className="px-6 py-14 text-center">
-              <p className="text-[14.5px] font-semibold text-[#111b21] dark:text-[#e9edef]">{busca ? 'Nada encontrado' : { fila: 'Fila vazia', minhas: 'Nenhuma conversa com você', todas: 'Nenhuma conversa aberta', grupos: 'Nenhum grupo com mensagens', resolvidas: 'Nenhuma conversa resolvida' }[aba]}</p>
-              <p className="mt-1 text-[13px] text-[#667781] dark:text-[#8696a0]">{aba === 'fila' && !busca ? 'Mensagens novas dos clientes aparecem aqui.' : ''}</p>
+              <p className="text-[14.5px] font-semibold text-[#111b21] dark:text-[#e9edef]">{busca ? 'Nada encontrado' : filtrosAtivos(filtros) ? 'Nada com estes filtros' : vazio[0]}</p>
+              <p className="mt-1 text-[13px] text-[#667781] dark:text-[#8696a0]">{busca ? '' : vazio[1]}</p>
             </div>
           ) : (
             <ul>
-              {lista.map((c) => {
-                const ativa = c.id === selecionada;
-                return (
-                  <li key={c.id}>
-                    <button
-                      type="button"
-                      onClick={() => setSelecionada(c.id)}
-                      className={`w-full flex items-center gap-3 pl-3 pr-3.5 py-2.5 text-left cursor-pointer transition-colors ${ativa ? 'bg-[#f0f2f5] dark:bg-[#2a3942]' : 'hover:bg-[#f5f6f6] dark:hover:bg-[#202c33]'}`}
-                    >
-                      <Avatar conversa={c} />
-                      <div className="min-w-0 flex-1 border-b border-black/[0.05] dark:border-white/[0.05] pb-2.5 -mb-2.5">
-                        <div className="flex items-baseline gap-2">
-                          <span className="flex-1 truncate text-[15.5px] text-[#111b21] dark:text-[#e9edef]">{nomeDoContato(c)}</span>
-                          <span className={`text-[11.5px] flex-shrink-0 ${c.nao_lidas ? 'text-[#00a884] font-semibold' : 'text-[#667781] dark:text-[#8696a0]'}`}>{quandoNaLista(c.ultima_mensagem_em || c.criado_em)}</span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="flex-1 truncate text-[13.5px] text-[#667781] dark:text-[#8696a0]">{c.ultima_mensagem_texto || 'Sem mensagens'}</span>
-                          {c.nao_lidas > 0 && <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#00a884] text-white dark:text-[#111b21] text-[11.5px] font-bold flex items-center justify-center tabular-nums">{c.nao_lidas > 99 ? '99+' : c.nao_lidas}</span>}
-                        </div>
-                        <div className="mt-1.5 flex items-center gap-1 overflow-hidden">
-                          <Etiquetas conversa={c} eu={eu} />
-                        </div>
-                      </div>
-                    </button>
-                  </li>
-                );
-              })}
+              {lista.map((c) => (
+                <li key={c.id}>
+                  <ItemConversa c={c} ativa={c.id === selecionada} eu={eu} onAbrir={(id) => abrir(id)} />
+                </li>
+              ))}
             </ul>
           )}
         </div>
       </aside>
 
       {/* Conversa */}
-      <section className={`${selecionada ? 'flex' : 'hidden md:flex'} flex-1 min-w-0`}>
+      <section className={`${selecionada ? 'flex' : kanban ? 'hidden' : 'hidden md:flex'} flex-1 min-w-0`}>
         {selecionada ? (
           <PainelConversa
             key={selecionada}
             conversaId={selecionada}
+            conversaInicial={(abertas || []).find((c) => c.id === selecionada) || (resolvidas || []).find((c) => c.id === selecionada) || null}
+            mensagemAlvo={mensagemAlvo}
             eu={eu}
             sinal={sinal}
             respostas={respostas}
             onAtualizada={atualizada}
             onContatoMudou={contatoMudou}
-            onAbrirConversa={setSelecionada}
+            onAbrirConversa={(id) => abrir(id)}
             onExcluida={(id) => {
               setAbertas((l) => (l || []).filter((x) => x.id !== id));
               setResolvidas((l) => (l ? l.filter((x) => x.id !== id) : l));
               setSelecionada(null);
             }}
             onVoltar={() => setSelecionada(null)}
+            onRecolher={kanban ? () => setSelecionada(null) : null}
             onGerenciarRespostas={() => setGerenciar(true)}
           />
         ) : (
@@ -1794,13 +2207,27 @@ export default function ChatView() {
       </section>
 
       <GerenciarRespostas aberto={gerenciar} onFechar={() => setGerenciar(false)} respostas={respostas} admin={Boolean(eu?.admin)} onMudou={carregarRespostas} />
+      <FiltrosAvancados
+        aberto={filtrosAbertos}
+        onFechar={() => setFiltrosAbertos(false)}
+        admin={Boolean(eu?.admin)}
+        valor={filtros}
+        lembrarInicial={lembrarFiltros}
+        onAplicar={(f, lembrar) => {
+          setFiltros(f);
+          setLembrarFiltros(lembrar);
+          if (aba === 'resolvidas') carregarResolvidas();
+        }}
+      />
+      <ContatosModal aberto={contatosAbertos} onFechar={() => setContatosAbertos(false)} Avatar={Avatar} onEscolher={abrirContato} />
       <NovaConversaModal
-        aberto={novaConversa}
-        onFechar={() => setNovaConversa(false)}
+        aberto={Boolean(novaConversa)}
+        telefoneInicial={novaConversa?.telefone || ''}
+        onFechar={() => setNovaConversa(null)}
         onCriada={(c) => {
           atualizada(c);
-          setAba('minhas');
-          setSelecionada(c.id);
+          setAba('ativos');
+          abrir(c.id);
         }}
       />
     </div>

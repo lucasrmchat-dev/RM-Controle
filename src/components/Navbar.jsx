@@ -21,6 +21,9 @@ import {
   fetchConversas,
 } from '@/lib/storage';
 import { contarConversasNovas } from '@/lib/canais';
+import { analisarConversas } from '@/lib/vigiaChat';
+import { getAudioConfig, playNotificationTone } from '@/lib/audioNotifications';
+import { notificar } from '@/lib/notificacoes';
 import { permissoesEfetivas, podeVerDemanda } from '@/lib/perfis';
 import { ROTULOS_PAPEL } from '@/lib/roles';
 import { SupportQueueIcon, CalendarIcon, BuildingIcon } from './Icons';
@@ -37,6 +40,34 @@ const IconeDashboard = () => (
     <rect width="7" height="5" x="3" y="16" rx="1.5" />
   </svg>
 );
+/** Ícones das abas: todos no mesmo traço (1,75) e tamanho, no estilo dos símbolos da Apple. */
+const ICONES_ABA = {
+  chat: ['M21 12a8.5 8.5 0 0 1-12.6 7.45L3 21l1.55-5.4A8.5 8.5 0 1 1 21 12z', 'M8.5 10.5h7M8.5 13.5h4.5'],
+  fila: ['M3 13.5h4.2l1.6 2.5h6.4l1.6-2.5H21', 'M5.3 5.6L3 13.5V18a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4.5l-2.3-7.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.9 1.6z'],
+  agenda: ['M8 2.8v3.4M16 2.8v3.4', 'M5 4.6h14a2 2 0 0 1 2 2V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6.6a2 2 0 0 1 2-2z', 'M3 9.6h18', 'M7.5 13.5h.01M12 13.5h.01M16.5 13.5h.01M7.5 17h.01M12 17h.01'],
+  comercial: ['M3 17.5l6-6 4 4 8-8', 'M15 7.5h6v6'],
+  dashboard: ['M4 20V10', 'M10 20V4', 'M16 20v-7', 'M21 20H3'],
+  feedbacks: ['M9 18h6', 'M10 21.5h4', 'M12 2.5a6.5 6.5 0 0 0-4 11.6c.6.5 1 1.2 1 2V16h6v-.1c0-.8.4-1.5 1-2A6.5 6.5 0 0 0 12 2.5z'],
+  canais: ['M7.5 2.5h9a1.5 1.5 0 0 1 1.5 1.5v16a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 20V4a1.5 1.5 0 0 1 1.5-1.5z', 'M11 18.5h2', 'M9.5 9.5a3.5 3.5 0 0 1 5 0M10.8 11.6a1.6 1.6 0 0 1 2.4 0'],
+};
+const IconeAba = ({ d }) => (
+  <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {d.map((p) => (
+      <path key={p} d={p} />
+    ))}
+  </svg>
+);
+
+/** Nome que aparece ao passar o mouse (ícones sem texto). */
+const Dica = ({ texto, children }) => (
+  <span className="relative group/dica inline-flex">
+    {children}
+    <span role="tooltip" className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-[calc(100%+10px)] z-50 whitespace-nowrap rounded-lg bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] text-[11.5px] font-medium px-2.5 py-1 opacity-0 translate-y-[-2px] group-hover/dica:opacity-100 group-hover/dica:translate-y-0 transition-all duration-150 delay-150 shadow-lg">
+      {texto}
+    </span>
+  </span>
+);
+
 const IconeFeedbacks = () => (
   <svg className="w-[17px] h-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -213,21 +244,33 @@ export default function Navbar({
     };
   }, []);
 
-  // Chat: a tela do Chat avisa na hora; fora dela, consulta a cada 30 s
+  // Chat: a tela do Chat avisa na hora; fora dela, consulta a cada 20 s. Conversa nova ou mensagem nova
+  // toca o som escolhido em Configurações › Sons e alertas e entra na central de notificações.
+  const vigiaChat = useRef(null);
   useEffect(() => {
     if (!getAbasPermitidas(userEmail).includes('chat')) return undefined;
-    const aoContar = (e) => setTotalChat(Number(e.detail) || 0);
-    window.addEventListener('rm_chat_contagem', aoContar);
+    const processar = (conversas, config) => {
+      setTotalChat(contarConversasNovas(conversas, config));
+      const { proximo, avisos } = analisarConversas(vigiaChat.current, conversas, { email: String(userEmail || '').toLowerCase(), abertaId: document.visibilityState === 'visible' ? window.__rmChatAberta : null });
+      vigiaChat.current = proximo;
+      if (!avisos.length) return;
+      avisos.forEach((a) => notificar({ id: `chat-${a.chave}`, tipo: 'chat', titulo: a.titulo, detalhe: a.detalhe, aba: 'chat' }));
+      const som = getAudioConfig();
+      if (som.habilitado) playNotificationTone(som.tipoSom);
+    };
+    const aoReceber = (e) => e.detail?.conversas && processar(e.detail.conversas, e.detail.config);
+    window.addEventListener('rm_chat_conversas', aoReceber);
     const consultar = () =>
-      document.visibilityState === 'visible' &&
+      // Com a tela do Chat aberta, ela já manda a lista (evita consultar duas vezes)
+      !window.__rmChatMontado &&
       fetchConversas('abertas')
-        .then((r) => setTotalChat(contarConversasNovas(r.conversas, r.config)))
+        .then((r) => processar(r.conversas, r.config))
         .catch(() => {});
     consultar();
-    const t = setInterval(consultar, 30000);
+    const t = setInterval(consultar, 20000);
     return () => {
       clearInterval(t);
-      window.removeEventListener('rm_chat_contagem', aoContar);
+      window.removeEventListener('rm_chat_conversas', aoReceber);
     };
   }, [userEmail]);
 
@@ -298,47 +341,14 @@ export default function Navbar({
     .toUpperCase();
 
   const todasAsAbas = [
-    {
-      id: 'chat',
-      label: 'Chat',
-      curto: 'Chat',
-      badge: totalChat || null,
-      icon: (
-        <svg className="w-[17px] h-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M7 9h10M7 13h6" />
-          <path d="M4 5h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H9l-5 3.5V6a1 1 0 0 1 1-1z" />
-        </svg>
-      ),
-    },
-    { id: 'fila', label: 'Fila de Demandas', curto: 'Fila', badge: totalFila || null, icon: <SupportQueueIcon className="w-[17px] h-[17px]" /> },
-    { id: 'agenda', label: 'Agenda', curto: 'Agenda', badge: totalReunioesHoje || null, icon: <CalendarIcon className="w-[17px] h-[17px]" /> },
-    { id: 'comercial', label: 'Comercial', curto: 'Comercial', icon: <svg className="w-[17px] h-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17l6-6 4 3 6-9M14 5h6v6" /></svg> },
-    { id: 'dashboard', label: 'Dashboard', curto: 'Métricas', icon: <IconeDashboard /> },
-    { id: 'feedbacks', label: 'Feedbacks', curto: 'Feedbacks', icon: <IconeFeedbacks /> },
-    {
-      id: 'conexoes',
-      label: 'Canais',
-      curto: 'Canais',
-      icon: (
-        <svg className="w-[17px] h-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M3 21l1.65-4.95A8.5 8.5 0 1 1 8 19.4L3 21z" />
-          <path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 1c-1-.5-2-1.5-2.5-2.5l1-1-1-2L9 9.5z" />
-        </svg>
-      ),
-    },
-    {
-      id: 'plataforma',
-      label: getGestaoAtual()?.nivel === 'revenda' ? 'Revenda' : 'Plataforma',
-      curto: getGestaoAtual()?.nivel === 'revenda' ? 'Revenda' : 'Plataforma',
-      icon: (
-        <svg className="w-[17px] h-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="3" width="7" height="7" rx="1.5" />
-          <rect x="14" y="3" width="7" height="7" rx="1.5" />
-          <rect x="3" y="14" width="7" height="7" rx="1.5" />
-          <path d="M17.5 14v7M14 17.5h7" />
-        </svg>
-      ),
-    },
+    { id: 'chat', label: 'Chat', curto: 'Chat', badge: totalChat || null, icon: <IconeAba d={ICONES_ABA.chat} /> },
+    { id: 'fila', label: 'Fila de Demandas', curto: 'Fila', badge: totalFila || null, icon: <IconeAba d={ICONES_ABA.fila} /> },
+    { id: 'agenda', label: 'Agenda', curto: 'Agenda', badge: totalReunioesHoje || null, icon: <IconeAba d={ICONES_ABA.agenda} /> },
+    { id: 'comercial', label: 'Comercial', curto: 'Comercial', icon: <IconeAba d={ICONES_ABA.comercial} /> },
+    { id: 'dashboard', label: 'Dashboard', curto: 'Métricas', icon: <IconeAba d={ICONES_ABA.dashboard} /> },
+    { id: 'feedbacks', label: 'Feedbacks', curto: 'Feedbacks', icon: <IconeAba d={ICONES_ABA.feedbacks} /> },
+    { id: 'conexoes', label: 'Canais', curto: 'Canais', icon: <IconeAba d={ICONES_ABA.canais} /> },
+    // Plataforma (empresas assinantes e revendas) fica em Configurações, não no cabeçalho
   ];
   const permitidas = getAbasPermitidas(userEmail);
   const permAtual = getPermissoesAtuais(userEmail);
@@ -358,7 +368,7 @@ export default function Navbar({
   const mostrarAcoes = acoesFila && encaixado && !recolhido;
   const ilhaEscondida = recolhido && !revelado && !perfilAberto;
   // Com as ações encaixadas, as abas inativas viram só ícone para abrir espaço
-  const rotulosCompletos = largura >= 1024 && !mostrarAcoes;
+  const rotulosCompletos = largura >= 1180 && !mostrarAcoes;
   const acoesComRotulo = largura >= 1280;
 
   const painel = (modo) => (
@@ -396,7 +406,7 @@ export default function Navbar({
       {/* ============================================================================== */}
       {/* COMPUTADOR: ilha centralizada; na fila, recebe as ações ao lado ao rolar       */}
       {/* ============================================================================== */}
-      <header className="hidden md:flex fixed top-3 inset-x-0 z-40 justify-center px-4 lg:px-6 pointer-events-none">
+      <header className="hidden sm:flex fixed top-3 inset-x-0 z-40 justify-center px-4 lg:px-6 pointer-events-none">
         {/* Recolhido: faixa sensível no topo e puxador que trazem a ilha de volta */}
         {recolhido && (
           <>
@@ -479,13 +489,13 @@ export default function Navbar({
                 {abas.map((tab) => {
                   const ativa = activeTab === tab.id;
                   const comRotulo = !recolhido && (ativa || rotulosCompletos);
-                  return (
+                  const botao = (
                     <button
                       key={tab.id}
                       type="button"
                       onClick={() => irPara(tab.id)}
                       aria-current={ativa ? 'page' : undefined}
-                      title={tab.label}
+                      aria-label={comRotulo ? undefined : tab.label}
                       className={`relative h-10 rounded-full flex items-center text-[13px] font-medium cursor-pointer transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4d7c0f]/40 ${comRotulo ? 'px-3.5' : 'px-2.5'} ${
                         ativa ? 'text-[#1d1d1f] dark:text-white' : 'text-slate-500 dark:text-zinc-400 hover:text-[#1d1d1f] dark:hover:text-white'
                       }`}
@@ -523,12 +533,21 @@ export default function Navbar({
                       )}
                     </button>
                   );
+                  return comRotulo ? botao : (
+                    <Dica key={tab.id} texto={tab.badge ? `${tab.label} · ${tab.badge}` : tab.label}>
+                      {botao}
+                    </Dica>
+                  );
                 })}
               </motion.nav>
 
               {/* Notificações, recolher/expandir e conta */}
               <motion.div layout="position" transition={MOLA} className="flex items-center gap-0.5 flex-shrink-0 ml-1">
-                <CentralNotificacoes embutido onAbrirAba={(aba) => (aba === 'fila' || permitidas.includes(aba)) && irPara(aba)} />
+                <span className="w-px h-6 bg-black/[0.08] dark:bg-white/[0.12] mx-1" aria-hidden="true" />
+                <Dica texto="Notificações">
+                  <CentralNotificacoes embutido onAbrirAba={(aba) => (aba === 'fila' || permitidas.includes(aba)) && irPara(aba)} />
+                </Dica>
+                <Dica texto={recolhido ? 'Expandir o cabeçalho' : 'Recolher o cabeçalho'}>
                 <motion.button
                   type="button"
                   whileTap={{ scale: 0.9 }}
@@ -539,14 +558,14 @@ export default function Navbar({
                   }}
                   aria-label={recolhido ? 'Expandir o cabeçalho' : 'Recolher o cabeçalho'}
                   aria-expanded={!recolhido}
-                  title={recolhido ? 'Expandir o cabeçalho' : 'Recolher o cabeçalho (tela cheia)'}
                   className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer text-slate-500 dark:text-zinc-400 hover:text-[#1d1d1f] dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.08] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4d7c0f]/40"
                 >
                   <motion.svg animate={{ rotate: recolhido ? 180 : 0 }} transition={MOLA} className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M7 14l5-5 5 5" />
-                    <path d="M5 19h14" />
+                    <path d="M7 12.5l5-5 5 5" />
+                    <path d="M7 18l5-5 5 5" />
                   </motion.svg>
                 </motion.button>
+                </Dica>
 
                 <div className="relative" ref={perfilRef}>
                   <button
@@ -562,7 +581,7 @@ export default function Navbar({
                       {iniciais}
                     </span>
                   </button>
-                  <AnimatePresence>{perfilAberto && largura >= 768 && painel('popover')}</AnimatePresence>
+                  <AnimatePresence>{perfilAberto && largura >= 640 && painel('popover')}</AnimatePresence>
                 </div>
               </motion.div>
             </motion.div>
@@ -576,12 +595,12 @@ export default function Navbar({
       </header>
 
       {/* Espaço reservado para o cabeçalho fixo */}
-      <div className="hidden md:block transition-[height] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]" style={{ height: 'var(--rm-cabecalho, 78px)' }} aria-hidden="true" />
+      <div className="hidden sm:block transition-[height] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]" style={{ height: 'var(--rm-cabecalho, 78px)' }} aria-hidden="true" />
 
       {/* ============================================================================== */}
       {/* CELULAR: barra superior simples + dock inferior                                 */}
       {/* ============================================================================== */}
-      <header className="md:hidden fixed top-0 inset-x-0 z-40 bg-white/85 dark:bg-[#1c1c1f]/85 backdrop-blur-2xl border-b border-black/[0.06] dark:border-white/[0.1] px-4 h-14 flex items-center justify-between">
+      <header className="sm:hidden fixed top-0 inset-x-0 z-40 bg-white/85 dark:bg-[#1c1c1f]/85 backdrop-blur-2xl border-b border-black/[0.06] dark:border-white/[0.1] px-4 h-14 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <BrandMark size={30} />
           <span className="text-[15px] font-semibold tracking-tight text-[#1d1d1f] dark:text-white">RM Controle</span>
@@ -595,11 +614,11 @@ export default function Navbar({
           {iniciais}
         </button>
       </header>
-      <div className="md:hidden h-14" aria-hidden="true" />
+      <div className="sm:hidden h-14" aria-hidden="true" />
 
       {/* Folha da conta no celular */}
       <AnimatePresence>
-        {perfilAberto && largura < 768 && (
+        {perfilAberto && largura < 640 && (
           <>
             <motion.div
               key="veu"
@@ -614,7 +633,7 @@ export default function Navbar({
         )}
       </AnimatePresence>
 
-      <nav className="md:hidden fixed bottom-2.5 inset-x-2.5 z-50 bg-white/85 dark:bg-[#232326]/85 backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.11] shadow-[0_12px_36px_rgba(0,0,0,0.16)] dark:shadow-[0_16px_40px_rgba(0,0,0,0.7)] rounded-[26px] p-1.5 flex items-center justify-between">
+      <nav className="sm:hidden fixed bottom-2.5 inset-x-2.5 z-50 bg-white/85 dark:bg-[#232326]/85 backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.11] shadow-[0_12px_36px_rgba(0,0,0,0.16)] dark:shadow-[0_16px_40px_rgba(0,0,0,0.7)] rounded-[26px] p-1.5 flex items-center justify-between">
         {abas.map((tab) => {
           const ativa = activeTab === tab.id;
           return (

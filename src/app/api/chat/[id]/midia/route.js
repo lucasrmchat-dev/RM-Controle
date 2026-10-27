@@ -1,6 +1,6 @@
 import { consumirLimite } from '@/lib/server/protecao';
 import { enviarMidiaNaConversa } from '@/lib/server/canais/index';
-import { carregarConversa, juntarDetalhes, prepararMensagem } from '@/lib/server/canais/chat';
+import { bloqueioSemAssumir, carregarConversa, juntarDetalhes, prepararMensagem } from '@/lib/server/canais/chat';
 import { LIMITE_ENVIO, mimeBase, tipoDoArquivo } from '@/lib/server/canais/midia';
 
 export const dynamic = 'force-dynamic';
@@ -20,6 +20,8 @@ export async function POST(request, { params }) {
   if (r.erro) return r.erro;
   const { ctx, perm, conversa } = r;
   if (conversa.status === 'resolvida') return json({ ok: false, mensagem: 'Reabra a conversa para responder.' }, 409);
+  const bloqueio = await bloqueioSemAssumir(ctx.db, perm, conversa);
+  if (bloqueio) return json({ ok: false, mensagem: bloqueio, precisa_assumir: true }, 409);
   if (!(await consumirLimite(`chat_midia_${perm.email}`, 30, 60))) return json({ ok: false, mensagem: 'Muitos arquivos seguidos. Aguarde um instante.' }, 429);
   if (Number(request.headers.get('content-length') || 0) > LIMITE_ENVIO + 64 * 1024) return json({ ok: false, mensagem: 'Arquivo grande demais (máximo de 4 MB).' }, 413);
 

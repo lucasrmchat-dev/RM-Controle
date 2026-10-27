@@ -30,7 +30,8 @@ function Flutuante({ ancora, largura, altura, onFechar, children, rotulo }) {
   useEffect(() => {
     const fora = (e) => ref.current && !ref.current.contains(e.target) && !ancora.current?.contains(e.target) && onFechar();
     const tecla = (e) => e.key === 'Escape' && onFechar();
-    const rolar = () => onFechar();
+    // Rolar a conversa fecha; rolar dentro da própria janela (lista de emojis) não
+    const rolar = (e) => !ref.current?.contains(e.target) && onFechar();
     document.addEventListener('pointerdown', fora);
     document.addEventListener('keydown', tecla);
     window.addEventListener('resize', rolar);

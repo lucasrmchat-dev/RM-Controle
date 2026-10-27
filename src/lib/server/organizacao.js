@@ -27,7 +27,7 @@ export const TABELAS_DA_EMPRESA = new Set([
   'agenda_eventos', 'agenda_confirmacoes', 'whatsapp_envios',
   'canais_catalogo', 'checklist_catalogo', 'servidor_checklist_template',
   'comercial_integracoes', 'comercial_leads', 'comercial_webhook_eventos',
-  'canais', 'contatos', 'conversas', 'mensagens', 'respostas_rapidas',
+  'canais', 'contatos', 'conversas', 'mensagens', 'respostas_rapidas', 'participantes_grupo',
 ]);
 
 // Upserts cuja chave de conflito passou a incluir a empresa
@@ -76,24 +76,40 @@ const tabelaAusente = (error) => /organizacoes|sessoes_suporte|does not exist|sc
  * Em que empresa esta pessoa está trabalhando agora (mesma regra de public.rm_org_atual()).
  * @returns {Promise<{ id, nome, tipo, status, limites, pai_id, suporte: boolean, origem: string, legado?: boolean } | null>}
  */
-export async function organizacaoAtual(db, email) {
-  const alvo = normalizarEmail(email);
-  const { data: org0, error: erroOrg } = await db.from('organizacoes').select('id').limit(1);
-  // Banco ainda sem a migração multiempresa: tudo continua como uma empresa só
-  if (erroOrg && tabelaAusente(erroOrg)) return { id: null, nome: 'RM Chat', tipo: 'assinante', status: 'ativa', limites: {}, suporte: false, origem: null, legado: true };
-  void org0;
+// Memória curta (por servidor): ao abrir uma tela, várias chamadas chegam juntas e só a primeira consulta o
+// banco. Poucos segundos, para uma troca de empresa (suporte) ou um bloqueio valerem quase na hora.
+const MEMORIA_ORG_MS = process.env.NODE_ENV === 'production' ? 8000 : 0;
+const memoriaOrg = new Map();
+export const limparMemoriaOrganizacao = (email) => (email ? memoriaOrg.delete(normalizarEmail(email)) : memoriaOrg.clear());
 
-  const [{ data: membro }, { data: dono }] = await Promise.all([
+export async function organizacaoAtual(db, email) {
+  const chave = normalizarEmail(email);
+  const guardada = memoriaOrg.get(chave);
+  if (guardada && Date.now() - guardada.em < MEMORIA_ORG_MS) return guardada.org;
+  if (!MEMORIA_ORG_MS) return organizacaoAtualDoBanco(db, email);
+  const org = await organizacaoAtualDoBanco(db, email);
+  if (memoriaOrg.size > 2000) memoriaOrg.clear();
+  memoriaOrg.set(chave, { em: Date.now(), org });
+  return org;
+}
+
+async function organizacaoAtualDoBanco(db, email) {
+  const alvo = normalizarEmail(email);
+  // Tudo o que não depende de outra resposta vai junto (cada ida ao banco custa uma viagem de rede)
+  const [{ error: erroOrg }, { data: membro }, { data: dono }, { data: sessao }] = await Promise.all([
+    db.from('organizacoes').select('id').limit(1),
     db.from('equipe_usuarios').select('organizacao_id, papel, ativo').eq('email', alvo).maybeSingle(),
     db.from('rm_admins_proprietarios').select('organizacao_id').eq('email', alvo).maybeSingle(),
+    db.from('sessoes_suporte').select('organizacao_id, expira_em').eq('email', alvo).maybeSingle(),
   ]);
+  // Banco ainda sem a migração multiempresa: tudo continua como uma empresa só
+  if (erroOrg && tabelaAusente(erroOrg)) return { id: null, nome: 'RM Chat', tipo: 'assinante', status: 'ativa', limites: {}, suporte: false, origem: null, legado: true };
   const proprietario = Boolean(dono) || listaAdministradores(process.env.RM_ADMIN_EMAILS).has(alvo);
   const origem = (membro && membro.ativo !== false ? membro.organizacao_id : null) || dono?.organizacao_id || (proprietario ? ORG_LEGADO : null);
   if (!origem) return null;
 
   let atual = origem;
   let suporte = false;
-  const { data: sessao } = await db.from('sessoes_suporte').select('organizacao_id, expira_em').eq('email', alvo).maybeSingle();
   if (sessao && new Date(sessao.expira_em).getTime() > Date.now() && sessao.organizacao_id !== origem) {
     const { data: pode } = await db.rpc('rm_pode_gerir_org', { p_email: alvo, p_alvo: sessao.organizacao_id });
     if (pode === true || proprietario) {

@@ -8,6 +8,7 @@ import { iguais, hashToken } from './cofre';
 
 const EVENTOS = ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'MESSAGES_EDITED', 'MESSAGES_DELETE', 'CONNECTION_UPDATE', 'QRCODE_UPDATED'];
 export const nomeInstancia = (canal) => `rmc_${String(canal.id).replace(/-/g, '')}`;
+const CACHE_NOMES = new Map();
 
 async function chamar(segredos, caminho, { metodo = 'GET', corpo, fetchImpl = fetch, segundos = 15 } = {}) {
   const controle = new AbortController();
@@ -90,8 +91,10 @@ export const evolution = {
   },
 
   /** Texto; com `citada` ({ idExterno, chave, conteudo }) sai como resposta à mensagem. */
-  async enviarTexto(canal, segredos, telefone, texto, { fetchImpl, citada } = {}) {
+  async enviarTexto(canal, segredos, telefone, texto, { fetchImpl, citada, mencionados = [] } = {}) {
     const corpo = { number: telefone, text: texto };
+    // Identificador completo (…@lid ou número@s.whatsapp.net): a Evolution repassa como está
+    if (mencionados.length) corpo.mentioned = mencionados;
     if (citada?.idExterno) corpo.quoted = { key: { id: citada.idExterno, ...(citada.chave || {}) }, message: { conversation: citada.conteudo || '' } };
     const r = await chamar(segredos, `/message/sendText/${nomeInstancia(canal)}`, { metodo: 'POST', fetchImpl, corpo });
     return { idExterno: r?.key?.id || null, chave: r?.key ? { remoteJid: r.key.remoteJid, fromMe: true } : null };
@@ -122,6 +125,30 @@ export const evolution = {
       metodo: 'POST',
       fetchImpl,
       corpo: { rejectCall: false, msgCall: '', groupsIgnore: !receber, alwaysOnline: false, readMessages: false, readStatus: false, syncFullHistory: false },
+    });
+  },
+
+  /**
+   * Nomes que o WhatsApp conhece (contatos e quem já escreveu), pelo identificador (…@lid ou número@s.whatsapp.net).
+   * A Evolution não filtra por lista, então a agenda inteira vem de uma vez e fica guardada 10 minutos.
+   */
+  async nomesConhecidos(canal, segredos, { fetchImpl } = {}) {
+    const chave = nomeInstancia(canal);
+    const cache = CACHE_NOMES.get(chave);
+    if (cache && Date.now() - cache.em < 10 * 60 * 1000) return cache.nomes;
+    const lista = await chamar(segredos, `/chat/findContacts/${chave}`, { metodo: 'POST', fetchImpl, segundos: 40, corpo: { where: {} } });
+    const nomes = new Map((Array.isArray(lista) ? lista : []).filter((c) => c?.remoteJid && c.pushName).map((c) => [c.remoteJid, String(c.pushName).trim().slice(0, 120)]));
+    CACHE_NOMES.set(chave, { em: Date.now(), nomes });
+    return nomes;
+  },
+
+  /** Participantes do grupo: identificador no WhatsApp e, quando o WhatsApp informa, o número de verdade. */
+  async participantes(canal, segredos, jidGrupo, { fetchImpl } = {}) {
+    const r = await chamar(segredos, `/group/participants/${nomeInstancia(canal)}?groupJid=${encodeURIComponent(jidGrupo)}`, { fetchImpl });
+    const lista = Array.isArray(r?.participants) ? r.participants : Array.isArray(r) ? r : [];
+    return lista.map((p) => {
+      const numero = [p.phoneNumber, p.jid, p.id].find((j) => /@s\.whatsapp\.net$/.test(String(j || '')));
+      return { jid: p.id || p.jid, jidTelefone: numero || null, telefone: numero ? String(numero).split('@')[0].split(':')[0] : null, admin: Boolean(p.admin) };
     });
   },
 

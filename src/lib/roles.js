@@ -21,7 +21,7 @@ export const ROTULOS_PAPEL = {
 };
 
 // Abas de Configurações Avançadas: exclusivas do administrador
-export const ABAS_CONFIG_AVANCADAS = ['departamentos', 'categorias_demandas', 'titulos_reuniao', 'comercial', 'chat', 'canais', 'servidores', 'perfis', 'suporte_automatico', 'auditoria'];
+export const ABAS_CONFIG_AVANCADAS = ['departamentos', 'categorias_demandas', 'titulos_reuniao', 'comercial', 'chat', 'whatsapp_envio', 'feedbacks', 'plataforma', 'canais', 'servidores', 'perfis', 'suporte_automatico', 'auditoria'];
 
 export function normalizarEmail(email) {
   return String(email || '').toLowerCase().trim();

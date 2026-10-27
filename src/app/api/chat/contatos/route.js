@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic';
 /**
  * Perfil do contato no Chat.
  *  GET ?id=                                            dados, empresa ligada e conversas que a pessoa pode ver
+ *  GET ?lista=1&q=&pagina=                             lista de contatos (pessoas; grupos ficam de fora)
  *  PATCH { id, nome, observacoes, etiquetas, empresa_id }
  *  POST { id, acao: 'foto' }                           busca a foto do perfil no WhatsApp (guardada na pasta da empresa)
  */
@@ -33,7 +34,9 @@ async function perfil(db, perm, id) {
 }
 
 export async function GET(request) {
-  const id = new URL(request.url).searchParams.get('id');
+  const busca = new URL(request.url).searchParams;
+  if (busca.get('lista')) return listar(request, busca);
+  const id = busca.get('id');
   const r = await inicio(request, id);
   if (r.erro) return r.erro;
   return json({ ok: true, ...(await perfil(r.ctx.db, r.perm, id)) });
@@ -88,4 +91,24 @@ export async function POST(request) {
   } catch {
     return json({ ok: true, tem_foto: Boolean(contato.foto_url) });
   }
+}
+
+const POR_PAGINA = 40;
+
+/** Lista de contatos da empresa (como a agenda do RM Chat), com busca por nome ou número. */
+async function listar(request, busca) {
+  const r = await acessoAoChat(request);
+  if (r.erro) return r.erro;
+  const termo = String(busca.get('q') || '').trim().slice(0, 80);
+  const pagina = Math.max(0, Math.min(500, Number(busca.get('pagina')) || 0));
+  let q = r.ctx.db.from('contatos').select('id, telefone, nome, foto_url, empresa_id, etiquetas').not('telefone', 'like', '%@g.us');
+  if (termo) {
+    const digitos = termo.replace(/\D/g, '');
+    const nome = termo.replace(/[%_,()]/g, ' ').trim();
+    q = digitos.length >= 4 ? q.or(`nome.ilike.%${nome}%,telefone.like.%${digitos}%`) : q.ilike('nome', `%${nome}%`);
+  }
+  const { data, error } = await q.order('nome', { ascending: true, nullsFirst: false }).range(pagina * POR_PAGINA, pagina * POR_PAGINA + POR_PAGINA);
+  if (error) return json({ ok: false, mensagem: error.message }, 500);
+  const lista = (data || []).slice(0, POR_PAGINA).map(({ foto_url, ...c }) => ({ ...c, tem_foto: Boolean(foto_url) }));
+  return json({ ok: true, contatos: lista, temMais: (data || []).length > POR_PAGINA });
 }

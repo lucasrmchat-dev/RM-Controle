@@ -40,7 +40,14 @@ test('Evolution: texto, legenda de foto, enviada pelo celular; grupo marcado; st
   assert.equal(g.grupo, true);
   assert.equal(g.telefone, '1203630@g.us');
   assert.equal(g.nome, null, 'o pushName é de quem escreveu, não do grupo');
-  assert.deepEqual(g.participante, { nome: 'Rita', telefone: '5585977776666' });
+  assert.deepEqual(g.participante, { nome: 'Rita', jid: '5585977776666@s.whatsapp.net', telefone: '5585977776666' });
+  // Participante identificado só pelo código interno do WhatsApp: o código nunca vira telefone
+  const [lid] = eventosDaEvolution({ event: 'messages.upsert', data: { key: { remoteJid: '1203630@g.us', participant: '279619886420042@lid', id: 'L1' }, pushName: 'Maria', message: { extendedTextMessage: { text: 'oi @5585977776666', contextInfo: { mentionedJid: ['5585977776666@s.whatsapp.net'] } } } } });
+  assert.equal(lid.participante.telefone, null);
+  assert.equal(lid.participante.jid, '279619886420042@lid');
+  assert.deepEqual(lid.mencoes, ['5585977776666@s.whatsapp.net']);
+  const [comAlt] = eventosDaEvolution({ event: 'messages.upsert', data: { key: { remoteJid: '1203630@g.us', participant: '279619886420042@lid', participantAlt: '558599990000@s.whatsapp.net', id: 'L2' }, pushName: 'Maria', message: { conversation: 'oi' } } });
+  assert.equal(comAlt.participante.telefone, '5585999990000', 'número de verdade, com o 9º dígito');
   assert.equal(eventosDaEvolution({ event: 'messages.upsert', data: { key: { remoteJid: 'status@broadcast', id: 'S' }, message: { conversation: 'x' } } }).length, 0);
 
   assert.deepEqual(eventosDaEvolution({ event: 'messages.update', data: { keyId: 'A1', status: 'READ' } }), [{ tipo: 'status', idExterno: 'A1', status: 'lida' }]);

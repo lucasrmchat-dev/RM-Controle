@@ -136,6 +136,28 @@ const telefoneDoJid = (jid) => {
 const ehConversaIndividual = (jid) => /@s\.whatsapp\.net$|@c\.us$|@lid$/.test(String(jid || ''));
 const ehJidDeGrupo = (jid) => /^\d[\d-]*@g\.us$/.test(String(jid || ''));
 
+/** Número de verdade de um participante: nunca o código interno do WhatsApp (…@lid). */
+const telefoneDoParticipante = (jid, alt) => {
+  if (alt && /@s\.whatsapp\.net$|@c\.us$/.test(alt)) return telefoneDoJid(alt);
+  if (/@s\.whatsapp\.net$|@c\.us$/.test(String(jid || ''))) return telefoneDoJid(jid);
+  return null;
+};
+
+/** Quem foi mencionado (@) na mensagem. */
+function mencoesEvolution(message = {}) {
+  for (const v of Object.values(message || {})) {
+    const lista = v && typeof v === 'object' ? v.contextInfo?.mentionedJid : null;
+    if (Array.isArray(lista) && lista.length) return lista.filter((j) => typeof j === 'string').slice(0, 50);
+  }
+  return [];
+}
+
+/** "@279619886420042" → "@Maria" para quem se sabe o nome (o resto fica como veio). */
+export function trocarMencoes(texto, nomes) {
+  if (!texto || !nomes || !nomes.size) return texto;
+  return String(texto).replace(/@(\d{6,20})/g, (todo, id) => (nomes.get(id) ? `@${nomes.get(id)}` : todo));
+}
+
 /** Id da mensagem citada (resposta), em qualquer tipo de mensagem do WhatsApp. */
 function citadaEvolution(message = {}) {
   for (const v of Object.values(message || {})) {
@@ -210,7 +232,8 @@ export function eventosDaEvolution(payload) {
           // Em grupo, o pushName é de quem escreveu, não o nome do grupo
           nome: m.key.fromMe || grupo ? null : texto(m.pushName, 120) || null,
           grupo,
-          participante: grupo && !m.key.fromMe ? { nome: texto(m.pushName, 120) || null, telefone: telefoneDoJid(m.key.participantAlt || m.key.participant) } : null,
+          participante: grupo && !m.key.fromMe ? { nome: texto(m.pushName, 120) || null, jid: m.key.participant || null, telefone: telefoneDoParticipante(m.key.participant, m.key.participantAlt) } : null,
+          ...(grupo && mencoesEvolution(m.message).length ? { mencoes: mencoesEvolution(m.message) } : {}),
           deMim: Boolean(m.key.fromMe),
           ...c,
           texto: texto(c.texto, 4000),

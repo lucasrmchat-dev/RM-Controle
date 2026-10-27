@@ -88,12 +88,31 @@ class Query {
     }
     return this;
   }
-  eq(col, val) { this.filters.push((r) => r[col] === val); return this; }
+  // Aceita caminho JSON do PostgREST (ex.: detalhes->>conversa_id)
+  eq(col, val) {
+    const [c, campo] = String(col).split('->>');
+    this.filters.push((r) => (campo ? String(r[c]?.[campo] ?? '') === String(val) : r[c] === val));
+    return this;
+  }
   neq(col, val) { this.filters.push((r) => r[col] !== val); return this; }
   in(col, vals) { this.filters.push((r) => vals.includes(r[col])); return this; }
-  ilike(col, val) { this.filters.push((r) => String(r[col] ?? '').toLowerCase() === String(val).toLowerCase()); return this; }
+  ilike(col, val) {
+    const padrao = String(val);
+    if (!padrao.includes('%')) { this.filters.push((r) => String(r[col] ?? '').toLowerCase() === padrao.toLowerCase()); return this; }
+    const re = new RegExp(`^${padrao.split('%').map((p) => p.replace(/\\([%_])/g, '$1').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`, 'is');
+    this.filters.push((r) => re.test(String(r[col] ?? '')));
+    return this;
+  }
   is(col, val) { this.filters.push((r) => (r[col] ?? null) === val); return this; }
-  not(col, op, val) { this.filters.push((r) => (op === 'is' ? (r[col] ?? null) !== val : r[col] !== val)); return this; }
+  not(col, op, val) {
+    const casa = (r) => {
+      if (op === 'is') return (r[col] ?? null) === val;
+      if (op === 'like' || op === 'ilike') return new RegExp(`^${String(val).split('%').map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`, op === 'ilike' ? 'i' : '').test(String(r[col] ?? ''));
+      return r[col] === val;
+    };
+    this.filters.push((r) => !casa(r));
+    return this;
+  }
   lt(col, val) { this.filters.push((r) => r[col] < val); return this; }
   gt(col, val) { this.filters.push((r) => r[col] > val); return this; }
   order() { return this; }
@@ -155,7 +174,8 @@ class Query {
         }
       }
       for (const p of this.payload) {
-        const existente = rows.find((r) => r[this.conflito] === p[this.conflito]);
+        const chaves = String(this.conflito).split(',').map((c) => c.trim());
+        const existente = rows.find((r) => chaves.every((c) => r[c] === p[c]));
         if (existente) Object.assign(existente, p);
         else rows.push({ ...p });
       }
@@ -238,6 +258,9 @@ export const supabase = {
         async list(pastaInterna) { const prefixo = `${pasta}/${pastaInterna}/`; return { data: Object.keys(db.arquivos || {}).filter((k) => k.startsWith(prefixo)).map((k) => ({ name: k.slice(prefixo.length) })), error: null }; },
         async remove(caminhos) { caminhos.forEach((c) => delete db.arquivos[`${pasta}/${c}`]); return { data: [], error: null }; },
         async upload(caminho, dados, op) { db.arquivos = { ...(db.arquivos || {}), [`${pasta}/${caminho}`]: { dados, tipo: op?.contentType } }; return { data: { path: caminho }, error: null }; },
+        async createSignedUrls(caminhos) {
+          return { data: caminhos.map((c) => ({ path: c, error: db.arquivos?.[`${pasta}/${c}`] ? null : 'Object not found', signedUrl: db.arquivos?.[`${pasta}/${c}`] ? `https://teste.supabase.co/storage/v1/object/sign/${pasta}/${c}?token=x` : null })), error: null };
+        },
         async createSignedUrl(caminho, segundos, op) {
           if (!db.arquivos?.[`${pasta}/${caminho}`]) return { data: null, error: { message: 'Object not found' } };
           return { data: { signedUrl: `https://teste.supabase.co/storage/v1/object/sign/${pasta}/${caminho}?token=x${op?.download ? '&download=' + encodeURIComponent(op.download) : ''}` }, error: null };

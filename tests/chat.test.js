@@ -88,6 +88,7 @@ test('perfil sem o módulo Chat não acessa', async () => {
 });
 
 test('responder envia pelo WhatsApp, assume a conversa e zera as não lidas', async () => {
+  await agir(await como('bia@a.com', `/api/chat/${convVendas.id}`, 'POST', { acao: 'assumir' }), { params: { id: convVendas.id } });
   const r = await ler(await agir(await como('bia@a.com', `/api/chat/${convVendas.id}`, 'POST', { acao: 'enviar', texto: 'Olá, Carla!' }), { params: { id: convVendas.id } }));
   assert.equal(r.status, 200, r.mensagem);
   assert.deepEqual(enviados[0].corpo, { number: '5585999990000', text: '*Bia Lima:*\nOlá, Carla!' }, 'sai assinada por padrão');
@@ -99,11 +100,12 @@ test('responder envia pelo WhatsApp, assume a conversa e zera as não lidas', as
   assert.equal(r.conversa.nao_lidas, 0);
 
   const lista = await ler(await abrir(await como('bia@a.com', `/api/chat/${convVendas.id}`), { params: { id: convVendas.id } }));
-  assert.equal(lista.mensagens.length, 2);
+  assert.equal(lista.mensagens.filter((m) => m.tipo !== 'sistema').length, 2);
 });
 
 test('nota interna não vai para o WhatsApp; assumir, resolver e reabrir deixam registro', async () => {
   const id = convVendas.id;
+  await agir(await como('ana@a.com', `/api/chat/${id}`, 'POST', { acao: 'assumir' }), { params: { id } });
   const nota = await ler(await agir(await como('ana@a.com', `/api/chat/${id}`, 'POST', { acao: 'nota', texto: 'Cliente VIP' }), { params: { id } }));
   assert.equal(nota.mensagem.direcao, 'nota');
   assert.equal(enviados.length, 0);
@@ -166,6 +168,7 @@ test('mídia: enviar foto pela tela, abrir só com permissão, formato perigoso 
     for (const [k, v] of Object.entries(extra)) fd.append(k, v);
     return new NextRequest(`http://localhost/api/chat/${convVendas.id}/midia`, { method: 'POST', headers: { Cookie: `${SESSION_COOKIE_NAME}=${await createSessionToken({ email, role: 'suporte' })}` }, body: fd });
   };
+  await agir(await como('bia@a.com', `/api/chat/${convVendas.id}`, 'POST', { acao: 'assumir' }), { params: { id: convVendas.id } });
   const foto = new File([Buffer.from('ffd8ffe0', 'hex')], 'print.jpg', { type: 'image/jpeg' });
   const r = await ler(await enviarArquivo(await formulario('bia@a.com', foto, { legenda: 'Segue o print' }), { params: { id: convVendas.id } }));
   assert.equal(r.status, 200, r.mensagem);
@@ -183,6 +186,7 @@ test('mídia: enviar foto pela tela, abrir só com permissão, formato perigoso 
   db.tables.conversas.find((c) => c.id === convVendas.id).responsavel_email = null;
   assert.equal((await abrir('bia@a.com')).status, 404);
 
+  db.tables.conversas.find((c) => c.id === convVendas.id).responsavel_email = 'ana@a.com';
   const html = new File(['<script>alert(1)</script>'], 'x.html', { type: 'text/html' });
   assert.equal((await enviarArquivo(await formulario('ana@a.com', html), { params: { id: convVendas.id } })).status, 400);
 });
@@ -205,6 +209,7 @@ test('ações na mensagem: responder citando, reagir, editar no prazo, apagar pa
   const agir2 = async (email, corpo) => ler(await agir(await como(email, `/api/chat/${id}`, 'POST', corpo), { params: { id } }));
   const cliente = db.tables.mensagens[0];
   cliente.id_externo = 'CLI-1';
+  await agir2('ana@a.com', { acao: 'assumir' });
 
   // Responder citando a mensagem do cliente
   const resp = await agir2('ana@a.com', { acao: 'enviar', texto: 'Claro!', responde_a: cliente.id, assinar: false });
@@ -303,4 +308,153 @@ test('excluir a conversa inteira: só administrador; apaga arquivos e fica na au
   const log = db.tables.auditoria_logs.find((l) => l.acao === 'chat_excluiu');
   assert.equal(log.usuario_email, 'ana@a.com');
   assert.equal(log.detalhes.conversa_id, id);
+});
+
+test('assumir antes de responder: sem assumir não envia, nem nota, nem arquivo, nem reação (grupos ficam de fora)', async () => {
+  const id = convVendas.id;
+  const r = await ler(await agir(await como('bia@a.com', `/api/chat/${id}`, 'POST', { acao: 'enviar', texto: 'oi' }), { params: { id } }));
+  assert.equal(r.status, 409);
+  assert.equal(r.precisa_assumir, true);
+  assert.equal((await agir(await como('bia@a.com', `/api/chat/${id}`, 'POST', { acao: 'nota', texto: 'x' }), { params: { id } })).status, 409);
+  assert.equal(enviados.length, 0);
+  await agir(await como('bia@a.com', `/api/chat/${id}`, 'POST', { acao: 'assumir' }), { params: { id } });
+  assert.equal((await agir(await como('bia@a.com', `/api/chat/${id}`, 'POST', { acao: 'enviar', texto: 'oi', assinar: false }), { params: { id } })).status, 200);
+  // Com outra pessoa: a Ana (administradora) também precisa assumir
+  const outra = await ler(await agir(await como('ana@a.com', `/api/chat/${id}`, 'POST', { acao: 'enviar', texto: 'oi' }), { params: { id } }));
+  assert.match(outra.mensagem, /Bia Lima/);
+});
+
+test('grupo: participante salvo com o número de verdade, menção vira nome e envio menciona de verdade', async () => {
+  const { POST: receber } = await import('../src/app/api/canais/webhook/[id]/route.js');
+  db.tables.sistema_config = [{ organizacao_id: A, chave: 'chat', valor: { grupos: 'aba' } }];
+  db.tables.participantes_grupo = [];
+  globalThis.fetch = async (url, op) => {
+    enviados.push({ url: String(url), corpo: op?.body ? JSON.parse(op.body) : null });
+    return new Response(JSON.stringify(String(url).includes('findGroupInfos') ? { subject: 'Equipe Comercial' } : { key: { id: `EVO-${enviados.length}`, remoteJid: '120363999@g.us' } }), { status: 200 });
+  };
+  const aviso = (id, key, message, pushName) => receber(new NextRequest(`http://localhost/api/canais/webhook/${canal.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rm-token': 't' }, body: JSON.stringify({ event: 'messages.upsert', data: { key: { remoteJid: '120363999@g.us', id, ...key }, pushName, message } }) }), { params: { id: canal.id } });
+  await aviso('G1', { participant: '279619886420042@lid', participantAlt: '558598887777@s.whatsapp.net' }, { conversation: 'Bom dia!' }, 'Maria Albano');
+  await aviso('G2', { participant: '11111@lid' }, { extendedTextMessage: { text: 'Fala com a @279619886420042', contextInfo: { mentionedJid: ['279619886420042@lid'] } } }, 'Pedro');
+
+  const grupo = db.tables.contatos.find((c) => c.telefone === '120363999@g.us');
+  assert.equal(grupo.nome, 'Equipe Comercial');
+  const maria = db.tables.contatos.find((c) => c.nome === 'Maria Albano');
+  assert.equal(maria.telefone, '5585998887777', 'contato com o número de verdade (com o 9º dígito)');
+  assert.equal(db.tables.contatos.some((c) => c.telefone?.includes('279619886420042') || c.telefone?.includes('11111')), false, 'código interno nunca vira contato');
+  assert.equal(db.tables.mensagens.find((m) => m.id_externo === 'G2').conteudo, 'Fala com a @Maria Albano');
+
+  // Enviar mencionando a Maria pelo nome: o WhatsApp recebe o número e a lista de mencionados
+  const conversaGrupo = db.tables.conversas.find((c) => c.contato_id === grupo.id);
+  const id = conversaGrupo.id;
+  const r = await ler(await agir(await como('ana@a.com', `/api/chat/${id}`, 'POST', { acao: 'enviar', texto: 'Oi @Maria Albano, tudo certo', assinar: false, mencoes: [{ jid: '279619886420042@lid', nome: 'Maria Albano' }] }), { params: { id } }));
+  assert.equal(r.status, 200, r.mensagem);
+  const envio = enviados.find((e) => e.url.includes('sendText'));
+  // Grupo novo (participante pelo código …@lid): a menção vai pelo código, como o celular faz
+  assert.equal(envio.corpo.text, 'Oi @279619886420042, tudo certo');
+  assert.deepEqual(envio.corpo.mentioned, ['279619886420042@lid']);
+  assert.equal(r.mensagem.conteudo, 'Oi @Maria Albano, tudo certo', 'a tela guarda com o nome');
+});
+
+test('busca de mensagens respeita o período e quem pode ver; lista de contatos sem grupos', async () => {
+  const { GET: buscar } = await import('../src/app/api/chat/busca/route.js');
+  const { GET: contatos } = await import('../src/app/api/chat/contatos/route.js');
+  const velha = { id: crypto.randomUUID(), organizacao_id: A, conversa_id: convVendas.id, direcao: 'entrada', tipo: 'texto', conteudo: 'orçamento antigo', status: 'recebida', criado_em: new Date(Date.now() - 60 * 864e5).toISOString() };
+  const doFinanceiro = { id: crypto.randomUUID(), organizacao_id: A, conversa_id: convFinanceiro.id, direcao: 'entrada', tipo: 'texto', conteudo: 'segundo orçamento', status: 'recebida', criado_em: new Date().toISOString() };
+  db.tables.mensagens.push(velha, doFinanceiro);
+  const em30 = await ler(await buscar(await como('ana@a.com', '/api/chat/busca?q=orçamento&dias=30')));
+  assert.deepEqual(em30.resultados.map((m) => m.conteudo).sort(), ['Oi, quero um orçamento', 'segundo orçamento']);
+  const em90 = await ler(await buscar(await como('ana@a.com', '/api/chat/busca?q=orçamento&dias=90')));
+  assert.equal(em90.resultados.length, 3);
+  const bia = await ler(await buscar(await como('bia@a.com', '/api/chat/busca?q=orçamento&dias=90')));
+  assert.equal(bia.resultados.some((m) => m.conteudo === 'segundo orçamento'), false, 'Financeiro não aparece para Vendas');
+  assert.equal((await buscar(await como('ana@a.com', '/api/chat/busca?q=o'))).status, 400);
+
+  db.tables.contatos.push({ id: crypto.randomUUID(), organizacao_id: A, telefone: '120363@g.us', nome: 'Grupo X' });
+  const lista = await ler(await contatos(await como('bia@a.com', '/api/chat/contatos?lista=1')));
+  assert.deepEqual(lista.contatos.map((c) => c.nome), ['Carla Mendes']);
+});
+
+test('vigia do chat: avisa conversa nova na fila e mensagem nas minhas; não avisa grupo nem a conversa aberta', async () => {
+  const { analisarConversas } = await import('../src/lib/vigiaChat.js');
+  const c = (id, extra) => ({ id, status: 'aguardando', nao_lidas: 1, contato: { nome: id, telefone: '5585999990000' }, ...extra });
+  const inicio = analisarConversas(null, [c('a')], { email: 'eu@a.com' });
+  assert.equal(inicio.avisos.length, 0, 'primeira leitura só registra');
+  const r = analisarConversas(inicio.proximo, [c('a', { nao_lidas: 2 }), c('b'), c('g', { contato: { nome: 'G', telefone: '1203@g.us' } }), c('m', { responsavel_email: 'eu@a.com', nao_lidas: 0 }), c('x', { responsavel_email: 'outro@a.com' })], { email: 'eu@a.com', abertaId: null });
+  assert.deepEqual(r.avisos.map((a) => a.titulo), ['Na fila de a', 'Nova conversa: b']);
+  const r2 = analisarConversas(r.proximo, [c('m', { responsavel_email: 'eu@a.com', nao_lidas: 3 }), c('b', { nao_lidas: 4 })], { email: 'eu@a.com', abertaId: 'b' });
+  assert.deepEqual(r2.avisos.map((a) => a.titulo), ['Mensagem de m']);
+});
+
+test('menção a quem nunca escreveu: atualiza a lista do grupo e mostra o nome (ou o número), nunca o código', async () => {
+  const { POST: receber } = await import('../src/app/api/canais/webhook/[id]/route.js');
+  db.tables.sistema_config = [{ organizacao_id: A, chave: 'chat', valor: { grupos: 'aba' } }];
+  db.tables.participantes_grupo = [];
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    const corpo = u.includes('/group/participants/')
+      ? { participants: [{ id: '255619407855624@lid', phoneNumber: '558499990000@s.whatsapp.net', admin: null }, { id: '333444555666777@lid', phoneNumber: '558477776666@s.whatsapp.net', admin: 'admin' }] }
+      : u.includes('/chat/findContacts/')
+        ? [{ remoteJid: '333444555666777@lid', pushName: 'Matheus Prado' }]
+        : u.includes('findGroupInfos')
+          ? { subject: 'Expert Turismo' }
+          : {};
+    return new Response(JSON.stringify(corpo), { status: 200 });
+  };
+  const aviso = (id, texto, mencoes) =>
+    receber(
+      new NextRequest(`http://localhost/api/canais/webhook/${canal.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-rm-token': 't' },
+        body: JSON.stringify({ event: 'messages.upsert', data: { key: { remoteJid: '120363777@g.us', participant: '444@lid', id }, pushName: 'Pedro', message: { extendedTextMessage: { text: texto, contextInfo: { mentionedJid: mencoes } } } } }),
+      }),
+      { params: { id: canal.id } }
+    );
+  await aviso('M1', '@255619407855624 tem como tentar? @333444555666777', ['255619407855624@lid', '333444555666777@lid']);
+  const msg = db.tables.mensagens.find((m) => m.id_externo === 'M1');
+  assert.equal(msg.conteudo, '@(84) 99999-0000 tem como tentar? @Matheus Prado');
+  const conversa = db.tables.conversas.find((c) => c.id === msg.conversa_id);
+  assert.equal(conversa.ultima_mensagem_texto.startsWith('@(84) 99999-0000'), true);
+});
+
+test('fotos em lote: uma chamada traz as fotos permitidas; contato de outro departamento fica de fora', async () => {
+  const { GET: fotos } = await import('../src/app/api/chat/fotos/route.js');
+  const outro = { id: crypto.randomUUID(), organizacao_id: A, telefone: '5585911112222', nome: 'Do Financeiro', foto_url: `${A}/contatos/f2.jpg` };
+  contato.foto_url = `${A}/contatos/f1.jpg`;
+  db.tables.contatos.push(outro);
+  convFinanceiro.contato_id = outro.id;
+  db.arquivos = { [`chat-midia/${A}/contatos/f1.jpg`]: { dados: 'x' }, [`chat-midia/${A}/contatos/f2.jpg`]: { dados: 'y' } };
+  const ana = await ler(await fotos(await como('ana@a.com', `/api/chat/fotos?ids=${contato.id},${outro.id}`)));
+  assert.deepEqual(Object.keys(ana.fotos).sort(), [contato.id, outro.id].sort());
+  const bia = await ler(await fotos(await como('bia@a.com', `/api/chat/fotos?ids=${contato.id},${outro.id}`)));
+  assert.deepEqual(Object.keys(bia.fotos), [contato.id], 'Vendas não recebe a foto de contato do Financeiro');
+});
+
+test('grupo: quem escreve só com o código interno vira contato pelo número da lista; participantes com nome também', async () => {
+  const { POST: receber } = await import('../src/app/api/canais/webhook/[id]/route.js');
+  db.tables.sistema_config = [{ organizacao_id: A, chave: 'chat', valor: { grupos: 'aba' } }];
+  db.tables.participantes_grupo = [];
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    const corpo = u.includes('/group/participants/')
+      ? { participants: [{ id: '111222333444555@lid', phoneNumber: '558481393870@s.whatsapp.net' }, { id: '999888777666555@lid', phoneNumber: '558399133015@s.whatsapp.net' }, { id: '123123123123123@lid', phoneNumber: '558477770000@s.whatsapp.net' }] }
+      : u.includes('/chat/findContacts/')
+        ? [{ remoteJid: '999888777666555@lid', pushName: 'Rayane' }]
+        : u.includes('findGroupInfos')
+          ? { subject: 'Equipe Comercial' }
+          : {};
+    return new Response(JSON.stringify(corpo), { status: 200 });
+  };
+  await receber(
+    new NextRequest(`http://localhost/api/canais/webhook/${canal.id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-rm-token': 't' },
+      body: JSON.stringify({ event: 'messages.upsert', data: { key: { remoteJid: '120363555@g.us', participant: '111222333444555@lid', id: 'P1' }, pushName: 'Pedro Alvarez', message: { conversation: 'Aqui é 13' } } }),
+    }),
+    { params: { id: canal.id } }
+  );
+  const nomes = db.tables.contatos.filter((c) => !c.telefone.endsWith('@g.us')).map((c) => `${c.nome} ${c.telefone}`).sort();
+  assert.ok(nomes.includes('Pedro Alvarez 5584981393870'), `quem escreveu, pelo número da lista: ${nomes.join(' | ')}`);
+  assert.ok(nomes.includes('Rayane 5583999133015'), `participante com nome conhecido vira contato: ${nomes.join(' | ')}`);
+  assert.equal(nomes.some((c) => c.includes('5584977770000')), false, 'sem nome conhecido não vira contato');
+  assert.equal(db.tables.contatos.some((c) => /111222333444555|999888777666555/.test(c.telefone)), false, 'código interno nunca vira telefone');
 });
