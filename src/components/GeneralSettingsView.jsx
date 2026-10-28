@@ -153,7 +153,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
 
   const handleTestarSom = (tipo) => {
     setSomTocando(true);
-    playNotificationTone(tipo || audioConfig.tipoSom);
+    playNotificationTone(tipo || audioConfig.tipoSom, { teste: true });
     setTimeout(() => setSomTocando(false), 1200);
   };
 
@@ -212,7 +212,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
 
   const handleTestarSomAgenda = () => {
     setAgendaSomTocando(true);
-    playNotificationTone(getSomDoModulo('reunioes').tipoSom);
+    playNotificationTone(getSomDoModulo('reunioes').tipoSom, { teste: true });
     showToast('🔔 Chime harmônico de reunião executado!', 'info');
     setTimeout(() => setAgendaSomTocando(false), 1200);
   };
@@ -520,7 +520,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                 Modo de Visualização Padrão do Sistema
               </h3>
               <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
-                Escolha o formato prioritário de exibição para todas as telas do RM Controle (Empresas, Fila de Demandas, Dashboard e Credenciais). Ao selecionar uma opção, o sistema inteiro adotará essa preferência.
+                Escolha o formato prioritário de exibição para todas as telas do RM Controle (Empresas, Demandas, Dashboard e Credenciais). Ao selecionar uma opção, o sistema inteiro adotará essa preferência.
               </p>
             </div>
 
@@ -528,7 +528,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
               {[
                 { id: 'list', titulo: 'Lista / Tabela', tag: 'Alta densidade de dados', Icone: ViewListIcon, desc: 'Cabeçalhos clicáveis para ordenar, muitos dados por linha e leitura rápida.' },
                 { id: 'cards', titulo: 'Cards / Grade', tag: 'Visual em cartões', Icone: ViewGridIcon, desc: 'Cada registro num cartão, com as métricas em destaque.' },
-                { id: 'kanban', titulo: 'Kanban', tag: 'Por estado', Icone: KanbanIcon, desc: 'Colunas por estado na Fila de Demandas e no Chat; nas outras telas, cards.' },
+                { id: 'kanban', titulo: 'Kanban', tag: 'Por estado', Icone: KanbanIcon, desc: 'Colunas por estado na Demandas e no Chat; nas outras telas, cards.' },
               ].map(({ id, titulo, tag, Icone, desc }) => (
                 <button
                   key={id}
@@ -902,7 +902,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
                 Campos Obrigatórios na Conclusão de Chamados
               </h3>
               <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
-                Configure os campos exigidos dos operadores antes de finalizar qualquer atendimento na Fila de Demandas.
+                Configure os campos exigidos dos operadores antes de finalizar qualquer atendimento na Demandas.
               </p>
             </div>
 

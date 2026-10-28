@@ -49,6 +49,8 @@ import { showToast } from './ToastNotification';
 import QueueCommandBar from './QueueCommandBar';
 import NovaDemandaModal from './NovaDemandaModal';
 import { ListaDemandas, CardsDemandas, KanbanDemandas } from './FilaDemandasVisoes';
+import ModoFoco, { SeletorModoFoco, focoEmAndamento } from './ModoFoco';
+import { focoSilenciaAvisos } from '@/lib/modoFoco';
 import { SupportQueueSkeleton } from './SkeletonLoaders';
 import { 
   ViewGridIcon,
@@ -83,6 +85,11 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
   const [busca, setBusca] = useState('');
   const [, setTick] = useState(0);
   const [filaViewMode, setFilaViewMode] = useState('cards');
+  // Modo foco: uma demanda por vez (volta aberto se a pessoa foi à empresa no meio da sessão)
+  const [foco, setFoco] = useState(false);
+  useEffect(() => {
+    if (focoEmAndamento()) setFoco(true);
+  }, []);
   const [sortFilaCol, setSortFilaCol] = useState('status');
   const [sortFilaDir, setSortFilaDir] = useState('asc');
 
@@ -512,7 +519,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
           });
           if (nova) novos.push(ch);
         });
-        if (novos.length && !primeiraVerificacao) {
+        if (novos.length && !primeiraVerificacao && !focoSilenciaAvisos()) {
           try {
             playNotificationTone('dinamico');
           } catch (e) {}
@@ -1516,6 +1523,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
         </div>
         <EncaixeCabecalho />
         <div className={`flex items-center gap-2 ${ACOES_TITULO}`}>
+          <SeletorModoFoco onEntrar={() => setFoco(true)} />
           <button
             type="button"
             data-acao-fila="nova"
@@ -2022,6 +2030,17 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
         </div>
       </div>
       </div>
+
+      {foco && (
+        <ModoFoco
+          chamados={chamados.filter((c) => !isChamadoFeedback(c))}
+          ctx={ctxDemandas}
+          acoes={acoesDemanda}
+          tempos={temposDemanda}
+          eMinha={isMeuAtendimento}
+          onSair={() => setFoco(false)}
+        />
+      )}
 
       {/* Formulário de nova demanda (3 etapas) */}
       {/* Criar pode ser para qualquer departamento: o perfil só limita o que a pessoa vê depois */}

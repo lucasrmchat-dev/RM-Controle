@@ -27,6 +27,7 @@ import { getSomDoModulo, pararSomDoModulo, tocarSomDoModulo } from '@/lib/audioN
 import { notificar } from '@/lib/notificacoes';
 import { permissoesEfetivas, podeVerDemanda } from '@/lib/perfis';
 import { ROTULOS_PAPEL } from '@/lib/roles';
+import { EVENTO_FOCO, efeitosDoFoco } from '@/lib/modoFoco';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 // Mola única do cabeçalho: tudo se move junto, como uma peça só
@@ -113,6 +114,26 @@ export default function Navbar({
 }) {
   const [perfilAberto, setPerfilAberto] = useState(false);
   const [grupoAberto, setGrupoAberto] = useState(null);
+  // Modo foco com cabeçalho recolhido: a ilha sobe e some; encostar o mouse no topo traz de volta
+  const [recolhido, setRecolhido] = useState(false);
+  const [espiando, setEspiando] = useState(false);
+  useEffect(() => {
+    setRecolhido(efeitosDoFoco().recolher);
+    const aoFoco = (e) => {
+      setRecolhido(Boolean(e.detail?.recolher));
+      setEspiando(false);
+    };
+    window.addEventListener(EVENTO_FOCO, aoFoco);
+    return () => window.removeEventListener(EVENTO_FOCO, aoFoco);
+  }, []);
+  const escondido = recolhido && !espiando;
+  // Espiando: some de novo quando o mouse desce para a tela (com menus da ilha fechados)
+  useEffect(() => {
+    if (!espiando) return undefined;
+    const mover = (e) => e.clientY > 110 && !perfilAberto && !grupoAberto && setEspiando(false);
+    document.addEventListener('pointermove', mover);
+    return () => document.removeEventListener('pointermove', mover);
+  }, [espiando, perfilAberto, grupoAberto]);
   // A ilha fica SEMPRE no mesmo lugar (topo, centro). As telas reservam o meio da linha de título com a
   // largura dela (--rm-ilha-largura, ver EncaixeCabecalho); em telas menores que 1024px há uma faixa no topo.
   const ilhaRef = useRef(null);
@@ -262,7 +283,7 @@ export default function Navbar({
   const todasAsAbas = [
     { id: 'chat', label: 'Chat', curto: 'Chat', descricao: 'Conversas do WhatsApp', badge: totalChat || null, icon: <IconeAba d={ICONES_ABA.chat} /> },
     { id: 'conexoes', label: 'Canais', curto: 'Canais', descricao: 'Números de WhatsApp conectados', icon: <IconeAba d={ICONES_ABA.canais} /> },
-    { id: 'fila', label: 'Fila de Demandas', curto: 'Fila', descricao: 'Demandas dos clientes', badge: totalFila || null, icon: <IconeAba d={ICONES_ABA.fila} /> },
+    { id: 'fila', label: 'Demandas', curto: 'Demandas', descricao: 'Demandas dos clientes', badge: totalFila || null, icon: <IconeAba d={ICONES_ABA.fila} /> },
     { id: 'feedbacks', label: 'Feedbacks', curto: 'Feedbacks', descricao: 'Ideias, melhorias e problemas', icon: <IconeAba d={ICONES_ABA.feedbacks} /> },
     { id: 'agenda', label: 'Agenda', curto: 'Agenda', descricao: 'Reuniões e Google Agenda', badge: totalReunioesHoje || null, icon: <IconeAba d={ICONES_ABA.agenda} /> },
     { id: 'daily', label: 'Daily', curto: 'Daily', descricao: 'Resumo das dailies e metas da semana', icon: <IconeAba d={ICONES_ABA.daily} /> },
@@ -330,7 +351,11 @@ export default function Navbar({
       <header className="hidden sm:block">
         {/* z-[49]: acima de tudo da página (a busca e os filtros da Fila usam z-40, e por virem depois na página
             cobriam a lista das categorias), mas abaixo das janelas (z-50 em diante) */}
-        <div className="fixed top-2 lg:top-4 left-1/2 -translate-x-1/2 z-[49]">
+        {recolhido && <div className="fixed top-0 inset-x-0 h-3 z-[49]" onMouseEnter={() => setEspiando(true)} aria-hidden="true" />}
+        <div
+          className={`fixed top-2 lg:top-4 left-1/2 -translate-x-1/2 z-[49] transition-[transform,opacity] duration-300 ease-out ${escondido ? '!-translate-y-[calc(100%+24px)] opacity-0 pointer-events-none' : ''}`}
+          inert={escondido || undefined}
+        >
           {/* Ilha: marca, categorias, notificações e conta */}
           {/* Avisos na tela (ilha e sino) presos à pílula */}
           <AvisosNaTela local="cabecalho" onAbrirAba={(aba) => (aba === 'fila' || permitidas.includes(aba)) && irPara(aba)} />
@@ -338,7 +363,7 @@ export default function Navbar({
             <button
               type="button"
               onClick={() => irPara('fila')}
-              aria-label="RM Controle — ir para a Fila de Demandas"
+              aria-label="RM Controle — ir para Demandas"
               className="h-10 w-10 flex items-center justify-center rounded-full cursor-pointer flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rm-acento/40"
             >
               <BrandMark size={34} />
@@ -437,7 +462,7 @@ export default function Navbar({
           </>
         )}
       </AnimatePresence>
-      <nav className="sm:hidden fixed bottom-2.5 inset-x-2.5 z-50 bg-white/85 dark:bg-rm-elevado-escuro/85 backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.11] shadow-[0_12px_36px_rgba(0,0,0,0.16)] dark:shadow-[0_16px_40px_rgba(0,0,0,0.7)] rounded-[26px] p-1.5 flex items-center justify-between">
+      <nav className={`${recolhido ? 'hidden' : 'sm:hidden'} fixed bottom-2.5 inset-x-2.5 z-50 bg-white/85 dark:bg-rm-elevado-escuro/85 backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.11] shadow-[0_12px_36px_rgba(0,0,0,0.16)] dark:shadow-[0_16px_40px_rgba(0,0,0,0.7)] rounded-[26px] p-1.5 flex items-center justify-between`}>
         {grupos.map((g) => {
           const unica = g.abas.length === 1 ? g.abas[0] : null;
           const ativa = g.abas.some((t) => t.id === activeTab);

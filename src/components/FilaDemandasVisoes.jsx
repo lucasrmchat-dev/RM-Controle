@@ -327,7 +327,7 @@ const COR_CHIP_TEMPO = {
   atencao: 'text-amber-600 dark:text-amber-400',
   normal: 'text-[#1d1d1f] dark:text-white',
 };
-function ChipTempo({ ch, info, tempos, tamanho = 'normal' }) {
+export function ChipTempo({ ch, info, tempos, tamanho = 'normal' }) {
   return (
     <span className="inline-flex flex-col items-end">
       <span className={`font-semibold tabular-nums tracking-tight whitespace-nowrap ${tamanho === 'pequeno' ? 'text-[13px]' : 'text-[15px]'} ${COR_CHIP_TEMPO[info.prioridade]}`}>

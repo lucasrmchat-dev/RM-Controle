@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EVENTO_NOVA, marcarLida } from '@/lib/notificacoes';
 import { CORES_FLASH, EVENTO_AVISOS_CONFIG, deveMostrar, lerAvisos } from '@/lib/avisosTela';
+import { EVENTO_FOCO, efeitosDoFoco, focoSilenciaAvisos } from '@/lib/modoFoco';
 
 // ------------------------------------------------------------------------------
 // Avisos na tela (Configurações › Aparência): a notificação que acabou de chegar aparece num dos estilos
@@ -49,7 +50,7 @@ function useAvisos(ativo) {
     const aoNova = (e) => {
       const n = e.detail;
       const atual = lerAvisos();
-      if (!n?.teste && Date.now() - inicio < CARENCIA_MS) return;
+      if (!n?.teste && (Date.now() - inicio < CARENCIA_MS || focoSilenciaAvisos())) return;
       if (!deveMostrar(n, atual)) return;
       setVisiveis((l) => {
         const sem = l.filter((x) => x.id !== n.id && !(n.grupo && x.grupo === n.grupo));
@@ -113,7 +114,7 @@ function FlashTela() {
     const aoNova = (e) => {
       const n = e.detail;
       const config = lerAvisos();
-      if (!config.flash || (!n?.teste && Date.now() - inicio < CARENCIA_MS) || !deveMostrar({ ...n }, { ...config, estilo: 'ilha' })) return;
+      if (!config.flash || (!n?.teste && (Date.now() - inicio < CARENCIA_MS || focoSilenciaAvisos())) || !deveMostrar({ ...n }, { ...config, estilo: 'ilha' })) return;
       setCor((CORES_FLASH.find((c) => c.id === config.flashCor) || CORES_FLASH[0]).valor);
       setPulso((p) => p + 1);
       if (config.flashRepeticao === 'intermitente' && !repetir.current) {
@@ -166,10 +167,18 @@ export default function AvisosNaTela({ local, onAbrirAba, larguraIlha = 0 }) {
     window.addEventListener('resize', medir);
     return () => window.removeEventListener('resize', medir);
   }, []);
+  // Modo foco com o cabeçalho recolhido: ilha e sino aparecem no canto
+  const [recolhido, setRecolhido] = useState(false);
+  useEffect(() => {
+    setRecolhido(efeitosDoFoco().recolher);
+    const aoFoco = (e) => setRecolhido(Boolean(e.detail?.recolher));
+    window.addEventListener(EVENTO_FOCO, aoFoco);
+    return () => window.removeEventListener(EVENTO_FOCO, aoFoco);
+  }, []);
   const config0 = lerAvisos();
   // No celular, ilha e sino viram canto (o cabeçalho é outro)
-  const estiloEfetivo = (estilo) => (mobile && (estilo === 'ilha' || estilo === 'sino') ? 'canto' : estilo);
-  const ativo = local === 'cabecalho' ? !mobile && ['ilha', 'sino'].includes(config0.estilo) : true;
+  const estiloEfetivo = (estilo) => ((mobile || recolhido) && (estilo === 'ilha' || estilo === 'sino') ? 'canto' : estilo);
+  const ativo = local === 'cabecalho' ? !mobile && !recolhido && ['ilha', 'sino'].includes(config0.estilo) : true;
   const { config, visiveis, extras, fechar } = useAvisos(ativo);
   const estilo = estiloEfetivo(config.estilo);
 
@@ -185,7 +194,7 @@ export default function AvisosNaTela({ local, onAbrirAba, larguraIlha = 0 }) {
   const abrirSino = () => document.querySelector('[aria-label^="Notificações"]')?.click();
 
   if (local === 'cabecalho') {
-    if (mobile) return null;
+    if (mobile || recolhido) return null;
     if (estilo === 'ilha') {
       // A pílula "cresce" para baixo: um fundo do tamanho dela que se estica e mostra os avisos
       return (

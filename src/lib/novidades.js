@@ -15,6 +15,53 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-10-28-modo-foco-total-parcial',
+    data: '2026-10-28',
+    titulo: 'Modo foco: tela cheia de verdade e três níveis de foco',
+    resumo: 'O Modo foco agora ocupa a tela inteira, sem rolagem, respeita o tema claro ou escuro, e você escolhe o quanto quer se desligar.',
+    itens: [
+      'Tela cheia sem rolagem nenhuma, no tema que você usa (claro ou escuro) e na cor do sistema.',
+      'Ao clicar em Modo foco abre uma lista: Apenas modo foco (não mexe em sons e notificações), Modo foco parcial e Modo foco total.',
+      'Parcial: você escolhe silenciar os sons, pausar os avisos na tela e recolher o cabeçalho, com ou sem notificação (com notificação, os avisos aparecem no canto).',
+      'Total: silencia sons e avisos e recolhe o cabeçalho; só fica você e a tarefa.',
+      'Com o cabeçalho recolhido, encoste o mouse no topo da tela para ele aparecer.',
+      'Nada se perde: as notificações continuam chegando no sino, e tudo volta ao normal ao sair do foco. O sistema lembra o último modo usado.',
+    ],
+    modulo: 'Fila de Demandas',
+    tickets: [],
+  },
+  {
+    id: '2026-10-28-chat-arrastar-arquivos',
+    data: '2026-10-28',
+    titulo: 'Chat: arraste arquivos para a conversa e veja a prévia antes de enviar',
+    resumo: 'Solte uma imagem, documento, áudio ou vídeo em cima da conversa: aparece a prévia para conferir, escrever uma legenda e enviar, ou cancelar.',
+    itens: [
+      'Ao arrastar um arquivo do computador, a conversa mostra “Solte para enviar” com o nome do contato.',
+      'Depois de soltar, nada é enviado sozinho: você vê a prévia (imagem, vídeo ou o tipo do documento), coloca a legenda e decide entre Enviar ou Cancelar (ou Esc).',
+      'Vários arquivos de uma vez (arrastando, colando ou pelo clipe): a prévia mostra um por vez, com “+N na sequência” e o botão Cancelar todos.',
+      'Se a conversa não aceita envio agora (resolvida, com outra pessoa ou canal desconectado), o aviso já aparece enquanto você arrasta.',
+      'Arquivos acima de 4 MB ou de tipo não aceito são avisados e ficam de fora, sem atrapalhar os outros.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
+    id: '2026-10-28-modo-foco-demandas',
+    data: '2026-10-28',
+    titulo: 'Modo foco em Demandas: uma tarefa por vez, sem distração',
+    resumo: 'A aba agora se chama só “Demandas” e ganhou o Modo foco: a tela some, sobra a demanda da vez e você vai resolvendo uma atrás da outra.',
+    itens: [
+      'Botão “Modo foco” ao lado de “Nova demanda”: esconde a lista, os filtros e os indicadores; fica só o cabeçalho e a demanda atual.',
+      'Ordem pensada para render: primeiro as que já estão com você, depois as que aguardam o cliente, depois as da fila, das mais urgentes para as menos.',
+      'Botões: Concluir (abre o formulário de finalização) ou Começar quando ainda não é sua, Ir para a empresa, Deixar para o final, Anterior, Próxima e Sair do foco.',
+      'Atalhos de teclado: → próxima, ← anterior, Enter ação principal, F deixar para o final, E ir para a empresa, Esc sair.',
+      'Cada conclusão comemora com um “+1”, som e contagem de sequência; o anel de progresso e o cronômetro mostram o quanto você já avançou. Ao zerar: “Tudo em dia!”.',
+      'Se você for para a empresa e voltar, o foco continua de onde parou.',
+    ],
+    modulo: 'Fila de Demandas',
+    tickets: [],
+  },
+  {
     id: '2026-10-28-avisos-na-tela',
     data: '2026-10-28',
     titulo: 'Avisos na tela: mensagens do WhatsApp, demandas e reuniões onde você estiver',

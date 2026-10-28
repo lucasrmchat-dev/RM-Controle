@@ -80,7 +80,7 @@ export default function FirstAccessSetupView({
 
   const handleTestarSom = (somId) => {
     setSomTocando(true);
-    playNotificationTone(somId || audioConfig.tipoSom);
+    playNotificationTone(somId || audioConfig.tipoSom, { teste: true });
     setTimeout(() => setSomTocando(false), 1200);
   };
 
@@ -437,7 +437,7 @@ export default function FirstAccessSetupView({
                     </span>
                   </div>
                   <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1d1d1f] dark:text-white">
-                    Toques Sonoros da Fila de Demandas
+                    Toques Sonoros de Demandas
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed">
                     Personalize como e quando o navegador emitirá sons ao entrar novas demandas na central.
@@ -601,7 +601,7 @@ export default function FirstAccessSetupView({
                     Modo de Visualização do Sistema
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed">
-                    Escolha como deseja visualizar Empresas e Fila de Demandas por padrão. Você poderá alternar a qualquer momento.
+                    Escolha como deseja visualizar Empresas e Demandas por padrão. Você poderá alternar a qualquer momento.
                   </p>
                 </motion.div>
 

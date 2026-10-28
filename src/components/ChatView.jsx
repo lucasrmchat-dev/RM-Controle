@@ -22,7 +22,7 @@ import {
   fetchContatoChat,
 } from '@/lib/storage';
 import { contarConversasNovas, ehGrupo, janelaAtendimento, preencherResposta } from '@/lib/canais';
-import { ACEITOS, LIMITE_ENVIO, MidiaMensagem, PreviaArquivo, comprimirFoto, tipoPeloMime, useGravadorDeAudio } from './ChatMidia';
+import { ACEITOS, LIMITE_ENVIO, MidiaMensagem, PreviaArquivo, arquivoAceito, comprimirFoto, tipoPeloMime, useGravadorDeAudio } from './ChatMidia';
 import ChatPerfilContato from './ChatPerfilContato';
 import { fotoGuardada, linkDaFoto } from '@/lib/fotosContatos';
 import { BarraReacao, DadosMensagem, MenuMensagem } from './ChatAcoesMensagem';
@@ -759,10 +759,10 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
   }, [gravador.segundos]);
 
   const colar = (e) => {
-    const arquivo = e.clipboardData?.files?.[0];
-    if (!arquivo || nota) return;
+    const arquivos = Array.from(e.clipboardData?.files || []);
+    if (!arquivos.length || nota) return;
     e.preventDefault();
-    onEscolherArquivo(arquivo, { assinar });
+    onEscolherArquivo(arquivos, { assinar });
   };
 
   const inserirEmoji = (emoji) => {
@@ -943,11 +943,12 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
               ref={seletor}
               type="file"
               accept={ACEITOS}
+              multiple
               className="hidden"
               onChange={(e) => {
-                const f = e.target.files?.[0];
+                const arquivos = Array.from(e.target.files || []);
                 e.target.value = '';
-                if (f) onEscolherArquivo(f, { assinar });
+                if (arquivos.length) onEscolherArquivo(arquivos, { assinar });
               }}
             />
           </>
@@ -1249,14 +1250,33 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
     }
   };
 
-  const escolherArquivo = async (arquivo, { assinar }) => {
-    const pronto = await comprimirFoto(arquivo);
-    if (pronto.size > LIMITE_ENVIO) {
-      showToast('Arquivo grande demais (máximo de 4 MB). Para vídeos, envie pelo celular ou mande um link.', 'error');
-      return;
+  // Prévia antes de enviar (clipe, colar ou arrastar). Vários de uma vez: um atrás do outro.
+  const prepararArquivos = async (lista, { assinar }) => {
+    const prontos = [];
+    let grandes = 0;
+    let recusados = 0;
+    for (const arquivo of lista) {
+      if (!arquivoAceito(arquivo)) {
+        recusados += 1;
+        continue;
+      }
+      const pronto = await comprimirFoto(arquivo);
+      if (pronto.size > LIMITE_ENVIO) grandes += 1;
+      else prontos.push(pronto);
     }
-    setPrevia({ arquivo: pronto, assinar });
+    if (grandes) showToast(`${grandes === 1 ? 'Arquivo grande demais' : `${grandes} arquivos grandes demais`} (máximo de 4 MB). Para vídeos, envie pelo celular ou mande um link.`, 'error');
+    if (recusados) showToast(`${recusados === 1 ? 'Tipo de arquivo não aceito' : `${recusados} arquivos com tipo não aceito`}. Envie imagens, vídeos, áudios, PDF, Office, TXT, CSV ou ZIP.`, 'error');
+    if (!prontos.length) return;
+    setPrevia((atual) =>
+      atual ? { ...atual, fila: [...atual.fila, ...prontos] } : { arquivo: prontos[0], fila: prontos.slice(1), assinar, n: Date.now() }
+    );
   };
+  const escolherArquivo = (arquivos, opcoes) => prepararArquivos(Array.isArray(arquivos) ? arquivos : [arquivos], opcoes);
+  const proximaPrevia = () => setPrevia((p) => (p?.fila.length ? { ...p, arquivo: p.fila[0], fila: p.fila.slice(1), n: p.n + 1 } : null));
+
+  // Arrastar arquivos do computador para dentro da conversa
+  const [arrastando, setArrastando] = useState(false);
+  const temArquivos = (e) => Array.from(e.dataTransfer?.types || []).includes('Files');
 
   const enviarArquivo = async (arquivo, { legenda = '', segundos = null, assinar = true } = {}) => {
     const tipo = tipoPeloMime(arquivo.type);
@@ -1481,7 +1501,53 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
   const grupo = ehGrupo(conversa.contato?.telefone);
   return (
     <div className="flex-1 min-w-0 flex relative">
-    <div className="flex-1 min-w-0 flex flex-col relative">
+    <div
+      className="flex-1 min-w-0 flex flex-col relative"
+      onDragEnter={(e) => {
+        if (!temArquivos(e)) return;
+        e.preventDefault();
+        setArrastando(true);
+      }}
+      onDragOver={(e) => {
+        if (!temArquivos(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = bloqueio ? 'none' : 'copy';
+        if (!arrastando) setArrastando(true);
+      }}
+      onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget) && setArrastando(false)}
+      onDrop={(e) => {
+        if (!temArquivos(e)) return;
+        e.preventDefault();
+        setArrastando(false);
+        if (bloqueio) return showToast(bloqueio.texto, 'error');
+        const arquivos = Array.from(e.dataTransfer.files || []);
+        if (arquivos.length) prepararArquivos(arquivos, { assinar: Boolean(config?.assinaturaObrigatoria) || lerAssinar() });
+      }}
+    >
+      <AnimatePresence>
+        {arrastando && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="absolute inset-0 z-40 p-3 pointer-events-none bg-rm-fundo/85 dark:bg-rm-fundo-escuro/85 backdrop-blur-sm"
+          >
+            <div className={`h-full rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-3 text-center px-6 ${bloqueio ? 'border-amber-500/60' : 'border-rm-acento-medio'}`}>
+              <span className={`w-16 h-16 rounded-full flex items-center justify-center ${bloqueio ? 'bg-amber-500/15 text-amber-600' : 'bg-rm-acento-medio text-white'}`}>
+                <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 16V4M7 9l5-5 5 5" />
+                  <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+                </svg>
+              </span>
+              <p className="text-[16px] font-semibold text-[#111b21] dark:text-[#e9edef]">{bloqueio ? 'Não dá para enviar aqui agora' : 'Solte para enviar'}</p>
+              <p className="text-[13px] text-[#54656f] dark:text-[#8696a0] max-w-sm">
+                {bloqueio ? bloqueio.texto : `Para ${nomeDoContato(conversa)}. Você vê a prévia e pode cancelar antes de mandar.`}
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <header className="h-[60px] flex-shrink-0 px-2 sm:px-4 flex items-center gap-2.5 bg-rm-fundo dark:bg-rm-elevado-escuro border-b border-black/[0.06] dark:border-white/[0.04]">
         {onRecolher && (
           <button type="button" onClick={onRecolher} aria-label="Recolher conversa" title="Recolher conversa (voltar ao Kanban)" className="hidden md:flex w-9 h-9 rounded-full items-center justify-center text-[#54656f] dark:text-[#aebac1] hover:bg-black/[0.05] dark:hover:bg-white/[0.06] cursor-pointer flex-shrink-0">
@@ -1672,11 +1738,14 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
       <AnimatePresence>
         {previa && (
           <PreviaArquivo
+            key={previa.n}
             arquivo={previa.arquivo}
-            onCancelar={() => setPrevia(null)}
+            restantes={previa.fila.length}
+            onCancelar={proximaPrevia}
+            onCancelarTodos={() => setPrevia(null)}
             onEnviar={(legenda) => {
               const p = previa;
-              setPrevia(null);
+              proximaPrevia();
               enviarArquivo(p.arquivo, { legenda, assinar: p.assinar });
             }}
           />

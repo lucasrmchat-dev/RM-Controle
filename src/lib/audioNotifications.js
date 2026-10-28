@@ -3,6 +3,7 @@
  * Sem dependência de arqudssdivos externos (100% autônomo, confiável e nativo do navegador)
  */
 import { permissoesEfetivas, podeVerDemanda } from './perfis';
+import { focoSilenciaSom } from './modoFoco';
 
 let audioCtx = null;
 let activeLoopInterval = null;
@@ -112,7 +113,9 @@ function tocarNotas(ctx, notas) {
 /**
  * Sintetiza os toques sonoros
  */
-export function playNotificationTone(tipo = 'harmonico') {
+// { teste: true }: botões de testar som (tocam mesmo com o Modo foco silenciando)
+export function playNotificationTone(tipo = 'harmonico', { teste = false } = {}) {
+  if (!teste && focoSilenciaSom()) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -330,7 +333,7 @@ export function pararSomDoModulo(modulo) {
  */
 export function tocarSomDoModulo(modulo, { aindaPendente } = {}) {
   const config = getSomDoModulo(modulo);
-  if (!config.habilitado) return;
+  if (!config.habilitado || focoSilenciaSom()) return;
   playNotificationTone(config.tipoSom);
   if (config.modoRepeticao === 'uma_vez' || typeof window === 'undefined') return;
   pararSomDoModulo(modulo);
@@ -499,7 +502,7 @@ export function deveNotificarChamado(chamado, userEmail, config = getAudioConfig
  */
 export function triggerSupportNotification({ chamado, userEmail, criadoPorMim = false }) {
   const config = getAudioConfig();
-  if (!deveNotificarChamado({ status: 'aguardando_visualizacao', ...chamado }, userEmail, config, criadoPorMim)) return;
+  if (focoSilenciaSom() || !deveNotificarChamado({ status: 'aguardando_visualizacao', ...chamado }, userEmail, config, criadoPorMim)) return;
 
   // Toca o som imediatamente
   playNotificationTone(config.tipoSom);

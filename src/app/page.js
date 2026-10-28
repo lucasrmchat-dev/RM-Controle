@@ -1050,7 +1050,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
               voltarRotulo={
                 {
                   empresas: 'Voltar para Empresas',
-                  fila: 'Voltar para a Fila de Demandas',
+                  fila: 'Voltar para Demandas',
                   dashboard: 'Voltar para o Dashboard',
                   feedbacks: 'Voltar para Feedbacks',
                   agenda: 'Voltar para a Agenda',
@@ -1077,7 +1077,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="m15 18-6-6 6-6" />
                           </svg>
-                          Fila de Demandas
+                          Demandas
                         </button>
                         <span className="text-slate-300 dark:text-zinc-500">/</span>
                         <span className="font-semibold text-[#1d1d1f] dark:text-white">Empresas</span>

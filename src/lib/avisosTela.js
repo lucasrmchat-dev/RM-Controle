@@ -15,7 +15,7 @@ export const ESTILOS_AVISO = [
 ];
 export const TIPOS_AVISO = [
   { id: 'chat', nome: 'Chat do WhatsApp', tipos: ['chat'] },
-  { id: 'fila', nome: 'Fila de Demandas', tipos: ['demanda', 'sla', 'prazo'] },
+  { id: 'fila', nome: 'Demandas', tipos: ['demanda', 'sla', 'prazo'] },
   { id: 'agenda', nome: 'Agenda', tipos: ['reuniao'] },
   { id: 'outros', nome: 'Outros (feedbacks, novidades)', tipos: ['feedback', 'sistema'] },
 ];

@@ -26,7 +26,7 @@ const REPETICOES = [
 ];
 const MODULOS = [
   { id: 'chat', titulo: 'Chat do WhatsApp', descricao: 'Conversa nova na fila e mensagem nova nas suas conversas, inclusive a que está aberta na tela.', repete: 'Repetindo, para quando não houver mais nada sem ler.' },
-  { id: 'fila', titulo: 'Fila de Demandas', descricao: 'Demanda nova entrando na fila.', repete: 'Repetindo, para quando a demanda for assumida.' },
+  { id: 'fila', titulo: 'Demandas', descricao: 'Demanda nova entrando na fila.', repete: 'Repetindo, para quando a demanda for assumida.' },
   { id: 'reunioes', titulo: 'Reuniões', descricao: 'Lembrete antes das reuniões da agenda (a antecedência fica em Google Agenda & Alertas).', repete: 'Repetindo, para quando você mexer no mouse ou no teclado.' },
 ];
 const ESCOPOS_FILA = [
@@ -96,7 +96,7 @@ function CartaoModulo({ modulo, departamentos }) {
                       aria-pressed={som.tipoSom === t.id}
                       onClick={() => {
                         mudar({ tipoSom: t.id });
-                        playNotificationTone(t.id);
+                        playNotificationTone(t.id, { teste: true });
                       }}
                       className={pilula(som.tipoSom === t.id)}
                     >
@@ -105,7 +105,7 @@ function CartaoModulo({ modulo, departamentos }) {
                   ))}
                 </div>
               ))}
-              <button type="button" onClick={() => playNotificationTone(som.tipoSom)} className="h-8 px-3 rounded-full text-[12.5px] font-medium text-rm-acento dark:text-rm-acento-vivo hover:bg-rm-acento/10 cursor-pointer">
+              <button type="button" onClick={() => playNotificationTone(som.tipoSom, { teste: true })} className="h-8 px-3 rounded-full text-[12.5px] font-medium text-rm-acento dark:text-rm-acento-vivo hover:bg-rm-acento/10 cursor-pointer">
                 ▶ Ouvir o escolhido
               </button>
             </div>

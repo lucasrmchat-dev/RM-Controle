@@ -11,7 +11,7 @@ import { listaAdministradores, normalizarEmail } from './roles';
 
 export const MODULOS = [
   { id: 'chat', rotulo: 'Chat', descricao: 'Atender as conversas do WhatsApp' },
-  { id: 'fila', rotulo: 'Fila de Demandas', descricao: 'Ver, assumir e concluir demandas' },
+  { id: 'fila', rotulo: 'Demandas', descricao: 'Ver, assumir e concluir demandas' },
   { id: 'empresas', rotulo: 'Empresas', descricao: 'Cadastro, acessos e servidores das empresas' },
   { id: 'agenda', rotulo: 'Agenda', descricao: 'Reuniões e Google Agenda' },
   { id: 'daily', rotulo: 'Daily', descricao: 'Metas da semana, resumo das dailies e atualizações' },

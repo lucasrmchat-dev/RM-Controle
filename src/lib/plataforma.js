@@ -19,7 +19,7 @@ export const RECURSOS_LIMITE = [
 export const MODULOS_CONTRATAVEIS = [
   { id: 'chat', rotulo: 'Chat do WhatsApp' },
   { id: 'conexoes', rotulo: 'Canais (números de WhatsApp)' },
-  { id: 'fila', rotulo: 'Fila de Demandas' },
+  { id: 'fila', rotulo: 'Demandas' },
   { id: 'empresas', rotulo: 'Empresas clientes' },
   { id: 'feedbacks', rotulo: 'Feedbacks' },
   { id: 'agenda', rotulo: 'Agenda' },

@@ -256,6 +256,12 @@ export function useGravadorDeAudio() {
 // ------------------------------------------------------------------------------
 export const LIMITE_ENVIO = 4 * 1024 * 1024;
 export const ACEITOS = 'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip';
+/** O arquivo bate com a lista ACEITOS (tipo exato, família como audio/* ou extensão)? */
+export const arquivoAceito = (arquivo) => {
+  const mime = (arquivo.type || '').toLowerCase();
+  const ext = '.' + (arquivo.name.split('.').pop() || '').toLowerCase();
+  return ACEITOS.split(',').some((r) => (r.startsWith('.') ? r === ext : r.endsWith('/*') ? mime.startsWith(r.slice(0, -1)) : r === mime));
+};
 export const tipoPeloMime = (mime) => (/^image\//.test(mime) ? 'imagem' : /^audio\//.test(mime) ? 'audio' : /^video\//.test(mime) ? 'video' : 'documento');
 
 /** Fotos grandes viram JPEG de até 1600 px (economiza o espaço do plano e sobe rápido). */
@@ -277,7 +283,7 @@ export async function comprimirFoto(arquivo) {
 }
 
 /** Janela de prévia antes de enviar um arquivo (com legenda). */
-export function PreviaArquivo({ arquivo, onCancelar, onEnviar }) {
+export function PreviaArquivo({ arquivo, onCancelar, onEnviar, restantes = 0, onCancelarTodos }) {
   const [legenda, setLegenda] = useState('');
   const [url, setUrl] = useState(null);
   const tipo = tipoPeloMime(arquivo.type);
@@ -302,6 +308,16 @@ export function PreviaArquivo({ arquivo, onCancelar, onEnviar }) {
         </button>
         <span className="text-[15px] font-medium truncate">{arquivo.name}</span>
         <span className="text-[12px] text-slate-500 flex-shrink-0">{tamanho(arquivo.size)}</span>
+        {restantes > 0 && (
+          <span className="ml-auto flex items-center gap-2 flex-shrink-0">
+            <span className="text-[12px] text-slate-500">+{restantes} {restantes === 1 ? 'arquivo' : 'arquivos'} na sequência</span>
+            {onCancelarTodos && (
+              <button type="button" onClick={onCancelarTodos} className="h-8 px-3 rounded-full text-[12.5px] font-medium hover:bg-black/[0.06] dark:hover:bg-white/[0.08] cursor-pointer">
+                Cancelar todos
+              </button>
+            )}
+          </span>
+        )}
       </div>
       <div className="flex-1 min-h-0 flex items-center justify-center p-6">
         {tipo === 'imagem' && url ? (

@@ -50,7 +50,7 @@ export default function ConfigAvisosTela() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-bold text-[#1d1d1f] dark:text-white">Avisos na tela</h3>
-          <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">Como as notificações aparecem enquanto você trabalha (mensagens do WhatsApp, Fila de Demandas, Agenda). Tudo continua guardado no sino. Vale para este navegador e é salvo na hora.</p>
+          <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">Como as notificações aparecem enquanto você trabalha (mensagens do WhatsApp, Demandas, Agenda). Tudo continua guardado no sino. Vale para este navegador e é salvo na hora.</p>
         </div>
         <div className="flex gap-1.5">
           <button type="button" onClick={() => testar(0)} className="h-9 px-4 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 text-[13px] font-semibold cursor-pointer">
