@@ -83,10 +83,17 @@ export function canalRecebeGrupos(canal, config) {
  * Configuração do Chat da empresa (Configurações avançadas › Chat).
  *  grupos: 'desligado' (não recebe) | 'aba' (aba própria, fora da fila) | 'fila' (como conversa normal)
  */
-export const CONFIG_CHAT_PADRAO = { grupos: 'desligado' };
+/**
+ * Configuração do Chat da empresa:
+ *  grupos:               desligado | aba | fila
+ *  historicoAnterior:    a conversa mostra os atendimentos (tickets) anteriores do mesmo contato
+ *  assinaturaObrigatoria: toda mensagem para o cliente leva o nome de quem enviou (não dá para desligar)
+ */
+export const CONFIG_CHAT_PADRAO = { grupos: 'desligado', historicoAnterior: true, assinaturaObrigatoria: false };
 export function validarConfigChat(valor) {
   const grupos = ['desligado', 'aba', 'fila'].includes(valor?.grupos) ? valor.grupos : CONFIG_CHAT_PADRAO.grupos;
-  return { ...CONFIG_CHAT_PADRAO, grupos };
+  const booleano = (campo) => (typeof valor?.[campo] === 'boolean' ? valor[campo] : CONFIG_CHAT_PADRAO[campo]);
+  return { ...CONFIG_CHAT_PADRAO, grupos, historicoAnterior: booleano('historicoAnterior'), assinaturaObrigatoria: booleano('assinaturaObrigatoria') };
 }
 
 /**

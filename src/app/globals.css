@@ -262,3 +262,13 @@ body {
 html {
   overflow-y: scroll;
 }
+
+/* Celular (ticket #22): o iPhone dá zoom sozinho ao tocar num campo com letra menor que 16px e a tela
+   fica "puxada". Em telas pequenas, todo campo de digitação usa 16px (não bloqueia o zoom com os dedos). */
+@media (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

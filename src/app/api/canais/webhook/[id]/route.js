@@ -25,7 +25,8 @@ async function carregarCanal(id) {
 }
 
 // Verificação do webhook no painel da Meta
-export async function GET(request, { params }) {
+export async function GET(request, contexto) {
+  const params = await contexto.params;
   const r = await carregarCanal(params.id);
   const p = new URL(request.url).searchParams;
   if (!r || r.canal.provedor !== 'meta' || p.get('hub.mode') !== 'subscribe') return new Response('não encontrado', { status: 404 });
@@ -33,7 +34,8 @@ export async function GET(request, { params }) {
   return new Response(p.get('hub.challenge') || '', { status: 200, headers: { 'Content-Type': 'text/plain' } });
 }
 
-export async function POST(request, { params }) {
+export async function POST(request, contexto) {
+  const params = await contexto.params;
   const r = await carregarCanal(params.id);
   if (!r) return new Response(null, { status: 404 });
   const { canal, db } = r;

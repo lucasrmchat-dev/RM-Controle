@@ -1,5 +1,6 @@
 'use client';
 
+import { notificar } from '@/lib/notificacoes';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -32,7 +33,6 @@ import {
   editarDescricaoChamado,
   adiarAlertaChamado,
   cancelarAdiarAlertaChamado,
-  marcarChamadoEscalonado,
   getConfiguracoesSuporte,
   reatribuirChamadoSuporte,
   sanitizarCategoriasDemanda,
@@ -478,42 +478,45 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
     window.addEventListener('user_role_updated', handlePerfil);
     window.addEventListener('perfis_updated', handlePerfil);
 
-    // Ticker a cada 1 segundo para atualizar cronômetros e verificar escalonamento de SLA
+    // Ticker a cada 1 segundo para atualizar cronômetros e verificar o escalonamento (demanda atribuída que
+    // passou do tempo limite). Cada demanda vira UM aviso no sino (lembrado entre sessões, sem repetir);
+    // toast só para o que acontece com a tela aberta, e agrupado — nada de enxurrada ao entrar.
+    let primeiraVerificacao = true;
     const timer = setInterval(() => {
       setTick((t) => t + 1);
-
-      // Verificação de Escalonamento: se chamado atribuído a funcionário extrapolou o tempo limite sem resolução
       try {
-        const chamadosAtuais = getChamadosSuporte();
         const agoraMs = Date.now();
         const myEmail = (userEmail || '').toLowerCase().trim();
         const isAdmin = getCurrentUserRole() === 'administrador';
-
-        chamadosAtuais.forEach((ch) => {
-          const isPendente = ch.status === 'aguardando_visualizacao' || ch.status === 'pendente' || ch.status === 'em_andamento';
-          if (!isPendente) return;
+        const novos = [];
+        getChamadosSuporte().forEach((ch) => {
+          // "Aguardando cliente" não escala: a bola está com o cliente
+          if (ch.status !== 'aguardando_visualizacao' && ch.status !== 'em_andamento') return;
           if (!ch.tecnico_email || ch.is_fila_geral) return;
-
-          const atribuidoPor = (ch.atribuido_por_email || '').toLowerCase().trim();
-          const souEuQuemAtribuiu = atribuidoPor === myEmail;
-
-          if ((souEuQuemAtribuiu || isAdmin) && !ch.escalonado_notificado) {
-            const atribuidoEmMs = new Date(ch.atribuido_em || ch.created_at || ch.tempo_espera_inicio || agoraMs).getTime();
-            const limiteMin = ch.tempo_escalonamento_minutos || 15;
-            const diffMin = Math.floor((agoraMs - atribuidoEmMs) / 60000);
-
-            if (diffMin >= limiteMin) {
-              marcarChamadoEscalonado(ch.id);
-              try {
-                playNotificationTone('dinamico');
-              } catch (e) {}
-              showToast(
-                `⚠️ Demanda de "${ch.empresa_nome}" atribuída a ${ch.tecnico_nome || 'técnico'} não foi concluída em ${limiteMin} min!`,
-                'warning'
-              );
-            }
-          }
+          // Com prazo ainda no futuro, quem manda é o prazo (avisado perto de vencer)
+          if (ch.prazo_limite && new Date(ch.prazo_limite).getTime() > agoraMs) return;
+          const souEuQuemAtribuiu = (ch.atribuido_por_email || '').toLowerCase().trim() === myEmail;
+          if (!souEuQuemAtribuiu && !isAdmin) return;
+          const atribuidoEmMs = new Date(ch.atribuido_em || ch.created_at || ch.tempo_espera_inicio || agoraMs).getTime();
+          const limiteMin = ch.tempo_escalonamento_minutos || 15;
+          if (Math.floor((agoraMs - atribuidoEmMs) / 60000) < limiteMin) return;
+          const nova = notificar({
+            id: `escalonado_${ch.id}_${limiteMin}`,
+            tipo: 'sla',
+            titulo: `Passou de ${limiteMin} min · ${ch.empresa_nome || 'Demanda'}`,
+            detalhe: `Com ${ch.tecnico_nome || 'o técnico'}, ainda sem concluir.`,
+            aba: 'fila',
+            grupo: `escalonado_${ch.id}`,
+          });
+          if (nova) novos.push(ch);
         });
+        if (novos.length && !primeiraVerificacao) {
+          try {
+            playNotificationTone('dinamico');
+          } catch (e) {}
+          showToast(novos.length === 1 ? `${novos[0].empresa_nome}: com ${novos[0].tecnico_nome || 'o técnico'} há mais tempo que o limite.` : `${novos.length} demandas da equipe passaram do tempo limite. Veja no sino.`, 'info');
+        }
+        primeiraVerificacao = false;
       } catch (e) {}
     }, 1000);
 

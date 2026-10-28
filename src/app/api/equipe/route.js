@@ -2,6 +2,7 @@ import { garantirContaAuth, removerContaAuth } from '@/lib/server/acesso';
 import { contextoDaRequisicao, mensagemLimite } from '@/lib/server/organizacao';
 import { PAPEIS_VALIDOS, normalizarEmail, listaAdministradores } from '@/lib/roles';
 import { sanitizeEmail, isValidUUID, SENHA_MAX } from '@/lib/sanitize';
+import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,18 +86,62 @@ async function aplicarPerfil(db, campos) {
   return null;
 }
 
+/**
+ * Proprietários do sistema (lista fixa/ambiente + tabela rm_admins_proprietarios desta empresa).
+ * Eles têm acesso total sempre; como membros, podem ter nome, departamentos e vínculos editados,
+ * mas nunca ser desativados, rebaixados ou removidos (isso trancaria o dono para fora).
+ */
+async function proprietariosDaEmpresa(ctx) {
+  const lista = new Set(listaAdministradores(process.env.RM_ADMIN_EMAILS));
+  if (ctx.org?.id) {
+    const { data } = await ctx.dbGlobal.from('rm_admins_proprietarios').select('email').eq('organizacao_id', ctx.org.id).then((r) => r, () => ({ data: [] }));
+    (data || []).forEach((p) => p.email && lista.add(normalizarEmail(p.email)));
+  }
+  return lista;
+}
+
 export async function GET(request) {
-  const { erro, db } = await exigirAdmin(request);
+  const ctx = await exigirAdmin(request);
+  const { erro, db } = ctx;
   if (erro) return erro;
+  // ?proprietario=1: a tela pergunta se quem está logado é proprietário e se já aparece como membro
+  if (new URL(request.url).searchParams.get('proprietario')) {
+    const donos = await proprietariosDaEmpresa(ctx);
+    const eu = normalizarEmail(ctx.email);
+    const { data: meu } = await ctx.dbGlobal.from('equipe_usuarios').select('id, organizacao_id').eq('email', eu).maybeSingle();
+    return json({ ok: true, email: eu, proprietario: donos.has(eu), vinculado: Boolean(meu), podeVincular: donos.has(eu) && !meu && !ctx.org?.suporte, proprietarios: [...donos] });
+  }
   const { data, error } = await comColunas((cols) => db.from('equipe_usuarios').select(cols).order('nome'));
   if (error) return json({ ok: false, mensagem: error.message }, 500);
   return json({ ok: true, equipe: data });
 }
 
 export async function POST(request) {
-  const { erro, db, dbGlobal } = await exigirAdmin(request);
+  const ctx = await exigirAdmin(request);
+  const { erro, db, dbGlobal } = ctx;
   if (erro) return erro;
   const body = (await request.json().catch(() => null)) || {};
+
+  // Proprietário passa a aparecer como membro desta empresa (Servidores e equipe).
+  // Não mexe no login: a senha guardada aqui é aleatória e é atualizada no próximo login com a senha real.
+  if (body.acao === 'vincular_proprietario') {
+    const eu = normalizarEmail(ctx.email);
+    const donos = await proprietariosDaEmpresa(ctx);
+    if (!donos.has(eu)) return json({ ok: false, mensagem: 'Só proprietários do sistema usam esta opção.' }, 403);
+    if (ctx.org?.suporte) return json({ ok: false, mensagem: 'Saia do modo suporte e faça isso na sua própria empresa.' }, 400);
+    const { data: jaExiste } = await dbGlobal.from('equipe_usuarios').select('id').eq('email', eu).maybeSingle();
+    if (jaExiste) return json({ ok: false, mensagem: 'Você já está cadastrado como membro.' }, 409);
+    const nome = String(body.nome || '').trim().slice(0, 120) || eu.split('@')[0];
+    const { data, error } = await comColunas((cols) =>
+      db.from('equipe_usuarios').insert([{ nome, email: eu, senha: crypto.randomBytes(24).toString('base64url'), papel: 'administrador', ativo: true }]).select(cols).single()
+    );
+    if (error) {
+      const limite = mensagemLimite(error);
+      return json({ ok: false, mensagem: limite || error.message }, limite ? 403 : 500);
+    }
+    return json({ ok: true, membro: data }, 201);
+  }
+
   const email = sanitizeEmail(body.email);
   if (!email) return json({ ok: false, mensagem: 'Informe um e-mail válido (apenas letras, números e . _ + -).' }, 400);
   const erroSenha = !body.senha ? 'Informe a senha inicial.' : validarSenha(body.senha);
@@ -133,7 +178,8 @@ export async function POST(request) {
 }
 
 export async function PATCH(request) {
-  const { erro, db } = await exigirAdmin(request);
+  const ctx = await exigirAdmin(request);
+  const { erro, db } = ctx;
   if (erro) return erro;
   const body = (await request.json().catch(() => null)) || {};
   const atual = await buscarMembroAlvo(db, body, 'id, email, nome, papel');
@@ -141,6 +187,16 @@ export async function PATCH(request) {
 
   const { campos, erro: erroCampos } = camposEditaveis(body);
   if (erroCampos) return json({ ok: false, mensagem: erroCampos }, 400);
+  // Proprietário: acesso total sempre (papel, perfil e "ativo" não mudam); o resto é editável
+  const ehDono = (await proprietariosDaEmpresa(ctx)).has(normalizarEmail(atual.email));
+  if (ehDono) {
+    if (campos.ativo === false) return json({ ok: false, mensagem: 'O proprietário do sistema não pode ser desativado.' }, 400);
+    // A senha do dono (o login dele) só ele mesmo troca
+    if (body.senha && normalizarEmail(ctx.email) !== normalizarEmail(atual.email)) return json({ ok: false, mensagem: 'Só o próprio proprietário troca a senha dele.' }, 403);
+    delete campos.papel;
+    delete campos.perfil_id;
+    delete campos.ativo;
+  }
   const erroPerfil = await aplicarPerfil(db, campos);
   if (erroPerfil) return json({ ok: false, mensagem: erroPerfil }, 400);
   const erroSenha = validarSenha(body.senha);
@@ -160,13 +216,18 @@ export async function PATCH(request) {
 }
 
 export async function DELETE(request) {
-  const { erro, db, sessao } = await exigirAdmin(request);
+  const ctx = await exigirAdmin(request);
+  const { erro, db, sessao } = ctx;
   if (erro) return erro;
   const body = (await request.json().catch(() => null)) || {};
   const atual = await buscarMembroAlvo(db, body, 'id, email');
   if (!atual) return json({ ok: false, mensagem: 'Membro não encontrado.' }, 404);
   if (normalizarEmail(atual.email) === normalizarEmail(sessao.sub)) {
     return json({ ok: false, mensagem: 'Você não pode remover o próprio acesso.' }, 400);
+  }
+  // Remover apagaria também o login do dono do sistema
+  if ((await proprietariosDaEmpresa(ctx)).has(normalizarEmail(atual.email))) {
+    return json({ ok: false, mensagem: 'O proprietário do sistema não pode ser removido da equipe.' }, 400);
   }
   const { error } = await db.from('equipe_usuarios').delete().eq('id', atual.id);
   if (error) return json({ ok: false, mensagem: error.message }, 500);

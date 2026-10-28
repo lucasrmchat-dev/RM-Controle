@@ -103,3 +103,54 @@ test('módulos contratados: limitam até o administrador e o servidor recusa o q
   assert.equal(r.status, 403);
   assert.match(r.mensagem, /plano/);
 });
+
+test('ticket #22: gravações dos feedbacks só para feedbacks da empresa, com formato e tamanho conferidos', async () => {
+  const { GET, POST } = await import('../src/app/api/feedbacks/gravacao/route.js');
+  const meu = crypto.randomUUID();
+  const deOutra = crypto.randomUUID();
+  db.tables.feedbacks = [
+    { id: meu, organizacao_id: A, titulo: 'Bug', descricao: 'x' },
+    { id: deOutra, organizacao_id: B, titulo: 'Outro', descricao: 'y' },
+  ];
+  const pedir = async (email, corpo) => ler(await POST(await como(email, '/api/feedbacks/gravacao', 'POST', corpo)));
+  const ok = await pedir('ana@a.com', { feedback: meu, mime: 'video/webm;codecs=vp9,opus', tamanho: 5_000_000 });
+  assert.equal(ok.ok, true);
+  assert.match(ok.caminho, new RegExp(`^${A}/${meu}/\\d+-tela-[0-9a-f]{8}\\.webm$`), 'pasta da empresa e do feedback');
+  assert.equal(ok.pasta, 'feedback-gravacoes');
+  assert.equal((await pedir('ana@a.com', { feedback: deOutra, mime: 'audio/webm', tamanho: 1000 })).status, 404, 'feedback de outra empresa');
+  assert.equal((await pedir('ana@a.com', { feedback: meu, mime: 'text/html', tamanho: 1000 })).status, 400, 'formato não aceito');
+  assert.equal((await pedir('ana@a.com', { feedback: meu, mime: 'audio/webm', tamanho: 60 * 1024 * 1024 })).status, 400, 'acima de 50 MB');
+  // Depois do envio, aparece com link temporário
+  db.arquivos = { ...(db.arquivos || {}), [`feedback-gravacoes/${ok.caminho}`]: { dados: 'x' } };
+  const lista = await ler(await GET(await como('ana@a.com', `/api/feedbacks/gravacao?feedback=${meu}`)));
+  assert.equal(lista.gravacoes.length, 1);
+  assert.equal(lista.gravacoes[0].tipo, 'tela');
+  assert.ok(lista.gravacoes[0].url.includes('/sign/'));
+  assert.equal((await GET(await como('caio@b.com', `/api/feedbacks/gravacao?feedback=${meu}`))).status, 404, 'outra empresa não vê');
+});
+
+test('proprietário vira membro da empresa sem mexer no login, e não pode ser desativado, rebaixado nem removido', async () => {
+  const { GET, POST, PATCH, DELETE } = await import('../src/app/api/equipe/route.js');
+  db.tables.rm_admins_proprietarios = [{ email: 'admin@rmcontrole.com', organizacao_id: A }];
+  const dono = 'admin@rmcontrole.com';
+  const situacao = await ler(await GET(await como(dono, '/api/equipe?proprietario=1')));
+  assert.deepEqual([situacao.proprietario, situacao.vinculado, situacao.podeVincular], [true, false, true]);
+
+  const r = await ler(await POST(await como(dono, '/api/equipe', 'POST', { acao: 'vincular_proprietario', nome: 'Lucas Amorim' })));
+  assert.equal(r.ok, true);
+  const linha = db.tables.equipe_usuarios.find((u) => u.email === dono);
+  assert.deepEqual([linha.organizacao_id, linha.papel, linha.ativo, linha.nome], [A, 'administrador', true, 'Lucas Amorim']);
+  assert.ok(linha.senha && linha.senha.length >= 24, 'senha aleatória (o login de verdade não muda)');
+  assert.equal((await POST(await como(dono, '/api/equipe', 'POST', { acao: 'vincular_proprietario' }))).status, 409);
+  // Quem não é proprietário não usa a opção
+  assert.equal((await POST(await como('ana@a.com', '/api/equipe', 'POST', { acao: 'vincular_proprietario' }))).status, 403);
+
+  // Editar: nome e departamentos sim; papel, perfil e ativo não
+  const ed = await ler(await PATCH(await como('ana@a.com', '/api/equipe', 'PATCH', { id: linha.id, nome: 'Lucas', departamentos: ['Suporte'], papel: 'suporte', perfil_id: PERFIL_SO_FILA })));
+  assert.equal(ed.ok, true);
+  const depois = db.tables.equipe_usuarios.find((u) => u.email === dono);
+  assert.deepEqual([depois.nome, depois.departamentos, depois.papel, depois.perfil_id ?? null], ['Lucas', ['Suporte'], 'administrador', null]);
+  assert.equal((await PATCH(await como('ana@a.com', '/api/equipe', 'PATCH', { id: linha.id, ativo: false }))).status, 400);
+  assert.equal((await DELETE(await como('ana@a.com', '/api/equipe', 'DELETE', { id: linha.id }))).status, 400);
+  assert.ok(db.tables.equipe_usuarios.some((u) => u.email === dono));
+});

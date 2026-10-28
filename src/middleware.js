@@ -86,8 +86,8 @@ export async function middleware(request) {
   // Desativa APIs sensíveis do navegador não utilizadas pela aplicação
   headers.set(
     'Permissions-Policy',
-    // Microfone só para o próprio sistema (gravar áudio no Chat); o resto continua bloqueado
-    'camera=(), microphone=(self), geolocation=(), browsing-topics=(), payment=()'
+    // Microfone e captura de tela só para o próprio sistema (áudio no Chat, gravador dos Feedbacks); o resto continua bloqueado
+    'camera=(), microphone=(self), display-capture=(self), geolocation=(), browsing-topics=(), payment=()'
   );
 
   // Força HTTPS com HSTS rigoroso (2 anos + includeSubDomains + preload)

@@ -657,3 +657,31 @@ test('devolver para a fila (Kanban: Ativos → Pendentes): só quem está com a 
   assert.equal((await agir2('bia@a.com', { acao: 'devolver' })).status, 404);
   assert.equal((await agir2('ana@a.com', { acao: 'devolver' })).ok, true);
 });
+
+test('ticket #23: ao abrir, a conversa traz os atendimentos anteriores do contato (se ligado e visíveis)', async () => {
+  const antiga = { id: crypto.randomUUID(), organizacao_id: A, canal_id: canal.id, contato_id: contato.id, status: 'resolvida', departamento: 'Vendas', criado_em: '2026-09-01T10:00:00Z', resolvida_em: '2026-09-02T10:00:00Z', responsavel_nome: 'Ana Souza' };
+  const deOutroDepto = { id: crypto.randomUUID(), organizacao_id: A, canal_id: canal.id, contato_id: contato.id, status: 'resolvida', departamento: 'Financeiro', criado_em: '2026-08-01T10:00:00Z' };
+  convVendas.criado_em = '2026-10-20T10:00:00Z';
+  db.tables.conversas.push(antiga, deOutroDepto);
+  const abrirComo = async (email) => ler(await abrir(await como(email, `/api/chat/${convVendas.id}?abrir=1`), { params: { id: convVendas.id } }));
+  const ana = await abrirComo('ana@a.com');
+  assert.deepEqual(ana.anteriores.map((t) => t.id), [antiga.id, deOutroDepto.id], 'administrador vê todas, da mais recente para a mais antiga');
+  assert.equal(ana.anteriores[0].canal, 'Comercial');
+  const bia = await abrirComo('bia@a.com');
+  assert.deepEqual(bia.anteriores.map((t) => t.id), [antiga.id], 'só as que a pessoa pode ver (departamento)');
+  // As mensagens do atendimento anterior abrem pela própria conversa
+  assert.equal((await abrir(await como('bia@a.com', `/api/chat/${antiga.id}`), { params: { id: antiga.id } })).status, 200);
+  // Desligado nas configurações: não traz
+  db.tables.sistema_config = [{ organizacao_id: A, chave: 'chat', valor: { grupos: 'desligado', historicoAnterior: false } }];
+  assert.deepEqual((await abrirComo('ana@a.com')).anteriores, []);
+});
+
+test('ticket #22: assinatura obrigatória assina no servidor mesmo que a tela peça sem assinatura', async () => {
+  db.tables.sistema_config = [{ organizacao_id: A, chave: 'chat', valor: { assinaturaObrigatoria: true } }];
+  const enviar = async (corpo) => ler(await agir(await como('ana@a.com', `/api/chat/${convVendas.id}`, 'POST', corpo), { params: { id: convVendas.id } }));
+  await enviar({ acao: 'assumir' });
+  const r = await enviar({ acao: 'enviar', texto: 'Olá', assinar: false });
+  assert.equal(r.ok, true);
+  const envio = enviados.find((e) => e.url.includes('sendText'));
+  assert.match(envio.corpo.text, /^\*Ana Souza:\*\nOlá$/);
+});

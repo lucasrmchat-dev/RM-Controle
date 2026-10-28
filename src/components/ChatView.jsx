@@ -590,12 +590,14 @@ const lerAssinar = () => {
 
 const semAcento = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
-function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEnviarArquivo, onGerenciarRespostas, bloqueio, resposta, onCancelarResposta, edicao, onCancelarEdicao, nomeContato, participantes = [], pessoasDaEquipe = [] }) {
+function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEnviarArquivo, onGerenciarRespostas, bloqueio, resposta, onCancelarResposta, edicao, onCancelarEdicao, nomeContato, participantes = [], pessoasDaEquipe = [], assinaturaObrigatoria = false }) {
   const [texto, setTexto] = useState('');
   // Menções escolhidas na lista do @ (no grupo, viram menção de verdade no WhatsApp)
   const [mencoes, setMencoes] = useState([]);
   const [cursor, setCursor] = useState(0);
-  const [assinar, setAssinar] = useState(lerAssinar);
+  const [assinarEscolha, setAssinar] = useState(lerAssinar);
+  // Assinatura obrigatória (Configurações › Chat): sempre ligada, sem como desligar
+  const assinar = assinaturaObrigatoria || assinarEscolha;
   const gravador = useGravadorDeAudio();
   const seletor = useRef(null);
   const [modo, setModo] = useState('responder');
@@ -730,6 +732,7 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
   };
 
   const alternarAssinatura = () => {
+    if (assinaturaObrigatoria) return;
     setAssinar((v) => {
       try {
         localStorage.setItem('rm_chat_assinar', v ? 'nao' : 'sim');
@@ -850,13 +853,20 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
             onClick={alternarAssinatura}
             role="switch"
             aria-checked={assinar}
-            title={assinar ? `O cliente recebe *${eu?.nome || ''}:* no início da mensagem` : 'Mensagens sem assinatura'}
-            className="ml-auto h-7 pl-2 pr-3 rounded-full text-[12px] font-medium text-slate-500 dark:text-[#8696a0] hover:bg-black/[0.05] dark:hover:bg-white/[0.06] cursor-pointer inline-flex items-center gap-1.5"
+            aria-disabled={assinaturaObrigatoria || undefined}
+            title={assinaturaObrigatoria ? 'Assinatura obrigatória (definida pelo administrador em Configurações › Chat)' : assinar ? `O cliente recebe *${eu?.nome || ''}:* no início da mensagem` : 'Mensagens sem assinatura'}
+            className={`ml-auto h-7 pl-2 pr-3 rounded-full text-[12px] font-medium text-slate-500 dark:text-[#8696a0] inline-flex items-center gap-1.5 ${assinaturaObrigatoria ? 'cursor-default' : 'hover:bg-black/[0.05] dark:hover:bg-white/[0.06] cursor-pointer'}`}
           >
             <span className={`relative w-7 h-4 rounded-full transition-colors ${assinar ? 'bg-rm-acento-medio' : 'bg-black/20 dark:bg-white/20'}`}>
               <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${assinar ? 'left-[14px]' : 'left-0.5'}`} />
             </span>
             Assinatura
+            {assinaturaObrigatoria && (
+              <svg className="w-3 h-3 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="5" y="11" width="14" height="10" rx="2" />
+                <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+              </svg>
+            )}
           </button>
         )}
         <button type="button" onClick={onGerenciarRespostas} className={`${nota ? 'ml-auto' : ''} h-7 px-3 rounded-full text-[12px] font-medium text-slate-500 dark:text-[#8696a0] hover:bg-black/[0.05] dark:hover:bg-white/[0.06] cursor-pointer`}>
@@ -1079,7 +1089,31 @@ function mesmaMensagem(tmp, r) {
   return Boolean(texto) && (gravado === texto || gravado.endsWith(texto));
 }
 
-function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, respostas, onAtualizada, onContatoMudou, onAbrirConversa, onExcluida, onVoltar, onRecolher, onGerenciarRespostas }) {
+/** Linha do tempo da conversa: separadores de dia, balões agrupados e reações presas à mensagem reagida. */
+function agruparMensagens(mensagens, prefixo = '') {
+  const saida = [];
+  let dia = null;
+  const reacoes = {};
+  mensagens.forEach((m) => {
+    if (m.tipo === 'reacao' && m.responde_a) (reacoes[m.responde_a] ||= []).push(m);
+  });
+  const linha = mensagens.filter((m) => m.tipo !== 'reacao');
+  linha.forEach((m, i) => {
+    const d = new Date(m.criado_em).toDateString();
+    if (d !== dia) {
+      saida.push({ dia: m.criado_em, chave: `${prefixo}d-${d}` });
+      dia = d;
+    }
+    const ant = linha[i - 1];
+    const primeira = !ant || ant.direcao !== m.direcao || ant.tipo === 'sistema' || new Date(ant.criado_em).toDateString() !== d || new Date(m.criado_em) - new Date(ant.criado_em) > 5 * 6e4 || ant.autor_nome !== m.autor_nome;
+    saida.push({ m, primeira, reacoes: reacoes[m.id] || [] });
+  });
+  return saida;
+}
+
+const dataCurta = (iso) => (iso ? new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '');
+
+function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, respostas, config, onAtualizada, onContatoMudou, onAbrirConversa, onExcluida, onVoltar, onRecolher, onGerenciarRespostas }) {
   const [participantes, setParticipantes] = useState([]);
   const guardada = CONVERSAS_GUARDADAS.get(conversaId);
   // O topo aparece na hora: da memória ou com os dados que a lista já tem
@@ -1095,6 +1129,10 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
   const [versaoFoto, setVersaoFoto] = useState(0);
   const [mensagens, setMensagens] = useState(() => guardada?.mensagens || []);
   const [temMais, setTemMais] = useState(() => Boolean(guardada?.temMais));
+  // Atendimentos (tickets) anteriores do mesmo contato: a lista vem ao abrir; cada um é carregado sob pedido
+  const [anterioresInfo, setAnterioresInfo] = useState([]);
+  const [ticketsCarregados, setTicketsCarregados] = useState([]);
+  const [carregandoTicket, setCarregandoTicket] = useState(false);
   const [erro, setErro] = useState('');
   const [ocupado, setOcupado] = useState(null);
   const rolagem = useRef(null);
@@ -1147,6 +1185,8 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
         setMensagens((lista) => (lista.length ? juntar(lista, r.mensagens) : r.mensagens));
         setFixadas(r.fixadas || []);
         setTemMais(r.temMais);
+        setAnterioresInfo(r.anteriores || []);
+        setTicketsCarregados([]);
         setCarregada(true);
         if (r.conversa.nao_lidas > 0) acaoConversa(conversaId, { acao: 'lida' }).then(() => onAtualizada({ ...r.conversa, nao_lidas: 0 })).catch(() => {});
       })
@@ -1172,7 +1212,29 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
     } else if (colarNoFim.current) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [mensagens]);
+  }, [mensagens, ticketsCarregados]);
+
+  // Próximo atendimento anterior: todas as mensagens dele (até 5 páginas), acima das desta conversa
+  const proximoTicket = anterioresInfo[ticketsCarregados.length] || null;
+  const carregarTicketAnterior = async () => {
+    if (!proximoTicket || carregandoTicket) return;
+    setCarregandoTicket(true);
+    try {
+      let r = await fetchConversa(proximoTicket.id);
+      let lista = r.mensagens || [];
+      for (let pagina = 0; r.temMais && lista.length && pagina < 4; pagina += 1) {
+        r = await fetchConversa(proximoTicket.id, lista[0].criado_em);
+        lista = [...(r.mensagens || []), ...lista];
+      }
+      alturaAntes.current = rolagem.current?.scrollHeight ?? null;
+      colarNoFim.current = false;
+      setTicketsCarregados((t) => [...t, { info: proximoTicket, mensagens: lista, incompleto: Boolean(r.temMais) }]);
+    } catch (e) {
+      showToast(e.message, 'error');
+    } finally {
+      setCarregandoTicket(false);
+    }
+  };
 
   const anteriores = async () => {
     if (!mensagens.length) return;
@@ -1366,27 +1428,7 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
     }
   };
 
-  const grupos = useMemo(() => {
-    const saida = [];
-    let dia = null;
-    // Reações vão para o balão da mensagem reagida, não para a linha do tempo
-    const reacoes = {};
-    mensagens.forEach((m) => {
-      if (m.tipo === 'reacao' && m.responde_a) (reacoes[m.responde_a] ||= []).push(m);
-    });
-    const linha = mensagens.filter((m) => m.tipo !== 'reacao');
-    linha.forEach((m, i) => {
-      const d = new Date(m.criado_em).toDateString();
-      if (d !== dia) {
-        saida.push({ dia: m.criado_em, chave: `d-${d}` });
-        dia = d;
-      }
-      const ant = linha[i - 1];
-      const primeira = !ant || ant.direcao !== m.direcao || ant.tipo === 'sistema' || new Date(ant.criado_em).toDateString() !== d || new Date(m.criado_em) - new Date(ant.criado_em) > 5 * 6e4 || ant.autor_nome !== m.autor_nome;
-      saida.push({ m, primeira, reacoes: reacoes[m.id] || [] });
-    });
-    return saida;
-  }, [mensagens]);
+  const grupos = useMemo(() => agruparMensagens(mensagens), [mensagens]);
 
   if (erro && !conversa)
     return (
@@ -1547,6 +1589,46 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
               </button>
             </div>
           )}
+          {/* Atendimentos anteriores (ticket #23): aparecem depois de ver o começo desta conversa */}
+          {!temMais && proximoTicket && (
+            <div className="flex justify-center mb-2">
+              <button type="button" onClick={carregarTicketAnterior} disabled={carregandoTicket} className="h-8 px-4 rounded-full text-[12.5px] font-medium bg-white/90 dark:bg-rm-elevado-escuro text-slate-600 dark:text-[#aebac1] shadow-sm cursor-pointer disabled:opacity-60 inline-flex items-center gap-2">
+                {carregandoTicket && <Spinner />}
+                Ver atendimento anterior · {dataCurta(proximoTicket.criado_em)}
+                {anterioresInfo.length - ticketsCarregados.length > 1 && <span className="opacity-60">(+{anterioresInfo.length - ticketsCarregados.length - 1})</span>}
+              </button>
+            </div>
+          )}
+          {[...ticketsCarregados].reverse().map(({ info, mensagens: msgs, incompleto }) => (
+            <div key={info.id} className="opacity-90">
+              <div className="flex items-center gap-3 my-3" role="separator">
+                <span className="flex-1 h-px bg-black/[0.12] dark:bg-white/[0.12]" />
+                <span className="px-3 py-1.5 rounded-xl text-[11.5px] leading-snug font-medium bg-white/95 dark:bg-rm-elevado-escuro text-[#54656f] dark:text-[#8696a0] shadow-sm text-center">
+                  Atendimento anterior · {dataCurta(info.criado_em)}
+                  {info.resolvida_em ? ` a ${dataCurta(info.resolvida_em)}` : ''}
+                  {(info.canal || info.responsavel_nome) && <span className="block opacity-80">{[info.canal, info.responsavel_nome && `com ${info.responsavel_nome}`].filter(Boolean).join(' · ')}</span>}
+                </span>
+                <span className="flex-1 h-px bg-black/[0.12] dark:bg-white/[0.12]" />
+              </div>
+              {incompleto && <p className="text-center text-[11.5px] text-slate-400 mb-2">Mostrando as mensagens mais recentes deste atendimento.</p>}
+              {agruparMensagens(msgs, `t-${info.id}-`).map((g) =>
+                g.dia ? (
+                  <div key={g.chave} className="flex justify-center my-3">
+                    <span className="px-3 py-1 rounded-lg text-[12px] font-medium bg-white/95 dark:bg-rm-elevado-escuro text-[#54656f] dark:text-[#8696a0] shadow-sm">{rotuloDoDia(g.dia)}</span>
+                  </div>
+                ) : (
+                  <Balao key={`t-${g.m.id}`} m={g.m} primeiraDoGrupo={g.primeira} reacoes={g.reacoes} acoes={null} />
+                )
+              )}
+            </div>
+          ))}
+          {ticketsCarregados.length > 0 && (
+            <div className="flex items-center gap-3 my-3" role="separator">
+              <span className="flex-1 h-px bg-rm-acento-medio/40" />
+              <span className="px-3 py-1 rounded-xl text-[11.5px] font-semibold bg-white/95 dark:bg-rm-elevado-escuro text-rm-acento dark:text-rm-acento-vivo shadow-sm">Atendimento atual</span>
+              <span className="flex-1 h-px bg-rm-acento-medio/40" />
+            </div>
+          )}
           {!carregada && mensagens.length === 0 && (
             <div className="flex justify-center my-auto text-slate-400">
               <Spinner />
@@ -1570,6 +1652,7 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
         conversa={conversa}
         eu={eu}
         respostas={respostas}
+        assinaturaObrigatoria={Boolean(config?.assinaturaObrigatoria)}
         onEnviar={enviar}
         onEscolherArquivo={escolherArquivo}
         onEnviarArquivo={enviarArquivo}
@@ -2312,6 +2395,7 @@ export default function ChatView() {
             eu={eu}
             sinal={sinal}
             respostas={respostas}
+            config={config}
             onAtualizada={atualizada}
             onContatoMudou={contatoMudou}
             onAbrirConversa={(id) => abrir(id)}

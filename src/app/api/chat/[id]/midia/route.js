@@ -1,5 +1,5 @@
 import { consumirLimite } from '@/lib/server/protecao';
-import { enviarMidiaNaConversa } from '@/lib/server/canais/index';
+import { enviarMidiaNaConversa, configDoChat } from '@/lib/server/canais/index';
 import { bloqueioSemAssumir, carregarConversa, juntarDetalhes, prepararMensagem } from '@/lib/server/canais/chat';
 import { LIMITE_ENVIO, mimeBase, tipoDoArquivo } from '@/lib/server/canais/midia';
 import { avisarAoVivo } from '@/lib/server/canais/aoVivo';
@@ -16,7 +16,8 @@ export const maxDuration = 60;
  */
 const json = (corpo, status = 200) => Response.json(corpo, { status, headers: { 'Cache-Control': 'no-store' } });
 
-export async function POST(request, { params }) {
+export async function POST(request, contexto) {
+  const params = await contexto.params;
   const r = await carregarConversa(request, params.id);
   if (r.erro) return r.erro;
   const { ctx, perm, conversa } = r;
@@ -42,7 +43,7 @@ export async function POST(request, { params }) {
       legenda: String(form.get('legenda') || ''),
       segundos: Math.min(Number(form.get('segundos')) || 0, 3600) || null,
       autor: { email: perm.email, nome: perm.nome },
-      assinar: form.get('assinar') !== 'false',
+      assinar: form.get('assinar') !== 'false' || (await configDoChat(ctx.db)).assinaturaObrigatoria,
     });
     const [{ data }, { data: canal }] = await Promise.all([ctx.db.from('conversas').select('*').eq('id', conversa.id).single(), ctx.db.from('canais').select('*').eq('id', conversa.canal_id).maybeSingle()]);
     await avisarAoVivo(conversa.organizacao_id || null);

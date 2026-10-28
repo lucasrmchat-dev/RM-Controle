@@ -11,7 +11,8 @@ import {
 } from '@/lib/server/webhooksComercial';
 import { etapaPorRegras, normalizarTicketRM } from '@/lib/webhooksComercial';
 export const dynamic = 'force-dynamic';
-export async function POST(request, { params }) {
+export async function POST(request, contexto) {
+  const params = await contexto.params;
   try {
     if (!isValidUUID(params.id)) throw falha(404, 'Webhook não encontrado.');
     if (!(await consumirLimite(`webhook_comercial_ip_${ipDaRequisicao(request)}`, 180, 60)))

@@ -83,6 +83,33 @@ export default function ChatSettings() {
             </div>
           </div>
 
+          <div>
+            <h3 className="text-[15px] font-semibold">Conversas</h3>
+            <div className="mt-3 space-y-2.5">
+              {[
+                ['historicoAnterior', 'Mostrar o histórico dos atendimentos anteriores', 'Quando o cliente volta a escrever depois de uma conversa resolvida, a conversa nova mostra o botão “Ver atendimento anterior”, com as mensagens das conversas (tickets) passadas.'],
+                ['assinaturaObrigatoria', 'Assinatura obrigatória nas mensagens', 'Toda mensagem para o cliente leva o nome de quem enviou (*Nome:*). A equipe não consegue desligar a assinatura no Chat.'],
+              ].map(([campo, titulo, desc]) => (
+                <button
+                  key={campo}
+                  type="button"
+                  role="switch"
+                  aria-checked={Boolean(config[campo])}
+                  onClick={() => setConfig({ ...config, [campo]: !config[campo] })}
+                  className="w-full flex items-start gap-3.5 rounded-2xl px-4 py-3.5 ring-1 ring-black/[0.1] dark:ring-white/[0.12] text-left cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.04]"
+                >
+                  <span className={`relative mt-0.5 w-10 h-6 rounded-full flex-shrink-0 transition-colors ${config[campo] ? 'bg-rm-acento dark:bg-rm-acento-escuro' : 'bg-black/15 dark:bg-white/20'}`}>
+                    <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${config[campo] ? 'left-5' : 'left-1'}`} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[14px] font-semibold">{titulo}</span>
+                    <span className="block mt-0.5 text-[12.5px] leading-relaxed text-slate-500 dark:text-zinc-400">{desc}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {erro && <p className="text-sm text-rose-600">{erro}</p>}
           <div className="flex justify-end">
             <button type="button" onClick={salvar} disabled={salvando || !mudou} className="h-11 px-5 rounded-full bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] text-sm font-medium disabled:opacity-40 cursor-pointer flex items-center gap-2">

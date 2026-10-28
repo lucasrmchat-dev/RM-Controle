@@ -24,7 +24,8 @@ export const dynamic = 'force-dynamic';
  */
 const json = (corpo, status = 200) => Response.json(corpo, { status, headers: { 'Cache-Control': 'no-store' } });
 
-export async function POST(request, { params }) {
+export async function POST(request, contexto) {
+  const params = await contexto.params;
   const ctx = await contextoDaRequisicao(request, { exigirAdmin: true });
   if (ctx.erro) return ctx.erro;
   if (!moduloContratado(ctx.org, 'conexoes')) return json({ ok: false, mensagem: 'Canais não fazem parte do plano da sua empresa.' }, 403);
@@ -111,7 +112,8 @@ export async function POST(request, { params }) {
 }
 
 /** GET: histórico do canal (administradores). */
-export async function GET(request, { params }) {
+export async function GET(request, contexto) {
+  const params = await contexto.params;
   const ctx = await contextoDaRequisicao(request, { exigirAdmin: true });
   if (ctx.erro) return ctx.erro;
   if (!isValidUUID(params.id)) return json({ ok: false, mensagem: 'Canal inválido.' }, 400);

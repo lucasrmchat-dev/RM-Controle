@@ -1,8 +1,8 @@
 import { consumirLimite } from '@/lib/server/protecao';
 import { avisarAoVivo } from '@/lib/server/canais/aoVivo';
-import { enviarTextoNaConversa } from '@/lib/server/canais/index';
+import { configDoChat, enviarTextoNaConversa } from '@/lib/server/canais/index';
 import { isValidUUID } from '@/lib/sanitize';
-import { auditarChat, bloqueioSemAssumir, carregarConversa, juntarDetalhes, listarMensagens, prepararMensagem, registrarSistema, registrarVisualizacao } from '@/lib/server/canais/chat';
+import { auditarChat, bloqueioSemAssumir, carregarConversa, juntarDetalhes, listarMensagens, podeVerConversa, prepararMensagem, registrarSistema, registrarVisualizacao } from '@/lib/server/canais/chat';
 import { apagarArquivosDaConversa } from '@/lib/server/canais/midia';
 import { apagarMensagem, editarMensagem, favoritarMensagem, fixarMensagem, reagirMensagem } from '@/lib/server/canais/acoes';
 
@@ -27,7 +27,8 @@ const json = (corpo, status = 200) => Response.json(corpo, { status, headers: { 
 
 const carregar = (request, params) => carregarConversa(request, params.id);
 
-export async function GET(request, { params }) {
+export async function GET(request, contexto) {
+  const params = await contexto.params;
   const r = await carregar(request, params);
   if (r.erro) return r.erro;
   const busca = new URL(request.url).searchParams;
@@ -35,18 +36,32 @@ export async function GET(request, { params }) {
   const { db } = r.ctx;
   // Em paralelo: auditoria, canal e detalhes; as mensagens só esperam o canal
   const canalP = db.from('canais').select('*').eq('id', r.conversa.canal_id).maybeSingle().then((x) => x.data);
-  const [, [conversa], lista] = await Promise.all([
+  const [, [conversa], lista, anteriores] = await Promise.all([
     busca.get('abrir') ? registrarVisualizacao(db, r.perm, r.conversa) : null,
     juntarDetalhes(db, [r.conversa]),
     canalP.then((canal) => listarMensagens(db, r.conversa, { antes: antes && !Number.isNaN(Date.parse(antes)) ? antes : null, perm: r.perm, canal })),
+    // Ao abrir: atendimentos anteriores do mesmo contato (ticket #23), se a empresa deixou ligado
+    busca.get('abrir') ? atendimentosAnteriores(db, r.perm, r.conversa) : null,
   ]);
-  return json({ ok: true, conversa, ...lista });
+  return json({ ok: true, conversa, ...lista, ...(anteriores ? { anteriores } : {}) });
+}
+
+/** Conversas anteriores do mesmo contato (qualquer canal) que a pessoa pode ver, da mais recente para a mais antiga. */
+async function atendimentosAnteriores(db, perm, conversa) {
+  const config = await configDoChat(db);
+  if (!config.historicoAnterior) return [];
+  const { data } = await db.from('conversas').select('*').eq('contato_id', conversa.contato_id).neq('id', conversa.id).lt('criado_em', conversa.criado_em).order('criado_em', { ascending: false }).limit(30);
+  const visiveis = (data || []).filter((c) => podeVerConversa(perm, c)).slice(0, 20);
+  if (!visiveis.length) return [];
+  const { data: canais } = await db.from('canais').select('id, nome').in('id', [...new Set(visiveis.map((c) => c.canal_id))]);
+  const nomeCanal = new Map((canais || []).map((c) => [c.id, c.nome]));
+  return visiveis.map((c) => ({ id: c.id, criado_em: c.criado_em, resolvida_em: c.resolvida_em || null, status: c.status, responsavel_nome: c.responsavel_nome || null, canal: nomeCanal.get(c.canal_id) || null }));
 }
 
 // Depois de uma ação que deu certo, as telas da empresa atualizam na hora
 export async function POST(request, contexto) {
   const aviso = {};
-  const resposta = await processar(request, contexto.params, aviso);
+  const resposta = await processar(request, await contexto.params, aviso);
   if (resposta.ok && aviso.org !== undefined) await avisarAoVivo(aviso.org);
   return resposta;
 }
@@ -78,7 +93,8 @@ async function processar(request, params, aviso) {
         conversa,
         texto: body.texto,
         autor,
-        assinar: body.assinar !== false,
+        // Assinatura obrigatória (Configurações › Chat): o servidor assina mesmo que a tela peça o contrário
+        assinar: body.assinar !== false || (await configDoChat(db)).assinaturaObrigatoria,
         respondeA: isValidUUID(body.responde_a) ? body.responde_a : null,
         mencoes: Array.isArray(body.mencoes) ? body.mencoes.slice(0, 50).map((m) => ({ jid: String(m?.jid || '').slice(0, 80), nome: String(m?.nome || '').slice(0, 120) })) : [],
       });
@@ -174,7 +190,7 @@ async function processar(request, params, aviso) {
         body.acao === 'reagir'
           ? await reagirMensagem(db, { ...base, emoji: body.emoji })
           : body.acao === 'editar'
-            ? await editarMensagem(db, { ...base, texto: body.texto, assinar: body.assinar !== false })
+            ? await editarMensagem(db, { ...base, texto: body.texto, assinar: body.assinar !== false || (await configDoChat(db)).assinaturaObrigatoria })
             : body.acao === 'apagar'
               ? await apagarMensagem(db, { ...base, para: body.para === 'todos' ? 'todos' : 'mim' })
               : body.acao === 'favoritar'

@@ -14,6 +14,9 @@ import {
   isMockDataEnabled,
   getEquipeUsuarios,
   fetchEquipeUsuarios,
+  fetchSituacaoProprietario,
+  getNomeTecnico,
+  vincularProprietario,
   addEquipeUsuario,
   deleteEquipeUsuario,
   getCurrentUserRole,
@@ -107,8 +110,26 @@ export default function ServerConfigView() {
     atendente_obrigatorio: false,
   });
 
+  // Proprietário do sistema: aparece na equipe com acesso total travado (servidor protege papel, senha e remoção)
+  const [dono, setDono] = useState(null);
+  const [vinculando, setVinculando] = useState(false);
+  const ehDono = (email) => Boolean(dono?.proprietarios?.includes(String(email || '').toLowerCase().trim()));
+  const vincularMe = async () => {
+    setVinculando(true);
+    try {
+      await vincularProprietario(getNomeTecnico(dono?.email) || '');
+      showToast('Pronto: você agora aparece na equipe desta empresa.', 'success');
+      await recarregar();
+    } catch (e) {
+      showToast(e.message, 'error');
+    } finally {
+      setVinculando(false);
+    }
+  };
+
   const recarregar = async () => {
     setChecklistItems(getServerChecklistTemplate());
+    fetchSituacaoProprietario().then((r) => r && setDono(r));
     try {
       await fetchEquipeUsuarios();
     } catch (e) {}
@@ -701,6 +722,18 @@ export default function ServerConfigView() {
             </form>
           </div>
 
+          {dono?.podeVincular && (
+            <div className="rounded-3xl border border-amber-500/25 bg-amber-500/[0.06] p-5 flex flex-col sm:flex-row sm:items-center gap-3 text-[13px]">
+              <div className="flex-1">
+                <p className="font-semibold text-[#1d1d1f] dark:text-white">Você é proprietário do sistema e ainda não aparece na equipe desta empresa.</p>
+                <p className="text-slate-600 dark:text-zinc-400 mt-0.5">Ao aparecer como membro, dá para ajustar seus departamentos, a empresa vinculada e o acesso ao Chat. O acesso total continua garantido e o seu login não muda.</p>
+              </div>
+              <button type="button" onClick={vincularMe} disabled={vinculando} className="h-10 px-5 rounded-full bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] text-[13px] font-semibold whitespace-nowrap cursor-pointer disabled:opacity-50">
+                {vinculando ? 'Vinculando…' : 'Aparecer como membro'}
+              </button>
+            </div>
+          )}
+
           {/* Lista de Membros da Equipe */}
           <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro overflow-hidden shadow-sm">
             <div className="p-5 border-b border-black/[0.05] dark:border-white/[0.09] flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-zinc-300">
@@ -722,7 +755,13 @@ export default function ServerConfigView() {
                           <span className="text-[10px] font-medium text-slate-500 dark:text-zinc-400 bg-black/[0.03] dark:bg-white/[0.05] px-2 py-0.5 rounded-md border border-black/[0.04] dark:border-white/[0.09] flex items-center gap-1">
                             🏢 {u.empresa_nome || 'Todas as Empresas'}
                           </span>
-                          <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                          {ehDono(u.email) && (
+                            <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full flex items-center gap-1 bg-amber-500/12 text-amber-700 dark:text-amber-300 border border-amber-500/25" title="Dono do sistema: acesso total, não pode ser desativado nem removido">
+                              <CrownIcon className="w-3 h-3" />
+                              Proprietário
+                            </span>
+                          )}
+                          {!ehDono(u.email) && <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
                             u.papel === 'administrador'
                               ? 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20'
                               : u.papel === 'suporte'
@@ -733,7 +772,7 @@ export default function ServerConfigView() {
                             {u.papel === 'suporte' && <WrenchIcon className="w-3 h-3" />}
                             {u.papel === 'vendas' && <BriefcaseIcon className="w-3 h-3" />}
                             <span>{perfis.find((p) => p.id === u.perfil_id)?.nome || u.papel}</span>
-                          </span>
+                          </span>}
                         </div>
                         <p className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono mt-0.5">{u.email}</p>
                       </div>
@@ -750,7 +789,7 @@ export default function ServerConfigView() {
                         <span>Editar</span>
                       </button>
 
-                      {u.email !== 'admin@rmcontrole.com' && (
+                      {u.email !== 'admin@rmcontrole.com' && !ehDono(u.email) && (
                         <button
                           type="button"
                           onClick={() => handleExcluirUsuario(u.id)}
@@ -828,7 +867,11 @@ export default function ServerConfigView() {
                         />
                       </div>
 
-                      {perfis.length ? (
+                      {usuarioEditando && ehDono(usuarioEditando.email) ? (
+                        <p className="rounded-2xl bg-amber-500/[0.07] border border-amber-500/20 px-4 py-3 text-[12px] leading-relaxed text-slate-700 dark:text-zinc-300">
+                          <strong>Proprietário do sistema:</strong> acesso total, sempre. Perfil, papel e desativação não se aplicam. Nome, empresa vinculada e acesso ao Chat podem ser ajustados.
+                        </p>
+                      ) : perfis.length ? (
                         <div className="space-y-1.5">
                           <label htmlFor="edit-perfil" className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 pl-1">
                             Perfil de acesso
@@ -964,6 +1007,7 @@ export default function ServerConfigView() {
                         </>
                       )}
 
+                      {(!ehDono(usuarioEditando.email) || usuarioEditando.email === dono?.email) && (
                       <div className="space-y-1 pt-2 border-t border-black/[0.05] dark:border-white/[0.09]">
                         <div className="flex items-center justify-between pl-1">
                           <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
@@ -986,6 +1030,7 @@ export default function ServerConfigView() {
                           className="w-full px-4 py-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono focus:outline-none text-[#1d1d1f] dark:text-white"
                         />
                       </div>
+                      )}
 
                       {/* Acesso ao Chat (salva na hora, independente do botão abaixo); só com o módulo Chat liberado à pessoa */}
                       {(() => {

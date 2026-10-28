@@ -15,6 +15,61 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-10-28-atualizacao-seguranca-next',
+    data: '2026-10-28',
+    titulo: 'Atualização de segurança da plataforma',
+    resumo: 'A base do sistema (Next.js) foi atualizada para a versão com todas as correções de segurança conhecidas.',
+    itens: [
+      'Corrige falhas publicadas no Next.js, incluindo as de execução remota de código e de desvio de proteção de rotas.',
+      'Nada muda no uso do sistema.',
+    ],
+    modulo: 'Geral',
+    tickets: [],
+  },
+  {
+    id: '2026-10-28-sla-prazo-avisos-proprietario',
+    data: '2026-10-28',
+    titulo: 'SLA pelo prazo, avisos sem enxurrada e proprietário na equipe',
+    resumo: 'Demandas com prazo mostram quanto falta (e não há quanto tempo começaram), os avisos de tempo estourado vão para o sino sem encher a tela, e o dono do sistema pode aparecer na equipe.',
+    itens: [
+      'Demanda com prazo: o cartão mostra “para o prazo” com o tempo que falta, fica laranja na última hora e vermelho quando vence.',
+      'Demanda com prazo no futuro não dispara mais o alerta de tempo decorrido; o aviso é o do prazo chegando.',
+      'Ao entrar no sistema, os alertas de “passou do tempo” não aparecem mais um por um na tela: ficam no sino, um por demanda, sem repetir.',
+      'Com a tela aberta, o alerta novo aparece num aviso só (ex.: “3 demandas da equipe passaram do tempo limite”).',
+      'Em Servidores e equipe, o proprietário do sistema pode “Aparecer como membro” da empresa, com selo Proprietário; o acesso total continua travado e o login não muda.',
+    ],
+    modulo: 'Fila de Demandas',
+    tickets: [],
+  },
+  {
+    id: '2026-10-28-historico-atendimentos',
+    data: '2026-10-28',
+    titulo: 'Histórico dos atendimentos anteriores na conversa',
+    resumo: 'Quando o cliente volta a escrever depois de uma conversa resolvida, dá para ver as conversas (tickets) anteriores dele dentro da conversa nova.',
+    itens: [
+      'No topo da conversa, o botão “Ver atendimento anterior” traz as mensagens do atendimento passado, com a data, o canal e quem atendeu.',
+      'Clique de novo para ir voltando aos atendimentos mais antigos; uma linha marca onde começa o atendimento atual.',
+      'Cada pessoa só vê os atendimentos que já poderia ver (departamento e canais).',
+      'Administradores ligam ou desligam em Configurações › Chat e grupos › Conversas (vem ligado).',
+    ],
+    modulo: 'Chat',
+    tickets: ['#23', '224b35a4-8573-46a3-9608-f3d5a37c1ddd'],
+  },
+  {
+    id: '2026-10-28-gravador-celular-assinatura',
+    data: '2026-10-28',
+    titulo: 'Gravador nos feedbacks, celular sem zoom automático e assinatura obrigatória',
+    resumo: 'Grave a tela ou a sua voz ao enviar um feedback, use o sistema no celular sem a tela “puxar” e, se quiser, torne obrigatória a assinatura nas mensagens do Chat.',
+    itens: [
+      'Ao enviar um feedback, use “Gravar a tela” (com o microfone, para explicar) ou “Gravar áudio”; até 5 minutos e 3 gravações.',
+      'As gravações aparecem no detalhe do feedback, prontas para assistir.',
+      'No celular, tocar num campo não dá mais zoom na tela, e o botão de enviar feedback não sai da tela.',
+      'Em Configurações › Chat e grupos › Conversas, ligue “Assinatura obrigatória”: toda mensagem para o cliente leva o nome de quem enviou, sem como desligar.',
+    ],
+    modulo: 'Geral',
+    tickets: ['#22', '066e10d9-c24a-4e4e-b277-6cdddd2fd3fb'],
+  },
+  {
     id: '2026-10-27-chat-busca-unica-arrastar',
     data: '2026-10-27',
     titulo: 'Busca única no Chat e arrastar conversas no Kanban',

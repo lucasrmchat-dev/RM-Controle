@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { createFeedback, getNomeTecnico } from '@/lib/storage';
+import { createFeedback, enviarGravacaoFeedback, getNomeTecnico } from '@/lib/storage';
+import GravadorFeedback from './GravadorFeedback';
+import { showToast } from './ToastNotification';
 import { MODULOS_FEEDBACK, TIPOS_FEEDBACK } from '@/lib/feedbacks';
 import { ModalEtapas, Etapa, ErroRodape, Spinner, classeBotaoPrimario, classeBotaoTexto } from './FormularioEtapas';
 import { classeCampo } from './NovaEmpresaCampos';
@@ -83,6 +85,7 @@ export default function FeedbackNovoModal({ aberto, onFechar, userEmail, podePub
   const [descricao, setDescricao] = useState('');
   const [prioridade, setPrioridade] = useState('normal');
   const [imagem, setImagem] = useState(null);
+  const [gravacoes, setGravacoes] = useState([]);
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [arrastando, setArrastando] = useState(false);
@@ -96,6 +99,7 @@ export default function FeedbackNovoModal({ aberto, onFechar, userEmail, podePub
     setDescricao('');
     setPrioridade('normal');
     setImagem(null);
+    setGravacoes([]);
     setErro('');
   }, [aberto]);
 
@@ -143,6 +147,18 @@ export default function FeedbackNovoModal({ aberto, onFechar, userEmail, podePub
         autor_email: userEmail,
         autor_nome: getNomeTecnico(userEmail),
       });
+      // Gravações sobem depois que o feedback existe (vão para a pasta dele)
+      if (gravacoes.length) {
+        const falhas = [];
+        for (const g of gravacoes) {
+          try {
+            await enviarGravacaoFeedback(fb.id, g.blob);
+          } catch (e) {
+            falhas.push(e.message);
+          }
+        }
+        if (falhas.length) showToast(`Feedback enviado, mas ${falhas.length === gravacoes.length ? 'as gravações não subiram' : 'parte das gravações não subiu'}: ${falhas[0]}`, 'warning');
+      }
       onEnviado?.(fb);
       onFechar();
     } catch (e) {
@@ -231,7 +247,7 @@ export default function FeedbackNovoModal({ aberto, onFechar, userEmail, podePub
             />
           </Etapa>
 
-          <Etapa numero={4} titulo="Print e prioridade" descricao="Opcional, mas ajuda muito a entender." estado={!etapa3 ? 'travada' : 'concluida'} ultima>
+          <Etapa numero={4} titulo="Print, gravação e prioridade" descricao="Opcional, mas ajuda muito a entender." estado={!etapa3 ? 'travada' : 'concluida'} ultima>
             {imagem ? (
               <div className="relative rounded-2xl overflow-hidden ring-1 ring-black/[0.1] dark:ring-white/[0.14] bg-black/[0.03]">
                 <img src={imagem} alt="Print anexado" className="w-full max-h-[200px] object-contain" />
@@ -267,6 +283,11 @@ export default function FeedbackNovoModal({ aberto, onFechar, userEmail, podePub
               </button>
             )}
             <input ref={arquivoRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && anexar(e.target.files[0])} />
+
+            {/* Gravador (ticket #22): mostrar o problema na tela ou explicar falando */}
+            <div className="mt-4">
+              <GravadorFeedback gravacoes={gravacoes} onMudar={setGravacoes} desabilitado={enviando} />
+            </div>
 
             {tipo !== 'novidade' && (
               <>

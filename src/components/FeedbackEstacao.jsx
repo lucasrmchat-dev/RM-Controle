@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { atualizarDetalhesFeedback, getNomeTecnico } from '@/lib/storage';
+import { atualizarDetalhesFeedback, fetchGravacoesFeedback, getNomeTecnico } from '@/lib/storage';
 import {
   ETAPAS_FEEDBACK,
   TIPOS_FEEDBACK,
@@ -256,6 +256,36 @@ function Anel({ fracao }) {
  * Tela inteira de um ticket de feedback. Na área de desenvolvimento é o lugar de trabalhar
  * (etapa, prazo, subtarefas, briefing para implementar); para os demais, o ticket como foi escrito.
  */
+/** Gravações anexadas ao feedback (ticket #22), com links temporários do servidor. */
+function GravacoesDoFeedback({ feedbackId }) {
+  const [lista, setLista] = useState(null);
+  useEffect(() => {
+    setLista(null);
+    if (!/^[0-9a-f-]{36}$/i.test(String(feedbackId || ''))) return;
+    let vivo = true;
+    fetchGravacoesFeedback(feedbackId)
+      .then((r) => vivo && setLista(r.gravacoes || []))
+      .catch(() => vivo && setLista([]));
+    return () => {
+      vivo = false;
+    };
+  }, [feedbackId]);
+  if (!lista?.length) return null;
+  return (
+    <Painel titulo={lista.length === 1 ? 'Gravação anexada' : `${lista.length} gravações anexadas`}>
+      <div className="space-y-3">
+        {lista.map((g) =>
+          !g.url ? null : g.tipo === 'tela' ? (
+            <video key={g.nome} src={g.url} controls preload="metadata" className="w-full max-h-[520px] rounded-2xl bg-black" />
+          ) : (
+            <audio key={g.nome} src={g.url} controls preload="metadata" className="w-full" />
+          )
+        )}
+      </div>
+    </Painel>
+  );
+}
+
 export default function FeedbackEstacao({ fb, lista = [], onNavegar, onFechar, nomesEtapas, podeEditar, userEmail, onMudarEtapa }) {
   const [montado, setMontado] = useState(false);
   const [novaTexto, setNovaTexto] = useState('');
@@ -499,6 +529,8 @@ export default function FeedbackEstacao({ fb, lista = [], onNavegar, onFechar, n
                         </button>
                       </Painel>
                     )}
+
+                    <GravacoesDoFeedback feedbackId={fb.id} />
 
                     {podeEditar && (
                       <Painel

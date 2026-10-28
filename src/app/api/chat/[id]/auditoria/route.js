@@ -3,7 +3,8 @@ import { auditoriaDaConversa, carregarConversa } from '@/lib/server/canais/chat'
 export const dynamic = 'force-dynamic';
 
 /** Auditoria da conversa (administradores): quem iniciou, viu, assumiu, transferiu, resolveu, editou ou apagou. */
-export async function GET(request, { params }) {
+export async function GET(request, contexto) {
+  const params = await contexto.params;
   const r = await carregarConversa(request, params.id);
   if (r.erro) return r.erro;
   if (!r.perm.administrador) return Response.json({ ok: false, mensagem: 'Só administradores veem a auditoria.' }, { status: 403 });

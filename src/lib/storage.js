@@ -3402,6 +3402,18 @@ async function chamarCanais(url, metodo, corpo) {
 }
 export const fetchCanais = () => chamarCanais('/api/canais', 'GET');
 // Daily (ticket #21): reuniões diárias e metas da semana, pelo servidor (confere módulo e empresa)
+// Gravações dos feedbacks (ticket #22): o servidor dá um link de envio e o navegador manda direto ao Storage
+export const fetchGravacoesFeedback = (feedbackId) => chamarCanais(`/api/feedbacks/gravacao?feedback=${encodeURIComponent(feedbackId)}`, 'GET');
+export async function enviarGravacaoFeedback(feedbackId, blob) {
+  if (!isSupabaseConfigured || !supabase) throw new Error('Envio de gravações indisponível neste ambiente.');
+  const r = await chamarCanais('/api/feedbacks/gravacao', 'POST', { feedback: feedbackId, mime: blob.type, tamanho: blob.size });
+  const { error } = await supabase.storage.from(r.pasta).uploadToSignedUrl(r.caminho, r.token, blob, { contentType: blob.type });
+  if (error) throw new Error(`Não foi possível enviar a gravação: ${error.message}`);
+  return r.caminho;
+}
+// Proprietário do sistema como membro da equipe (Servidores e equipe)
+export const fetchSituacaoProprietario = () => chamarCanais('/api/equipe?proprietario=1', 'GET').catch(() => null);
+export const vincularProprietario = (nome) => chamarCanais('/api/equipe', 'POST', { acao: 'vincular_proprietario', nome });
 export const fetchDaily = (semana) => chamarCanais(`/api/daily${semana ? `?semana=${encodeURIComponent(semana)}` : ''}`, 'GET');
 export const acaoDaily = (corpo) => chamarCanais('/api/daily', 'POST', corpo);
 export const criarCanal = (dados) => chamarCanais('/api/canais', 'POST', dados);

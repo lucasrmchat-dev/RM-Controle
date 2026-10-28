@@ -7,6 +7,8 @@ export const metadata = {
   referrer: 'no-referrer',
 };
 
-export default function Pagina({ params }) {
-  return <ConfirmacaoReuniao token={params.token} />;
+// Next 15: params chega como Promise
+export default async function Pagina({ params }) {
+  const { token } = await params;
+  return <ConfirmacaoReuniao token={token} />;
 }

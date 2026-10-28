@@ -733,7 +733,7 @@ export default function FeedbacksView({ userEmail }) {
         {/* O nome da tela já está no cabeçalho */}
         <div className="hidden lg:block" />
         <EncaixeCabecalho />
-        <div className={`flex items-center gap-3 flex-nowrap ${ACOES_TITULO}`}>
+        <div className={`w-full lg:w-auto flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap ${ACOES_TITULO}`}>
           {ehDev && (
             <Segmentado
               id="feedbacks-visao"
@@ -751,7 +751,7 @@ export default function FeedbacksView({ userEmail }) {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
             onClick={() => setNovoAberto(true)}
-            className="h-11 px-5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 text-[14px] font-semibold shadow-md shadow-rm-acento/20 flex items-center gap-2 cursor-pointer"
+            className="h-11 px-5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 text-[14px] font-semibold shadow-md shadow-rm-acento/20 flex items-center gap-2 cursor-pointer whitespace-nowrap flex-shrink-0"
           >
             <span className="text-[18px] leading-none -mt-px">+</span>
             Enviar feedback

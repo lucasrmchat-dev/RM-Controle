@@ -261,6 +261,7 @@ export const supabase = {
         async createSignedUrls(caminhos) {
           return { data: caminhos.map((c) => ({ path: c, error: db.arquivos?.[`${pasta}/${c}`] ? null : 'Object not found', signedUrl: db.arquivos?.[`${pasta}/${c}`] ? `https://teste.supabase.co/storage/v1/object/sign/${pasta}/${c}?token=x` : null })), error: null };
         },
+        async createSignedUploadUrl(caminho) { db.envios = [...(db.envios || []), `${pasta}/${caminho}`]; return { data: { signedUrl: `https://teste.supabase.co/upload/${pasta}/${caminho}?token=t`, token: 't', path: caminho }, error: null }; },
         async createSignedUrl(caminho, segundos, op) {
           if (!db.arquivos?.[`${pasta}/${caminho}`]) return { data: null, error: { message: 'Object not found' } };
           return { data: { signedUrl: `https://teste.supabase.co/storage/v1/object/sign/${pasta}/${caminho}?token=x${op?.download ? '&download=' + encodeURIComponent(op.download) : ''}` }, error: null };

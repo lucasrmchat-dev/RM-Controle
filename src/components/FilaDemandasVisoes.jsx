@@ -87,8 +87,14 @@ export function infoDemanda(ch, { cfg = {}, isMeu = () => false } = {}) {
   const critico = cfg.tempo_critico_minutos || 30;
   const minRef =
     estado === 'espera' ? minutosDesde(ch.tempo_espera_inicio || ch.created_at) : estado === 'atendimento' ? minutosDesde(ch.tempo_ativo_inicio || ch.iniciado_em) : 0;
-  const prioridade = estado === 'espera' || estado === 'atendimento' ? (minRef >= critico ? 'critica' : minRef >= saudavel ? 'atencao' : 'normal') : 'normal';
   const prazoMs = ch.prazo_limite ? new Date(ch.prazo_limite).getTime() : null;
+  // Com prazo, o que vale é o prazo (contagem regressiva): vencido = crítico, última hora = atenção.
+  // Sem prazo, o SLA conta o tempo desde o início (esperando ou em atendimento).
+  const comPrazo = Boolean(prazoMs) && estado !== 'concluida';
+  const faltamMin = comPrazo ? (prazoMs - Date.now()) / 60000 : null;
+  const prioridade = comPrazo
+    ? faltamMin < 0 ? 'critica' : faltamMin <= 60 ? 'atencao' : 'normal'
+    : estado === 'espera' || estado === 'atendimento' ? (minRef >= critico ? 'critica' : minRef >= saudavel ? 'atencao' : 'normal') : 'normal';
   const designado = ch.atribuido_a && ch.atribuido_a !== 'geral' ? ch.atribuido_nome || ch.atribuido_a : null;
   const responsavel = estado === 'atendimento' || estado === 'cliente' ? ch.tecnico_nome || ch.atendente || ch.atribuido_nome || null : designado;
   const solicitante = ch.solicitante_nome && !['Colaborador da Empresa', 'Colaborador', 'Acesso Principal'].includes(ch.solicitante_nome) ? ch.solicitante_nome : '';
@@ -97,6 +103,8 @@ export function infoDemanda(ch, { cfg = {}, isMeu = () => false } = {}) {
     visual: ESTADOS[estado],
     prioridade,
     prazoVencido: Boolean(prazoMs && prazoMs < Date.now() && estado !== 'concluida'),
+    comPrazo,
+    prazoMs,
     responsavel: responsavel && !/fila geral/i.test(responsavel) ? responsavel : null,
     meu: (estado === 'atendimento' || estado === 'cliente') && isMeu(ch),
     solicitante,
@@ -120,7 +128,17 @@ const segundosDesde = (iso) => {
   const t = new Date(iso || 0).getTime();
   return t ? Math.max(0, Math.floor((Date.now() - t) / 1000)) : 0;
 };
+const duracaoCurta = (seg) => {
+  const d = Math.floor(seg / 86400);
+  const h = Math.floor((seg % 86400) / 3600);
+  const m = Math.floor((seg % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}min`;
+  return `${String(m).padStart(2, '0')}:${String(seg % 60).padStart(2, '0')}`;
+};
 function tempoCurto(ch, info, tempos) {
+  // Com prazo: quanto falta (ou há quanto venceu)
+  if (info.comPrazo) return duracaoCurta(Math.floor(Math.abs(info.prazoMs - Date.now()) / 1000));
   let seg = null;
   if (info.estado === 'espera') seg = segundosDesde(ch.tempo_espera_inicio || ch.created_at);
   else if (info.estado === 'atendimento') seg = segundosDesde(ch.tempo_ativo_inicio || ch.iniciado_em);
@@ -134,7 +152,9 @@ function tempoCurto(ch, info, tempos) {
   return `${String(m).padStart(2, '0')}:${String(seg % 60).padStart(2, '0')}`;
 }
 const rotuloTempo = (info) =>
-  info.estado === 'espera' ? 'esperando' : info.estado === 'atendimento' ? 'em atendimento' : info.estado === 'cliente' ? 'sem resposta' : 'de espera';
+  info.comPrazo
+    ? info.prazoVencido ? 'prazo vencido' : 'para o prazo'
+    : info.estado === 'espera' ? 'esperando' : info.estado === 'atendimento' ? 'em atendimento' : info.estado === 'cliente' ? 'sem resposta' : 'de espera';
 
 function Monograma({ nome, tamanho = 'w-10 h-10 text-[13px] rounded-xl' }) {
   return (

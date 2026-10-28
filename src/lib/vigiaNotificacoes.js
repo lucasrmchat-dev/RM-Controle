@@ -26,13 +26,15 @@ function verificarDemandas(email) {
     const minha = String(ch.tecnico_email || '').toLowerCase().trim() === me;
     const paraMim = minha || deveNotificarChamado({ status: 'aguardando_visualizacao', ...ch }, me, regras);
 
-    if (ch.status === 'aguardando_visualizacao' && paraMim) {
+    // Com prazo ainda distante, o aviso é o do prazo (abaixo), não o do tempo decorrido
+    const prazoFuturo = ch.prazo_limite && new Date(ch.prazo_limite).getTime() > Date.now();
+    if (ch.status === 'aguardando_visualizacao' && paraMim && !prazoFuturo) {
       const espera = minutosDesde(ch.tempo_espera_inicio || ch.created_at);
       if (espera >= critico) {
         notificar({ id: `sla_espera_${ch.id}`, tipo: 'sla', titulo: `SLA estourado · ${empresa}`, detalhe: `Esperando há ${espera} min sem ninguém assumir.`, aba: 'fila' });
       }
     }
-    if (ch.status === 'em_andamento' && minha) {
+    if (ch.status === 'em_andamento' && minha && !prazoFuturo) {
       const ativo = minutosDesde(ch.tempo_ativo_inicio || ch.iniciado_em);
       if (ativo >= critico) {
         notificar({ id: `sla_atendimento_${ch.id}`, tipo: 'sla', titulo: `Atendimento longo · ${empresa}`, detalhe: `Com você há ${ativo} min. O limite configurado é ${critico} min.`, aba: 'fila' });

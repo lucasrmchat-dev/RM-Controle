@@ -6,7 +6,8 @@ import { ehGrupo } from '@/lib/canais';
 export const dynamic = 'force-dynamic';
 
 /** Participantes do grupo desta conversa (para mencionar com @). Atualiza pelo WhatsApp a cada 10 minutos. */
-export async function GET(request, { params }) {
+export async function GET(request, contexto) {
+  const params = await contexto.params;
   const r = await carregarConversa(request, params.id);
   if (r.erro) return r.erro;
   const { db } = r.ctx;
