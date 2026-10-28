@@ -9,6 +9,7 @@ import {
   fetchCanais,
   fetchConversa,
   fetchConversas,
+  fixarConversaChat,
   fetchRespostasRapidas,
   getCategoriasDemandas,
   getEquipeUsuarios,
@@ -1796,9 +1797,18 @@ const PERIODOS_BUSCA = [
   { dias: 365, rotulo: '1 ano' },
 ];
 
-/** Uma conversa na lista ou no card do Kanban. */
-function ItemConversa({ c, ativa, eu, onAbrir, cartao = false, arrastavel = false }) {
+function IconeAlfinete({ cheio = false, className = 'w-4 h-4' }) {
   return (
+    <svg className={className} viewBox="0 0 24 24" fill={cheio ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
+      <path d="M15 3.5 20.5 9l-2.3.9-3.6 3.6-.5 3.8-1.4 1.4-3.6-3.6L4.5 19.5 4.5 19.5l5-5.6-3.6-3.6 1.4-1.4 3.8-.5 3.6-3.6z" />
+    </svg>
+  );
+}
+
+/** Uma conversa na lista ou no card do Kanban. Ao passar o mouse, o alfinete no canto fixa a conversa no topo. */
+function ItemConversa({ c, ativa, eu, onAbrir, cartao = false, arrastavel = false, fixada = false, onFixar }) {
+  return (
+    <div className="relative group/item">
     <button
       type="button"
       onClick={() => onAbrir(c.id)}
@@ -1821,7 +1831,10 @@ function ItemConversa({ c, ativa, eu, onAbrir, cartao = false, arrastavel = fals
       <div className={`min-w-0 flex-1 ${cartao ? '' : 'border-b border-black/[0.05] dark:border-white/[0.05] pb-2.5 -mb-2.5'}`}>
         <div className="flex items-baseline gap-2">
           <span className={`flex-1 truncate text-[#111b21] dark:text-[#e9edef] ${cartao ? 'text-[14px] font-medium' : 'text-[15.5px]'}`}>{nomeDoContato(c)}</span>
-          <span className={`text-[11.5px] flex-shrink-0 ${c.nao_lidas ? 'text-rm-acento-medio font-semibold' : 'text-[#667781] dark:text-[#8696a0]'}`}>{quandoNaLista(c.ultima_mensagem_em || c.criado_em)}</span>
+          <span className={`flex items-center gap-1 text-[11.5px] flex-shrink-0 transition-opacity ${onFixar ? 'group-hover/item:opacity-0 group-has-[:focus-visible]/item:opacity-0' : ''} ${c.nao_lidas ? 'text-rm-acento-medio font-semibold' : 'text-[#667781] dark:text-[#8696a0]'}`}>
+            {fixada && <IconeAlfinete cheio className="w-3.5 h-3.5 text-[#667781] dark:text-[#8696a0]" />}
+            {quandoNaLista(c.ultima_mensagem_em || c.criado_em)}
+          </span>
         </div>
         <div className="flex items-center gap-2 mt-0.5">
           <span className={`flex-1 text-[13px] text-[#667781] dark:text-[#8696a0] ${cartao ? 'line-clamp-2' : 'truncate text-[13.5px]'}`}>{c.ultima_mensagem_texto || 'Sem mensagens'}</span>
@@ -1832,6 +1845,27 @@ function ItemConversa({ c, ativa, eu, onAbrir, cartao = false, arrastavel = fals
         </div>
       </div>
     </button>
+      {onFixar && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            // Clique com o mouse: solta o foco para o horário voltar (o teclado continua mostrando o alfinete)
+            if (e.detail > 0) e.currentTarget.blur();
+            onFixar(c.id, !fixada);
+          }}
+          aria-label={fixada ? 'Desafixar conversa' : 'Fixar conversa no topo'}
+          title={fixada ? 'Desafixar' : 'Fixar no topo'}
+          className={`absolute ${cartao ? 'top-2 right-2' : 'top-2 right-2.5'} w-7 h-7 rounded-full flex items-center justify-center cursor-pointer transition-all duration-150 opacity-0 scale-90 group-hover/item:opacity-100 group-hover/item:scale-100 focus-visible:opacity-100 focus-visible:scale-100 [@media(hover:none)]:opacity-70 [@media(hover:none)]:scale-100 shadow-sm ring-1 ${
+            fixada
+              ? 'bg-rm-acento-medio text-white ring-transparent hover:opacity-90'
+              : 'bg-white dark:bg-rm-campo-escuro text-[#54656f] dark:text-[#aebac1] ring-black/[0.08] dark:ring-white/[0.1] hover:text-rm-acento-medio'
+          }`}
+        >
+          <IconeAlfinete cheio={fixada} className="w-[15px] h-[15px]" />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -1883,6 +1917,8 @@ export default function ChatView() {
   const [gerenciar, setGerenciar] = useState(false);
   const [novaConversa, setNovaConversa] = useState(null);
   const [config, setConfig] = useState({ grupos: 'desligado' });
+  // Conversas fixadas por esta pessoa (no topo de cada aba e coluna), da mais recente para a mais antiga
+  const [fixadas, setFixadas] = useState([]);
   const [filtros, setFiltros] = useState(FILTROS_PADRAO);
   const [lembrarFiltros, setLembrarFiltros] = useState(false);
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
@@ -1908,6 +1944,7 @@ export default function ChatView() {
       setAbertas(r.conversas);
       setEu(r.eu);
       if (r.config) setConfig(r.config);
+      if (Array.isArray(r.fixadas)) setFixadas(r.fixadas);
       if (r.aoVivo) topicoAoVivo.current = r.aoVivo;
       setErro('');
       escolhidaPorPadrao.current = true;
@@ -1999,6 +2036,18 @@ export default function ChatView() {
     };
   }, [abertas, gruposAParte, doEscopo, comportamento]);
 
+  const ordemFixadas = useMemo(() => new Map(fixadas.map((id, i) => [id, i])), [fixadas]);
+  const alternarFixada = async (id, fixar) => {
+    const antes = fixadas;
+    setFixadas((l) => (fixar ? [id, ...l.filter((x) => x !== id)] : l.filter((x) => x !== id)));
+    try {
+      const r = await fixarConversaChat(id, fixar);
+      if (Array.isArray(r.fixadas)) setFixadas(r.fixadas);
+    } catch (e) {
+      setFixadas(antes);
+      showToast(e.message, 'error');
+    }
+  };
   const filtrar = useCallback((qual) => {
     let l = qual === 'resolvidas' ? resolvidas || [] : abertas || [];
     if (qual === 'grupos') l = l.filter(ehConversaDeGrupo);
@@ -2014,8 +2063,15 @@ export default function ChatView() {
       l = l.filter((c) => semAcento(c.contato?.nome).includes(semAcento(b)) || (digitos && String(c.contato?.telefone || '').includes(digitos)) || semAcento(c.ultima_mensagem_texto).includes(semAcento(b)));
     }
     const quando = (c) => new Date(c.ultima_mensagem_em || c.criado_em).getTime();
-    return [...l].sort((x, y) => (filtros.ordem === 'antigos' ? quando(x) - quando(y) : quando(y) - quando(x)));
-  }, [abertas, resolvidas, gruposAParte, doEscopo, comportamento, filtros.ordem]);
+    // Fixadas primeiro (a fixada por último no topo); o resto pela ordem escolhida
+    const posFixada = (c) => (ordemFixadas.has(c.id) ? ordemFixadas.get(c.id) : Infinity);
+    return [...l].sort((x, y) => {
+      const fx = posFixada(x);
+      const fy = posFixada(y);
+      if (fx !== fy) return fx - fy;
+      return filtros.ordem === 'antigos' ? quando(x) - quando(y) : quando(y) - quando(x);
+    });
+  }, [abertas, resolvidas, gruposAParte, doEscopo, comportamento, filtros.ordem, ordemFixadas]);
   const lista = useMemo(() => filtrar(aba), [filtrar, aba]);
   const colunasKanban = ABAS.filter((a) => a.id !== 'grupos' || gruposAParte);
   // Kanban: arrastar um cartão para outra coluna muda o estado da conversa
@@ -2425,7 +2481,7 @@ export default function ChatView() {
                           <p className="text-[12.5px]">Nada por aqui</p>
                         </div>
                       ) : (
-                        itens.map((c) => <ItemConversa key={c.id} c={c} ativa={c.id === selecionada} eu={eu} onAbrir={(id) => abrir(id)} cartao arrastavel />)
+                        itens.map((c) => <ItemConversa key={c.id} c={c} ativa={c.id === selecionada} eu={eu} onAbrir={(id) => abrir(id)} cartao arrastavel fixada={ordemFixadas.has(c.id)} onFixar={alternarFixada} />)
                       )}
                     </div>
                   </section>
@@ -2445,7 +2501,7 @@ export default function ChatView() {
             <ul>
               {lista.map((c) => (
                 <li key={c.id}>
-                  <ItemConversa c={c} ativa={c.id === selecionada} eu={eu} onAbrir={(id) => abrir(id)} />
+                  <ItemConversa c={c} ativa={c.id === selecionada} eu={eu} onAbrir={(id) => abrir(id)} fixada={ordemFixadas.has(c.id)} onFixar={alternarFixada} />
                 </li>
               ))}
             </ul>

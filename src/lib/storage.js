@@ -3424,6 +3424,7 @@ export const fetchHistoricoCanal = (id) => chamarCanais(`/api/canais/${id}`, 'GE
 export const salvarLimpezaCanais = (limpezaDias) => chamarCanais('/api/canais', 'PUT', { limpezaDias });
 
 // Chat (conversas do WhatsApp): leitura e ações passam pelo servidor, que confere quem pode ver cada conversa
+export const fixarConversaChat = (conversaId, fixar = true) => chamarCanais('/api/chat/fixar', 'POST', { conversa_id: conversaId, fixar });
 export const fetchConversas = (aba = 'abertas') => chamarCanais(`/api/chat?aba=${aba === 'resolvidas' ? 'resolvidas' : 'abertas'}`, 'GET');
 export const iniciarConversa = (dados) => chamarCanais('/api/chat', 'POST', dados);
 export const fetchConversa = (id, antes, { abrir = false } = {}) => {

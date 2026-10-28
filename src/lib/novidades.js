@@ -15,6 +15,20 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-10-28-chat-fixar-conversas',
+    data: '2026-10-28',
+    titulo: 'Chat: fixe conversas e grupos no topo',
+    resumo: 'Passe o mouse sobre uma conversa e clique no alfinete no canto superior direito: ela fica no topo da lista.',
+    itens: [
+      'O alfinete aparece ao passar o mouse, no canto superior direito da conversa (na lista e no Kanban).',
+      'Fixe quantas quiser, em qualquer aba: Ativos, Pendentes, Grupos e Resolvidas. A fixada por último fica em cima.',
+      'Cada pessoa tem as suas fixadas, e elas acompanham você em qualquer computador.',
+      'Conversas fixadas mostram um alfinete pequeno ao lado do horário. Para desafixar, clique no alfinete de novo.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
     id: '2026-10-28-auditoria-real',
     data: '2026-10-28',
     titulo: 'Auditoria de verdade: quem fez o quê, de onde e quando',

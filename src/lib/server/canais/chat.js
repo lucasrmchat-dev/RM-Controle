@@ -299,3 +299,29 @@ export async function bloqueioSemAssumir(db, perm, conversa) {
   if (ehGrupo(contato?.telefone)) return null;
   return conversa.responsavel_email ? `Esta conversa está com ${conversa.responsavel_nome || 'outra pessoa'}. Assuma a conversa para responder.` : 'Assuma a conversa para responder.';
 }
+
+// ------------------------------------------------------------------------------
+// Conversas fixadas: de cada pessoa (cada um fixa as suas), guardadas em sistema_config
+// na chave chat_fixadas:<email>, da mais recente para a mais antiga. Sem limite prático.
+// ------------------------------------------------------------------------------
+const MAX_FIXADAS = 1000;
+const chaveFixadas = (email) => `chat_fixadas:${String(email || '').toLowerCase()}`;
+
+export async function lerFixadas(db, email) {
+  const { data } = await db
+    .from('sistema_config')
+    .select('valor')
+    .eq('chave', chaveFixadas(email))
+    .maybeSingle()
+    .then((r) => r, () => ({ data: null }));
+  return Array.isArray(data?.valor) ? data.valor.filter((id) => typeof id === 'string') : [];
+}
+
+/** Fixa (no topo da lista) ou desafixa uma conversa para esta pessoa. Devolve a lista nova. */
+export async function fixarConversa(db, email, conversaId, fixar) {
+  const atuais = (await lerFixadas(db, email)).filter((id) => id !== conversaId);
+  const lista = (fixar ? [conversaId, ...atuais] : atuais).slice(0, MAX_FIXADAS);
+  const { error } = await db.from('sistema_config').upsert({ chave: chaveFixadas(email), valor: lista, updated_at: new Date().toISOString() }, { onConflict: 'chave' });
+  if (error) throw new Error('Não foi possível fixar a conversa.');
+  return lista;
+}
