@@ -10,6 +10,7 @@ import {
   getChamadosSuporte, 
   iniciarSuporte, 
   adicionarChamadoFila, 
+  abrirDemandaCompleta,
   assumirSuporte,
   aguardarRetornoCliente, 
   cancelarSuporte, 
@@ -1292,66 +1293,14 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
   // paraMim: a demanda fica com quem está logado, o atendimento começa e a tela da empresa abre.
   // paraMim: começa agora comigo · atribuirA: { email, nome } abre direto para outra pessoa
   const criarDemanda = async (dados, { paraMim = false, atribuirA = null } = {}) => {
-    if (paraMim && !userEmail) throw new Error('Não foi possível identificar seu usuário. Entre novamente.');
-    const operador = userEmail || 'admin@rmcontrole.com';
-    let empresaId = dados.empresa.id;
-    let empresaNome = dados.empresa.nome;
-
-    // 1. Empresa nova: cadastra antes da demanda. Se falhar, a demanda não é aberta.
-    if (dados.empresa.isNova) {
-      const n = dados.novaEmpresa;
-      const novaEmp = await createEmpresa({
-        nome: empresaNome.trim(),
-        formato_atendimento: 'colaborativo',
-        servidor_alocado: n.servidor_alocado,
-        tipo_cliente: n.tipo_cliente,
-        cliente_desde: n.cliente_desde,
-        email_administrador: n.email_administrador.trim(),
-        senha_suporte: n.senha_suporte.trim(),
-        userEmail: operador,
-      });
-      if (!novaEmp?.id) throw new Error('Não foi possível cadastrar a empresa.');
-      empresaId = novaEmp.id;
-      empresaNome = novaEmp.nome || empresaNome;
+    const { criado, empresaId, empresaNome, novaEmpresa, avisoSolicitante } = await abrirDemandaCompleta(dados, { paraMim, atribuirA, userEmail });
+    if (novaEmpresa)
       setEmpresasLista((prev) =>
-        [...prev.filter((e) => e.id !== novaEmp.id), novaEmp].sort((a, b) =>
+        [...prev.filter((e) => e.id !== novaEmpresa.id), novaEmpresa].sort((a, b) =>
           (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' })
         )
       );
-    }
-
-    const sol = dados.solicitante;
-    const criado = await adicionarChamadoFila({
-      empresa_id: empresaId,
-      empresa_nome: empresaNome,
-      solicitante_nome: sol?.nome || '',
-      solicitante_email: sol?.email || '',
-      solicitante_telefone: sol?.telefone || '',
-      categorias: dados.categorias,
-      etiquetas: dados.etiquetas,
-      atribuido_a: paraMim ? userEmail : atribuirA?.email || null,
-      observacao_inicial: dados.observacao,
-      prazo_limite: dados.prazo,
-      is_lembrete: dados.lembrete,
-      iniciarAgora: paraMim,
-      userEmail: operador,
-    });
-
-    // 2. Solicitante novo: entra na empresa e em Acessos e Senhas com o nome (e-mail/senha só se informados)
-    if (sol?.novo && empresaId) {
-      try {
-        await addColaboradorEmpresa(empresaId, { nome: sol.nome, email: (sol.email || '').trim(), telefone: '', cargo: 'Solicitante' }, operador);
-        await addEmpresaCredencial(empresaId, {
-          rotulo: sol.nome,
-          nome_usuario: sol.nome,
-          usuario_email: (sol.email || '').trim(),
-          senha: (sol.senha || '').trim(),
-          observacao: '',
-        }, operador);
-      } catch (eColab) {
-        showToast(`Demanda aberta, mas ${sol.nome} não foi cadastrado na empresa: ${eColab.message}`, 'warning');
-      }
-    }
+    if (avisoSolicitante) showToast(avisoSolicitante, 'warning');
 
     setNovaDemanda({ aberto: false, empresaInicial: null });
     setFiltroStatus('ativos');
@@ -1418,6 +1367,15 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
     abrirEmpresa: (ch) => {
       setDetalheId(null);
       if (onSelectEmpresa) onSelectEmpresa(empresaDoChamado(ch) || { id: ch.empresa_id, nome: ch.empresa_nome });
+    },
+    // Demanda aberta de uma mensagem do Chat (ticket #24): leva à conversa, já na mensagem de origem
+    abrirChat: (ch) => {
+      if (!ch.chat_conversa_id) return;
+      setDetalheId(null);
+      const pedido = { conversaId: ch.chat_conversa_id, mensagemId: ch.chat_mensagem_id || null, mensagemEm: ch.chat_mensagem_em || null };
+      window.__rmChatAbrirPendente = pedido;
+      window.dispatchEvent(new CustomEvent('rm_ir_para_aba', { detail: { aba: 'chat' } }));
+      window.dispatchEvent(new CustomEvent('rm_chat_abrir', { detail: pedido }));
     },
     repassar: (ch) => {
       setDetalheId(null);

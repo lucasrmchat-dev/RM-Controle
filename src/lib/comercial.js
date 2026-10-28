@@ -17,7 +17,7 @@ export function validarConfigComercial(valor) {
   )
     throw new Error('Configuração comercial inválida.');
   if (valor.departamentos.length > 100 || valor.pipelines.length > 100)
-    throw new Error('Limite de 100 departamentos e pipelines por configuração.');
+    throw new Error('Limite de 100 departamentos e processos comerciais por configuração.');
   const departamentos = [
     ...new Set(valor.departamentos.map((d) => String(d).trim()).filter(Boolean)),
   ];
@@ -28,7 +28,7 @@ export function validarConfigComercial(valor) {
     const id = String(p.id || '');
     const nome = String(p.nome || '').trim();
     if (!/^[a-zA-Z0-9_-]{1,80}$/.test(id) || ids.has(id) || !nome || nome.length > 80)
-      throw new Error('Cada pipeline precisa de nome e identificador únicos.');
+      throw new Error('Cada processo comercial precisa de nome e identificador únicos.');
     ids.add(id);
     if (!Array.isArray(p.etapas) || !p.etapas.length || p.etapas.length > 100)
       throw new Error('Inclua pelo menos uma etapa antes de Ganho e Perda.');
@@ -101,10 +101,14 @@ export function resumoComercial(
 }
 
 // A reunião é o cartão de acompanhamento. Concluir uma reunião não significa ganhar a venda.
+// Oportunidade excluída do processo comercial (a reunião continua na Agenda)
+export const FORA_DO_PROCESSO = '__fora__';
+
+// Só está no processo quem foi colocado nele (à mão, por um fluxo ou pelo webhook de leads): reunião
+// agendada NÃO entra sozinha na primeira etapa.
 export function posicaoComercial(evento, config) {
-  const pipeline =
-    config.pipelines.find((p) => p.id === evento.comercial_pipeline_id) ||
-    (!evento.comercial_pipeline_id ? config.pipelines[0] : null);
+  if (!evento.comercial_pipeline_id || evento.comercial_pipeline_id === FORA_DO_PROCESSO) return null;
+  const pipeline = config.pipelines.find((p) => p.id === evento.comercial_pipeline_id);
   if (!pipeline) return null;
   const etapaId = evento.comercial_etapa_id || pipeline.etapas[0]?.id;
   const etapa = [...pipeline.etapas, ...DESFECHOS_COMERCIAIS].find((e) => e.id === etapaId);

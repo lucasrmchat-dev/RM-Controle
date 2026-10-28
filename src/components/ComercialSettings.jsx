@@ -61,7 +61,7 @@ export default function ComercialSettings() {
   return (
     <section className="rounded-3xl border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-rm-elevado-escuro p-5 sm:p-8 space-y-8">
       <div>
-        <h2 className="text-xl font-semibold">Comercial e pipelines</h2>
+        <h2 className="text-xl font-semibold">Comercial e processos</h2>
         <p className="text-sm text-slate-500 dark:text-zinc-400 mt-2">
           Escolha quais departamentos alimentam o Comercial e desenhe as etapas do acompanhamento.
         </p>
@@ -120,10 +120,10 @@ export default function ComercialSettings() {
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h3 className="font-semibold">Pipelines</h3>
+                <h3 className="font-semibold">Processos comerciais</h3>
                 <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">
-                  Novas reuniões começam na primeira etapa da primeira pipeline. Depois, podem ser
-                  movidas para outra pipeline.
+                  Novas reuniões começam na primeira etapa do primeiro processo comercial. Depois, podem ser
+                  movidas para outro processo.
                 </p>
               </div>
               <button
@@ -143,7 +143,7 @@ export default function ComercialSettings() {
                 }
                 className="shrink-0 text-sm font-medium px-4 py-2 rounded-full border border-black/10 dark:border-white/15 cursor-pointer"
               >
-                + Pipeline
+                + Processo comercial
               </button>
             </div>
             {config.pipelines.map((p, pi) => (
@@ -152,9 +152,9 @@ export default function ComercialSettings() {
                 className="border border-black/10 dark:border-white/15 rounded-2xl p-4 sm:p-5 space-y-4"
               >
                 <label className="block text-xs font-medium">
-                  Nome da pipeline {pi + 1}
+                  Nome do processo {pi + 1}
                   <input
-                    aria-label={`Nome da pipeline ${pi + 1}`}
+                    aria-label={`Nome do processo ${pi + 1}`}
                     value={p.nome}
                     onChange={(e) => mudarPipeline(p.id, { nome: e.target.value })}
                     maxLength={80}
@@ -167,7 +167,7 @@ export default function ComercialSettings() {
                     <label key={e.id} className="block text-xs text-slate-500 dark:text-zinc-400">
                       Etapa {i + 1}
                       <input
-                        aria-label={`Etapa ${i + 1} de ${p.nome || `pipeline ${pi + 1}`}`}
+                        aria-label={`Etapa ${i + 1} de ${p.nome || `processo ${pi + 1}`}`}
                         value={e.nome}
                         maxLength={80}
                         onChange={(ev) =>

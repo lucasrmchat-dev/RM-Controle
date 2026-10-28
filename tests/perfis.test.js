@@ -173,7 +173,7 @@ test('Comercial é salvo no perfil, respeita a simulação e pode ser revogado',
 });
 
 import { validarConfigComercial, posicaoComercial, DESFECHOS_COMERCIAIS } from '../src/lib/comercial.js';
-import { GET as lerComercial, PATCH as moverComercial } from '../src/app/api/comercial/route.js';
+import { GET as lerComercial, PATCH as moverComercial, DELETE as excluirComercial } from '../src/app/api/comercial/route.js';
 import { PUT as salvarConfiguracao } from '../src/app/api/configuracoes/route.js';
 const CONFIG_VENDAS = { departamentos: ['Comercial: RM Chat'], pipelines: [{ id: 'negocios', nome: 'Novos negócios', etapas: [{ id: 'contato', nome: 'Primeiro contato' }, { id: 'proposta', nome: 'Proposta' }] }] };
 
@@ -188,7 +188,8 @@ test('configuração comercial seleciona departamentos explicitamente e mantém 
 });
 
 test('pipeline mantém posição ao renomear etapas; reunião realizada não significa negócio ganho', () => {
-  assert.deepEqual(posicaoComercial({ status: 'concluida' }, CONFIG_VENDAS), { pipelineId: 'negocios', etapaId: 'contato' });
+  assert.equal(posicaoComercial({ status: 'concluida' }, CONFIG_VENDAS), null, 'reunião não entra sozinha no processo');
+  assert.deepEqual(posicaoComercial({ comercial_pipeline_id: 'negocios' }, CONFIG_VENDAS), { pipelineId: 'negocios', etapaId: 'contato' }, 'sem etapa: primeira etapa do processo');
   const evento = { comercial_pipeline_id: 'negocios', comercial_etapa_id: 'proposta' };
   const renomeada = structuredClone(CONFIG_VENDAS); renomeada.pipelines[0].etapas[1].nome = 'Negociação';
   assert.deepEqual(posicaoComercial(evento, renomeada), { pipelineId: 'negocios', etapaId: 'proposta' });
@@ -269,4 +270,33 @@ test('leads de webhook aparecem na pipeline sem criar reuniões e respeitam perm
   assert.equal(lead.comercial_etapa_id, 'proposta'); assert.equal(lead.responsavel_email, 'maria@rmchat.com'); assert.ok(lead.ultima_ocorrencia_em);
   assert.equal(db.tables.agenda_eventos.length, 0);
   assert.equal((await moverComercial(await req('PATCH', '/api/comercial', { id, tipo: 'lead', pipelineId: 'negocios', etapaId: 'proposta', responsavel_email: 'naoexiste@rmchat.com' }))).status, 400);
+});
+
+test('excluir oportunidade: lead é apagado; reunião sai do processo e continua na agenda; editar lead valida', async () => {
+  db.tables.sistema_config = [{ chave: 'comercial', valor: CONFIG_VENDAS }];
+  const reuniao = crypto.randomUUID();
+  const lead = crypto.randomUUID();
+  const fora = crypto.randomUUID();
+  db.tables.agenda_eventos = [
+    { id: reuniao, data: '2026-10-23', departamento: 'Comercial: RM Chat', status: 'agendada', comercial_pipeline_id: 'negocios', comercial_etapa_id: 'proposta' },
+    { id: fora, data: '2026-10-23', departamento: 'Suporte' },
+  ];
+  db.tables.comercial_leads = [{ id: lead, nome: 'Lead', email: '', telefone: '', departamento: 'Comercial: RM Chat', comercial_pipeline_id: 'negocios', comercial_etapa_id: 'contato', updated_at: '2026-10-23T10:00:00Z' }];
+
+  const editar = async (corpo) => moverComercial(await req('PATCH', '/api/comercial', { id: lead, tipo: 'lead', acao: 'editar_lead', ...corpo }));
+  assert.equal((await editar({ nome: 'Clínica Sorriso', email: 'nao-e-email' })).status, 400);
+  const ok = await editar({ nome: 'Clínica Sorriso', email: 'Contato@Sorriso.com', telefone: '(85) 99999-0000' });
+  assert.equal(ok.status, 200);
+  assert.equal(db.tables.comercial_leads[0].nome, 'Clínica Sorriso');
+  assert.equal(db.tables.comercial_leads[0].email, 'contato@sorriso.com');
+  assert.equal(db.tables.comercial_leads[0].comercial_etapa_id, 'contato', 'editar não mexe na etapa');
+
+  const excluir = async (id, tipo) => excluirComercial(await req('DELETE', '/api/comercial', { id, tipo }));
+  assert.equal((await excluir(fora, 'reuniao')).status, 403, 'fora dos departamentos do comercial');
+  assert.equal((await excluir(reuniao, 'reuniao')).status, 200);
+  const r = db.tables.agenda_eventos.find((e) => e.id === reuniao);
+  assert.ok(r, 'a reunião continua na agenda');
+  assert.equal(posicaoComercial(r, CONFIG_VENDAS), null, 'some do processo comercial');
+  assert.equal((await excluir(lead, 'lead')).status, 200);
+  assert.equal(db.tables.comercial_leads.length, 0);
 });

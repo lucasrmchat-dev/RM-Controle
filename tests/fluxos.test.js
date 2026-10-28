@@ -1,0 +1,255 @@
+// Fluxo Inteligente: motor, API, gatilho do WhatsApp (webhook) e gatilho da agenda.
+import { test, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import { NextRequest } from 'next/server.js';
+import { db, supabase as mockSupabase } from './mocks/supabase.js';
+import { __definirSupabaseAdmin } from '../src/lib/server/integracaoSuporte.js';
+import { ORG_PLATAFORMA } from '../src/lib/server/organizacao.js';
+import { createSessionToken, SESSION_COOKIE_NAME } from '../src/lib/session.js';
+import { cifrarSegredos, hashToken } from '../src/lib/server/canais/cofre.js';
+import { GET as listarFluxos, POST as criarFluxos } from '../src/app/api/fluxos/route.js';
+import { GET as lerFluxo, PATCH as salvarFluxo, DELETE as excluirFluxo } from '../src/app/api/fluxos/[id]/route.js';
+import { POST as disparar } from '../src/app/api/fluxos/disparar/route.js';
+import { POST as receberWebhook } from '../src/app/api/canais/webhook/[id]/route.js';
+import {
+  ajustarCanais, efeitosSimulados, executarFluxo, exportarFluxo, gatilhoCasa, gatilhosDe, lerArquivoFluxo, novoBloco, preencher, problemasDoFluxo, validarDefinicao,
+} from '../src/lib/fluxos.js';
+
+__definirSupabaseAdmin(mockSupabase);
+
+const A = crypto.randomUUID();
+const B = crypto.randomUUID();
+const PERFIL_SO_CHAT = crypto.randomUUID();
+let canal, enviados;
+
+beforeEach(() => {
+  db.reset();
+  db.unicos = { mensagens: [['organizacao_id', 'id_externo']], contatos: [['organizacao_id', 'telefone']] };
+  db.tables.organizacoes = [
+    { id: ORG_PLATAFORMA, nome: 'RM Controle', tipo: 'plataforma', status: 'ativa', limites: {} },
+    { id: A, nome: 'Clínica A', tipo: 'assinante', pai_id: ORG_PLATAFORMA, status: 'ativa', limites: {} },
+    { id: B, nome: 'Clínica B', tipo: 'assinante', pai_id: ORG_PLATAFORMA, status: 'ativa', limites: {} },
+  ];
+  db.tables.sessoes_suporte = [];
+  db.tables.rm_admins_proprietarios = [];
+  db.tables.perfis_acesso = [{ id: PERFIL_SO_CHAT, organizacao_id: A, nome: 'Só chat', administrador: false, todos_departamentos: true, modulos: ['chat'] }];
+  db.tables.equipe_usuarios = [
+    { id: crypto.randomUUID(), email: 'ana@a.com', nome: 'Ana Souza', papel: 'administrador', ativo: true, organizacao_id: A },
+    { id: crypto.randomUUID(), email: 'bia@a.com', nome: 'Bia Lima', papel: 'suporte', ativo: true, organizacao_id: A, perfil_id: PERFIL_SO_CHAT },
+    { id: crypto.randomUUID(), email: 'caio@b.com', nome: 'Caio', papel: 'administrador', ativo: true, organizacao_id: B },
+  ];
+  canal = { id: crypto.randomUUID(), organizacao_id: A, nome: 'Comercial', tipo: 'whatsapp_qr', provedor: 'evolution', status: 'conectado', ativo: true, config: {}, credenciais_cifradas: cifrarSegredos({ url: 'https://evo.exemplo.com', apikey: 'chave' }), webhook_token_hash: hashToken('t') };
+  db.tables.canais = [canal];
+  db.tables.contatos = [];
+  db.tables.conversas = [];
+  db.tables.mensagens = [];
+  db.tables.sistema_config = [];
+  db.tables.fluxos = [];
+  db.tables.fluxo_execucoes = [];
+  db.tables.agenda_eventos = [];
+  enviados = [];
+  globalThis.fetch = async (url, op) => {
+    enviados.push({ url: String(url), corpo: op?.body ? JSON.parse(op.body) : null });
+    return new Response(JSON.stringify({ key: { id: `EVO-${enviados.length}` } }), { status: 200 });
+  };
+});
+
+const como = async (email, url, metodo = 'GET', body) =>
+  new NextRequest(`http://localhost${url}`, { method: metodo, headers: { 'Content-Type': 'application/json', Cookie: `${SESSION_COOKIE_NAME}=${await createSessionToken({ email, role: 'suporte' })}` }, body: body ? JSON.stringify(body) : undefined });
+const ler = async (r) => ({ status: r.status, ...(await r.json()) });
+
+/** gatilho de mensagem → condição (contém "preço") → Sim: enviar · Não: nada */
+function desenhoBoasVindas({ origem = 'todas', canais = [] } = {}) {
+  const g = { ...novoBloco('gatilho_mensagem', 0, 0), id: 'g1', config: { canais, origem, filtro: 'qualquer', texto: '' } };
+  const c = { ...novoBloco('condicao', 300, 0), id: 'c1', config: { combinar: 'todas', regras: [{ campo: 'mensagem.texto', operador: 'contem', valor: 'preço' }] } };
+  const m = { ...novoBloco('enviar_mensagem', 600, 0), id: 'm1', config: { destino: 'conversa', texto: 'Olá {{contato.nome}}, já te mando a tabela!' } };
+  return { versao: 1, nos: [g, c, m], ligacoes: [{ id: 'l1', de: 'g1', saida: 'proximo', para: 'c1' }, { id: 'l2', de: 'c1', saida: 'sim', para: 'm1' }] };
+}
+
+test('motor: validação, variáveis, condição, gatilhos, círculo, exportar/importar e problemas', async () => {
+  assert.throws(() => validarDefinicao({ nos: [{ id: 'x', tipo: 'rodar_codigo' }] }), /desconhecido/);
+  const limpo = validarDefinicao({ nos: [{ id: 'g', tipo: 'gatilho_mensagem', config: { origem: 'grupo', __proto__x: 1, f: () => 1 } }, { id: 'm', tipo: 'enviar_mensagem' }], ligacoes: [{ de: 'm', para: 'g' }, { de: 'g', para: 'm', saida: 'xyz' }, { de: 'g', para: 'm' }] });
+  assert.equal(limpo.ligacoes.length, 1, 'nada entra no gatilho; ligação repetida sai');
+  assert.equal(limpo.ligacoes[0].saida, 'proximo');
+  assert.equal(limpo.nos[0].config.f, null, 'função não passa');
+  assert.deepEqual(gatilhosDe(limpo), ['gatilho_mensagem']);
+  assert.equal(preencher('Oi {{contato.nome}} ({{conversa.grupo}}) {{nao.existe}}!', { contato: { nome: 'Ana' }, conversa: { grupo: false } }), 'Oi Ana (não) !');
+
+  const ev = (texto, extra = {}) => ({ tipo: 'mensagem_recebida', dados: { mensagem: { texto }, contato: { nome: 'Carla', telefone: '5585' }, conversa: { id: 'cv', grupo: false, ...extra }, canal: { id: 'k1' } } });
+  const g = (config) => ({ tipo: 'gatilho_mensagem', config: { canais: [], origem: 'todas', filtro: 'qualquer', texto: '', ...config } });
+  assert.equal(gatilhoCasa(g({ origem: 'grupo' }), ev('oi')), false);
+  assert.equal(gatilhoCasa(g({ origem: 'grupo' }), ev('oi', { grupo: true })), true);
+  assert.equal(gatilhoCasa(g({ canais: ['k2'] }), ev('oi')), false);
+  assert.equal(gatilhoCasa(g({ filtro: 'palavras', texto: 'preço, orçamento' }), ev('Quero um ORCAMENTO')), true, 'sem acento e sem maiúsculas');
+  assert.equal(gatilhoCasa(g({ so_sem_responsavel: true }), ev('oi', { responsavel_email: 'x@a.com' })), false);
+  assert.equal(gatilhoCasa({ tipo: 'gatilho_reuniao_status', config: { status: 'concluida' } }, { tipo: 'reuniao_status', dados: { reuniao: { status: 'cancelada' } } }), false);
+
+  const enviadas = [];
+  const sim = await executarFluxo({ definicao: desenhoBoasVindas(), evento: ev('Qual o preço?'), efeitos: efeitosSimulados({ aoEnviar: (t) => enviadas.push(t) }) });
+  assert.equal(sim.casou, true);
+  assert.deepEqual(sim.passos.map((p) => p.no), ['g1', 'c1', 'm1']);
+  assert.deepEqual(enviadas, ['Olá Carla, já te mando a tabela!']);
+  const nao = await executarFluxo({ definicao: desenhoBoasVindas(), evento: ev('bom dia'), efeitos: efeitosSimulados() });
+  assert.deepEqual(nao.passos.map((p) => p.saida), ['proximo', 'nao']);
+
+  // Círculo: variável → variável → ... para no limite
+  const circulo = { nos: [{ id: 'g', tipo: 'gatilho_mensagem', config: {} }, { id: 'a', tipo: 'variavel', config: { nome: 'x', valor: '1' } }, { id: 'b', tipo: 'variavel', config: { nome: 'y', valor: '2' } }], ligacoes: [{ de: 'g', para: 'a' }, { de: 'a', para: 'b' }, { de: 'b', para: 'a' }] };
+  const r = await executarFluxo({ definicao: validarDefinicao(circulo), evento: ev('x'), efeitos: efeitosSimulados(), maxPassos: 20 });
+  assert.equal(r.status, 'parou');
+
+  // Bloco que precisa de reunião num gatilho de mensagem: erro claro
+  const semReuniao = validarDefinicao({ nos: [{ id: 'g', tipo: 'gatilho_mensagem' }, { id: 's', tipo: 'reuniao_status' }], ligacoes: [{ de: 'g', para: 's' }] });
+  const e = await executarFluxo({ definicao: semReuniao, evento: ev('x'), efeitos: efeitosSimulados() });
+  assert.equal(e.status, 'erro');
+  assert.match(e.passos.at(-1).erro, /reunião/);
+
+  // Exportar → importar noutra empresa: canais que não existem saem
+  const arquivo = JSON.stringify(exportarFluxo({ nome: 'Boas-vindas', definicao: desenhoBoasVindas({ canais: ['canal-de-la'] }) }));
+  const lido = lerArquivoFluxo(arquivo);
+  assert.equal(lido.nome, 'Boas-vindas');
+  assert.equal(ajustarCanais(lido.definicao, ['outro']), 1);
+  assert.deepEqual(lido.definicao.nos[0].config.canais, []);
+  assert.throws(() => lerArquivoFluxo('{"nos": "x"'), /JSON|Unexpected|Expected/);
+
+  assert.match(problemasDoFluxo({ nos: [], ligacoes: [] })[0], /gatilho/);
+  assert.deepEqual(problemasDoFluxo(desenhoBoasVindas()), []);
+});
+
+test('API: criar, salvar, ativar (só sem problemas), listar, duplicar, importar, excluir; perfil e empresa', async () => {
+  const pedir = async (email, corpo) => ler(await criarFluxos(await como(email, '/api/fluxos', 'POST', corpo)));
+  const novo = await pedir('ana@a.com', { acao: 'criar', nome: 'Boas-vindas', descricao: 'Responde quem pergunta preço' });
+  assert.equal(novo.status, 201);
+  assert.equal(novo.fluxo.ativo, false);
+  const id = novo.fluxo.id;
+  const params = { params: Promise.resolve({ id }) };
+  const patch = async (corpo, email = 'ana@a.com') => ler(await salvarFluxo(await como(email, `/api/fluxos/${id}`, 'PATCH', corpo), params));
+
+  const ativarVazio = await patch({ ativo: true });
+  assert.equal(ativarVazio.status, 400);
+  assert.match(ativarVazio.mensagem, /gatilho/);
+  const salvo = await patch({ definicao: desenhoBoasVindas() });
+  assert.deepEqual(salvo.fluxo.gatilhos, ['gatilho_mensagem']);
+  assert.equal(salvo.fluxo.versao, 2);
+  assert.equal((await patch({ ativo: true })).fluxo.ativo, true);
+
+  const lista = await ler(await listarFluxos(await como('ana@a.com', '/api/fluxos')));
+  assert.equal(lista.fluxos.length, 1);
+  assert.equal(lista.fluxos[0].blocos, 3);
+  assert.equal(lista.fluxos[0].definicao, undefined, 'lista sem o desenho');
+  assert.equal((await ler(await lerFluxo(await como('ana@a.com', `/api/fluxos/${id}`), params))).fluxo.definicao.nos.length, 3);
+
+  const copia = await pedir('ana@a.com', { acao: 'duplicar', id });
+  assert.equal(copia.fluxo.nome, 'Boas-vindas (cópia)');
+  assert.equal(copia.fluxo.ativo, false, 'cópia nasce desligada');
+
+  const importado = await pedir('ana@a.com', { acao: 'importar', arquivo: exportarFluxo({ nome: 'De outra empresa', definicao: desenhoBoasVindas({ canais: [crypto.randomUUID()] }) }) });
+  assert.equal(importado.status, 201);
+  assert.match(importado.aviso, /canais/);
+
+  // Perfil sem o módulo e outra empresa
+  assert.equal((await listarFluxos(await como('bia@a.com', '/api/fluxos'))).status, 403);
+  assert.equal((await lerFluxo(await como('caio@b.com', `/api/fluxos/${id}`), params)).status, 404);
+  assert.ok(db.tables.fluxos.every((f) => f.organizacao_id === A));
+
+  assert.equal((await excluirFluxo(await como('ana@a.com', `/api/fluxos/${id}`, 'DELETE'), params)).status, 200);
+  assert.equal(db.tables.fluxos.some((f) => f.id === id), false);
+});
+
+test('WhatsApp: mensagem recebida dispara o fluxo ativo, responde sem assumir a conversa e registra a execução', async () => {
+  db.tables.fluxos = [
+    { id: crypto.randomUUID(), organizacao_id: A, nome: 'Boas-vindas', ativo: true, definicao: desenhoBoasVindas({ origem: 'contato' }), gatilhos: ['gatilho_mensagem'] },
+    { id: crypto.randomUUID(), organizacao_id: A, nome: 'Desligado', ativo: false, definicao: desenhoBoasVindas(), gatilhos: ['gatilho_mensagem'] },
+    { id: crypto.randomUUID(), organizacao_id: B, nome: 'De outra empresa', ativo: true, definicao: desenhoBoasVindas(), gatilhos: ['gatilho_mensagem'] },
+  ];
+  const aviso = (id, texto, jid = '5585999990000@s.whatsapp.net', extra = {}) => ({ event: 'messages.upsert', data: { key: { remoteJid: jid, fromMe: false, id, ...extra }, pushName: 'Carla', message: { conversation: texto } } });
+  const receber = (corpo) => receberWebhook(new NextRequest(`http://localhost/api/canais/webhook/${canal.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rm-token': 't' }, body: JSON.stringify(corpo) }), { params: Promise.resolve({ id: canal.id }) });
+
+  const res = await receber(aviso('M1', 'Qual o preço do plano?'));
+  assert.equal(res.status, 200);
+  const corpo = await res.json();
+  assert.equal(corpo.recebidas, undefined, 'o provedor não recebe os dados das mensagens');
+  const saida = enviados.filter((e) => e.url.includes('sendText'));
+  assert.equal(saida.length, 1, 'só o fluxo ativo da empresa respondeu');
+  assert.equal(saida[0].corpo.text, 'Olá Carla, já te mando a tabela!');
+  const conversa = db.tables.conversas[0];
+  assert.equal(conversa.responsavel_email ?? null, null, 'o fluxo não assume a conversa');
+  const exec = db.tables.fluxo_execucoes;
+  assert.equal(exec.length, 1);
+  assert.equal(exec[0].status, 'ok');
+  assert.equal(exec[0].organizacao_id, A);
+
+  // Sem "preço": segue por Não e não envia; mensagem enviada pela própria empresa não dispara
+  await receber(aviso('M2', 'bom dia'));
+  await receber(aviso('M3', 'qual o preço?', '5585999990000@s.whatsapp.net', { fromMe: true }));
+  assert.equal(enviados.filter((e) => e.url.includes('sendText')).length, 1);
+});
+
+test('Agenda: reunião realizada dispara o fluxo (dados do banco), uma vez por situação', async () => {
+  const reuniao = { id: crypto.randomUUID(), organizacao_id: A, titulo: 'Apresentação', empresa: 'DV Protec', data: '2026-10-28', hora_inicio: '14:00', status: 'concluida', tipo: 'cliente', observacoes: '', cliente_telefone: '5585988887777', created_at: new Date().toISOString() };
+  db.tables.agenda_eventos = [reuniao];
+  const def = validarDefinicao({
+    nos: [
+      { id: 'g', tipo: 'gatilho_reuniao_status', config: { status: 'concluida' } },
+      { id: 'n', tipo: 'reuniao_anotar', config: { texto: 'Enviado pós-reunião para {{reuniao.empresa}}' } },
+      { id: 'm', tipo: 'enviar_mensagem', config: { destino: 'cliente_reuniao', texto: 'Obrigado pela reunião, {{reuniao.empresa}}!' } },
+    ],
+    ligacoes: [{ de: 'g', para: 'n' }, { de: 'n', para: 'm' }],
+  });
+  db.tables.fluxos = [{ id: crypto.randomUUID(), organizacao_id: A, nome: 'Pós-reunião', ativo: true, definicao: def, gatilhos: gatilhosDe(def) }];
+  const avisar = async (email, corpo) => ler(await disparar(await como(email, '/api/fluxos/disparar', 'POST', corpo)));
+
+  assert.equal((await avisar('caio@b.com', { tipo: 'reuniao_status', evento_id: reuniao.id })).status, 404, 'reunião de outra empresa');
+  assert.equal((await avisar('bia@a.com', { tipo: 'reuniao_status', evento_id: reuniao.id })).ok, true, 'qualquer pessoa da equipe avisa');
+  assert.match(reuniao.observacoes, /Pós-reunião.*DV Protec/);
+  const msg = enviados.find((e) => e.url.includes('sendText'));
+  assert.equal(msg.corpo.number, '5585988887777');
+  assert.equal(msg.corpo.text, 'Obrigado pela reunião, DV Protec!');
+  assert.equal((await avisar('bia@a.com', { tipo: 'reuniao_status', evento_id: reuniao.id })).ignorado, true, 'repetido: ignorado');
+  assert.equal(enviados.filter((e) => e.url.includes('sendText')).length, 1);
+});
+
+test('Processo comercial: move a reunião para a etapa que a empresa criou; etapa que sumiu dá erro claro', async () => {
+  const reuniao = { id: crypto.randomUUID(), organizacao_id: A, titulo: 'Demo', empresa: 'DV', data: '2026-10-28', status: 'concluida', tipo: 'cliente', created_at: new Date().toISOString() };
+  db.tables.agenda_eventos = [reuniao];
+  db.tables.sistema_config = [{ organizacao_id: A, chave: 'comercial', valor: { departamentos: [], pipelines: [{ id: 'vendas', nome: 'Vendas', etapas: [{ id: 'qualificacao', nome: 'Qualificação' }, { id: 'negociacao', nome: 'Negociação' }] }] } }];
+  const def = (etapa) =>
+    validarDefinicao({
+      nos: [
+        { id: 'g', tipo: 'gatilho_reuniao_status', config: { status: 'concluida' } },
+        { id: 'p', tipo: 'comercial_etapa', config: { processo_id: 'vendas', processo_nome: 'Vendas', etapa_id: etapa, etapa_nome: etapa } },
+      ],
+      ligacoes: [{ de: 'g', para: 'p' }],
+    });
+  assert.deepEqual(problemasDoFluxo(def('negociacao')), []);
+  assert.match(problemasDoFluxo(validarDefinicao({ nos: [{ id: 'g', tipo: 'gatilho_reuniao_status' }, { id: 'p', tipo: 'comercial_etapa' }], ligacoes: [{ de: 'g', para: 'p' }] })).join(), /processo/);
+
+  db.tables.fluxos = [{ id: crypto.randomUUID(), organizacao_id: A, nome: 'Pós-demo', ativo: true, definicao: def('negociacao'), gatilhos: ['gatilho_reuniao_status'] }];
+  const avisar = async () => ler(await disparar(await como('ana@a.com', '/api/fluxos/disparar', 'POST', { tipo: 'reuniao_status', evento_id: reuniao.id })));
+  await avisar();
+  assert.equal(reuniao.comercial_pipeline_id, 'vendas');
+  assert.equal(reuniao.comercial_etapa_id, 'negociacao');
+  assert.match(db.tables.fluxo_execucoes.at(-1).passos.at(-1).resultado, /Negociação em Vendas/);
+
+  // Etapa apagada nas configurações: a execução registra o erro e não mexe na reunião
+  reuniao.status = 'cancelada';
+  db.tables.fluxos[0].definicao = def('etapa-apagada');
+  db.tables.fluxos[0].definicao.nos[0].config.status = 'cancelada';
+  await avisar();
+  assert.equal(db.tables.fluxo_execucoes.at(-1).status, 'erro');
+  assert.match(db.tables.fluxo_execucoes.at(-1).passos.at(-1).erro, /não existe mais/);
+  assert.equal(reuniao.comercial_etapa_id, 'negociacao');
+
+  // Simulado: "Agendar reunião" antes do bloco vira a reunião a mover
+  const encadeado = validarDefinicao({
+    nos: [
+      { id: 'g', tipo: 'gatilho_mensagem' },
+      { id: 'r', tipo: 'reuniao_criar', config: { titulo: 'Conversa com {{contato.nome}}' } },
+      { id: 'p', tipo: 'comercial_etapa', config: { processo_id: 'vendas', processo_nome: 'Vendas', etapa_id: 'qualificacao', etapa_nome: 'Qualificação' } },
+    ],
+    ligacoes: [{ de: 'g', para: 'r' }, { de: 'r', para: 'p' }],
+  });
+  const r = await executarFluxo({ definicao: encadeado, evento: { tipo: 'mensagem_recebida', dados: { mensagem: { texto: 'oi' }, contato: { nome: 'Carla' }, conversa: { id: 'c' } } }, efeitos: efeitosSimulados() });
+  assert.equal(r.status, 'ok');
+  assert.match(r.passos.at(-1).resultado, /Qualificação em Vendas/);
+});

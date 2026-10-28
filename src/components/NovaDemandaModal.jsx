@@ -60,6 +60,11 @@ export default function NovaDemandaModal({
   equipe = [],
   userEmail = '',
   onEnviar,
+  // Aberta de uma mensagem do Chat (ticket #24): texto, quem pediu, responsável e o aviso de origem
+  descricaoInicial = '',
+  solicitanteInicial = null,
+  destinoInicial = null,
+  origem = null,
 }) {
   const [empresa, setEmpresa] = useState(null);
   const [dadosEmpresa, setDadosEmpresa] = useState(dadosNovaEmpresaIniciais);
@@ -83,18 +88,18 @@ export default function NovaDemandaModal({
     if (!aberto) return;
     setEmpresa(empresaInicial || null);
     setDadosEmpresa(dadosNovaEmpresaIniciais());
-    setSolicitante(null);
+    setSolicitante(solicitanteInicial || null);
     setCats(categorias.includes('Suporte') ? ['Suporte'] : categorias.slice(0, 1));
     setEtiquetas([]);
     setTagTexto('');
-    setDescricao('');
+    setDescricao(descricaoInicial || '');
     setTipoDescricao('relato');
     setPrazoAberto(false);
     setPrazoData(isoDoDia(new Date()));
     setPrazoHora('18:00');
     setLembrete(false);
-    setDestino('fila');
-    setPessoa(null);
+    setDestino(destinoInicial?.tipo || 'fila');
+    setPessoa(destinoInicial?.pessoa || null);
     setErro('');
     setEnviando(false);
   }, [aberto, empresaInicial]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -119,7 +124,14 @@ export default function NovaDemandaModal({
         const extras = (emp?.colaboradores || [])
           .filter((c) => c.nome && !vistos.has(normalizarBusca(c.nome)))
           .map((c) => ({ id: c.id, nome: c.nome, cargo: c.cargo || 'Colaborador', email: c.email || '', telefone: c.telefone || '' }));
-        setColaboradores([...base, ...extras]);
+        const todos = [...base, ...extras];
+        setColaboradores(todos);
+        // Quem pediu veio do Chat: se já é colaborador da empresa, usa o cadastro dele
+        setSolicitante((atual) => {
+          if (!atual?.novo) return atual;
+          const igual = todos.find((c) => normalizarBusca(c.nome) === normalizarBusca(atual.nome));
+          return igual ? { ...igual, telefone: igual.telefone || atual.telefone, novo: false } : atual;
+        });
       })
       .catch(() => {});
     return () => {
@@ -205,7 +217,7 @@ export default function NovaDemandaModal({
       largura="max-w-[1320px]"
       idTitulo="nova-demanda-titulo"
       titulo="Nova demanda"
-      subtitulo="Empresa e quem pediu, o que precisa ser feito, e quem atende."
+      subtitulo={origem ? origem : 'Empresa e quem pediu, o que precisa ser feito, e quem atende.'}
       rodape={rodape}
     >
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 md:gap-x-10">

@@ -21,6 +21,8 @@ import {
   buscarMensagensChat,
   fetchListaContatos,
   fetchContatoChat,
+  abrirDemandaCompleta,
+  getEmpresas,
 } from '@/lib/storage';
 import { contarConversasNovas, ehGrupo, janelaAtendimento, preencherResposta } from '@/lib/canais';
 import { ACEITOS, LIMITE_ENVIO, MidiaMensagem, PreviaArquivo, arquivoAceito, comprimirFoto, tipoPeloMime, useGravadorDeAudio } from './ChatMidia';
@@ -36,6 +38,7 @@ import { classeCampo, classeRotulo } from './NovaEmpresaCampos';
 import { showToast } from './ToastNotification';
 import EncaixeCabecalho, { ACOES_TITULO, LINHA_TITULO } from './EncaixeCabecalho';
 import { removerGrupo } from '@/lib/notificacoes';
+import NovaDemandaModal from './NovaDemandaModal';
 
 // ------------------------------------------------------------------------------
 // Visual
@@ -1394,6 +1397,52 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
     });
   };
 
+  // ---- Criar demanda a partir da mensagem (ticket #24) ----
+  const [demandaDaMensagem, setDemandaDaMensagem] = useState(null);
+  const [listasDemanda, setListasDemanda] = useState(null);
+  const abrirCriarDemanda = async (m) => {
+    let listas = listasDemanda;
+    if (!listas) {
+      const res = await getEmpresas({ pageSize: 1000 }).catch(() => []);
+      const empresas = (Array.isArray(res) ? res : res?.items || []).slice().sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' }));
+      listas = { empresas, equipe: getEquipeUsuarios() || [], categorias: getCategoriasDemandas() };
+      setListasDemanda(listas);
+    }
+    // Empresa: a ligada ao contato; senão, a que tem o nome do contato/grupo
+    const nomeContato = nomeDoContato(conversa);
+    const porId = conversa.contato?.empresa_id ? listas.empresas.find((e) => e.id === conversa.contato.empresa_id) : null;
+    const alvo = semAcento(nomeContato);
+    const porNome = !porId && alvo ? listas.empresas.find((e) => { const n = semAcento(e.nome); return n.length >= 4 && (alvo.includes(n) || n.includes(alvo)); }) : null;
+    // Quem pediu: o autor da mensagem do cliente (no grupo, quem escreveu). Mensagem da equipe: o autor vira o responsável.
+    const daEquipe = m.direcao !== 'entrada';
+    const autorEmail = String(m.autor_email || '').toLowerCase();
+    let destino = null;
+    if (daEquipe && autorEmail) {
+      if (autorEmail === String(eu?.email || '').toLowerCase()) destino = { tipo: 'mim' };
+      else {
+        const pessoa = listas.equipe.find((u) => String(u.email || '').toLowerCase() === autorEmail);
+        if (pessoa) destino = { tipo: 'outra', pessoa: { id: autorEmail, email: autorEmail, nome: pessoa.nome || m.autor_nome || autorEmail } };
+      }
+    }
+    const solicitante = daEquipe ? null : { nome: (m.autor_nome || nomeContato || '').trim() || 'Contato do WhatsApp', telefone: ehConversaDeGrupo(conversa) ? '' : String(conversa.contato?.telefone || ''), novo: true };
+    const tipos = { imagem: 'Imagem', video: 'Vídeo', audio: 'Áudio', documento: 'Documento', figurinha: 'Figurinha' };
+    const texto = (m.conteudo || '').trim() || (tipos[m.tipo] ? `[${tipos[m.tipo]} enviado no WhatsApp]` : '');
+    setDemandaDaMensagem({
+      m,
+      empresa: porId || porNome || null,
+      descricao: texto,
+      solicitante,
+      destino,
+    });
+  };
+  const enviarDemandaDaMensagem = async (dados, opcoes) => {
+    const m = demandaDaMensagem.m;
+    const r = await abrirDemandaCompleta(dados, { ...opcoes, userEmail: eu?.email, chat: { conversa_id: conversa.id, mensagem_id: m.id, mensagem_em: m.criado_em } });
+    if (r.avisoSolicitante) showToast(r.avisoSolicitante, 'warning');
+    setDemandaDaMensagem(null);
+    showToast(r.criado?.sync_estado === 'pendente' ? `Demanda de ${r.empresaNome} salva neste computador; o envio à equipe será repetido.` : `Demanda de ${r.empresaNome} aberta${opcoes.paraMim ? ' e iniciada' : ''}. Em Demandas, “Ver no chat” volta a esta mensagem.`, r.criado?.sync_estado === 'pendente' ? 'warning' : 'success');
+  };
+
   const acaoNaMensagem = async (id, m, extra) => {
     try {
       if (id === 'responder') {
@@ -1407,6 +1456,8 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
         setEdicao(m);
       } else if (id === 'dados') {
         setDados(m);
+      } else if (id === 'criar_demanda') {
+        await abrirCriarDemanda(m);
       } else if (id === 'reacao') {
         await acaoConversa(conversaId, { acao: 'reagir', mensagem_id: m.id, emoji: extra });
         recarregar();
@@ -1733,6 +1784,23 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
         participantes={participantes}
         pessoasDaEquipe={pessoasDaEquipe}
       />
+      {demandaDaMensagem && listasDemanda && (
+        <NovaDemandaModal
+          aberto
+          onFechar={() => setDemandaDaMensagem(null)}
+          empresas={listasDemanda.empresas}
+          empresaInicial={demandaDaMensagem.empresa}
+          categorias={listasDemanda.categorias}
+          etiquetasSugeridas={['Urgente', 'Bug / Erro', 'Dúvida Operacional', 'Ajuste de Sistema', 'Financeiro', 'Treinamento', 'Melhoria', 'Acesso']}
+          equipe={listasDemanda.equipe}
+          userEmail={eu?.email || ''}
+          descricaoInicial={demandaDaMensagem.descricao}
+          solicitanteInicial={demandaDaMensagem.solicitante}
+          destinoInicial={demandaDaMensagem.destino}
+          origem={`Criada a partir da mensagem de ${demandaDaMensagem.m.direcao === 'entrada' ? demandaDaMensagem.m.autor_nome || nomeDoContato(conversa) : demandaDaMensagem.m.autor_nome || 'Equipe'} no Chat${demandaDaMensagem.empresa ? '' : ' · escolha a empresa'}.`}
+          onEnviar={enviarDemandaDaMensagem}
+        />
+      )}
       <ModalEtapas aberto={Boolean(dados)} onFechar={() => setDados(null)} largura="max-w-lg" idTitulo="dados-mensagem-titulo" titulo="Dados da mensagem" rodape={null}>
         {dados && <DadosMensagem m={dados} canal={conversa.canal} />}
       </ModalEtapas>
@@ -2211,26 +2279,34 @@ export default function ChatView() {
     if (selecionada) removerGrupo(`chat-${selecionada}`);
   }, [selecionada]);
   // Clique num aviso do Chat na central: abre a conversa na aba em que ela está
+  // Pedido: id da conversa (avisos) ou { conversaId, mensagemId, mensagemEm } (demanda aberta do Chat: vai até a mensagem)
   const [pedidoAbrir, setPedidoAbrir] = useState(null);
   useEffect(() => {
-    const pedir = (e) => e.detail?.conversaId && setPedidoAbrir(e.detail.conversaId);
+    const normalizar = (p) => (typeof p === 'string' ? { conversaId: p } : p?.conversaId ? p : null);
+    const pedir = (e) => {
+      const p = normalizar(e.detail);
+      if (p) setPedidoAbrir(p);
+    };
     window.addEventListener('rm_chat_abrir', pedir);
     if (window.__rmChatAbrirPendente) {
-      setPedidoAbrir(window.__rmChatAbrirPendente);
+      setPedidoAbrir(normalizar(window.__rmChatAbrirPendente));
       window.__rmChatAbrirPendente = null;
     }
     return () => window.removeEventListener('rm_chat_abrir', pedir);
   }, []);
   useEffect(() => {
     if (!pedidoAbrir || abertas === null) return;
-    const aberta = abertas.find((c) => c.id === pedidoAbrir);
+    const id = pedidoAbrir.conversaId;
+    const aberta = abertas.find((c) => c.id === id);
     if (aberta) setAba(abaDaConversa(aberta));
     else if (resolvidas === null) {
       // Pode estar entre as resolvidas: carrega e decide depois
       carregarResolvidas();
       return;
-    } else if (resolvidas.some((c) => c.id === pedidoAbrir)) setAba('resolvidas');
-    setSelecionada(pedidoAbrir);
+    } else if (resolvidas.some((c) => c.id === id)) setAba('resolvidas');
+    else if (pedidoAbrir.mensagemId) showToast('Esta conversa não está mais disponível para você (pode ter sido excluída ou estar em outro departamento).', 'info');
+    setMensagemAlvo(pedidoAbrir.mensagemId ? { id: pedidoAbrir.mensagemId, criado_em: pedidoAbrir.mensagemEm || new Date(0).toISOString() } : null);
+    setSelecionada(id);
     setPedidoAbrir(null);
   }, [pedidoAbrir, abertas, resolvidas]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {

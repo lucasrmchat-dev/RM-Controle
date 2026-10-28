@@ -121,7 +121,8 @@ async function conversaAberta(db, canal, contatoId) {
  * @returns {{ mensagens: number, status: number, conexao: string|null }}
  */
 export async function registrarEventos(db, canal, eventos, { config = CONFIG_CHAT_PADRAO, fetchImpl = fetch } = {}) {
-  const resumo = { mensagens: 0, status: 0, conexao: null };
+  // recebidas: mensagens dos clientes gravadas agora (para o Fluxo Inteligente disparar depois)
+  const resumo = { mensagens: 0, status: 0, conexao: null, recebidas: [] };
   const nomesDeGrupo = new Map();
   for (const ev of eventos) {
     if (ev.tipo === 'apagada' || ev.tipo === 'editada') {
@@ -203,6 +204,16 @@ export async function registrarEventos(db, canal, eventos, { config = CONFIG_CHA
       }
       await db.from('conversas').update(campos).eq('id', conversa.id);
       resumo.mensagens += 1;
+      if (!ev.deMim) {
+        const { data: ct } = await db.from('contatos').select('nome, telefone').eq('id', contatoId).maybeSingle();
+        resumo.recebidas.push({
+          mensagem: { texto: textoFinal || '', tipo: ev.tipoMensagem },
+          contato: { nome: ct?.nome || ev.nome || '', telefone: ct?.telefone || ev.telefone },
+          participante: ev.grupo ? { nome: ev.participante?.nome || '', telefone: ev.participante?.telefone || '' } : null,
+          conversa: { id: conversa.id, grupo: Boolean(ev.grupo), departamento: conversa.departamento || '', responsavel_email: conversa.responsavel_email || '' },
+          canal: { id: canal.id, nome: canal.nome || '' },
+        });
+      }
     } else if (ev.tipo === 'status') {
       const { data: msg } = await db.from('mensagens').select('id, status').eq('id_externo', ev.idExterno).maybeSingle();
       if (!msg) continue;
@@ -284,7 +295,8 @@ async function guardarArquivoRecebido(db, canal, conversa, mensagemId, ev, fetch
  * Envia texto numa conversa. Grava antes como "pendente" (nada se perde se a rede cair) e atualiza
  * com o resultado. API oficial: só com a janela de 24h aberta.
  */
-export async function enviarTextoNaConversa(db, { conversa, texto, autor, assinar = false, respondeA = null, mencoes = [], fetchImpl = fetch }) {
+// assumir: responder pega a conversa da fila (pessoas); o Fluxo Inteligente envia sem assumir
+export async function enviarTextoNaConversa(db, { conversa, texto, autor, assinar = false, respondeA = null, mencoes = [], assumir = true, fetchImpl = fetch }) {
   const conteudo = String(texto || '').trim();
   if (!conteudo) throw new Error('Escreva a mensagem.');
   if (conteudo.length > 4096) throw new Error('Mensagem longa demais (máximo de 4.096 caracteres).');
@@ -322,7 +334,9 @@ export async function enviarTextoNaConversa(db, { conversa, texto, autor, assina
     await guardarDetalhes(db, msg.id, { chave: r.chave });
     // Responder assume a conversa (se ainda estava na fila)
     const campos = { ultima_mensagem_em: agora, ultima_mensagem_texto: conteudo.slice(0, 140), nao_lidas: 0 };
-    if (conversa.status === 'aguardando' || !conversa.responsavel_email) Object.assign(campos, { status: 'em_atendimento', responsavel_email: autor.email, responsavel_nome: autor.nome });
+    if (assumir && (conversa.status === 'aguardando' || !conversa.responsavel_email)) Object.assign(campos, { status: 'em_atendimento', responsavel_email: autor.email, responsavel_nome: autor.nome });
+    // Sem assumir (fluxo automático): a conversa continua contando como não lida para a equipe
+    if (!assumir) delete campos.nao_lidas;
     await db.from('conversas').update(campos).eq('id', conversa.id);
     return { ...msg, status: 'enviada', id_externo: r.idExterno };
   } catch (e) {
@@ -332,12 +346,12 @@ export async function enviarTextoNaConversa(db, { conversa, texto, autor, assina
 }
 
 /** Mensagem para um número (teste do canal ou primeiro contato): abre a conversa se precisar. */
-export async function enviarTextoParaNumero(db, { canal, telefone, texto, autor, assinar = false, fetchImpl = fetch }) {
+export async function enviarTextoParaNumero(db, { canal, telefone, texto, autor, assinar = false, assumir = true, fetchImpl = fetch }) {
   const numero = normalizarTelefone(telefone);
   if (!numero) throw new Error('Telefone inválido. Use DDD + número.');
   const contatoId = await contatoPorTelefone(db, numero, null);
   const conversa = await conversaAberta(db, canal, contatoId);
-  return enviarTextoNaConversa(db, { conversa, texto, autor, assinar, fetchImpl });
+  return enviarTextoNaConversa(db, { conversa, texto, autor, assinar, assumir, fetchImpl });
 }
 
 /** Chave do WhatsApp quando a mensagem é antiga (sem chave guardada): monta pelo telefone do contato. */

@@ -400,6 +400,16 @@ function AcoesSecundarias({ chamado, info, acoes, assumindoId, compacta = false 
   };
   return (
     <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
+      {/* Aberta de uma mensagem do Chat (ticket #24): volta à conversa, na mensagem de origem */}
+      {chamado.chat_conversa_id && acoes.abrirChat && (
+        <button type="button" onClick={parar(() => acoes.abrirChat(chamado))} className={`${acaoTexto} text-rm-acento dark:text-rm-acento-vivo`} title="Ver a conversa no Chat, na mensagem que originou a demanda" aria-label="Ver no chat">
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M21 12a8.5 8.5 0 0 1-12.6 7.45L3 21l1.55-5.4A8.5 8.5 0 1 1 21 12z" />
+            <path d="M8.5 10.5h7M8.5 13.5h4.5" />
+          </svg>
+          {!compacta && 'Ver no chat'}
+        </button>
+      )}
       {info.estado === 'espera' && !compacta && (
         <button type="button" onClick={parar(() => acoes.assumir(chamado))} disabled={Boolean(assumindoId)} className={acaoTexto} title="Só assumir" aria-label="Só assumir">
           <PlayIcon className="w-2.5 h-2.5 fill-current" /> {compacta ? null : 'Só assumir'}

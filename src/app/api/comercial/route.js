@@ -1,6 +1,7 @@
 import {
   CONFIG_COMERCIAL_PADRAO,
   DESFECHOS_COMERCIAIS,
+  FORA_DO_PROCESSO,
   validarConfigComercial,
 } from '@/lib/comercial';
 import { permissoesEfetivas, podeVerDepartamento } from '@/lib/perfis';
@@ -103,7 +104,14 @@ export async function GET(request) {
     );
     if ((data || []).length < 1000) break;
   }
-  return json({ ok: true, eventos, leads, config, aviso_leads: avisoLeads });
+  // Toda a equipe do comercial (quem tem o módulo), mesmo sem reuniões no mês
+  const { data: equipeToda } = await db.from('equipe_usuarios').select('email, nome, papel, ativo, perfil_id, departamentos_bloqueados');
+  const { data: perfisTodos } = await db.from('perfis_acesso').select('*');
+  const membrosAtivos = (equipeToda || []).filter((m) => m.ativo !== false && m.email);
+  const vendedores = membrosAtivos
+    .filter((m) => permissoesEfetivas({ email: m.email, equipe: membrosAtivos, perfis: perfisTodos || [], adminsExtras: process.env.RM_ADMIN_EMAILS }).modulos.includes('comercial'))
+    .map((m) => ({ email: String(m.email).toLowerCase(), nome: m.nome || m.email }));
+  return json({ ok: true, eventos, leads, config, vendedores, aviso_leads: avisoLeads });
 }
 
 export async function PATCH(request) {
@@ -125,12 +133,24 @@ export async function PATCH(request) {
       { ok: false, mensagem: 'Esta reunião não está disponível para seu perfil no Comercial.' },
       403,
     );
+  // Editar os dados de um lead (reuniões são editadas pela Agenda)
+  if (body.acao === 'editar_lead') {
+    if (!lead) return json({ ok: false, mensagem: 'Só leads são editados aqui.' }, 400);
+    const nome = String(body.nome ?? evento.nome).trim().slice(0, 160);
+    if (!nome) return json({ ok: false, mensagem: 'Informe o nome.' }, 400);
+    const email = String(body.email ?? evento.email ?? '').trim().toLowerCase().slice(0, 160);
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ ok: false, mensagem: 'E-mail inválido.' }, 400);
+    const telefone = String(body.telefone ?? evento.telefone ?? '').replace(/[^\d+()\s-]/g, '').trim().slice(0, 30);
+    const { data, error } = await db.from('comercial_leads').update({ nome, email, telefone, updated_at: new Date().toISOString() }).eq('id', evento.id).select('*').single();
+    if (error) return json({ ok: false, mensagem: 'Não foi possível salvar o lead.' }, 500);
+    return json({ ok: true, evento: data });
+  }
   const pipeline = config.pipelines.find((p) => p.id === body.pipelineId);
   if (
     !pipeline ||
     ![...pipeline.etapas, ...DESFECHOS_COMERCIAIS].some((e) => e.id === body.etapaId)
   )
-    return json({ ok: false, mensagem: 'Pipeline ou etapa inválida.' }, 400);
+    return json({ ok: false, mensagem: 'Processo comercial ou etapa inválida.' }, 400);
   const campos = {
     comercial_pipeline_id: pipeline.id,
     comercial_etapa_id: body.etapaId,
@@ -177,4 +197,31 @@ export async function PATCH(request) {
       500,
     );
   return json({ ok: true, evento: data });
+}
+
+// Excluir oportunidade: o lead é apagado; a reunião só sai do processo comercial (continua na Agenda)
+export async function DELETE(request) {
+  const { erro, db, perm, config } = await contexto(request);
+  if (erro) return erro;
+  const body = await request.json().catch(() => ({}));
+  if (!isValidUUID(body.id)) return json({ ok: false, mensagem: 'Oportunidade inválida.' }, 400);
+  const lead = body.tipo === 'lead';
+  const tabela = lead ? 'comercial_leads' : 'agenda_eventos';
+  const { data: evento } = await db.from(tabela).select('*').eq('id', body.id).maybeSingle();
+  if (!evento) return json({ ok: false, mensagem: 'Oportunidade não encontrada.' }, 404);
+  if (!elegivel(evento, perm, config)) return json({ ok: false, mensagem: 'Esta oportunidade não está disponível para seu perfil no Comercial.' }, 403);
+  const { error } = lead
+    ? await db.from('comercial_leads').delete().eq('id', evento.id)
+    : await db.from('agenda_eventos').update({ comercial_pipeline_id: FORA_DO_PROCESSO, comercial_etapa_id: null, updated_at: new Date().toISOString() }).eq('id', evento.id);
+  if (error)
+    return json(
+      {
+        ok: false,
+        mensagem: /column|schema cache/i.test(error.message || '')
+          ? `Aplique a atualização ${lead ? 'migration_comercial_webhooks.sql' : 'migration_comercial_pipeline.sql'} no Supabase para excluir oportunidades.`
+          : 'Não foi possível excluir a oportunidade.',
+      },
+      500,
+    );
+  return json({ ok: true });
 }

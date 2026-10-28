@@ -468,6 +468,11 @@ export default function ModoFoco({ chamados, ctx, acoes, tempos, eMinha, onSair 
                       Ir para a empresa <Tecla>E</Tecla>
                     </button>
                   )}
+                  {atual.chat_conversa_id && acoes.abrirChat && (
+                    <button type="button" onClick={() => acoes.abrirChat(atual)} className={`h-14 px-6 rounded-full ${BOTAO_SUAVE} text-[15px] font-medium cursor-pointer`}>
+                      Ver no chat
+                    </button>
+                  )}
                   {info.estado === 'cliente' && (
                     <button
                       type="button"

@@ -32,6 +32,7 @@ import SupportIntegrationSettings from './SupportIntegrationSettings';
 import GoogleAgendaSync from './GoogleAgendaSync';
 import PerfisAcessoView from './PerfisAcessoView';
 import ComercialSettings from './ComercialSettings';
+import ComissaoSettings from './ComissaoSettings';
 import TitulosReuniaoSettings from './TitulosReuniaoSettings';
 import FeedbacksSettings from './FeedbacksSettings';
 import ChatSettings from './ChatSettings';
@@ -280,7 +281,16 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
       titulo: 'Configurações Avançadas',
       descricao: 'Gestão de departamentos, infraestrutura, servidores, equipe e conformidade',
       abas: [
-        { id: 'comercial', label: 'Comercial e pipelines', icon: <CalendarIcon className="w-4 h-4" /> },
+        { id: 'comercial', label: 'Comercial e processos', icon: <CalendarIcon className="w-4 h-4" /> },
+        {
+          id: 'comissao',
+          label: 'Comissão e vendas',
+          icon: (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3v18M16.5 7.5c0-1.7-2-3-4.5-3s-4.5 1.3-4.5 3 2 2.6 4.5 3 4.5 1.3 4.5 3-2 3-4.5 3-4.5-1.3-4.5-3" />
+            </svg>
+          ),
+        },
         { id: 'titulos_reuniao', label: 'Títulos das reuniões', icon: <CalendarIcon className="w-4 h-4" /> },
         {
           id: 'whatsapp_envio',
@@ -401,18 +411,23 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
     whatsapp: 'Minhas preferências',
     agenda: 'Google Agenda e lembretes',
     titulos_reuniao: 'Títulos das reuniões',
-    comercial: 'Comercial e pipelines',
+    comercial: 'Processos comerciais',
+    comissao: 'Comissão e vendas',
     perfis: 'Perfis de acesso',
     servidores: 'Servidores e equipe',
     suporte_automatico: 'Suporte automático (API)',
     auditoria: 'Auditoria',
   };
-  const BASICAS = ['visualizacao', 'audio', 'agenda', 'whatsapp', 'regras_suporte'];
+  // Comissão: vendedores consultam as regras; quem altera é administrador ou gestor do comercial
+  const temComercial = getPermissoesAtuais(userEmail).modulos?.includes('comercial');
+  const BASICAS = ['visualizacao', 'audio', 'agenda', 'whatsapp', 'regras_suporte', ...(temComercial ? ['comissao'] : [])];
+  // Menu por módulo: cada módulo com as configurações dele (Geral = aparência e sons)
   const categoriasMenu = [
     { id: 'geral', titulo: 'Geral', cor: 'bg-slate-500/12 text-slate-600 dark:text-zinc-300', ids: ['visualizacao', 'audio'] },
-    { id: 'atendimento', titulo: 'Atendimento', cor: 'bg-amber-500/14 text-amber-700 dark:text-amber-300', ids: ['regras_suporte', 'departamentos', 'canais', 'feedbacks'] },
-    { id: 'whatsapp', titulo: 'WhatsApp', cor: 'bg-rm-acento-medio/14 text-rm-acento dark:text-rm-acento-vivo', ids: ['chat', 'whatsapp_envio', 'whatsapp'] },
-    { id: 'agenda', titulo: 'Agenda e Comercial', cor: 'bg-sky-500/12 text-sky-700 dark:text-sky-300', ids: ['agenda', 'titulos_reuniao', 'comercial'] },
+    { id: 'chat', titulo: 'Chat', cor: 'bg-rm-acento-medio/14 text-rm-acento dark:text-rm-acento-vivo', ids: ['chat', 'canais'] },
+    { id: 'demandas', titulo: 'Demandas', cor: 'bg-amber-500/14 text-amber-700 dark:text-amber-300', ids: ['regras_suporte', 'departamentos', 'feedbacks'] },
+    { id: 'agenda', titulo: 'Agenda', cor: 'bg-sky-500/12 text-sky-700 dark:text-sky-300', ids: ['agenda', 'titulos_reuniao', 'whatsapp_envio', 'whatsapp'] },
+    { id: 'comercial', titulo: 'Comercial', cor: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300', ids: ['comercial', 'comissao'] },
     { id: 'equipe', titulo: 'Equipe e acesso', cor: 'bg-violet-500/12 text-violet-700 dark:text-violet-300', ids: ['perfis', 'servidores'] },
     { id: 'integracoes', titulo: 'Integrações', cor: 'bg-indigo-500/12 text-indigo-700 dark:text-indigo-300', ids: ['suporte_automatico'] },
     { id: 'plataforma', titulo: 'Plataforma', cor: 'bg-rm-acento/12 text-rm-acento dark:text-rm-acento-vivo', ids: gestao ? ['plataforma'] : [] },
@@ -1131,6 +1146,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
       )}
 
       {subTab === 'comercial' && (isAdmin ? <ComercialSettings /> : renderRestrictedNotice('Comercial'))}
+      {subTab === 'comissao' && (temComercial ? <ComissaoSettings /> : renderRestrictedNotice('Comissão e vendas'))}
 
       {subTab === 'titulos_reuniao' && (isAdmin ? <TitulosReuniaoSettings /> : renderRestrictedNotice('Títulos das reuniões'))}
 

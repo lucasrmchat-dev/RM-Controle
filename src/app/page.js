@@ -63,6 +63,7 @@ import FeedbacksView from '@/components/FeedbacksView';
 import CanaisView from '@/components/CanaisView';
 import ChatView from '@/components/ChatView';
 import DailyView from '@/components/DailyView';
+import FluxosView from '@/components/fluxos/FluxosView';
 import AgendaView from '@/components/AgendaView';
 import ComercialView from '@/components/ComercialView';
 import { 
@@ -152,6 +153,17 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('fila');
   // Módulos liberados pelo perfil de acesso (atualiza quando perfil/equipe mudam)
   const [abasPermitidas, setAbasPermitidas] = useState([]);
+  // Outras telas pedem para trocar de aba (ex.: demanda aberta do Chat leva de volta à conversa)
+  useEffect(() => {
+    const ir = (e) => {
+      const aba = e.detail?.aba;
+      if (!aba || (aba !== 'fila' && !abasPermitidas.includes(aba))) return;
+      setSelectedEmpresa(null);
+      setActiveTab(aba);
+    };
+    window.addEventListener('rm_ir_para_aba', ir);
+    return () => window.removeEventListener('rm_ir_para_aba', ir);
+  }, [abasPermitidas]);
   const [organizacao, setOrganizacao] = useState(null);
   const [settingsSubTab, setSettingsSubTab] = useState('audio');
   // A antiga aba Plataforma agora é uma seção das Configurações
@@ -1035,7 +1047,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
         setShowMockData={handleToggleMockData}
       />
 
-      <main className={`flex-1 w-full max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 xl:px-10 py-2 pb-28 ${activeTab === 'chat' && !selectedEmpresa ? 'sm:pt-2 sm:pb-4' : 'sm:pt-4 sm:pb-16'}`}>
+      <main className={`flex-1 w-full max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 xl:px-10 py-2 pb-28 ${(activeTab === 'chat' || activeTab === 'fluxos') && !selectedEmpresa ? 'sm:pt-2 sm:pb-4' : 'sm:pt-4 sm:pb-16'}`}>
         {selectedEmpresa ? (
           /* TELA CHEIA: GERENCIAR EMPRESA (WIDESCREEN DE ALTA PRODUTIVIDADE) */
           <div key="empresa-detail" className="animate-fade-in">
@@ -1710,6 +1722,9 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
 
               {/* DAILY: reuniões diárias e metas da semana (ticket #21) */}
               {activeTab === 'daily' && abasPermitidas.includes('daily') && <DailyView />}
+
+              {/* FLUXO INTELIGENTE: automações com gatilhos do WhatsApp e da agenda */}
+              {activeTab === 'fluxos' && abasPermitidas.includes('fluxos') && <FluxosView />}
 
               {/* CANAIS: números de WhatsApp (QR Code / API oficial) */}
               {activeTab === 'conexoes' && abasPermitidas.includes('conexoes') && <CanaisView />}

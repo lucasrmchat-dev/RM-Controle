@@ -16,9 +16,12 @@ export const MODULOS = [
   { id: 'agenda', rotulo: 'Agenda', descricao: 'Reuniões e Google Agenda' },
   { id: 'daily', rotulo: 'Daily', descricao: 'Metas da semana, resumo das dailies e atualizações' },
   { id: 'comercial', rotulo: 'Comercial', descricao: 'Reuniões e acompanhamento por colaborador' },
+  // Não é uma aba: libera, dentro do Comercial, as vendas e comissões de toda a equipe (gestor)
+  { id: 'comercial_gestao', rotulo: 'Comercial: gestor da equipe', descricao: 'Vê vendas e comissões de todos os vendedores e registra vendas por eles' },
   { id: 'dashboard', rotulo: 'Dashboard', descricao: 'Métricas de atendimento' },
   { id: 'feedbacks', rotulo: 'Feedbacks', descricao: 'Feedbacks dos clientes' },
   { id: 'conexoes', rotulo: 'Canais', descricao: 'Conectar e gerenciar números de WhatsApp' },
+  { id: 'fluxos', rotulo: 'Fluxo Inteligente', descricao: 'Automações com gatilhos, mensagens e agenda' },
   { id: 'configuracoes', rotulo: 'Configurações básicas', descricao: 'Alertas, visualização e regras' },
 ];
 const IDS_MODULOS = MODULOS.map((m) => m.id);
@@ -30,8 +33,8 @@ export const ABAS_ADMIN = ['canais', 'servidores', 'auditoria'];
 const ABAS_POR_PAPEL = {
   administrador: [...IDS_MODULOS, ...ABAS_ADMIN],
   // Comercial e Canais: só administradores por padrão (um perfil pode liberar)
-  suporte: IDS_MODULOS.filter((id) => !['comercial', 'conexoes'].includes(id)),
-  vendas: IDS_MODULOS.filter((id) => !['comercial', 'conexoes'].includes(id)),
+  suporte: IDS_MODULOS.filter((id) => !['comercial', 'comercial_gestao', 'conexoes', 'fluxos'].includes(id)),
+  vendas: IDS_MODULOS.filter((id) => !['comercial', 'comercial_gestao', 'conexoes', 'fluxos'].includes(id)),
 };
 
 const norm = (s) => String(s || '').toLowerCase().trim();
@@ -45,7 +48,9 @@ export function permissoesEfetivas(opcoes) {
   // Módulos que a empresa contratou limitam todo mundo, inclusive administradores (Configurações sempre fica)
   const contratados = opcoes?.modulosDaEmpresa;
   if (!Array.isArray(contratados)) return perm;
-  return { ...perm, modulos: perm.modulos.filter((m) => m === 'configuracoes' || ABAS_ADMIN.includes(m) || contratados.includes(m)) };
+  // "Comercial: gestor" vem junto com o Comercial contratado
+  const contratado = (m) => contratados.includes(m === 'comercial_gestao' ? 'comercial' : m);
+  return { ...perm, modulos: perm.modulos.filter((m) => m === 'configuracoes' || ABAS_ADMIN.includes(m) || contratado(m)) };
 }
 
 function permissoesSemContrato({ email, equipe = [], perfis = [], adminsExtras = '', verComoPerfilId = null }) {
@@ -80,6 +85,9 @@ function permissoesSemContrato({ email, equipe = [], perfis = [], adminsExtras =
     perfil: null,
   };
 }
+
+/** Gestor do comercial: vê e lança vendas e comissões de toda a equipe. */
+export const ehGestorComercial = (perm) => Boolean(perm?.administrador || perm?.modulos?.includes('comercial_gestao'));
 
 /** Departamentos de uma demanda (categorias; nas antigas, o texto de "motivo"). */
 export function departamentosDaDemanda(ch) {

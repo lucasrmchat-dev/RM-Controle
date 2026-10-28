@@ -246,6 +246,35 @@ export async function moverReuniaoComercial(id, pipelineId, etapaId, opcoes = {}
   return json.evento;
 }
 
+// Comissão e vendas do comercial (regras da planilha de controle de atividade). O servidor aplica quem vê o quê.
+export const fetchComissao = (mes) => chamarCanais(`/api/comercial/comissao?mes=${encodeURIComponent(mes)}`, 'GET');
+export const salvarRegrasComissao = (regras) => chamarCanais('/api/comercial/comissao', 'PUT', { regras });
+export const ocultarMinhasVendas = (ocultar) => chamarCanais('/api/comercial/comissao', 'PUT', { ocultar });
+export const registrarVenda = (venda) => chamarCanais('/api/comercial/vendas', 'POST', venda);
+export const editarVenda = (id, campos) => chamarCanais('/api/comercial/vendas', 'PATCH', { id, ...campos });
+export const excluirVenda = (id) => chamarCanais('/api/comercial/vendas', 'DELETE', { id });
+
+// Processo comercial: excluir a oportunidade (lead apagado; reunião sai do processo e fica na Agenda)
+export async function excluirOportunidadeComercial(id, tipo) {
+  const res = await fetch('/api/comercial', {
+    method: 'DELETE', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, tipo }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.ok) throw new Error(json.mensagem || 'Não foi possível excluir a oportunidade.');
+  if (tipo !== 'lead') saveAgendaEventos(getAgendaEventos().map((e) => (e.id === id ? { ...e, comercial_pipeline_id: '__fora__', comercial_etapa_id: null } : e)));
+  return true;
+}
+export async function editarLeadComercial(id, campos) {
+  const res = await fetch('/api/comercial', {
+    method: 'PATCH', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, tipo: 'lead', acao: 'editar_lead', ...campos }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.ok) throw new Error(json.mensagem || 'Não foi possível salvar o lead.');
+  return json.evento;
+}
+
 // Feedbacks: nomes das etapas do pipeline e departamentos de desenvolvimento (só administradores salvam)
 export const getConfigFeedbacks = () => validarConfigFeedbacks(getLocalData('feedbacks_config', CONFIG_FEEDBACKS_PADRAO));
 export async function fetchConfigFeedbacks() {
@@ -1181,6 +1210,65 @@ export async function iniciarSuporte({
 }
 
 /**
+ * Abre uma demanda com o que vem do formulário "Nova demanda" (em Demandas ou no Chat):
+ * cadastra a empresa nova se for o caso, abre a demanda e registra o solicitante novo na empresa.
+ * opcoes: { paraMim, atribuirA: { email, nome }, userEmail, chat: { conversa_id, mensagem_id, mensagem_em } }
+ * @returns {Promise<{ criado, empresaId, empresaNome, novaEmpresa, avisoSolicitante }>}
+ */
+export async function abrirDemandaCompleta(dados, { paraMim = false, atribuirA = null, userEmail = '', chat = null } = {}) {
+  if (paraMim && !userEmail) throw new Error('Não foi possível identificar seu usuário. Entre novamente.');
+  const operador = userEmail || 'admin@rmcontrole.com';
+  let empresaId = dados.empresa.id;
+  let empresaNome = dados.empresa.nome;
+  let novaEmpresa = null;
+  // Empresa nova: cadastra antes da demanda. Se falhar, a demanda não é aberta.
+  if (dados.empresa.isNova) {
+    const n = dados.novaEmpresa;
+    novaEmpresa = await createEmpresa({
+      nome: empresaNome.trim(),
+      formato_atendimento: 'colaborativo',
+      servidor_alocado: n.servidor_alocado,
+      tipo_cliente: n.tipo_cliente,
+      cliente_desde: n.cliente_desde,
+      email_administrador: n.email_administrador.trim(),
+      senha_suporte: n.senha_suporte.trim(),
+      userEmail: operador,
+    });
+    if (!novaEmpresa?.id) throw new Error('Não foi possível cadastrar a empresa.');
+    empresaId = novaEmpresa.id;
+    empresaNome = novaEmpresa.nome || empresaNome;
+  }
+  const sol = dados.solicitante;
+  const criado = await adicionarChamadoFila({
+    empresa_id: empresaId,
+    empresa_nome: empresaNome,
+    solicitante_nome: sol?.nome || '',
+    solicitante_email: sol?.email || '',
+    solicitante_telefone: sol?.telefone || '',
+    categorias: dados.categorias,
+    etiquetas: dados.etiquetas,
+    atribuido_a: paraMim ? userEmail : atribuirA?.email || null,
+    observacao_inicial: dados.observacao,
+    prazo_limite: dados.prazo,
+    is_lembrete: dados.lembrete,
+    iniciarAgora: paraMim,
+    userEmail: operador,
+    chat,
+  });
+  // Solicitante novo: entra na empresa e em Acessos e Senhas com o nome (e-mail/senha só se informados)
+  let avisoSolicitante = null;
+  if (sol?.novo && empresaId) {
+    try {
+      await addColaboradorEmpresa(empresaId, { nome: sol.nome, email: (sol.email || '').trim(), telefone: (sol.telefone || '').trim(), cargo: 'Solicitante' }, operador);
+      await addEmpresaCredencial(empresaId, { rotulo: sol.nome, nome_usuario: sol.nome, usuario_email: (sol.email || '').trim(), senha: (sol.senha || '').trim(), observacao: '' }, operador);
+    } catch (e) {
+      avisoSolicitante = `Demanda aberta, mas ${sol.nome} não foi cadastrado na empresa: ${e.message}`;
+    }
+  }
+  return { criado, empresaId, empresaNome, novaEmpresa, avisoSolicitante };
+}
+
+/**
  * O campo datetime-local entrega "AAAA-MM-DDTHH:mm" sem fuso. Gravado assim, o banco
  * (timestamptz) lê como UTC e o prazo volta 3h adiantado. Aqui vira ISO com o fuso local.
  */
@@ -1218,10 +1306,15 @@ export async function adicionarChamadoFila({
   iniciarAgora = false,
   tempo_escalonamento_minutos = 15,
   userEmail = 'admin@rmcontrole.com',
+  // Demanda aberta de uma mensagem do Chat (ticket #24): { conversa_id, mensagem_id, mensagem_em }
+  chat = null,
 }) {
   const agora = new Date().toISOString();
   const agoraMs = Date.now();
   prazo_limite = prazoParaIso(prazo_limite);
+  const vinculoChat = chat?.conversa_id
+    ? { chat_conversa_id: chat.conversa_id, chat_mensagem_id: chat.mensagem_id || null, chat_mensagem_em: chat.mensagem_em || null }
+    : {};
   const chamados = getLocalData('chamados_suporte', []);
   let categoriasValidas = Array.isArray(categorias)
     ? (categorias.length > 0 ? categorias : ['Suporte'])
@@ -1239,6 +1332,7 @@ export async function adicionarChamadoFila({
     criador_email: userEmail,
     observacao_inicial: observacao_inicial.trim(),
     categorias: categoriasValidas,
+    ...vinculoChat,
   };
   const syncInicial = isSupabaseConfigured && supabase ? 'enviando' : 'local';
 
@@ -1278,6 +1372,7 @@ export async function adicionarChamadoFila({
       tempo_ativo_segundos: 0,
       iniciado_em: agora,
       finalizado_em: null,
+      ...vinculoChat,
     };
     registrarMutacaoLocal();
     chamados.unshift(novoChamado);
@@ -1366,6 +1461,7 @@ export async function adicionarChamadoFila({
     tempo_ativo_segundos: 0,
     iniciado_em: null,
     finalizado_em: null,
+    ...vinculoChat,
   };
 
   registrarMutacaoLocal();
@@ -1811,6 +1907,9 @@ async function lerChamadosFila() {
             // Campos operacionais preservados mesmo quando o schema remoto ainda não tem as colunas
             is_lembrete: Boolean(d.is_lembrete ?? localMatch?.is_lembrete ?? cats.some((cat) => cat.toLowerCase() === DEPARTAMENTO_LEMBRETES.toLowerCase())),
             prazo_limite: d.prazo_limite || localMatch?.prazo_limite || null,
+            chat_conversa_id: d.chat_conversa_id || localMatch?.chat_conversa_id || null,
+            chat_mensagem_id: d.chat_mensagem_id || localMatch?.chat_mensagem_id || null,
+            chat_mensagem_em: d.chat_mensagem_em || localMatch?.chat_mensagem_em || null,
             descricao_historico: Array.isArray(d.descricao_historico) && d.descricao_historico.length ? d.descricao_historico : localMatch?.descricao_historico || [],
             // Nuvem primeiro: é o que todos os colaboradores enxergam
             is_fila_geral: d.atribuido_a
@@ -1906,6 +2005,7 @@ async function reenviarChamadosPendentes() {
         criador_email: c.criador_email || null,
         atribuido_a: c.atribuido_a || null,
         observacao_inicial: c.observacao_inicial || c.observacoes || '',
+        ...(c.chat_conversa_id ? { chat_conversa_id: c.chat_conversa_id, chat_mensagem_id: c.chat_mensagem_id || null, chat_mensagem_em: c.chat_mensagem_em || null } : {}),
       }, c.id);
       if (!error && data?.id) substituirIdLocalChamado(c.id, data.id);
       else if (error) marcarChamadoSyncPendente(c.id, error);
@@ -2509,6 +2609,9 @@ async function lerHistoricoChamados() {
             tempo_ativo_segundos: d.duracao_segundos || 0,
             created_at: d.created_at || d.iniciado_em,
             prazo_limite: d.prazo_limite || localItem?.prazo_limite || null,
+            chat_conversa_id: d.chat_conversa_id || localItem?.chat_conversa_id || null,
+            chat_mensagem_id: d.chat_mensagem_id || localItem?.chat_mensagem_id || null,
+            chat_mensagem_em: d.chat_mensagem_em || localItem?.chat_mensagem_em || null,
           };
         });
       }
@@ -3401,6 +3504,15 @@ async function chamarCanais(url, metodo, corpo) {
   return json;
 }
 export const fetchCanais = () => chamarCanais('/api/canais', 'GET');
+// Fluxo Inteligente: fluxos da empresa (o servidor confere o módulo e guarda o desenho)
+export const fetchFluxos = () => chamarCanais('/api/fluxos', 'GET');
+export const fetchFluxo = (id) => chamarCanais(`/api/fluxos/${encodeURIComponent(id)}`, 'GET');
+export const criarFluxo = (dados) => chamarCanais('/api/fluxos', 'POST', { acao: 'criar', ...dados });
+export const importarFluxo = (arquivo, nome) => chamarCanais('/api/fluxos', 'POST', { acao: 'importar', arquivo, nome });
+export const duplicarFluxo = (id) => chamarCanais('/api/fluxos', 'POST', { acao: 'duplicar', id });
+export const salvarFluxo = (id, campos) => chamarCanais(`/api/fluxos/${encodeURIComponent(id)}`, 'PATCH', campos);
+export const excluirFluxo = (id) => chamarCanais(`/api/fluxos/${encodeURIComponent(id)}`, 'DELETE');
+export const fetchExecucoesFluxo = (id) => chamarCanais(`/api/fluxos/${encodeURIComponent(id)}/execucoes`, 'GET');
 // Daily (ticket #21): reuniões diárias e metas da semana, pelo servidor (confere módulo e empresa)
 // Gravações dos feedbacks (ticket #22): o servidor dá um link de envio e o navegador manda direto ao Storage
 export const fetchGravacoesFeedback = (feedbackId) => chamarCanais(`/api/feedbacks/gravacao?feedback=${encodeURIComponent(feedbackId)}`, 'GET');
@@ -5946,6 +6058,18 @@ const mensagemErroAgenda = (error, acao) =>
     ? 'Sua conexão com o banco expirou. Saia e entre novamente para continuar.'
     : `Não foi possível ${acao}: ${error?.message || 'sem permissão'}`;
 
+// Fluxo Inteligente: avisa o servidor que uma reunião foi marcada ou mudou de status (ele confere no banco)
+function avisarFluxos(tipo, eventoId) {
+  if (typeof window === 'undefined' || !isCloudId(eventoId)) return;
+  fetch('/api/fluxos/disparar', {
+    method: 'POST',
+    credentials: 'same-origin',
+    keepalive: true,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tipo, evento_id: eventoId }),
+  }).catch(() => {});
+}
+
 export async function addAgendaEvento(eventoData, { gerarMeet = false } = {}) {
   let novo = {
     id: 'evt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
@@ -5980,6 +6104,7 @@ export async function addAgendaEvento(eventoData, { gerarMeet = false } = {}) {
       .single();
     if (error) throw new Error(mensagemErroAgenda(error, 'salvar o evento para a equipe'));
     novo = { ...novo, ...data };
+    avisarFluxos('reuniao_agendada', novo.id);
     const g = await googleAgendaEvento(novo.id, 'espelhar', { gerarMeet });
     if (!g.ok) novo.aviso_google = g.mensagem;
     if (g.link_reuniao) novo.link_reuniao = g.link_reuniao;
@@ -6007,6 +6132,7 @@ export async function updateAgendaEvento(id, dados, { gerarMeet = false } = {}) 
     if (error || !Array.isArray(data) || data.length === 0) {
       throw new Error(mensagemErroAgenda(error, 'atualizar o evento'));
     }
+    if (dados.status && dados.status !== eventos[idx].status) avisarFluxos('reuniao_status', id);
     const g = await googleAgendaEvento(id, 'espelhar', { gerarMeet });
     if (!g.ok) atualizado.aviso_google = g.mensagem;
     if (g.link_reuniao) atualizado.link_reuniao = g.link_reuniao;
