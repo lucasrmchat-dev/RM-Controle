@@ -89,8 +89,28 @@ export function setAudioConfig(newConfig) {
   window.dispatchEvent(new Event('rm_audio_config_updated'));
 }
 
+/** Toca uma sequência de notas: { f: Hz, para?: Hz final (deslize), em: s, dur: s, onda, vol }. */
+function tocarNotas(ctx, notas) {
+  const agora = ctx.currentTime;
+  notas.forEach(({ f, para, em = 0, dur = 0.3, onda = 'sine', vol = 0.15 }) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const t = agora + em;
+    osc.type = onda;
+    osc.frequency.setValueAtTime(f, t);
+    if (para) osc.frequency.exponentialRampToValueAtTime(para, t + dur * 0.8);
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(vol, t + Math.min(0.02, dur / 4));
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + dur + 0.05);
+  });
+}
+
 /**
- * Sintetiza os 4 tipos de toques sonoros
+ * Sintetiza os toques sonoros
  */
 export function playNotificationTone(tipo = 'harmonico') {
   const ctx = getAudioContext();
@@ -209,6 +229,46 @@ export function playNotificationTone(tipo = 'harmonico') {
       playMeetingAlertTone();
       break;
 
+    // --- Tranquilos ---
+    case 'gota':
+      // 7. Gota d'água: um "plim" que escorrega do agudo para o médio, bem baixinho
+      tocarNotas(ctx, [{ f: 1180, para: 620, em: 0, dur: 0.32, onda: 'sine', vol: 0.16 }]);
+      break;
+    case 'brisa':
+      // 8. Brisa: duas notas longas e suaves (Dó e Sol), como um sino de vento
+      tocarNotas(ctx, [
+        { f: 523.25, em: 0, dur: 1.1, onda: 'sine', vol: 0.1 },
+        { f: 783.99, em: 0.18, dur: 1.2, onda: 'sine', vol: 0.09 },
+      ]);
+      break;
+
+    // --- Médios ---
+    case 'pop':
+      // 9. Pop: bolha curta que sobe, chama atenção sem incomodar
+      tocarNotas(ctx, [
+        { f: 520, para: 880, em: 0, dur: 0.12, onda: 'triangle', vol: 0.2 },
+        { f: 880, para: 1240, em: 0.13, dur: 0.12, onda: 'triangle', vol: 0.16 },
+      ]);
+      break;
+    case 'xilofone':
+      // 10. Xilofone: três notas subindo (Mi, Sol, Dó), alegre e rápido
+      tocarNotas(ctx, [
+        { f: 659.25, em: 0, dur: 0.22, onda: 'triangle', vol: 0.2 },
+        { f: 783.99, em: 0.11, dur: 0.22, onda: 'triangle', vol: 0.2 },
+        { f: 1046.5, em: 0.22, dur: 0.35, onda: 'triangle', vol: 0.2 },
+      ]);
+      break;
+
+    // --- Intensos ---
+    case 'sirene':
+      // 11. Sirene: dois tons alternando duas vezes, difícil de ignorar
+      tocarNotas(ctx, [880, 660, 880, 660].map((f, i) => ({ f, em: i * 0.2, dur: 0.18, onda: 'square', vol: 0.11 })));
+      break;
+    case 'alarme':
+      // 12. Alarme: quatro bipes rápidos e agudos, para o que não pode esperar
+      tocarNotas(ctx, [0, 0.12, 0.24, 0.36].map((em) => ({ f: 1046.5, em, dur: 0.08, onda: 'sawtooth', vol: 0.12 })));
+      break;
+
     default:
       playNotificationTone('harmonico');
   }
@@ -222,7 +282,7 @@ export const SONS_DOS_MODULOS = {
   chat: { habilitado: true, tipoSom: 'mensagem', modoRepeticao: 'uma_vez', intervaloSegundos: 30, grupos: true },
   reunioes: { habilitado: true, tipoSom: 'reuniao', modoRepeticao: 'uma_vez', intervaloSegundos: 30 },
 };
-const TOQUES = ['harmonico', 'dinamico', 'sino', 'incisivo', 'mensagem', 'reuniao'];
+const TOQUES = ['harmonico', 'dinamico', 'sino', 'incisivo', 'mensagem', 'reuniao', 'gota', 'brisa', 'pop', 'xilofone', 'sirene', 'alarme'];
 const MODOS = ['uma_vez', 'intermitente', 'intervalo'];
 
 export function getSomDoModulo(modulo) {

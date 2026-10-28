@@ -15,6 +15,35 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-10-28-avisos-na-tela',
+    data: '2026-10-28',
+    titulo: 'Avisos na tela: mensagens do WhatsApp, demandas e reuniões onde você estiver',
+    resumo: 'Quando chega uma mensagem, demanda ou reunião, um aviso aparece na tela em qualquer aba, no estilo que você escolher, e a tela pode piscar em volta.',
+    itens: [
+      'Cinco estilos: na ilha do cabeçalho (a pílula cresce), abaixo do sino, no canto inferior, numa faixa discreta no rodapé ou numa aba fina na borda direita. Ou só no sino.',
+      'Escolha do que ser avisado (Chat, Fila de Demandas, Agenda, Outros), por quanto tempo o aviso fica (4 a 20 segundos ou até fechar) e quantos aparecem juntos (1, 2 ou 3, com “+N no sino”).',
+      'Piscar a tela: um brilho nas bordas, sem cobrir o que você está fazendo, com cor à escolha e repetição (uma vez, três vezes ou até você mexer no computador).',
+      'Tudo em Configurações › Aparência › Avisos na tela, com botões para testar na hora.',
+      'Ao abrir o sistema, o que já estava pendente fica só no sino; os avisos aparecem para o que chega enquanto você trabalha.',
+    ],
+    modulo: 'Geral',
+    tickets: [],
+  },
+  {
+    id: '2026-10-28-novos-toques',
+    data: '2026-10-28',
+    titulo: 'Seis toques novos, organizados por intensidade',
+    resumo: 'Os toques de notificação agora vêm em três grupos (Tranquilos, Médios e Intensos), com seis opções novas.',
+    itens: [
+      'Tranquilos: Gota e Brisa (novos), além do Sino suave.',
+      'Médios: Pop e Xilofone (novos), além de Mensagem, Harmônico e Chime de agenda.',
+      'Intensos: Sirene e Alarme (novos), além de Alerta dinâmico e Urgente.',
+      'Escolha em Configurações › Alertas Sonoros, para o Chat, a Fila de Demandas e as Reuniões; ao clicar, você já ouve.',
+    ],
+    modulo: 'Geral',
+    tickets: [],
+  },
+  {
     id: '2026-10-28-atualizacao-seguranca-next',
     data: '2026-10-28',
     titulo: 'Atualização de segurança da plataforma',

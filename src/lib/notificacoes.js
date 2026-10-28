@@ -5,6 +5,7 @@
  */
 const MAXIMO = 60;
 const EVENTO = 'rm_notificacoes_updated';
+export const EVENTO_NOVA = 'rm_notificacao_nova';
 
 let donoAtual = '';
 
@@ -62,8 +63,11 @@ export function notificar(n) {
     const prefixo = n.grupo === 'novidades' ? /^novidade_(?!pendente_)/ : /^novidade_pendente_/;
     lista = lista.filter((x) => !prefixo.test(x.id));
   }
-  lista.unshift({ id: n.id, tipo: n.tipo || 'sistema', titulo: n.titulo, detalhe: n.detalhe || '', aba: n.aba || null, grupo: n.grupo || null, alvo: n.alvo || null, em: new Date().toISOString(), lida: false });
+  const nova = { id: n.id, tipo: n.tipo || 'sistema', titulo: n.titulo, detalhe: n.detalhe || '', aba: n.aba || null, grupo: n.grupo || null, alvo: n.alvo || null, em: new Date().toISOString(), lida: false };
+  lista.unshift(nova);
   gravar(lista);
+  // Avisos na tela (Configurações › Aparência) escutam este evento
+  if (typeof window !== 'undefined' && !n.silenciosa) window.dispatchEvent(new CustomEvent(EVENTO_NOVA, { detail: nova }));
   return true;
 }
 

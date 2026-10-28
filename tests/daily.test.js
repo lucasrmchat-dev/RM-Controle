@@ -154,3 +154,14 @@ test('proprietário vira membro da empresa sem mexer no login, e não pode ser d
   assert.equal((await DELETE(await como('ana@a.com', '/api/equipe', 'DELETE', { id: linha.id }))).status, 400);
   assert.ok(db.tables.equipe_usuarios.some((u) => u.email === dono));
 });
+
+test('avisos na tela: configuração validada e filtro por tipo', async () => {
+  const { validarAvisos, deveMostrar, AVISOS_PADRAO } = await import('../src/lib/avisosTela.js');
+  assert.deepEqual(validarAvisos({}), AVISOS_PADRAO);
+  const c = validarAvisos({ estilo: 'hack', duracao: 7, maximo: 9, tipos: ['chat', 'xyz'], flashCor: 'rosa-neon', flashIntervalo: 1 });
+  assert.deepEqual([c.estilo, c.duracao, c.maximo, c.tipos, c.flashCor, c.flashIntervalo], ['ilha', 6, 3, ['chat'], 'acento', 60]);
+  assert.equal(deveMostrar({ tipo: 'chat' }, c), true);
+  assert.equal(deveMostrar({ tipo: 'sla' }, c), false, 'fila desmarcada');
+  assert.equal(deveMostrar({ tipo: 'prazo' }, { ...c, tipos: ['fila'] }), true, 'prazo e SLA contam como Fila');
+  assert.equal(deveMostrar({ tipo: 'chat' }, { ...c, estilo: 'desligado' }), false);
+});

@@ -3,14 +3,22 @@
 import React, { useEffect, useState } from 'react';
 import { getSomDoModulo, playNotificationTone, setSomDoModulo } from '@/lib/audioNotifications';
 
+// Agrupados pela intensidade: tranquilos, médios e intensos
 export const TOQUES = [
-  { id: 'mensagem', nome: 'Mensagem' },
-  { id: 'harmonico', nome: 'Harmônico' },
-  { id: 'sino', nome: 'Sino suave' },
-  { id: 'dinamico', nome: 'Alerta dinâmico' },
-  { id: 'reuniao', nome: 'Chime de agenda' },
-  { id: 'incisivo', nome: 'Urgente' },
+  { id: 'gota', nome: 'Gota', grupo: 'Tranquilos' },
+  { id: 'brisa', nome: 'Brisa', grupo: 'Tranquilos' },
+  { id: 'sino', nome: 'Sino suave', grupo: 'Tranquilos' },
+  { id: 'mensagem', nome: 'Mensagem', grupo: 'Médios' },
+  { id: 'pop', nome: 'Pop', grupo: 'Médios' },
+  { id: 'xilofone', nome: 'Xilofone', grupo: 'Médios' },
+  { id: 'harmonico', nome: 'Harmônico', grupo: 'Médios' },
+  { id: 'reuniao', nome: 'Chime de agenda', grupo: 'Médios' },
+  { id: 'dinamico', nome: 'Alerta dinâmico', grupo: 'Intensos' },
+  { id: 'sirene', nome: 'Sirene', grupo: 'Intensos' },
+  { id: 'alarme', nome: 'Alarme', grupo: 'Intensos' },
+  { id: 'incisivo', nome: 'Urgente', grupo: 'Intensos' },
 ];
+const GRUPOS_TOQUE = ['Tranquilos', 'Médios', 'Intensos'];
 const REPETICOES = [
   { id: 'uma_vez', nome: 'Uma vez' },
   { id: 'intermitente', nome: 'Sem parar' },
@@ -77,23 +85,30 @@ function CartaoModulo({ modulo, departamentos }) {
       {som.habilitado && (
         <div className="space-y-3 pt-1">
           <Linha titulo="Toque">
-            {TOQUES.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                aria-pressed={som.tipoSom === t.id}
-                onClick={() => {
-                  mudar({ tipoSom: t.id });
-                  playNotificationTone(t.id);
-                }}
-                className={pilula(som.tipoSom === t.id)}
-              >
-                {t.nome}
+            <div className="w-full space-y-1.5">
+              {GRUPOS_TOQUE.map((g) => (
+                <div key={g} className="flex flex-wrap items-center gap-1.5">
+                  <span className="w-[74px] text-[11px] font-medium uppercase tracking-wide text-slate-400 dark:text-zinc-500">{g}</span>
+                  {TOQUES.filter((t) => t.grupo === g).map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      aria-pressed={som.tipoSom === t.id}
+                      onClick={() => {
+                        mudar({ tipoSom: t.id });
+                        playNotificationTone(t.id);
+                      }}
+                      className={pilula(som.tipoSom === t.id)}
+                    >
+                      {t.nome}
+                    </button>
+                  ))}
+                </div>
+              ))}
+              <button type="button" onClick={() => playNotificationTone(som.tipoSom)} className="h-8 px-3 rounded-full text-[12.5px] font-medium text-rm-acento dark:text-rm-acento-vivo hover:bg-rm-acento/10 cursor-pointer">
+                ▶ Ouvir o escolhido
               </button>
-            ))}
-            <button type="button" onClick={() => playNotificationTone(som.tipoSom)} className="h-8 px-3 rounded-full text-[12.5px] font-medium text-rm-acento dark:text-rm-acento-vivo hover:bg-rm-acento/10 cursor-pointer">
-              ▶ Ouvir
-            </button>
+            </div>
           </Linha>
           <Linha titulo="Repetição">
             {REPETICOES.map((r) => (

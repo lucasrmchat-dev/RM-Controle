@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getAudioConfig, setAudioConfig, playNotificationTone, getSomDoModulo } from '@/lib/audioNotifications';
 import SonsModulos from './SonsModulos';
 import EscolhaPaleta from './EscolhaPaleta';
+import ConfigAvisosTela from './ConfigAvisosTela';
 import { 
   getDefaultViewMode, 
   setDefaultViewMode,
@@ -507,6 +508,8 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           className="space-y-6"
         >
           <EscolhaPaleta />
+
+          <ConfigAvisosTela />
 
           <div className="rounded-3xl p-6 sm:p-7 border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-rm-cartao-escuro shadow-sm space-y-5">
             <div>

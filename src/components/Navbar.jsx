@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BrandMark } from './BrandMark';
 import PerfilPainel from './PerfilPainel';
 import CentralNotificacoes from './CentralNotificacoes';
+import AvisosNaTela from './AvisosNaTela';
 import { EVENTO_NOTIFICACOES, listarNotificacoes } from '@/lib/notificacoes';
 import {
   getFilaChamados,
@@ -331,6 +332,8 @@ export default function Navbar({
             cobriam a lista das categorias), mas abaixo das janelas (z-50 em diante) */}
         <div className="fixed top-2 lg:top-4 left-1/2 -translate-x-1/2 z-[49]">
           {/* Ilha: marca, categorias, notificações e conta */}
+          {/* Avisos na tela (ilha e sino) presos à pílula */}
+          <AvisosNaTela local="cabecalho" onAbrirAba={(aba) => (aba === 'fila' || permitidas.includes(aba)) && irPara(aba)} />
           <div ref={ilhaRef} data-ilha-cabecalho className={`${ILHA} h-[48px] rounded-full flex items-center gap-1 pl-1 pr-1 backdrop-blur-xl`}>
             <button
               type="button"
@@ -369,6 +372,8 @@ export default function Navbar({
 
         </div>
       </header>
+      {/* Avisos no canto, na faixa do rodapé, na aba lateral, e o flash ao redor da tela */}
+      <AvisosNaTela local="tela" onAbrirAba={(aba) => (aba === 'fila' || permitidas.includes(aba)) && irPara(aba)} />
       {/* Telas menores que 1024px: faixa própria no topo (a linha de título não tem espaço para a ilha) */}
       <div className="hidden sm:block lg:hidden" style={{ height: ALTURA_CABECALHO }} aria-hidden="true" />
 

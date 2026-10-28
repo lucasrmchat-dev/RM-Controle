@@ -507,6 +507,8 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
             detalhe: `Com ${ch.tecnico_nome || 'o técnico'}, ainda sem concluir.`,
             aba: 'fila',
             grupo: `escalonado_${ch.id}`,
+            // Ao abrir a tela, o que já estava atrasado vai só para o sino (sem pular na tela)
+            silenciosa: primeiraVerificacao,
           });
           if (nova) novos.push(ch);
         });
