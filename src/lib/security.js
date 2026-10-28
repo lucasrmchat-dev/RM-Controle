@@ -2,21 +2,6 @@ import { supabase, isSupabaseConfigured } from './supabase';
 import { sanitizeString, sanitizeEmail } from './sanitize';
 
 /**
- * Converte e-mail em nome amigável se não fornecido
- */
-function getNomeAmigavel(email) {
-  if (!email) return 'Operador do Sistema';
-  if (email.toLowerCase().includes('admin')) return 'Lucas Amorim (Administrador)';
-  if (email.toLowerCase().includes('suporte')) return 'Equipe de Suporte Técnico';
-  if (email.toLowerCase().includes('vendas')) return 'Equipe Comercial & Vendas';
-  const namePart = email.split('@')[0];
-  return namePart
-    .split(/[._-]+/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(' ');
-}
-
-/**
  * Mascara e-mails para proteção de privacidade (LGPD Art. 6º, III - Minimização)
  * Ex: usuario@empresa.com -> u***o@empresa.com
  */
@@ -61,59 +46,41 @@ export function isValidEmail(email) {
 }
 
 /**
- * Registra um evento de auditoria com rastreabilidade detalhada para conformidade com a LGPD (Art. 37):
- * - Nome do operador e e-mail
- * - Endereço IP do cliente/máquina
- * - Empresa afetada
- * - Módulo e funcionalidade alterada
+ * Registra uma ação na auditoria da empresa.
+ *
+ * Quem fez (nome e e-mail), o IP real e o navegador são preenchidos pelo SERVIDOR (POST /api/auditoria),
+ * a partir da sessão e da requisição: o navegador só informa o que aconteceu. Por isso `usuarioEmail`,
+ * `usuarioNome` e `ipOrigem` são ignorados (ficam na assinatura para as chamadas antigas).
+ * Sem Supabase (modo local de demonstração), guarda uma cópia mínima no navegador.
  */
-export async function logAuditoria({
-  empresaId = null,
-  usuarioId = null,
-  usuarioEmail = 'admin@rmcontrole.com',
-  usuarioNome = null,
-  ipOrigem = 'Rede Local / Cliente Seguro',
-  acao,
-  detalhes = {},
-}) {
-  const nomeFinal = sanitizeString(usuarioNome || getNomeAmigavel(usuarioEmail));
-  const emailLimpo = sanitizeEmail(usuarioEmail) || 'admin@rmcontrole.com';
-  const acaoLimpa = sanitizeString(acao || 'acao_sistema');
+export async function logAuditoria({ empresaId = null, usuarioEmail = null, acao, detalhes = {} }) {
+  const acaoLimpa = sanitizeString(acao || 'acao_sistema').slice(0, 60);
+  if (typeof window === 'undefined') return;
 
-  // Payload estrito e sanitizado para o Supabase
-  const payloadSupabase = {
-    empresa_id: (empresaId && typeof empresaId === 'string' && empresaId.length === 36) ? empresaId : null,
-    usuario_id: (usuarioId && typeof usuarioId === 'string' && usuarioId.length === 36) ? usuarioId : null,
-    usuario_email: emailLimpo,
-    usuario_nome: nomeFinal,
-    operador_nome: nomeFinal,
-    ip_origem: sanitizeString(ipOrigem),
-    acao: acaoLimpa,
-    detalhes: {
-      ...detalhes,
-      usuario_nome: nomeFinal,
-      ip_origem: ipOrigem,
-    },
-  };
-
-  try {
-    if (isSupabaseConfigured && supabase) {
-      await supabase.from('auditoria_logs').insert([payloadSupabase]);
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await fetch('/api/auditoria', {
+        method: 'POST',
+        credentials: 'same-origin',
+        // keepalive: o registro chega mesmo se a pessoa trocar de tela ou fechar a aba logo em seguida
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ acao: acaoLimpa, empresaId, detalhes }),
+      });
+    } catch (err) {
+      console.warn('Falha ao registrar na auditoria:', err);
     }
-  } catch (err) {
-    console.warn('Falha ao persistir log de auditoria no Supabase:', err);
+    return;
   }
 
-  // Backup em memória / storage local para auditoria offline com privacidade
-  if (typeof window === 'undefined') return;
   try {
     const existing = JSON.parse(localStorage.getItem('rm_auditoria_logs') || '[]');
     existing.unshift({
-      id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-      empresa_id: payloadSupabase.empresa_id,
-      usuario_email: maskEmail(emailLimpo), // Minimização de PII no storage local
-      operador_nome: nomeFinal,
+      id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+      empresa_id: empresaId,
+      usuario_email: maskEmail(sanitizeEmail(usuarioEmail) || ''), // Minimização de dados no armazenamento local
       acao: acaoLimpa,
+      detalhes: { modulo: detalhes?.modulo, empresa_nome: detalhes?.empresa_nome },
       created_at: new Date().toISOString(),
     });
     localStorage.setItem('rm_auditoria_logs', JSON.stringify(existing.slice(0, 300)));

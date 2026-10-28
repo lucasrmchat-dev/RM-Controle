@@ -56,7 +56,16 @@ function compilarCondicao(c) {
   const [col, op, ...resto] = c.split('.');
   const valor = resto.join('.').replace(/^"|"$/g, '');
   if (op === 'is' && valor === 'null') return (r) => (r[col] ?? null) === null;
-  if (op === 'eq') return (r) => String(r[col] ?? '') === valor;
+  // coluna ou caminho JSON (detalhes->>campo), como no PostgREST
+  const ler = (r) => {
+    const [base, campo] = col.split('->>');
+    return campo ? r[base]?.[campo] : r[col];
+  };
+  if (op === 'eq') return (r) => String(ler(r) ?? '') === valor;
+  if (op === 'ilike') {
+    const re = new RegExp(`^${valor.split('*').map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`, 'is');
+    return (r) => re.test(String(ler(r) ?? ''));
+  }
   throw new Error(`Filtro or não suportado no mock: ${c}`);
 }
 

@@ -13,6 +13,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
 import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
 import { listaAdministradores, normalizarEmail, resolverPapel } from '@/lib/roles';
+import { resumoNavegador } from '@/lib/auditoria';
 
 export const ORG_PLATAFORMA = '00000000-0000-4000-8000-000000000001';
 // Empresa que recebeu os dados de antes da migração multiempresa (RM Chat)
@@ -36,6 +37,25 @@ const CONFLITOS = { sistema_config: { chave: 'organizacao_id,chave' } };
 const SEGREDOS = new Set(['rm_ler_segredo', 'rm_gravar_segredo']);
 
 const comEmpresa = (linhas, org) => (Array.isArray(linhas) ? linhas.map((l) => ({ ...l, organizacao_id: org })) : { ...linhas, organizacao_id: org });
+// Auditoria: o IP real e o navegador vêm da requisição (nunca do que o navegador diz)
+const comRede = (linhas, rede) => {
+  const uma = (l) => ({ ...l, detalhes: { ...(l.detalhes && typeof l.detalhes === 'object' ? l.detalhes : {}), ...rede } });
+  return Array.isArray(linhas) ? linhas.map(uma) : uma(linhas);
+};
+
+/** IP de quem fez a ação (no Vercel, x-real-ip / x-forwarded-for são definidos pela plataforma) e navegador. */
+export function redeDaRequisicao(request) {
+  const h = request?.headers;
+  if (!h?.get) return null;
+  const encaminhado = (h.get('x-forwarded-for') || '').split(',').map((x) => x.trim()).filter(Boolean);
+  const ip = h.get('x-real-ip') || encaminhado[0] || '';
+  const rede = { ip: ip.slice(0, 64) || 'desconhecido' };
+  if (encaminhado.length > 1) rede.ip_cadeia = encaminhado.slice(0, 5).join(', ').slice(0, 200);
+  const navegador = resumoNavegador(h.get('user-agent'));
+  if (navegador) rede.navegador = navegador;
+  return rede;
+}
+
 const semEmpresa = (valores) => {
   if (!valores || typeof valores !== 'object') return valores;
   const { organizacao_id, ...resto } = valores;
@@ -46,7 +66,7 @@ const semEmpresa = (valores) => {
  * Acesso ao banco preso a uma empresa. `org` nulo/legado (banco ainda sem a migração) devolve o
  * acesso normal, para o sistema continuar funcionando até a migração ser aplicada.
  */
-export function escopo(db, org) {
+export function escopo(db, org, rede = null) {
   if (!db || !org) return db;
   return {
     organizacaoId: org,
@@ -55,7 +75,7 @@ export function escopo(db, org) {
       if (!TABELAS_DA_EMPRESA.has(tabela)) return db.from(tabela);
       return {
         select: (...args) => db.from(tabela).select(...args).eq('organizacao_id', org),
-        insert: (linhas, opcoes) => db.from(tabela).insert(comEmpresa(linhas, org), opcoes),
+        insert: (linhas, opcoes) => db.from(tabela).insert(comEmpresa(tabela === 'auditoria_logs' && rede ? comRede(linhas, rede) : linhas, org), opcoes),
         upsert: (linhas, opcoes = {}) => {
           const conflito = CONFLITOS[tabela]?.[opcoes.onConflict] || opcoes.onConflict;
           return db.from(tabela).upsert(comEmpresa(linhas, org), { ...opcoes, ...(conflito ? { onConflict: conflito } : {}) });
@@ -150,7 +170,8 @@ export async function contextoDaRequisicao(request, { exigirAdmin = false } = {}
   const admin = papel === 'administrador';
   if (exigirAdmin && !admin) return { erro: json({ ok: false, mensagem: 'Apenas administradores podem fazer isso.' }, 403) };
 
-  return { email, papel, admin, org, db: org.legado ? dbGlobal : escopo(dbGlobal, org.id), dbGlobal };
+  const rede = redeDaRequisicao(request);
+  return { email, papel, admin, org, rede, db: org.legado ? dbGlobal : escopo(dbGlobal, org.id, rede), dbGlobal };
 }
 
 /** Acesso ao banco preso à empresa dona de um registro (rotas sem sessão: webhooks, links públicos). */

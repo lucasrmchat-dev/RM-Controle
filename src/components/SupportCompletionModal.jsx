@@ -42,6 +42,9 @@ const DESFECHOS = [
   { id: 'sem_resposta', titulo: 'Sem resposta', desc: 'O cliente não respondeu. Volta para a fila como "Aguardando cliente", com você como responsável.', cor: 'amber' },
 ];
 
+// Demanda já aguardando o cliente: "Sem resposta" deixa de devolver para a espera e passa a encerrar
+const SEM_RETORNO = { id: 'sem_resposta', titulo: 'Sem retorno', desc: 'O cliente não voltou. A demanda é encerrada como "sem retorno do cliente" e fica no histórico; se ele voltar, é só abrir uma nova.', cor: 'amber' };
+
 const CORES_DESFECHO = {
   emerald: 'border-emerald-600 dark:border-emerald-400 bg-emerald-500/[0.07] ring-1 ring-emerald-600/25 dark:ring-emerald-400/30',
   rose: 'border-rose-600 dark:border-rose-400 bg-rose-500/[0.06] ring-1 ring-rose-600/25 dark:ring-rose-400/30',
@@ -91,7 +94,7 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
     if (!isOpen || !chamado) return;
     const cfg = getConfiguracoesSuporte();
     setConfig(cfg);
-    setDesfecho('resolvido');
+    setDesfecho(chamado.status === 'pendente' ? 'sem_resposta' : 'resolvido');
     setRelatoProblema(chamado.observacao_inicial || '');
     // Mais usadas primeiro, para que a escolha comum esteja sempre à vista
     const ordenarCategorias = () => {
@@ -161,8 +164,12 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
   }, [isOpen, chamado?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const tempoTotal = acumulado + tempoSessao;
-  const semResposta = desfecho === 'sem_resposta';
-  const desfechoAtual = DESFECHOS.find((d) => d.id === desfecho);
+  // Já aguardando o cliente: "sem resposta" encerra (semRetorno); em atendimento: volta a aguardar (semResposta)
+  const jaAguardando = chamado?.status === 'pendente';
+  const desfechos = jaAguardando ? DESFECHOS.map((d) => (d.id === 'sem_resposta' ? SEM_RETORNO : d)) : DESFECHOS;
+  const semResposta = desfecho === 'sem_resposta' && !jaAguardando;
+  const semRetorno = desfecho === 'sem_resposta' && jaAguardando;
+  const desfechoAtual = desfechos.find((d) => d.id === desfecho);
 
   const recalcular = (ini, fi) => {
     const a = new Date(ini).getTime();
@@ -177,7 +184,7 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
     setTempoSessao(min * 60);
   };
 
-  const etapa2Ok = semResposta || !config.motivo_obrigatorio || Boolean(categoria);
+  const etapa2Ok = semResposta || semRetorno || !config.motivo_obrigatorio || Boolean(categoria);
 
   const concluir = async () => {
     if (enviando || !chamado) return;
@@ -200,9 +207,10 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
     }
 
     const nomeCategoria = (categoria?.nome || '').trim();
-    if (config.motivo_obrigatorio && !nomeCategoria) return setErro('Escolha a categoria do suporte.');
-    if (config.colaborador_obrigatorio && !solicitante?.nome) return setErro('Informe quem pediu o atendimento.');
-    if (config.solucao_obrigatoria && !passos.trim()) {
+    // Sem retorno do cliente: categoria, solicitante e solução são opcionais (não houve como resolver)
+    if (!semRetorno && config.motivo_obrigatorio && !nomeCategoria) return setErro('Escolha a categoria do suporte.');
+    if (!semRetorno && config.colaborador_obrigatorio && !solicitante?.nome) return setErro('Informe quem pediu o atendimento.');
+    if (!semRetorno && config.solucao_obrigatoria && !passos.trim()) {
       setExplicar(true);
       return setErro('Explique como o problema foi resolvido.');
     }
@@ -223,7 +231,7 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
       const atendente = getNomeTecnico(userEmail || chamado.tecnico_email);
       await finalizarSuporte({
         chamado_id: chamado.id,
-        motivo: nomeCategoria || 'Atendimento Geral',
+        motivo: nomeCategoria || (semRetorno ? 'Sem resposta do cliente' : 'Atendimento Geral'),
         categorias: chamado?.categorias || [],
         observacoes: passos.trim(),
         observacao_inicial: relatoProblema.trim(),
@@ -292,7 +300,7 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
         <button type="button" onClick={onClose} disabled={enviando} className={`${classeBotaoTexto} sm:mr-auto`}>
           Voltar
         </button>
-        {!semResposta && (
+        {!semResposta && !semRetorno && (
           <button type="button" onClick={() => setExplicar((v) => !v)} aria-expanded={explicar} className={classeBotaoSecundario}>
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 18h6" /><path d="M10 22h4" /><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" />
@@ -302,7 +310,7 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
         )}
         <button type="button" onClick={concluir} disabled={enviando} className={classeBotaoPrimario}>
           {enviando ? <Spinner /> : semResposta ? <HourglassIcon className="w-4 h-4" /> : <CheckIcon className="w-4 h-4 stroke-[2.5]" />}
-          {semResposta ? 'Aguardar cliente' : desfecho === 'nao_resolvido' ? 'Encerrar sem solução' : 'Concluir atendimento'}
+          {semResposta ? 'Aguardar cliente' : semRetorno ? 'Encerrar sem retorno' : desfecho === 'nao_resolvido' ? 'Encerrar sem solução' : 'Concluir atendimento'}
         </button>
       </div>
     </>
@@ -324,7 +332,7 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
           {/* 1. DESFECHO */}
           <Etapa numero={1} titulo="Como terminou" estado="concluida">
             <div role="radiogroup" aria-label="Desfecho do atendimento" className="grid grid-cols-3 gap-2">
-              {DESFECHOS.map((d) => {
+              {desfechos.map((d) => {
                 const ativo = desfecho === d.id;
                 return (
                   <button
@@ -363,7 +371,7 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
           <Etapa
             numero={2}
             titulo="Classificação"
-            descricao={semResposta ? 'Não é necessária para aguardar o cliente.' : 'Categoria do suporte e quem pediu.'}
+            descricao={semResposta ? 'Não é necessária para aguardar o cliente.' : semRetorno ? 'Opcional: o cliente não voltou.' : 'Categoria do suporte e quem pediu.'}
             estado={semResposta ? 'travada' : etapa2Ok ? 'concluida' : 'ativa'}
             fimDeColuna
           >
@@ -415,7 +423,7 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
 
         <div className="lg:pl-12 lg:border-l border-black/[0.06] dark:border-white/[0.11]">
           {/* 3. TEMPO */}
-          <Etapa numero={3} titulo="Tempo" descricao="Calculado pelo cronômetro. Ajuste se algo ficou aberto sem querer." estado="concluida" ultima={!explicar || semResposta}>
+          <Etapa numero={3} titulo="Tempo" descricao="Calculado pelo cronômetro. Ajuste se algo ficou aberto sem querer." estado="concluida" ultima={!explicar || semResposta || semRetorno}>
             <div className="grid grid-cols-2 gap-2.5">
               <div className="p-4 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-white/[0.03]">
                 <span className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-zinc-400">
@@ -487,7 +495,7 @@ export default function SupportCompletionModal({ isOpen, chamado, onClose, onFin
           </Etapa>
 
           {/* 4. EXPLICAÇÃO (opcional, só quando a pessoa quer registrar) */}
-          <Expandir aberto={explicar && !semResposta}>
+          <Expandir aberto={explicar && !semResposta && !semRetorno}>
             <div className="pt-8">
               <Etapa numero={4} titulo="Como foi resolvido" descricao="Vira referência na base de soluções para a próxima demanda parecida." estado={passos.trim() ? 'concluida' : 'ativa'} ultima>
                 <div className="space-y-4">

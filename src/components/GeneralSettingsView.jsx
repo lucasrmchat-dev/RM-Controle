@@ -364,7 +364,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
         },
         {
           id: 'auditoria',
-          label: 'Auditoria & LGPD',
+          label: 'Auditoria',
           icon: (
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -405,7 +405,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
     perfis: 'Perfis de acesso',
     servidores: 'Servidores e equipe',
     suporte_automatico: 'Suporte automático (API)',
-    auditoria: 'Auditoria e LGPD',
+    auditoria: 'Auditoria',
   };
   const BASICAS = ['visualizacao', 'audio', 'agenda', 'whatsapp', 'regras_suporte'];
   const categoriasMenu = [
@@ -1144,7 +1144,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
       {/* AVANÇADA: PERFIS DE ACESSO */}
       {subTab === 'perfis' && (isAdmin ? <PerfisAcessoView /> : renderRestrictedNotice('Perfis de acesso'))}
 
-      {/* AVANÇADA 3: AUDITORIA & LGPD */}
+      {/* AVANÇADA 3: AUDITORIA */}
       {subTab === 'suporte_automatico' && (
         isAdmin ? <SupportIntegrationSettings /> : renderRestrictedNotice('Suporte Automático (API)')
       )}
@@ -1159,7 +1159,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
             <AuditLogsView userEmail={userEmail} />
           </motion.div>
         ) : (
-          renderRestrictedNotice('Auditoria & LGPD')
+          renderRestrictedNotice('Auditoria')
         )
       )}
 

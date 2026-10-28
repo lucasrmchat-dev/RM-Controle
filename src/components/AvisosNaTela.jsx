@@ -27,16 +27,33 @@ const COR_TIPO = {
 const ROTULO_TIPO = { chat: 'WhatsApp', demanda: 'Fila', sla: 'Fila · tempo', prazo: 'Fila · prazo', reuniao: 'Agenda', feedback: 'Feedback', sistema: 'Sistema' };
 
 /** Fila de avisos visíveis, respeitando duração e máximo. */
+const APOS_SAIR_MS = 4000;
+
 function useAvisos(ativo) {
   const [config, setConfig] = useState(() => lerAvisos());
   const [visiveis, setVisiveis] = useState([]);
   const [extras, setExtras] = useState(0);
   const timers = useRef(new Map());
+  // Mouse em cima de um aviso: o tempo para; ao sair, ainda ficam APOS_SAIR_MS para clicar
+  const pausado = useRef(false);
+  const visiveisRef = useRef([]);
+  visiveisRef.current = visiveis;
 
   const fechar = useCallback((id) => {
     clearTimeout(timers.current.get(id));
     timers.current.delete(id);
     setVisiveis((l) => l.filter((n) => n.id !== id));
+    // Fechou/abriu o aviso que estava sob o mouse: o cartão some sem "mouse saiu"; os outros voltam a contar
+    if (pausado.current) {
+      pausado.current = false;
+      if (lerAvisos().duracao)
+        visiveisRef.current
+          .filter((n) => n.id !== id)
+          .forEach((n) => {
+            clearTimeout(timers.current.get(n.id));
+            timers.current.set(n.id, setTimeout(() => fechar(n.id), APOS_SAIR_MS));
+          });
+    }
   }, []);
 
   useEffect(() => {
@@ -61,7 +78,7 @@ function useAvisos(ativo) {
         }
         return nova.slice(0, atual.maximo);
       });
-      if (atual.duracao) timers.current.set(n.id, setTimeout(() => fechar(n.id), atual.duracao * 1000));
+      if (atual.duracao && !pausado.current) timers.current.set(n.id, setTimeout(() => fechar(n.id), atual.duracao * 1000));
     };
     window.addEventListener(EVENTO_NOVA, aoNova);
     return () => window.removeEventListener(EVENTO_NOVA, aoNova);
@@ -71,12 +88,25 @@ function useAvisos(ativo) {
     if (!visiveis.length) setExtras(0);
   }, [visiveis.length]);
   useEffect(() => () => timers.current.forEach((t) => clearTimeout(t)), []);
-  return { config, visiveis, extras, fechar };
+  const pausar = useCallback(() => {
+    pausado.current = true;
+    timers.current.forEach((t) => clearTimeout(t));
+    timers.current.clear();
+  }, []);
+  const retomar = useCallback(() => {
+    pausado.current = false;
+    if (!lerAvisos().duracao) return;
+    visiveisRef.current.forEach((n) => {
+      clearTimeout(timers.current.get(n.id));
+      timers.current.set(n.id, setTimeout(() => fechar(n.id), APOS_SAIR_MS));
+    });
+  }, [fechar]);
+  return { config, visiveis, extras, fechar, pausar, retomar };
 }
 
-function Cartao({ n, onAbrir, onFechar, compacto = false }) {
+function Cartao({ n, onAbrir, onFechar, onPausar, onRetomar, compacto = false }) {
   return (
-    <div className="group relative flex items-start gap-2.5 text-left">
+    <div className="group relative flex items-start gap-2.5 text-left" onMouseEnter={onPausar} onMouseLeave={onRetomar}>
       <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${COR_TIPO[n.tipo] || COR_TIPO.sistema}`} aria-hidden="true" />
       <button type="button" onClick={() => onAbrir(n)} className="min-w-0 flex-1 text-left cursor-pointer">
         {!compacto && <span className="block text-[10.5px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500">{ROTULO_TIPO[n.tipo] || 'Aviso'}</span>}
@@ -179,7 +209,7 @@ export default function AvisosNaTela({ local, onAbrirAba, larguraIlha = 0 }) {
   // No celular, ilha e sino viram canto (o cabeçalho é outro)
   const estiloEfetivo = (estilo) => ((mobile || recolhido) && (estilo === 'ilha' || estilo === 'sino') ? 'canto' : estilo);
   const ativo = local === 'cabecalho' ? !mobile && !recolhido && ['ilha', 'sino'].includes(config0.estilo) : true;
-  const { config, visiveis, extras, fechar } = useAvisos(ativo);
+  const { config, visiveis, extras, fechar, pausar, retomar } = useAvisos(ativo);
   const estilo = estiloEfetivo(config.estilo);
 
   const abrir = (n) => {
@@ -214,7 +244,7 @@ export default function AvisosNaTela({ local, onAbrirAba, larguraIlha = 0 }) {
               <div className="space-y-2.5">
                 {visiveis.map((n) => (
                   <motion.div key={n.id} layout initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                    <Cartao n={n} onAbrir={abrir} onFechar={fechar} compacto />
+                    <Cartao n={n} onAbrir={abrir} onFechar={fechar} onPausar={pausar} onRetomar={retomar} compacto />
                   </motion.div>
                 ))}
                 <Mais extras={extras} onSino={abrirSino} />
@@ -230,7 +260,7 @@ export default function AvisosNaTela({ local, onAbrirAba, larguraIlha = 0 }) {
           <AnimatePresence initial={false}>
             {visiveis.map((n) => (
               <motion.div key={n.id} layout initial={{ opacity: 0, y: -10, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, x: 20 }} transition={MOLA} className={`rounded-2xl p-3 ${CAIXA}`}>
-                <Cartao n={n} onAbrir={abrir} onFechar={fechar} />
+                <Cartao n={n} onAbrir={abrir} onFechar={fechar} onPausar={pausar} onRetomar={retomar} />
               </motion.div>
             ))}
           </AnimatePresence>
@@ -255,7 +285,7 @@ export default function AvisosNaTela({ local, onAbrirAba, larguraIlha = 0 }) {
           <AnimatePresence initial={false}>
             {visiveis.map((n) => (
               <motion.div key={n.id} layout initial={{ opacity: 0, y: 16, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, x: 30 }} transition={MOLA} className={`rounded-2xl p-3.5 ${CAIXA}`}>
-                <Cartao n={n} onAbrir={abrir} onFechar={fechar} />
+                <Cartao n={n} onAbrir={abrir} onFechar={fechar} onPausar={pausar} onRetomar={retomar} />
               </motion.div>
             ))}
           </AnimatePresence>
@@ -278,7 +308,7 @@ export default function AvisosNaTela({ local, onAbrirAba, larguraIlha = 0 }) {
             {n && (
               <motion.div key={n.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} transition={MOLA} className={`rounded-full pl-4 pr-2 py-2 flex items-center gap-2 ${CAIXA}`}>
                 <div className="min-w-0 flex-1">
-                  <Cartao n={n} onAbrir={abrir} onFechar={fechar} compacto />
+                  <Cartao n={n} onAbrir={abrir} onFechar={fechar} onPausar={pausar} onRetomar={retomar} compacto />
                 </div>
                 {visiveis.length + extras > 1 && (
                   <button type="button" onClick={abrirSino} className="text-[11.5px] font-medium text-slate-500 dark:text-zinc-400 whitespace-nowrap px-2 cursor-pointer">
@@ -300,7 +330,7 @@ export default function AvisosNaTela({ local, onAbrirAba, larguraIlha = 0 }) {
           <AnimatePresence initial={false}>
             {visiveis.map((n) => (
               <motion.div key={n.id} layout initial={{ x: 300 }} animate={{ x: 0 }} exit={{ x: 300 }} transition={MOLA} className={`rounded-l-2xl p-3 border-l-4 ${CAIXA}`} style={{ borderLeftColor: 'rgb(var(--rm-acento-medio))' }}>
-                <Cartao n={n} onAbrir={abrir} onFechar={fechar} compacto />
+                <Cartao n={n} onAbrir={abrir} onFechar={fechar} onPausar={pausar} onRetomar={retomar} compacto />
               </motion.div>
             ))}
           </AnimatePresence>

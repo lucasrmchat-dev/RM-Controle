@@ -245,7 +245,7 @@ export default function FirstAccessSetupView({
                   <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.11] space-y-1">
                     <span className="text-lg">🔒</span>
                     <h4 className="text-xs font-bold text-[#1d1d1f] dark:text-white">Segurança</h4>
-                    <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-snug">Crie sua senha pessoal com regras LGPD.</p>
+                    <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-snug">Crie sua senha pessoal com regras de segurança.</p>
                   </div>
                   <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.11] space-y-1">
                     <span className="text-lg">🔔</span>
@@ -295,7 +295,7 @@ export default function FirstAccessSetupView({
                     Crie sua Senha Pessoal
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed">
-                    Por conformidade LGPD e segurança da conta, crie uma senha forte e individual para os seus acessos.
+                    Por segurança da conta, crie uma senha forte e individual para os seus acessos.
                   </p>
                 </motion.div>
 

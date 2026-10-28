@@ -1,517 +1,250 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { getAuditoriaLogs } from '@/lib/storage';
-import { CalendarIcon, RefreshIcon, ShieldCheckIcon, UserIcon } from './Icons';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
+import { fetchAuditoria, fetchResumoAuditoria } from '@/lib/storage';
+import { descreverLog } from '@/lib/auditoria';
+import { RefreshIcon } from './Icons';
 import { ListSkeleton } from './SkeletonLoaders';
 
-// Função para extrair data no formato local YYYY-MM-DD
-function extrairDataLocal(val) {
-  if (!val) return '';
-  const d = new Date(val);
-  if (isNaN(d.getTime())) return '';
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+// ------------------------------------------------------------------------------
+// Auditoria: o que cada pessoa da equipe fez, dia a dia, com nome, e-mail, IP real (pego pelo servidor
+// na hora da ação), navegador, módulo, ação e descrição. Só administradores veem.
+// ------------------------------------------------------------------------------
+const DIAS_NA_FITA = 9;
+const SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
-// Formatação segura de Data e Hora no padrão pt-BR
-function formatarDataHora(val) {
-  if (!val) return 'Data não informada';
-  const d = new Date(val);
-  if (isNaN(d.getTime())) return 'Data não informada';
-  return d.toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  });
-}
+const isoLocal = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const hojeIso = () => isoLocal(new Date());
+const somarDias = (iso, n) => {
+  const d = new Date(`${iso}T12:00:00`);
+  d.setDate(d.getDate() + n);
+  return isoLocal(d);
+};
+const hora = (v) => (v ? new Date(v).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '');
+const diaPorExtenso = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
 
-export default function AuditLogsView() {
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filtroTexto, setFiltroTexto] = useState('');
-  
-  // Linha do Tempo Lúdica & Filtro de Data
-  const [diaSelecionado, setDiaSelecionado] = useState(null); // 'YYYY-MM-DD' ou null (todos)
-  const [mostrarFiltroAvancado, setMostrarFiltroAvancado] = useState(false);
-  const [dataInicioAvancada, setDataInicioAvancada] = useState('');
-  const [dataFimAvancada, setDataFimAvancada] = useState('');
+const TONS = {
+  azul: 'bg-sky-500/12 text-sky-700 dark:text-sky-300',
+  verde: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300',
+  ambar: 'bg-amber-500/14 text-amber-700 dark:text-amber-300',
+  vermelho: 'bg-rose-500/12 text-rose-700 dark:text-rose-300',
+  roxo: 'bg-violet-500/12 text-violet-700 dark:text-violet-300',
+  neutro: 'bg-black/[0.05] dark:bg-white/[0.08] text-slate-700 dark:text-zinc-300',
+};
 
-  // Paginação
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+const iniciais = (nome, email) =>
+  (nome && nome !== email ? nome : (email || '?').split('@')[0])
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0].toUpperCase())
+    .join('');
 
-  const carregarLogs = async () => {
-    setLoading(true);
-    const data = await getAuditoriaLogs();
-    setLogs(data);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    carregarLogs();
-  }, []);
-
-  // Formatação de Ação Detalhada com IP e Empresa
-  const formatarAcao = (log) => {
-    const acao = log.acao;
-    const empresa = log.empresa_nome || log.detalhes?.empresa_nome || 'Empresa';
-    const modulo = log.detalhes?.modulo || 'Geral';
-
-    switch (acao) {
-      case 'visualizou_senha_suporte':
-        return { 
-          titulo: `Visualizou Senha de Suporte`,
-          descricao: `Acessou e revelou a senha técnica protegida da empresa ${empresa}`,
-          badge: 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30',
-          modulo: modulo || 'Credenciais & Acessos'
-        };
-      case 'alterou_credenciais_suporte':
-      case 'alterou_credencial_suporte':
-        return { 
-          titulo: `Alterou Credenciais de Acesso`,
-          descricao: `Atualizou login ou senha de suporte para ${empresa}`,
-          badge: 'bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/30',
-          modulo: modulo || 'Credenciais & Acessos'
-        };
-      case 'adicionou_credencial_suporte':
-        return { 
-          titulo: `Adicionou Nova Credencial / Acesso`,
-          descricao: `Cadastrou o acesso '${log.detalhes?.rotulo || 'Novo Acesso'}' para a empresa ${empresa}`,
-          badge: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30',
-          modulo: 'Credenciais & Acessos'
-        };
-      case 'iniciou_suporte_tecnico':
-        return { 
-          titulo: `Iniciou Atendimento de Suporte`,
-          descricao: `Abriu chamado técnico com cronômetro em tempo real para ${empresa}`,
-          badge: 'bg-blue-500/15 text-blue-800 dark:text-blue-300 border border-blue-500/30',
-          modulo: 'Suporte em Tempo Real'
-        };
-      case 'cancelou_suporte_tecnico':
-        return { 
-          titulo: `Cancelou Atendimento de Suporte`,
-          descricao: `Cancelou e descartou o chamado de ${empresa}`,
-          badge: 'bg-zinc-500/15 text-zinc-700 dark:text-zinc-300 border border-zinc-500/30',
-          modulo: 'Suporte em Tempo Real'
-        };
-      case 'finalizou_suporte_tecnico':
-        return { 
-          titulo: `Finalizou Chamado de Suporte`,
-          descricao: `Encerrou atendimento de ${Math.round((log.detalhes?.duracao_segundos || 0) / 60)} min para ${empresa} (Motivo: ${log.detalhes?.motivo || 'Geral'})`,
-          badge: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30',
-          modulo: 'Suporte em Tempo Real'
-        };
-      case 'cadastrou_empresa_manual':
-        return { 
-          titulo: `Cadastrou Empresa (Individual)`,
-          descricao: `Criou o cadastro da empresa '${empresa}'`,
-          badge: 'bg-purple-500/15 text-purple-800 dark:text-purple-300 border border-purple-500/30',
-          modulo: 'Gestão de Empresas'
-        };
-      case 'cadastrou_empresas_massa':
-        return { 
-          titulo: `Importou Empresas em Lote`,
-          descricao: `Importou ${log.detalhes?.quantidade || 0} empresas em massa no sistema`,
-          badge: 'bg-purple-500/15 text-purple-800 dark:text-purple-300 border border-purple-500/30',
-          modulo: 'Gestão de Empresas'
-        };
-      case 'adicionou_canal_empresa':
-        return { 
-          titulo: `Vinculou Canal de Atendimento`,
-          descricao: `Adicionou canal '${log.detalhes?.canal || 'Mensageria'}' na empresa ${empresa}`,
-          badge: 'bg-blue-500/15 text-blue-800 dark:text-blue-300 border border-blue-500/30',
-          modulo: 'Canais'
-        };
-      case 'atualizou_checklist_item':
-        return { 
-          titulo: `Modificou Requisito do Servidor`,
-          descricao: `Marcou '${log.detalhes?.item_id}' como ${log.detalhes?.concluido ? 'CONCLUÍDO' : 'PENDENTE'} na empresa ${empresa}`,
-          badge: 'bg-slate-500/15 text-slate-800 dark:text-slate-300 border border-slate-500/30',
-          modulo: 'Configuração do Servidor'
-        };
-      default:
-        return { 
-          titulo: log.acao.replace(/_/g, ' ').toUpperCase(),
-          descricao: `Operação executada na empresa ${empresa}`,
-          badge: 'bg-black/5 dark:bg-white/10 text-slate-700 dark:text-zinc-300 border border-black/5 dark:border-white/10',
-          modulo: modulo || 'Sistema'
-        };
-    }
-  };
-
-  // Gerador da Linha do Tempo Lúdica (5 dias atrás até 3 dias no futuro)
-  const diasLinhaDoTempo = useMemo(() => {
-    const lista = [];
-    const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-    const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    const hoje = new Date();
-
-    for (let i = -5; i <= 3; i++) {
-      const d = new Date();
-      d.setDate(hoje.getDate() + i);
-      const isoStr = extrairDataLocal(d);
-      const isHoje = i === 0;
-      const isFuturo = i > 0;
-
-      lista.push({
-        iso: isoStr,
-        diaNum: d.getDate(),
-        diaSemana: diasSemana[d.getDay()],
-        mes: meses[d.getMonth()],
-        isHoje,
-        isFuturo,
-      });
-    }
-    return lista;
-  }, []);
-
-  // Filtragem dos Logs por Texto, Linha do Tempo e Filtro Avançado
-  const logsFiltrados = useMemo(() => {
-    return logs.filter((log) => {
-      const dataLog = extrairDataLocal(log.created_at || log.criado_em || log.detalhes?.timestamp || log.iniciado_em);
-
-      // Filtro da Linha do Tempo
-      if (diaSelecionado && dataLog !== diaSelecionado) {
-        return false;
-      }
-
-      // Filtro de Data Avançada
-      if (dataInicioAvancada && dataLog < dataInicioAvancada) {
-        return false;
-      }
-      if (dataFimAvancada && dataLog > dataFimAvancada) {
-        return false;
-      }
-
-      // Filtro de Texto
-      if (filtroTexto) {
-        const termo = filtroTexto.toLowerCase();
-        const opNome = (log.usuario_nome || log.operador_nome || '').toLowerCase();
-        const opEmail = (log.usuario_email || '').toLowerCase();
-        const empNome = (log.empresa_nome || log.detalhes?.empresa_nome || '').toLowerCase();
-        const ipOrigem = (log.ip_origem || '').toLowerCase();
-        const modulo = (log.detalhes?.modulo || '').toLowerCase();
-        return (
-          opNome.includes(termo) ||
-          opEmail.includes(termo) ||
-          empNome.includes(termo) ||
-          ipOrigem.includes(termo) ||
-          modulo.includes(termo)
-        );
-      }
-
-      return true;
-    });
-  }, [logs, diaSelecionado, dataInicioAvancada, dataFimAvancada, filtroTexto]);
-
-  // Paginação
-  const totalPages = Math.max(1, Math.ceil(logsFiltrados.length / pageSize));
-  const logsPaginados = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return logsFiltrados.slice(start, start + pageSize);
-  }, [logsFiltrados, page, pageSize]);
-
+function Linha({ log }) {
+  const v = descreverLog(log);
   return (
-    <div className="space-y-6 text-[#0a0a0c] dark:text-[#ffffff]">
-      
-      {/* Cabeçalho */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#0a0a0c] dark:text-white">
-            Rastro de Auditoria & Conformidade LGPD
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-0.5">
-            Registro imutável contendo operador, e-mail, IP de origem, empresa e funcionalidade modificada.
-          </p>
-        </div>
+    <div className="px-4 sm:px-5 py-3.5 grid grid-cols-1 lg:grid-cols-[76px_minmax(190px,1.1fr)_minmax(170px,1fr)_minmax(200px,1.6fr)_170px] gap-x-4 gap-y-1.5 items-start hover:bg-black/[0.015] dark:hover:bg-white/[0.02]">
+      <span className="text-[12.5px] font-mono tabular-nums text-slate-500 dark:text-zinc-400 lg:pt-1.5">{hora(log.created_at || log.criado_em)}</span>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setMostrarFiltroAvancado(!mostrarFiltroAvancado)}
-            className="px-4 py-2 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-rm-cartao-escuro hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-slate-700 dark:text-zinc-300 transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-          >
-            <CalendarIcon className="w-3.5 h-3.5 text-rm-acento dark:text-rm-acento-escuro" />
-            <span>{mostrarFiltroAvancado ? 'Ocultar Filtro Avançado' : 'Filtro por Período'}</span>
-          </button>
-
-          <button
-            onClick={carregarLogs}
-            disabled={loading}
-            className="px-4 py-2 rounded-full bg-[#09090b] dark:bg-white text-white dark:text-black text-xs font-semibold shadow-xs hover:opacity-90 transition-all flex items-center gap-1.5 cursor-pointer"
-          >
-            <RefreshIcon className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>{loading ? 'Atualizando...' : 'Atualizar Rastro'}</span>
-          </button>
+      <div className="flex items-center gap-2.5 min-w-0">
+        <span className="w-8 h-8 rounded-full bg-black/[0.06] dark:bg-white/[0.1] text-[11px] font-semibold flex items-center justify-center flex-shrink-0 text-slate-700 dark:text-zinc-200">{iniciais(v.nome, v.email)}</span>
+        <div className="min-w-0">
+          <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-white truncate">{v.nome && v.nome !== v.email ? v.nome : v.email.split('@')[0] || 'Sistema'}</p>
+          <p className="text-[11.5px] text-slate-500 dark:text-zinc-400 truncate">{v.email || '—'}</p>
         </div>
       </div>
 
-      {/* ============================================================================== */}
-      {/* LINHA DO TEMPO LÚDICA COM DIAS PASSADOS, HOJE E DIAS FUTUROS SEMI-TRANSPARENTES */}
-      {/* ============================================================================== */}
-      <div className="rounded-3xl p-4 sm:p-5 border border-black/8 dark:border-white/10 bg-white/80 dark:bg-rm-cartao-escuro/85 backdrop-blur-xl shadow-sm space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
-            Linha do Tempo de Atividades
-          </span>
-          {diaSelecionado && (
-            <button
-              onClick={() => {
-                setDiaSelecionado(null);
-                setPage(1);
-              }}
-              className="text-xs font-bold text-rm-acento dark:text-rm-acento-escuro hover:underline"
-            >
-              Ver Todos os Dias
+      <div className="flex flex-wrap items-center gap-1.5 lg:pt-1">
+        <span className={`px-2 py-0.5 rounded-full text-[11.5px] font-semibold ${TONS[v.tom] || TONS.neutro}`}>{v.acao}</span>
+        <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-black/[0.035] dark:bg-white/[0.06] text-slate-600 dark:text-zinc-400">{v.modulo}</span>
+      </div>
+
+      <div className="min-w-0 lg:pt-1">
+        {v.empresa && <p className="text-[13px] font-medium text-[#1d1d1f] dark:text-zinc-100 truncate">{v.empresa}</p>}
+        <p className={`text-[12.5px] leading-snug break-words ${v.descricao ? 'text-slate-600 dark:text-zinc-300' : 'text-slate-400 dark:text-zinc-500'}`}>{v.descricao || (v.empresa ? '' : 'Sem descrição')}</p>
+      </div>
+
+      <div className="min-w-0 lg:text-right lg:pt-1">
+        <p className="text-[12.5px] font-mono tabular-nums text-[#1d1d1f] dark:text-zinc-200 truncate" title={log.detalhes?.ip_cadeia ? `Caminho: ${log.detalhes.ip_cadeia}` : undefined}>
+          <span className="lg:hidden text-slate-400 font-sans">IP </span>
+          {v.ip || 'não registrado'}
+        </p>
+        {v.navegador && <p className="text-[11.5px] text-slate-500 dark:text-zinc-400 truncate">{v.navegador}</p>}
+      </div>
+    </div>
+  );
+}
+
+export default function AuditLogsView() {
+  const [dia, setDia] = useState(hojeIso);
+  const [busca, setBusca] = useState('');
+  const [buscaAplicada, setBuscaAplicada] = useState('');
+  const [pagina, setPagina] = useState(1);
+  const [porPagina, setPorPagina] = useState(20);
+  const [dados, setDados] = useState({ registros: [], total: 0 });
+  const [contagens, setContagens] = useState({});
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState('');
+
+  // Busca no servidor depois que a pessoa para de digitar
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setBuscaAplicada(busca.trim());
+      setPagina(1);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [busca]);
+
+  const carregar = useCallback(async () => {
+    setCarregando(true);
+    setErro('');
+    try {
+      const [r, resumo] = await Promise.all([fetchAuditoria({ dia, busca: buscaAplicada, pagina, porPagina }), fetchResumoAuditoria({ ate: hojeIso(), dias: DIAS_NA_FITA }).catch(() => ({ dias: {} }))]);
+      setDados({ registros: r.registros || [], total: r.total || 0 });
+      setContagens(resumo.dias || {});
+    } catch (e) {
+      setErro(e.message);
+      setDados({ registros: [], total: 0 });
+    } finally {
+      setCarregando(false);
+    }
+  }, [dia, buscaAplicada, pagina, porPagina]);
+
+  useEffect(() => {
+    carregar();
+  }, [carregar]);
+
+  const fita = useMemo(() => {
+    const hoje = hojeIso();
+    return Array.from({ length: DIAS_NA_FITA }, (_, i) => {
+      const iso = somarDias(hoje, i - (DIAS_NA_FITA - 1));
+      const d = new Date(`${iso}T12:00:00`);
+      return { iso, num: d.getDate(), semana: SEMANA[d.getDay()], mes: MESES[d.getMonth()], hoje: iso === hoje };
+    });
+  }, []);
+
+  const totalPaginas = Math.max(1, Math.ceil(dados.total / porPagina));
+  const escolherDia = (iso) => {
+    setDia(iso);
+    setPagina(1);
+  };
+
+  return (
+    <div className="space-y-5 text-[#0a0a0c] dark:text-white">
+      {/* Dias */}
+      <div className="rounded-3xl p-4 sm:p-5 border border-black/[0.08] dark:border-white/10 bg-white dark:bg-rm-cartao-escuro shadow-sm">
+        <div className="flex flex-wrap items-center gap-3 justify-between">
+          <div>
+            <h2 className="text-[15px] font-semibold">Auditoria</h2>
+            <p className="text-[12.5px] text-slate-500 dark:text-zinc-400">O que cada pessoa fez no sistema, com e-mail, IP e navegador de onde veio a ação.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="h-9 pl-3 pr-2 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-rm-campo-escuro text-[12.5px] font-medium text-slate-600 dark:text-zinc-300 flex items-center gap-2 cursor-pointer">
+              Outro dia
+              <input type="date" value={dia} max={hojeIso()} onChange={(e) => e.target.value && escolherDia(e.target.value)} className="bg-transparent outline-none text-[12.5px] text-[#1d1d1f] dark:text-white" />
+            </label>
+            <button type="button" onClick={carregar} disabled={carregando} aria-label="Atualizar" title="Atualizar" className="w-9 h-9 rounded-full bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] flex items-center justify-center cursor-pointer disabled:opacity-60">
+              <RefreshIcon className={`w-4 h-4 ${carregando ? 'animate-spin' : ''}`} />
             </button>
-          )}
+          </div>
         </div>
 
-        {/* Fita de Dias em Carrossel Horizontal */}
-        <div className="flex items-center gap-2.5 overflow-x-auto pb-1 pt-1">
-          {diasLinhaDoTempo.map((d) => {
-            const isSelected = diaSelecionado === d.iso;
-
-            if (d.isFuturo) {
-              return (
-                <div
-                  key={d.iso}
-                  className="flex flex-col items-center justify-center p-3 rounded-2xl border border-black/5 dark:border-white/[0.09] bg-black/[0.01] dark:bg-white/[0.01] opacity-30 cursor-not-allowed select-none min-w-[72px]"
-                  title="Data futura ainda não ocorrida"
-                >
-                  <span className="text-[10px] font-semibold text-slate-400">{d.diaSemana}</span>
-                  <span className="text-lg font-bold font-mono text-slate-400">{d.diaNum}</span>
-                  <span className="text-[9px] uppercase text-slate-400">{d.mes}</span>
-                </div>
-              );
-            }
-
+        <div className="mt-4 flex items-stretch gap-2 overflow-x-auto pb-1 pt-2">
+          {fita.map((d) => {
+            const ativo = d.iso === dia;
+            const qtd = contagens[d.iso];
             return (
               <motion.button
                 key={d.iso}
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => {
-                  setDiaSelecionado(isSelected ? null : d.iso);
-                  setPage(1);
-                }}
-                className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all cursor-pointer min-w-[72px] relative ${
-                  isSelected
-                    ? 'border-black dark:border-white bg-black text-white dark:bg-white dark:text-black shadow-md'
-                    : d.isHoje
-                    ? 'border-rm-acento dark:border-rm-acento-escuro bg-rm-acento/10 dark:bg-rm-acento-escuro/10 text-[#0a0a0c] dark:text-white'
-                    : 'border-black/8 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.03] text-slate-700 dark:text-zinc-300 hover:border-black/20 dark:hover:border-white/20'
+                type="button"
+                whileTap={{ scale: 0.96 }}
+                onClick={() => escolherDia(d.iso)}
+                className={`relative min-w-[70px] px-3 py-2.5 rounded-2xl border flex flex-col items-center cursor-pointer transition-colors ${
+                  ativo ? 'bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] border-transparent shadow-md' : 'border-black/[0.08] dark:border-white/10 bg-black/[0.015] dark:bg-white/[0.03] hover:border-black/20 dark:hover:border-white/25'
                 }`}
               >
-                {d.isHoje && (
-                  <span className={`absolute -top-2 px-1.5 py-0.2 rounded-full text-[8px] font-bold uppercase ${
-                    isSelected ? 'bg-white text-black' : 'bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-black'
-                  }`}>
-                    Hoje
-                  </span>
-                )}
-                <span className="text-[10px] font-semibold opacity-80">{d.diaSemana}</span>
-                <span className="text-lg font-bold font-mono tabular-nums leading-tight">{d.diaNum}</span>
-                <span className="text-[9px] uppercase opacity-75">{d.mes}</span>
+                {d.hoje && <span className={`absolute -top-2 px-1.5 rounded-full text-[9px] font-bold uppercase ${ativo ? 'bg-rm-acento-medio text-white' : 'bg-rm-acento-medio text-white'}`}>Hoje</span>}
+                <span className="text-[10.5px] font-semibold opacity-70">{d.semana}</span>
+                <span className="text-[19px] font-bold tabular-nums leading-tight">{d.num}</span>
+                <span className="text-[10px] uppercase opacity-60">{d.mes}</span>
+                <span className={`mt-1 text-[10.5px] font-semibold tabular-nums ${ativo ? 'opacity-80' : qtd ? 'text-rm-acento dark:text-rm-acento-vivo' : 'opacity-40'}`}>{qtd === undefined ? '·' : `${qtd} ${qtd === 1 ? 'ação' : 'ações'}`}</span>
               </motion.button>
             );
           })}
         </div>
       </div>
 
-      {/* Painel de Filtro Avançado de Datas Anteriores */}
-      <AnimatePresence>
-        {mostrarFiltroAvancado && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white/90 dark:bg-rm-cartao-escuro/90 backdrop-blur-xl shadow-sm space-y-3"
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Filtro de Data Retroativa (Histórico Distante)
-              </h3>
-              <button
-                onClick={() => {
-                  setDataInicioAvancada('');
-                  setDataFimAvancada('');
-                  setPage(1);
-                }}
-                className="text-xs text-rm-acento dark:text-rm-acento-escuro font-semibold hover:underline"
-              >
-                Limpar Intervalo
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-slate-600 dark:text-zinc-400 pl-1">Data De:</label>
-                <input
-                  type="date"
-                  value={dataInicioAvancada}
-                  onChange={(e) => {
-                    setDataInicioAvancada(e.target.value);
-                    setDiaSelecionado(null);
-                    setPage(1);
-                  }}
-                  className="w-full px-3.5 py-2 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/10 dark:border-white/15 text-xs text-black dark:text-white"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-slate-600 dark:text-zinc-400 pl-1">Data Até:</label>
-                <input
-                  type="date"
-                  value={dataFimAvancada}
-                  onChange={(e) => {
-                    setDataFimAvancada(e.target.value);
-                    setDiaSelecionado(null);
-                    setPage(1);
-                  }}
-                  className="w-full px-3.5 py-2 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/10 dark:border-white/15 text-xs text-black dark:text-white"
-                />
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Barra de Busca Rápida */}
-      <div className="rounded-2xl p-3 border border-black/8 dark:border-white/10 bg-white/80 dark:bg-rm-cartao-escuro/80 backdrop-blur-xl flex items-center gap-3 shadow-xs">
-        <input
-          type="text"
-          value={filtroTexto}
-          onChange={(e) => {
-            setFiltroTexto(e.target.value);
-            setPage(1);
-          }}
-          placeholder="Buscar no rastro por operador, e-mail, IP ou empresa..."
-          className="w-full px-3.5 py-2 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/8 dark:border-white/10 text-xs focus:outline-none text-[#0a0a0c] dark:text-white placeholder-slate-400 font-medium"
-        />
-        {filtroTexto && (
-          <button onClick={() => setFiltroTexto('')} className="text-xs text-slate-400 hover:text-black dark:hover:text-white whitespace-nowrap font-semibold">
-            Limpar
-          </button>
-        )}
-      </div>
-
-      {/* Tabela de Eventos Detalhados com Paginação */}
-      <div className="rounded-3xl border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro overflow-hidden shadow-sm">
-        <div className="p-5 border-b border-black/6 dark:border-white/[0.11] flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-zinc-300">
-          <span>Rastro de Atividades ({logsFiltrados.length})</span>
-          <span className="text-[10px] text-slate-400 font-mono">Imutável • Protegido por RLS</span>
+      {/* Lista do dia */}
+      <div className="rounded-3xl border border-black/[0.08] dark:border-white/10 bg-white dark:bg-rm-cartao-escuro overflow-hidden shadow-sm">
+        <div className="p-4 sm:p-5 border-b border-black/[0.06] dark:border-white/[0.1] flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="min-w-0">
+            <p className="text-[14px] font-semibold first-letter:uppercase">{diaPorExtenso(dia)}</p>
+            <p className="text-[12px] text-slate-500 dark:text-zinc-400">
+              {dados.total} {dados.total === 1 ? 'registro' : 'registros'}
+              {buscaAplicada && ` para “${buscaAplicada}”`}
+            </p>
+          </div>
+          <input
+            type="search"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar por pessoa, e-mail, empresa, módulo, ação ou IP"
+            className="sm:ml-auto w-full sm:w-[360px] h-10 px-4 rounded-full bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.08] dark:border-white/10 text-[13px] outline-none focus:border-rm-acento-medio"
+          />
         </div>
 
-        <div className="divide-y divide-black/5 dark:divide-white/[0.09]">
-          {loading && logs.length === 0 ? (
+        <div className="hidden lg:grid grid-cols-[76px_minmax(190px,1.1fr)_minmax(170px,1fr)_minmax(200px,1.6fr)_170px] gap-x-4 px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500 border-b border-black/[0.05] dark:border-white/[0.08]">
+          <span>Hora</span>
+          <span>Operador</span>
+          <span>Ação e módulo</span>
+          <span>Empresa e descrição</span>
+          <span className="text-right">IP e navegador</span>
+        </div>
+
+        <div className="divide-y divide-black/[0.05] dark:divide-white/[0.08]">
+          {carregando && !dados.registros.length ? (
             <ListSkeleton linhas={6} className="p-5" />
-          ) : logsPaginados.length === 0 ? (
-            <div className="p-12 text-center text-xs text-slate-400">
-              Nenhum evento localizado para o filtro aplicado.
-            </div>
+          ) : erro ? (
+            <p className="p-10 text-center text-[13px] text-rose-600 dark:text-rose-400">{erro}</p>
+          ) : !dados.registros.length ? (
+            <p className="p-12 text-center text-[13px] text-slate-400">{buscaAplicada ? 'Nada encontrado com essa busca neste dia.' : 'Nenhuma ação registrada neste dia.'}</p>
           ) : (
-            logsPaginados.map((log) => {
-              const infoAcao = formatarAcao(log);
-              const dataFormatada = formatarDataHora(log.created_at || log.criado_em);
-
-              return (
-                <div key={log.id} className="p-4 sm:p-5 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors space-y-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full ${infoAcao.badge}`}>
-                        {infoAcao.titulo}
-                      </span>
-
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-slate-700 dark:text-zinc-300">
-                        Módulo: {infoAcao.modulo}
-                      </span>
-
-                      {log.empresa_nome && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
-                          Empresa: {log.empresa_nome}
-                        </span>
-                      )}
-                    </div>
-
-                    <span className="text-[11px] text-slate-400 font-mono self-start sm:self-auto tabular-nums">
-                      {dataFormatada}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-[#0a0a0c] dark:text-zinc-100 font-medium leading-relaxed">
-                    {infoAcao.descricao}
-                  </p>
-
-                  <div className="flex items-center gap-4 text-[11px] text-slate-500 dark:text-zinc-400 font-mono pt-1 flex-wrap">
-                    <span>
-                      Operador: <strong className="text-slate-800 dark:text-zinc-200">{log.usuario_nome || log.operador_nome || 'Administrador'}</strong> ({log.usuario_email})
-                    </span>
-                    <span>•</span>
-                    <span>
-                      IP Origem: <strong className="text-slate-700 dark:text-zinc-300">{log.ip_origem || '192.168.1.1 (Rede)'}</strong>
-                    </span>
-                  </div>
-                </div>
-              );
-            })
+            dados.registros.map((log) => <Linha key={log.id} log={log} />)
           )}
         </div>
 
-        {/* Controles de Paginação */}
-        <div className="p-4 border-t border-black/6 dark:border-white/[0.11] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500">
-          <div className="flex items-center gap-2">
-            <span>Itens por página:</span>
-            {[10, 20, 50].map((tam) => (
+        <div className="p-4 border-t border-black/[0.06] dark:border-white/[0.1] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[12.5px] text-slate-500">
+          <div className="flex items-center gap-1.5">
+            <span>Por página:</span>
+            {[20, 50, 100].map((n) => (
               <button
-                key={tam}
+                key={n}
+                type="button"
                 onClick={() => {
-                  setPageSize(tam);
-                  setPage(1);
+                  setPorPagina(n);
+                  setPagina(1);
                 }}
-                className={`px-2.5 py-0.5 rounded-full font-semibold transition-all ${
-                  pageSize === tam
-                    ? 'bg-black text-white dark:bg-white dark:text-black'
-                    : 'bg-black/5 dark:bg-white/10 text-slate-600 dark:text-zinc-400 hover:bg-black/10'
-                }`}
+                className={`px-2.5 py-0.5 rounded-full font-semibold cursor-pointer ${porPagina === n ? 'bg-[#1d1d1f] text-white dark:bg-white dark:text-black' : 'bg-black/[0.05] dark:bg-white/10 hover:bg-black/10'}`}
               >
-                {tam}
+                {n}
               </button>
             ))}
           </div>
-
-          <div className="flex items-center gap-3 self-end sm:self-auto">
-            <span className="font-mono tabular-nums">
-              Página {page} de {totalPages} ({logsFiltrados.length} registros)
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <span className="tabular-nums">
+              Página {pagina} de {totalPaginas}
             </span>
-
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="px-3 py-1 rounded-full border border-black/10 dark:border-white/15 disabled:opacity-30 hover:bg-black/5"
-              >
-                Anterior
-              </button>
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="px-3 py-1 rounded-full border border-black/10 dark:border-white/15 disabled:opacity-30 hover:bg-black/5"
-              >
-                Próxima
-              </button>
-            </div>
+            <button type="button" onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={pagina === 1} className="px-3 py-1 rounded-full border border-black/10 dark:border-white/15 disabled:opacity-30 cursor-pointer">
+              Anterior
+            </button>
+            <button type="button" onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))} disabled={pagina >= totalPaginas} className="px-3 py-1 rounded-full border border-black/10 dark:border-white/15 disabled:opacity-30 cursor-pointer">
+              Próxima
+            </button>
           </div>
         </div>
-
       </div>
-
     </div>
   );
 }

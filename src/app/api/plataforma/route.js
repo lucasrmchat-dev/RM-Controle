@@ -2,7 +2,7 @@ import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
 import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
 import { garantirContaAuth, removerContaAuth } from '@/lib/server/acesso';
 import { consumirLimite, ipDaRequisicao } from '@/lib/server/protecao';
-import { escopo, limparMemoriaOrganizacao, mensagemLimite, organizacaoAtual, perfilDeGestao, podeGerir, ORG_PLATAFORMA } from '@/lib/server/organizacao';
+import { escopo, limparMemoriaOrganizacao, mensagemLimite, organizacaoAtual, perfilDeGestao, podeGerir, ORG_PLATAFORMA, redeDaRequisicao } from '@/lib/server/organizacao';
 import { listaAdministradores, normalizarEmail } from '@/lib/roles';
 import { isValidUUID, sanitizeEmail, SENHA_MAX } from '@/lib/sanitize';
 import { validarContrato, validarLimites, validarOrganizacao } from '@/lib/plataforma';
@@ -38,7 +38,7 @@ async function contexto(request) {
 
 // Registro na auditoria da empresa afetada: a assinante vê quem da plataforma mexeu nela (LGPD)
 async function auditar(db, orgId, email, acao, detalhes, request) {
-  await escopo(db, orgId)
+  await escopo(db, orgId, redeDaRequisicao(request))
     .from('auditoria_logs')
     .insert([{ usuario_email: email, usuario_nome: email, operador_nome: email, ip_origem: ipDaRequisicao(request), acao, detalhes: { modulo: 'Plataforma', ...detalhes } }])
     .then(() => {}, () => {});

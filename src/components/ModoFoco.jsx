@@ -262,10 +262,11 @@ export default function ModoFoco({ chamados, ctx, acoes, tempos, eMinha, onSair 
   const concluindo = useRef(null);
   const [festa, setFesta] = useState({ chave: 0, frase: '', sequencia: 0 });
   useEffect(() => {
-    const id = concluindo.current;
-    if (!id) return;
+    // concluindo: { id, de } (status quando o formulário abriu); sem mudança = ainda decidindo ou cancelou
+    if (!concluindo.current) return;
+    const { id, de } = concluindo.current;
     const ainda = disponiveis.find((c) => String(c.id) === id);
-    if (ainda && ainda.status !== 'pendente') return;
+    if (ainda && ainda.status === de) return;
     concluindo.current = null;
     if (!ainda) {
       setSessao((s) => {
@@ -292,11 +293,13 @@ export default function ModoFoco({ chamados, ctx, acoes, tempos, eMinha, onSair 
   const [ocupado, setOcupado] = useState(false);
   const [direcao, setDirecao] = useState(1);
   const ir = useCallback((passo) => {
+    concluindo.current = null;
     setDirecao(passo);
     setSessao((s) => (s.ordem.length ? { ...s, pos: (s.pos + passo + s.ordem.length) % s.ordem.length } : s));
   }, []);
   const paraOFinal = useCallback(() => {
     if (!atualId) return;
+    concluindo.current = null;
     setDirecao(1);
     setSessao((s) => {
       const ordem = [...s.ordem.filter((x) => x !== atualId), atualId];
@@ -312,7 +315,7 @@ export default function ModoFoco({ chamados, ctx, acoes, tempos, eMinha, onSair 
   const principal = useCallback(async () => {
     if (!atual || ocupado) return;
     if (info.estado === 'atendimento') {
-      concluindo.current = String(atual.id);
+      concluindo.current = { id: String(atual.id), de: atual.status };
       acoes.concluir(atual);
       return;
     }
@@ -463,6 +466,18 @@ export default function ModoFoco({ chamados, ctx, acoes, tempos, eMinha, onSair 
                   {!info.interna && (
                     <button type="button" onClick={() => acoes.abrirEmpresa(atual)} className={`h-14 px-6 rounded-full ${BOTAO_SUAVE} text-[15px] font-medium cursor-pointer`}>
                       Ir para a empresa <Tecla>E</Tecla>
+                    </button>
+                  )}
+                  {info.estado === 'cliente' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        concluindo.current = { id: String(atual.id), de: atual.status };
+                        acoes.concluir(atual);
+                      }}
+                      className={`h-14 px-6 rounded-full ${BOTAO_SUAVE} text-[15px] font-medium cursor-pointer`}
+                    >
+                      Encerrar sem retorno
                     </button>
                   )}
                   <button type="button" onClick={paraOFinal} className="h-14 px-6 rounded-full text-black/60 hover:text-black dark:text-white/70 dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.06] text-[15px] font-medium cursor-pointer">

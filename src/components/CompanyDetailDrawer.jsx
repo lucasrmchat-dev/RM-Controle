@@ -514,7 +514,7 @@ export default function CompanyDetailDrawer({ empresa, onClose, onUpdated, userE
           {activeSubTab === 'credenciais' && (
             <div className="space-y-5">
               <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-rm-cartao-escuro/50 border border-slate-200 dark:border-zinc-800 text-xs text-slate-600 dark:text-zinc-400">
-                <span className="font-semibold text-slate-800 dark:text-zinc-200 block mb-0.5">Segurança & Auditoria LGPD</span>
+                <span className="font-semibold text-slate-800 dark:text-zinc-200 block mb-0.5">Segurança e auditoria</span>
                 O acesso a esta senha é restrito à equipe técnica de suporte. Cada visualização ou alteração é registrada no rastro de auditoria com seu e-mail e data/hora.
               </div>
 

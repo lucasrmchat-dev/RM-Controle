@@ -15,6 +15,50 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-10-28-auditoria-real',
+    data: '2026-10-28',
+    titulo: 'Auditoria de verdade: quem fez o quê, de onde e quando',
+    resumo: 'As ações da equipe (abrir, cancelar, concluir e transferir demandas, chat, canais, empresas, acessos…) agora chegam à Auditoria, com nome, e-mail, IP real e navegador.',
+    itens: [
+      'Os registros são feitos pelo servidor: o nome e o e-mail vêm do login da pessoa e o IP é o real da conexão no momento da ação, junto com o navegador e o sistema (ex.: Chrome 130 · macOS).',
+      'Cada linha mostra hora, operador (nome e e-mail), ação, módulo, empresa, descrição e IP.',
+      'Navegação por dia, com a quantidade de ações em cada um, e “Outro dia” para datas antigas.',
+      'Busca por pessoa, e-mail, empresa, módulo, ação ou IP.',
+      'Transferir uma demanda para outra pessoa passou a ficar registrado.',
+      'O nome da tela agora é só “Auditoria”.',
+    ],
+    modulo: 'Geral',
+    tickets: [],
+  },
+  {
+    id: '2026-10-28-encerrar-sem-retorno',
+    data: '2026-10-28',
+    titulo: 'Demandas: encerrar quando o cliente não volta',
+    resumo: 'Demandas em “Aguardando cliente” ganharam o botão Encerrar, para fechar mesmo sem resposta, sem ficar parada na fila para sempre.',
+    itens: [
+      'Em “Aguardando cliente”, ao lado de Retomar, há o botão Encerrar (também no Kanban e no Modo foco).',
+      'Ele abre a conclusão já com “Sem retorno” marcado: a demanda é encerrada e vai para o histórico como “Sem resposta do cliente”.',
+      'Categoria, solicitante e explicação ficam opcionais nesse caso, porque não houve como resolver.',
+      'Se o cliente tiver respondido, dá para escolher Resolvido ou Não resolvido no mesmo formulário.',
+      'Em atendimento, “Sem resposta” continua como antes: a demanda volta para “Aguardando cliente” com você.',
+    ],
+    modulo: 'Fila de Demandas',
+    tickets: [],
+  },
+  {
+    id: '2026-10-28-avisos-pausam-no-mouse',
+    data: '2026-10-28',
+    titulo: 'Avisos na tela esperam você terminar de ler',
+    resumo: 'Com o mouse em cima de um aviso, ele não some mais; ao tirar o mouse, ainda fica alguns segundos para dar tempo de clicar.',
+    itens: [
+      'Enquanto o mouse estiver sobre um aviso (do WhatsApp, demandas, agenda ou outro), o tempo para de contar.',
+      'Ao tirar o mouse, os avisos ficam mais 4 segundos antes de sumir.',
+      'Vale para todos os estilos: ilha, abaixo do sino, canto, faixa e lateral.',
+    ],
+    modulo: 'Geral',
+    tickets: [],
+  },
+  {
     id: '2026-10-28-modo-foco-total-parcial',
     data: '2026-10-28',
     titulo: 'Modo foco: tela cheia de verdade e três níveis de foco',

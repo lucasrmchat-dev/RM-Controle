@@ -446,7 +446,7 @@ function EntrarSuporteModal({ org, onFechar }) {
         <input autoFocus value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={300} className={classeCampo} placeholder="Ex.: cliente pediu ajuda para configurar a fila" />
       </label>
       <p className="mt-3 text-[12.5px] text-slate-500 dark:text-zinc-400 leading-relaxed">
-        A entrada, o motivo e a saída ficam na auditoria da própria empresa (LGPD). Para voltar, use “Sair do suporte” na barra que aparece embaixo.
+        A entrada, o motivo e a saída ficam na auditoria da própria empresa. Para voltar, use “Sair do suporte” na barra que aparece embaixo.
       </p>
     </ModalEtapas>
   );

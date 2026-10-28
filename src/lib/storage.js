@@ -4918,48 +4918,22 @@ export async function addCustomChecklistItem(empresaId, { titulo, observacao = '
 // ==============================================================================
 // AUDITORIA E LGPD COM IDENTIFICAÇÃO DETALHADA E IP
 // ==============================================================================
-export async function getAuditoriaLogs() {
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('auditoria_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(300);
-      if (!error && data && data.length > 0) {
-        return data.map((item) => ({
-          ...item,
-          criado_em: item.created_at || item.criado_em,
-          created_at: item.created_at || item.criado_em,
-          operador_nome: item.usuario_nome || item.operador_nome || 'Operador',
-        }));
-      }
-    } catch (err) {
-      console.warn('Falha ao consultar auditoria no Supabase:', err);
-    }
+/** Auditoria de um dia (no fuso do navegador), pelo servidor: só administradores. */
+export async function fetchAuditoria({ dia, busca = '', pagina = 1, porPagina = 20 }) {
+  const fuso = new Date(`${dia}T12:00:00`).getTimezoneOffset();
+  if (!isSupabaseConfigured) {
+    const locais = getLocalData('auditoria_logs', []).filter((l) => String(l.created_at || '').slice(0, 10) === dia);
+    return { registros: locais.slice((pagina - 1) * porPagina, pagina * porPagina), total: locais.length };
   }
+  const q = new URLSearchParams({ dia, fuso: String(fuso), busca, pagina: String(pagina), porPagina: String(porPagina) });
+  return chamarCanais(`/api/auditoria?${q}`, 'GET');
+}
 
-  const logsLocais = getLocalData('auditoria_logs', [
-    {
-      id: 'log_seed_1',
-      usuario_nome: 'Lucas Amorim (Administrador)',
-      operador_nome: 'Lucas Amorim (Administrador)',
-      usuario_email: 'admin@rmcontrole.com',
-      ip_origem: '192.168.15.2 (Rede Local)',
-      acao: 'sistema_iniciado',
-      empresa_nome: 'Sistema Geral',
-      detalhes: { modulo: 'Inicialização & Segurança' },
-      created_at: new Date().toISOString(),
-      criado_em: new Date().toISOString(),
-    },
-  ]);
-
-  return logsLocais.map((item) => ({
-    ...item,
-    criado_em: item.created_at || item.criado_em || new Date().toISOString(),
-    created_at: item.created_at || item.criado_em || new Date().toISOString(),
-    operador_nome: item.usuario_nome || item.operador_nome || 'Administrador',
-  }));
+/** Quantos registros houve em cada um dos `dias` dias até `ate` (para a linha do tempo). */
+export async function fetchResumoAuditoria({ ate, dias = 9 }) {
+  if (!isSupabaseConfigured) return { dias: {} };
+  const fuso = new Date(`${ate}T12:00:00`).getTimezoneOffset();
+  return chamarCanais(`/api/auditoria?${new URLSearchParams({ resumo: '1', ate, dias: String(dias), fuso: String(fuso) })}`, 'GET');
 }
 
 export async function logVisualizacaoSenha(empresaId, userEmail = 'admin@rmcontrole.com', detalhes = {}) {
@@ -6302,6 +6276,13 @@ export async function reatribuirChamadoSuporte(chamadoId, novoTecnicoEmail, novo
     if (typeof window !== 'undefined') window.dispatchEvent(new Event('suporte_updated'));
     throw new Error(`Não foi possível reatribuir no servidor: ${res.erro}`);
   }
+
+  logAuditoria({
+    empresaId: chamados[idx].empresa_id,
+    usuarioEmail: alteradoPor,
+    acao: 'reatribuiu_chamado',
+    detalhes: { chamado_id: chamadoId, empresa_nome: chamados[idx].empresa_nome, de: anteriorTecnico, para: tecnicoNomeFinal, modulo: 'Demandas' },
+  });
 
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('suporte_updated'));

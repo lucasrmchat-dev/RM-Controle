@@ -244,6 +244,17 @@ function AcaoPrincipal({ ch, info, acoes, assumindoId, rotuloLongo = false, chei
   }
   if (info.estado === 'cliente') {
     return (
+      <span className="inline-flex items-center gap-1.5">
+      {/* O cliente sumiu: encerra mesmo assim (abre a conclusão com "Sem retorno" já marcado) */}
+      <button
+        type="button"
+        onClick={parar(() => acoes.concluir(ch))}
+        title="O cliente não voltou: encerra a demanda como sem retorno"
+        className={`${btnBase} px-3 text-slate-600 dark:text-zinc-300 ring-1 ring-inset ring-black/12 dark:ring-white/15 hover:bg-black/[0.05] dark:hover:bg-white/[0.08]`}
+      >
+        <CheckIcon className="w-3.5 h-3.5 stroke-[2.5]" />
+        {rotuloLongo ? 'Encerrar sem retorno' : 'Encerrar'}
+      </button>
       <button
         type="button"
         disabled={Boolean(assumindoId)}
@@ -258,6 +269,7 @@ function AcaoPrincipal({ ch, info, acoes, assumindoId, rotuloLongo = false, chei
         <PlayIcon className="w-2.5 h-2.5 fill-current" />
         {rotuloLongo ? 'Cliente respondeu — retomar' : 'Retomar'}
       </button>
+      </span>
     );
   }
   if (info.estado === 'atendimento' && info.meu && !info.interna) {

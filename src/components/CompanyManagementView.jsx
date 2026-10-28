@@ -1414,7 +1414,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                     Acessos e Senhas Técnicas ({credenciaisList.length})
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                    Chaves de acesso criptografadas com auditoria de visualização LGPD.
+                    Chaves de acesso criptografadas, com registro de quem visualizou na auditoria.
                   </p>
                 </div>
 
