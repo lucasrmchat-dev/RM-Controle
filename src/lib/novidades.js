@@ -15,6 +15,38 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-10-29-chat-meet',
+    data: '2026-10-29',
+    titulo: 'Chat: reunião do Google Meet com um atalho',
+    resumo: 'Digite # na conversa, escolha “Criar reunião no Google Meet” e aperte Enter: a reunião entra na agenda da empresa e o link do Meet vai na hora para o cliente.',
+    itens: [
+      'Novo atalho # no campo de mensagem do Chat (ex.: #meet); aparece a opção de criar a reunião, e Enter já envia.',
+      'Duas opções: 30 minutos ou 1 hora, começando agora.',
+      'O texto escrito depois do comando vai junto, antes do link (ex.: “#meet Vamos conversar agora!”).',
+      'A reunião é criada no Google Agenda conectado da própria empresa, com o cliente, a empresa e você como responsável, e aparece na Agenda do RM Controle.',
+      'Se a empresa ainda não conectou o Google Agenda, o Chat avisa para conectar em Configurações › Agenda.',
+      'O envio fica registrado na auditoria e no histórico do contato.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
+    id: '2026-10-28-demanda-da-mensagem-chat',
+    data: '2026-10-28',
+    titulo: 'Chat: criar demanda a partir de uma mensagem',
+    resumo: 'No menu da mensagem (onde ficam copiar, apagar…) há “Criar demanda”: a mensagem vira o relato, a empresa e quem pediu já vêm preenchidos, e a demanda leva de volta à conversa.',
+    itens: [
+      'Novo item “Criar demanda” no menu de cada mensagem do Chat.',
+      'A mensagem vai direto para a descrição do problema (mídia aparece como “[Imagem enviada no WhatsApp]”, por exemplo).',
+      'A empresa é identificada pela empresa ligada ao contato; sem ligação, pelo nome do contato ou do grupo.',
+      'O autor da mensagem entra como quem pediu (no grupo, quem escreveu); se já é colaborador da empresa, usa o cadastro dele. Mensagem da equipe: o autor vira o responsável.',
+      'Na fila de Demandas (e no Modo foco), o botão “Ver no chat” abre a conversa e rola até a mensagem que originou a demanda, destacando-a.',
+      'Para guardar o vínculo, rode supabase/migration_demanda_chat.sql no Supabase.',
+    ],
+    modulo: 'Chat',
+    tickets: ['#24', '2f44afa1-0655-4d7f-a83d-38227c506b24'],
+  },
+  {
     id: '2026-10-28-comissao-comercial',
     data: '2026-10-28',
     titulo: 'Comercial: comissão e vendas, do jeito da planilha de controle',

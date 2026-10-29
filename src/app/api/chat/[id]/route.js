@@ -4,6 +4,7 @@ import { configDoChat, enviarTextoNaConversa } from '@/lib/server/canais/index';
 import { isValidUUID } from '@/lib/sanitize';
 import { auditarChat, bloqueioSemAssumir, carregarConversa, juntarDetalhes, listarMensagens, podeVerConversa, prepararMensagem, registrarSistema, registrarVisualizacao } from '@/lib/server/canais/chat';
 import { apagarArquivosDaConversa } from '@/lib/server/canais/midia';
+import { criarMeetDaConversa, textoDoMeet } from '@/lib/server/meetChat';
 import { apagarMensagem, editarMensagem, favoritarMensagem, fixarMensagem, reagirMensagem } from '@/lib/server/canais/acoes';
 
 export const dynamic = 'force-dynamic';
@@ -14,6 +15,7 @@ export const dynamic = 'force-dynamic';
  *  POST { acao: 'enviar', texto, assinar }      responde o cliente pelo WhatsApp (assume a conversa se estava na fila);
  *                                               assinar (padrão): o cliente recebe *Nome:* na primeira linha
  *  POST { acao: 'nota', texto }                 nota interna (o cliente não vê)
+ *  POST { acao: 'meet', complemento?, duracao?, assinar }  cria reunião do Google Meet na agenda da empresa e envia o link
  *  POST { acao: 'assumir' | 'resolver' | 'reabrir' | 'lida' }
  *  POST { acao: 'transferir', departamento?, responsavel_email? }
  *  POST { acao: 'reagir', mensagem_id, emoji }        emoji vazio tira a reação
@@ -82,7 +84,7 @@ async function processar(request, params, aviso) {
 
   try {
     // Responder, nota interna e reagir só depois de assumir a conversa
-    if (['enviar', 'nota', 'reagir'].includes(body.acao) && conversa.status !== 'resolvida') {
+    if (['enviar', 'nota', 'reagir', 'meet'].includes(body.acao) && conversa.status !== 'resolvida') {
       const bloqueio = await bloqueioSemAssumir(db, perm, conversa);
       if (bloqueio) return json({ ok: false, mensagem: bloqueio, precisa_assumir: true }, 409);
     }
@@ -100,6 +102,27 @@ async function processar(request, params, aviso) {
       });
       const [{ data }, { data: canal }] = await Promise.all([db.from('conversas').select('*').eq('id', conversa.id).single(), db.from('canais').select('*').eq('id', conversa.canal_id).maybeSingle()]);
       return json({ ok: true, mensagem: prepararMensagem(mensagem, perm, canal), conversa: (await juntarDetalhes(db, [data]))[0] });
+    }
+
+    // Atalho #meet: reunião agora, na agenda Google da empresa, e o link vai para o cliente
+    if (body.acao === 'meet') {
+      if (conversa.status === 'resolvida') return json({ ok: false, mensagem: 'Reabra a conversa para enviar a reunião.' }, 409);
+      if (!(await consumirLimite(`chat_meet_${perm.email}`, 10, 60))) return json({ ok: false, mensagem: 'Muitas reuniões seguidas. Aguarde um instante.' }, 429);
+      let meet;
+      try {
+        meet = await criarMeetDaConversa({ ctx, perm, conversa, duracao: body.duracao });
+      } catch (e) {
+        return json({ ok: false, mensagem: e.message }, 400);
+      }
+      const mensagem = await enviarTextoNaConversa(db, {
+        conversa,
+        texto: textoDoMeet({ link: meet.link, complemento: String(body.complemento || '').slice(0, 1000), titulo: meet.titulo }),
+        autor,
+        assinar: body.assinar !== false || (await configDoChat(db)).assinaturaObrigatoria,
+      });
+      await auditarChat(db, perm, 'chat_enviou_meet', conversa, { evento_id: meet.evento.id });
+      const [{ data }, { data: canal }] = await Promise.all([db.from('conversas').select('*').eq('id', conversa.id).single(), db.from('canais').select('*').eq('id', conversa.canal_id).maybeSingle()]);
+      return json({ ok: true, mensagem: prepararMensagem(mensagem, perm, canal), conversa: (await juntarDetalhes(db, [data]))[0], evento: meet.evento, link: meet.link });
     }
 
     if (body.acao === 'nota') {

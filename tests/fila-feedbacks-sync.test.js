@@ -38,6 +38,28 @@ test('demanda nova aparece na fila e chega à nuvem', async () => {
   assert.equal(fila[0].id, criado.id);
 });
 
+test('ticket #24: demanda aberta de uma mensagem do Chat guarda a conversa e a mensagem (local, nuvem e outro navegador)', async () => {
+  const conversa = '11111111-1111-4111-8111-111111111111';
+  const mensagem = '22222222-2222-4222-8222-222222222222';
+  const criado = await adicionarChamadoFila({
+    empresa_nome: 'Empresa A',
+    solicitante_nome: 'Carla',
+    observacao_inicial: 'Relato do cliente: o número parou de receber mensagens',
+    userEmail: USER,
+    chat: { conversa_id: conversa, mensagem_id: mensagem, mensagem_em: '2026-10-28T12:00:00.000Z' },
+  });
+  assert.equal(criado.chat_conversa_id, conversa);
+  assert.equal(db.tables.suporte_chamados[0].chat_conversa_id, conversa, 'vai para a nuvem');
+  assert.equal(db.tables.suporte_chamados[0].chat_mensagem_id, mensagem);
+  trocarDeNavegador();
+  const fila = await fetchChamadosFila();
+  assert.equal(fila[0].chat_conversa_id, conversa, 'outro colaborador recebe o atalho para a conversa');
+  assert.equal(fila[0].chat_mensagem_id, mensagem);
+  // Sem vínculo: campos não aparecem
+  const comum = await adicionarChamadoFila({ empresa_nome: 'Empresa B', userEmail: USER });
+  assert.equal(comum.chat_conversa_id, undefined);
+});
+
 test('várias demandas da mesma empresa, sem solicitante/observação, aparecem todas', async () => {
   await adicionarChamadoFila({ empresa_nome: 'Empresa A', userEmail: USER });
   await adicionarChamadoFila({ empresa_nome: 'Empresa A', userEmail: USER });

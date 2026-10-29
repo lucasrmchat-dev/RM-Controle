@@ -65,6 +65,7 @@ export const ACOES_AUDITORIA = {
   chat_editou_mensagem: A('Editou mensagem', 'Chat', 'ambar'),
   chat_excluiu: A('Excluiu conversa', 'Chat', 'vermelho'),
   chat_mesclou: A('Juntou conversas', 'Chat'),
+  chat_enviou_meet: A('Enviou reunião do Meet', 'Chat', 'azul'),
   // Canais
   canal_criou: A('Criou canal', 'Canais', 'verde'),
   canal_editou: A('Editou canal', 'Canais'),

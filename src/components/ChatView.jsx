@@ -594,7 +594,13 @@ const lerAssinar = () => {
 
 const semAcento = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
-function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEnviarArquivo, onGerenciarRespostas, bloqueio, resposta, onCancelarResposta, edicao, onCancelarEdicao, nomeContato, participantes = [], pessoasDaEquipe = [], assinaturaObrigatoria = false }) {
+/** Comandos do campo de mensagem (digite # e escolha; Enter executa). */
+const COMANDOS_CHAT = [
+  { id: 'meet', duracao: 30, palavras: ['meet', 'reuniao', 'videochamada', 'chamada', 'call'], titulo: 'Criar reunião no Google Meet', descricao: 'Agora, 30 min, na agenda da empresa. O link vai para o cliente nesta conversa.' },
+  { id: 'meet', duracao: 60, palavras: ['meet', 'reuniao', 'videochamada', 'chamada', 'call'], titulo: 'Reunião no Google Meet · 1 hora', descricao: 'Igual, com uma hora reservada na agenda.' },
+];
+
+function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEnviarArquivo, onGerenciarRespostas, onComando, bloqueio, resposta, onCancelarResposta, edicao, onCancelarEdicao, nomeContato, participantes = [], pessoasDaEquipe = [], assinaturaObrigatoria = false }) {
   const [texto, setTexto] = useState('');
   // Menções escolhidas na lista do @ (no grupo, viram menção de verdade no WhatsApp)
   const [mencoes, setMencoes] = useState([]);
@@ -666,7 +672,29 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
           ...fonteMencao.filter((p) => !termoMencao || semAcento(p.nome).includes(semAcento(termoMencao)) || String(p.telefone || '').includes(termoMencao.replace(/\D/g, '') || '§')),
         ].slice(0, 9)
       : [];
-  const listaAberta = sugestoes.length ? sugestoes : sugestoesMencao;
+  // # : comandos (ex.: #meet cria a reunião do Google Meet na agenda da empresa e envia o link)
+  const comandoDigitado = !nota && onComando ? /^#(\S*)(?:\s+([\s\S]*))?$/.exec(texto.trimStart()) : null;
+  const termoComando = comandoDigitado ? semAcento(comandoDigitado[1]) : null;
+  const comandos =
+    comandoDigitado && !sugestoes.length
+      ? COMANDOS_CHAT.filter((c) => !termoComando || c.palavras.some((p) => p.startsWith(termoComando) || termoComando.startsWith(p)))
+      : [];
+  const executarComando = async (c) => {
+    const complemento = (comandoDigitado?.[2] || '').trim();
+    const anterior = texto;
+    setTexto('');
+    setIndice(0);
+    setEnviando(true);
+    try {
+      await onComando({ id: c.id, duracao: c.duracao, complemento, assinar });
+    } catch {
+      setTexto(anterior);
+    } finally {
+      setEnviando(false);
+      requestAnimationFrame(() => campo.current?.focus());
+    }
+  };
+  const listaAberta = sugestoes.length ? sugestoes : comandos.length ? comandos : sugestoesMencao;
   const mencionar = (p) => {
     const inicio = antesDoCursor.lastIndexOf('@');
     const nome = p.nome;
@@ -725,6 +753,7 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
         e.preventDefault();
         const item = listaAberta[Math.min(indice, listaAberta.length - 1)];
         if (sugestoes.length) usar(item);
+        else if (comandos.length) executarComando(item);
         else mencionar(item);
         return;
       }
@@ -821,6 +850,29 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
                 </button>
               </li>
             ))}
+          </motion.ul>
+        )}
+        {comandos.length > 0 && (
+          <motion.ul initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute left-2.5 right-2.5 sm:left-4 sm:right-auto sm:w-[380px] bottom-[calc(100%-4px)] z-20 rounded-2xl bg-white dark:bg-rm-elevado-escuro ring-1 ring-black/[0.08] dark:ring-white/[0.08] shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.3)] p-1.5" role="listbox" aria-label="Comandos">
+            <li className="px-3 pt-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Comandos · Enter para usar</li>
+            {comandos.map((c, i) => (
+              <li key={`${c.id}-${c.duracao}`} role="option" aria-selected={i === indice}>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => executarComando(c)} onMouseEnter={() => setIndice(i)} className={`w-full flex items-center gap-3 text-left px-2.5 py-2 rounded-xl cursor-pointer ${i === indice ? 'bg-black/[0.05] dark:bg-white/[0.07]' : ''}`}>
+                  <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-[#00897b]/12 text-[#00897b]">
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <rect x="3" y="6" width="12.5" height="12" rx="2.5" />
+                      <path d="M15.5 10.5l5-3v9l-5-3" />
+                    </svg>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[14px] font-semibold">{c.titulo}</span>
+                    <span className="block text-[12px] text-slate-500 dark:text-[#8696a0] leading-snug">{c.descricao}</span>
+                  </span>
+                  <span className="font-mono text-[12px] text-slate-400 flex-shrink-0">#{c.palavras[0]}</span>
+                </button>
+              </li>
+            ))}
+            {(comandoDigitado?.[2] || '').trim() && <li className="px-3 pt-1.5 pb-1 text-[12px] text-slate-500 dark:text-[#8696a0]">O texto depois do comando vai junto, antes do link.</li>}
           </motion.ul>
         )}
         {sugestoes.length > 0 && (
@@ -970,7 +1022,7 @@ function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEn
           onPaste={colar}
           rows={1}
           maxLength={4096}
-          placeholder={nota ? 'Nota para a equipe (o cliente não vê)' : 'Mensagem (/ para atalhos)'}
+          placeholder={nota ? 'Nota para a equipe (o cliente não vê)' : 'Mensagem (/ atalhos · # comandos)'}
           aria-label={nota ? 'Nota interna' : 'Mensagem'}
           className={`flex-1 min-h-[42px] max-h-[160px] resize-none rounded-[21px] px-4 py-[10px] text-[15px] leading-[1.4] outline-none placeholder:text-slate-400 dark:placeholder:text-[#8696a0] text-[#111b21] dark:text-[#e9edef] ${
             nota ? 'bg-white dark:bg-[#3a3320] ring-1 ring-amber-300/70 dark:ring-amber-400/25' : 'bg-white dark:bg-rm-campo-escuro'
@@ -1397,6 +1449,25 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
     });
   };
 
+  // ---- Comandos do campo (#meet): reunião do Google Meet na agenda da empresa, link enviado na conversa ----
+  const executarComandoChat = async ({ id, duracao, complemento, assinar }) => {
+    if (id !== 'meet') return;
+    showToast('Criando a reunião no Google Agenda…', 'info');
+    try {
+      const r = await acaoConversa(conversaId, { acao: 'meet', duracao, complemento, assinar });
+      if (r.mensagem) setMensagens((l) => juntar(l, [r.mensagem]));
+      if (r.conversa) {
+        setConversa(r.conversa);
+        onAtualizada?.(r.conversa);
+      }
+      window.dispatchEvent(new Event('agenda_eventos_updated'));
+      showToast('Reunião criada na agenda e link do Meet enviado.', 'success');
+    } catch (e) {
+      showToast(e.message, 'error');
+      throw e;
+    }
+  };
+
   // ---- Criar demanda a partir da mensagem (ticket #24) ----
   const [demandaDaMensagem, setDemandaDaMensagem] = useState(null);
   const [listasDemanda, setListasDemanda] = useState(null);
@@ -1775,6 +1846,7 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
         onEscolherArquivo={escolherArquivo}
         onEnviarArquivo={enviarArquivo}
         onGerenciarRespostas={onGerenciarRespostas}
+        onComando={executarComandoChat}
         bloqueio={bloqueio}
         resposta={resposta}
         onCancelarResposta={() => setResposta(null)}
