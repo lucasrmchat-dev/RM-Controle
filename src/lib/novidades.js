@@ -15,6 +15,18 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-10-29-canais-liberados-ativos',
+    data: '2026-10-29',
+    titulo: 'Equipe: só canais ativos em “Canais liberados”',
+    resumo: 'Ao escolher os canais que a pessoa atende, a lista mostra apenas os canais ativos.',
+    itens: [
+      'Canais inativos não aparecem mais em Editar membro › Chat do WhatsApp › Canais liberados.',
+      'Se um canal inativo já estava liberado, a liberação fica guardada e volta a valer quando ele for reativado.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
     id: '2026-10-29-chat-meet',
     data: '2026-10-29',
     titulo: 'Chat: reunião do Google Meet com um atalho',

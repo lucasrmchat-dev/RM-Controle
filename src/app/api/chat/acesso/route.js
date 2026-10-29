@@ -22,7 +22,8 @@ export async function GET(request) {
   const email = sanitizeEmail(new URL(request.url).searchParams.get('email'));
   if (!email) return json({ ok: false, mensagem: 'E-mail inválido.' }, 400);
   const [todos, { data: canais }] = await Promise.all([ler(ctx.db), ctx.db.from('canais').select('id, nome, numero, tipo, ativo').order('nome')]);
-  return json({ ok: true, acesso: { ...ACESSO_CHAT_PADRAO, ...validarAcessoChat(todos[email] || {}) }, canais: canais || [] });
+  // Só os canais ativos aparecem para liberar; os inativos marcados continuam guardados para quando voltarem
+  return json({ ok: true, acesso: { ...ACESSO_CHAT_PADRAO, ...validarAcessoChat(todos[email] || {}) }, canais: (canais || []).filter((c) => c.ativo !== false) });
 }
 
 export async function PUT(request) {

@@ -492,6 +492,13 @@ test('acesso ao chat por pessoa: ver tickets de colegas e controle de canais (o 
   assert.deepEqual(await ids(), [convVendas.id, assumidaPorAna.id].sort());
   const salvo = db.tables.sistema_config.find((c) => c.chave === 'chat_acesso_usuarios').valor['bia@a.com'];
   assert.deepEqual(salvo.canais, [canal.id], 'canal que não é da empresa é descartado');
+
+  // Na lista para liberar, só canais ativos
+  const { GET: lerAcesso } = await import('../src/app/api/chat/acesso/route.js');
+  canal2.ativo = false;
+  const lista = (await ler(await lerAcesso(await como('ana@a.com', '/api/chat/acesso?email=bia@a.com')))).canais.map((c) => c.id);
+  assert.ok(lista.includes(canal.id));
+  assert.equal(lista.includes(canal2.id), false, 'canal inativo não aparece');
 });
 
 test('@todos no grupo menciona todos os participantes', async () => {

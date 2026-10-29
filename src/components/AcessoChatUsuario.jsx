@@ -93,7 +93,7 @@ export default function AcessoChatUsuario({ email, administrador = false }) {
             <div className="rounded-2xl ring-1 ring-black/[0.08] dark:ring-white/[0.1] p-2">
               <p className="px-1.5 pb-1.5 text-[11px] font-semibold text-slate-500 dark:text-zinc-400">Canais liberados</p>
               {canais.length === 0 ? (
-                <p className="px-1.5 pb-1 text-[11px] text-slate-400">Nenhum canal cadastrado em Canais.</p>
+                <p className="px-1.5 pb-1 text-[11px] text-slate-400">Nenhum canal ativo em Canais.</p>
               ) : (
                 canais.map((c) => {
                   const marcado = acesso.canais.includes(c.id);
@@ -112,7 +112,7 @@ export default function AcessoChatUsuario({ email, administrador = false }) {
                   );
                 })
               )}
-              {acesso.canais.length === 0 && <p className="px-1.5 pt-1 text-[11px] text-amber-600 dark:text-amber-400">Sem nenhum canal marcado, a pessoa não vê conversas no Chat.</p>}
+              {!canais.some((c) => acesso.canais.includes(c.id)) && <p className="px-1.5 pt-1 text-[11px] text-amber-600 dark:text-amber-400">Sem nenhum canal marcado, a pessoa não vê conversas no Chat.</p>}
             </div>
           )}
         </>
