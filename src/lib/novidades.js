@@ -15,6 +15,20 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-10-29-grupo-fechado-reabre',
+    data: '2026-10-29',
+    titulo: 'Chat: grupo fechado reabre a mesma conversa',
+    resumo: 'Quando alguém escreve num grupo cuja conversa foi fechada, ela volta a ficar aberta, com a mensagem nova e todo o histórico, em vez de nascer uma conversa vazia.',
+    itens: [
+      'A nova mensagem do grupo entra na conversa que estava fechada.',
+      'Se a conversa tinha responsável, volta em atendimento com ele; se não, volta pendente na fila.',
+      'Aparece o aviso “Conversa reaberta: nova mensagem no grupo” no ponto em que reabriu.',
+      'Conversas com pessoas (fora de grupos) continuam abrindo um novo atendimento a cada retorno.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
     id: '2026-10-29-canais-liberados-ativos',
     data: '2026-10-29',
     titulo: 'Equipe: só canais ativos em “Canais liberados”',

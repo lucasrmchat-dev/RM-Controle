@@ -355,6 +355,22 @@ test('grupo: participante salvo com o número de verdade, menção vira nome e e
   assert.equal(envio.corpo.text, 'Oi @279619886420042, tudo certo');
   assert.deepEqual(envio.corpo.mentioned, ['279619886420042@lid']);
   assert.equal(r.mensagem.conteudo, 'Oi @Maria Albano, tudo certo', 'a tela guarda com o nome');
+
+  // Grupo fechado: a próxima interação reabre a mesma conversa (sem criar outra vazia)
+  Object.assign(conversaGrupo, { status: 'resolvida', resolvida_em: new Date().toISOString(), responsavel_email: null, responsavel_nome: null });
+  await aviso('G3', { participant: '279619886420042@lid' }, { conversation: 'Voltei!' }, 'Maria Albano');
+  const doGrupo = db.tables.conversas.filter((c) => c.contato_id === grupo.id);
+  assert.equal(doGrupo.length, 1, 'continua uma conversa só');
+  assert.equal(doGrupo[0].status, 'aguardando', 'sem responsável, volta pendente');
+  assert.equal(doGrupo[0].resolvida_em, null);
+  assert.equal(db.tables.mensagens.find((m) => m.id_externo === 'G3').conversa_id, id, 'a mensagem fica na conversa reaberta');
+  assert.ok(db.tables.mensagens.some((m) => m.conversa_id === id && m.tipo === 'sistema' && /reaberta/.test(m.conteudo)));
+  // Com responsável: volta em atendimento com ele
+  Object.assign(doGrupo[0], { status: 'resolvida', responsavel_email: 'ana@a.com', responsavel_nome: 'Ana Souza' });
+  await aviso('G4', { participant: '279619886420042@lid' }, { conversation: 'Mais uma' }, 'Maria Albano');
+  assert.equal(db.tables.conversas.filter((c) => c.contato_id === grupo.id).length, 1);
+  assert.equal(doGrupo[0].status, 'em_atendimento');
+  assert.equal(doGrupo[0].responsavel_email, 'ana@a.com');
 });
 
 test('busca de mensagens respeita o período e quem pode ver; lista de contatos sem grupos', async () => {

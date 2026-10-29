@@ -101,10 +101,28 @@ async function contatoPorTelefone(db, numero, nome, { grupo = false } = {}) {
   throw new Error(`Não foi possível registrar o contato: ${error.message}`);
 }
 
-async function conversaAberta(db, canal, contatoId) {
+async function conversaAberta(db, canal, contatoId, { grupo = false, em } = {}) {
   const buscar = () => db.from('conversas').select('*').eq('canal_id', canal.id).eq('contato_id', contatoId).neq('status', 'resolvida').maybeSingle();
   const { data } = await buscar();
   if (data) return data;
+  // Grupo é sempre a mesma conversa: a última fechada volta a ficar aberta (com o responsável, em atendimento;
+  // sem ele, pendente na fila), com o histórico junto, em vez de nascer uma conversa vazia a cada interação
+  if (grupo) {
+    const { data: fechadas } = await db.from('conversas').select('*').eq('canal_id', canal.id).eq('contato_id', contatoId).eq('status', 'resolvida').order('ultima_mensagem_em', { ascending: false }).limit(1);
+    const fechada = (fechadas || [])[0];
+    if (fechada) {
+      const status = fechada.responsavel_email ? 'em_atendimento' : 'aguardando';
+      const { data: reaberta, error } = await db.from('conversas').update({ status, resolvida_em: null }).eq('id', fechada.id).eq('status', 'resolvida').select('*').maybeSingle();
+      if (!error && reaberta) {
+        const quando = new Date(new Date(em || Date.now()).getTime() - 1).toISOString();
+        await db.from('mensagens').insert([{ conversa_id: reaberta.id, direcao: 'nota', tipo: 'sistema', conteudo: 'Conversa reaberta: nova mensagem no grupo', status: 'enviada', criado_em: quando }]).then(() => {}, () => {});
+        return reaberta;
+      }
+      // Outro aviso reabriu ao mesmo tempo
+      const { data: jaAberta } = await buscar();
+      if (jaAberta) return jaAberta;
+    }
+  }
   const { data: nova, error } = await db
     .from('conversas')
     .insert([{ canal_id: canal.id, contato_id: contatoId, status: 'aguardando', departamento: canal.departamento_padrao || null }])
@@ -153,7 +171,7 @@ export async function registrarEventos(db, canal, eventos, { config = CONFIG_CHA
         continue;
       }
       const contatoId = await contatoPorTelefone(db, ev.telefone, nome, { grupo: ev.grupo });
-      const conversa = await conversaAberta(db, canal, contatoId);
+      const conversa = await conversaAberta(db, canal, contatoId, { grupo: ev.grupo, em: ev.em });
       let textoFinal = ev.texto;
       if (ev.grupo) {
         // Quem escreveu: participante do grupo e contato com o número de verdade (nunca o código interno)
