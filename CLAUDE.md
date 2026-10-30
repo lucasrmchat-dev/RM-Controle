@@ -140,11 +140,11 @@ com motivo, registrado na auditoria da empresa (modelo LGPD escolhido pelo Lucas
 - Fluxo Inteligente (automações): bloco novo = `BLOCOS` + case em `executarFluxo` + efeitos real e
   simulado + formulário em `components/fluxos/ConfigBloco.jsx` + resumo no `EditorFluxo`.
 - CI (`.github/workflows/ci.yml`): auditoria de segredos, `npm audit`, Biome e build.
-- Backup diário (`.github/workflows/backup-banco.yml`, 03h): usa o segredo `SUPABASE_DB_URL` do GitHub.
+- Backup diário (`.github/workflows/backup-banco.yml`, 03h): usa o segredo `SUPABASE_DB_URL` do GitHub
+  (banco SP desde 30/10/2026). O `gh` está instalado e logado: dá para ver e rodar workflows e segredos.
 
 ## Pendências conhecidas (30/10/2026)
 
-- Segredo `SUPABASE_DB_URL` do GitHub ainda aponta para o banco de Oregon → trocar para o SP.
 - Evolution API no Mac do Lucas → mover para servidor (plano: Magalu Cloud, ~R$ 93/mês).
 - Vercel Pro e Supabase Pro antes do primeiro cliente pagante (Hobby proíbe uso comercial).
 - Pausar o banco de Oregon depois de 1–2 semanas estável.
