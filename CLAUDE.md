@@ -24,7 +24,7 @@ e peça para ele só o que exige a conta dele: senhas, chaves, pagamentos, aprov
 | Banco | Supabase **"RM Controle SP"** — ref `wwkfsdibzmquqhjykooo`, `sa-east-1`, plano Free (Postgres 17) |
 | Banco antigo | "RM Controle" (Oregon, ref `lsjjlaiiftuenaqgvgvb`) — só reserva desde 30/10/2026; não usar |
 | WhatsApp | Evolution API (QR Code), hoje rodando no Mac do Lucas; adaptador da Cloud API da Meta em `src/lib/server/canais/meta.js` |
-| Captcha | Cloudflare Turnstile (código pronto; ativo só com as chaves configuradas) |
+| Captcha | Cloudflare Turnstile no login (ativo desde 30/10/2026; sem as chaves, desliga sozinho) |
 
 Pooler do banco SP: `host=aws-1-sa-east-1.pooler.supabase.com port=5432 dbname=postgres user=postgres.wwkfsdibzmquqhjykooo sslmode=require`.
 
@@ -145,7 +145,6 @@ com motivo, registrado na auditoria da empresa (modelo LGPD escolhido pelo Lucas
 ## Pendências conhecidas (30/10/2026)
 
 - Segredo `SUPABASE_DB_URL` do GitHub ainda aponta para o banco de Oregon → trocar para o SP.
-- Chaves do Turnstile não configuradas (captcha desligado).
 - Evolution API no Mac do Lucas → mover para servidor (plano: Magalu Cloud, ~R$ 93/mês).
 - Vercel Pro e Supabase Pro antes do primeiro cliente pagante (Hobby proíbe uso comercial).
 - Pausar o banco de Oregon depois de 1–2 semanas estável.
