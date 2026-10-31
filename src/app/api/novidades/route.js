@@ -1,4 +1,4 @@
-import { contextoDaRequisicao, escopo, ORG_PLATAFORMA } from '@/lib/server/organizacao';
+import { contextoDaRequisicao, escopo, ORG_LEGADO, ORG_PLATAFORMA } from '@/lib/server/organizacao';
 import { ehDesenvolvimentoServidor } from '@/lib/server/desenvolvimento';
 import { NOVIDADES } from '@/lib/novidades';
 
@@ -19,6 +19,10 @@ async function autenticar(request) {
   return { ...ctx, dbPlataforma: ctx.org.legado ? ctx.dbGlobal : escopo(ctx.dbGlobal, ORG_PLATAFORMA) };
 }
 
+// Publicar vale para todas as assinantes: só a equipe da casa (plataforma ou RM Chat), na própria empresa.
+// Administrador de uma assinante cliente, ou alguém da casa em modo suporte, não publica.
+const ehDaCasa = (org) => org.legado || (!org.suporte && [ORG_PLATAFORMA, ORG_LEGADO].includes(org.id));
+
 async function lerPublicacao(db) {
   const { data, error } = await db.from('sistema_config').select('valor').eq('chave', CHAVE).maybeSingle();
   if (error) throw new Error(error.message);
@@ -26,23 +30,23 @@ async function lerPublicacao(db) {
 }
 
 export async function GET(request) {
-  const { erro, db, dbPlataforma, email } = await autenticar(request);
+  const { erro, db, dbPlataforma, email, org } = await autenticar(request);
   if (erro) return erro;
   try {
     const [publicacao, dev] = await Promise.all([lerPublicacao(dbPlataforma), ehDesenvolvimentoServidor(db, email)]);
-    return json({ ok: true, publicacao, desenvolvimento: dev });
+    return json({ ok: true, publicacao, desenvolvimento: dev && ehDaCasa(org) });
   } catch (e) {
     return json({ ok: false, mensagem: `Não foi possível ler as novidades: ${e.message}` }, 500);
   }
 }
 
 export async function POST(request) {
-  const { erro, db, dbPlataforma, email } = await autenticar(request);
+  const { erro, db, dbPlataforma, email, org } = await autenticar(request);
   if (erro) return erro;
   const body = await request.json().catch(() => ({}));
   const id = String(body.id || '');
   if (!NOVIDADES.some((n) => n.id === id)) return json({ ok: false, mensagem: 'Novidade desconhecida.' }, 400);
-  if (!(await ehDesenvolvimentoServidor(db, email))) {
+  if (!ehDaCasa(org) || !(await ehDesenvolvimentoServidor(db, email))) {
     return json({ ok: false, mensagem: 'Só a área de desenvolvimento publica novidades.' }, 403);
   }
   try {
