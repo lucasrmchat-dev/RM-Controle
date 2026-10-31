@@ -3,6 +3,7 @@
 import { forwardRef, useState } from 'react';
 import { DESFECHOS_COMERCIAIS, posicaoComercial } from '@/lib/comercial';
 import { nomeParticipanteAgenda } from '@/lib/participantesAgenda';
+import { linkSeguro } from '@/lib/sanitize';
 
 // ------------------------------------------------------------------------------
 // Comercial › Reuniões do mês: cada reunião com todos os detalhes (cliente, data, horário, responsável,
@@ -108,8 +109,8 @@ const ListaReunioesComercial = forwardRef(function ListaReunioesComercial({ reun
                       <Info rotulo="Telefone do cliente">{e.cliente_telefone}</Info>
                       <Info rotulo="Tipo">{e.tipo === 'interna' ? 'Interna' : e.tipo === 'cliente' ? 'Com cliente' : e.tipo}</Info>
                       <Info rotulo="Link da reunião">
-                        {e.link_reuniao ? (
-                          <a href={e.link_reuniao} target="_blank" rel="noreferrer" className="text-rm-acento dark:text-rm-acento-vivo underline break-all">
+                        {linkSeguro(e.link_reuniao) ? (
+                          <a href={linkSeguro(e.link_reuniao)} target="_blank" rel="noreferrer" className="text-rm-acento dark:text-rm-acento-vivo underline break-all">
                             {e.link_reuniao}
                           </a>
                         ) : null}

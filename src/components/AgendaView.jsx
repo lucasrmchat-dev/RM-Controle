@@ -24,6 +24,7 @@ import AgendaGradeSemana from './AgendaGradeSemana';
 import AgendaEventoResumo from './AgendaEventoResumo';
 import { isoDoDia } from './SeletoresTempo';
 import { CheckIcon, RefreshIcon } from './Icons';
+import { linkSeguro } from '@/lib/sanitize';
 import EncaixeCabecalho, { ACOES_TITULO, LINHA_TITULO } from './EncaixeCabecalho';
 
 const NOMES_DIA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -137,9 +138,9 @@ function CartaoReuniao({ evt, cor, agora, onAbrir }) {
           ) : (
             <span />
           )}
-          {evt.link_reuniao && !cancelada && (
+          {linkSeguro(evt.link_reuniao) && !cancelada && (
             <a
-              href={evt.link_reuniao}
+              href={linkSeguro(evt.link_reuniao)}
               target="_blank"
               rel="noreferrer"
               onClick={(e) => e.stopPropagation()}
@@ -634,8 +635,8 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
                             {[prazo ? 'Prazo de demanda' : evt.empresa !== 'Cliente Geral' ? evt.empresa : '', evt.responsavel_nome].filter(Boolean).join(' · ') || 'Sem responsável'}
                           </span>
                         </button>
-                        {evt.link_reuniao && evt.status !== 'cancelada' && (
-                          <a href={evt.link_reuniao} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-[12px] font-semibold bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] hover:opacity-85">
+                        {linkSeguro(evt.link_reuniao) && evt.status !== 'cancelada' && (
+                          <a href={linkSeguro(evt.link_reuniao)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-[12px] font-semibold bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] hover:opacity-85">
                             <IconeVideo /> <span className="hidden sm:inline">Entrar</span>
                           </a>
                         )}

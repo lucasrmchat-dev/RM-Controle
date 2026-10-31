@@ -58,6 +58,15 @@ export function isValidUUID(uuid) {
 }
 
 /**
+ * Link que pode virar <a href>: só endereços http(s). Qualquer outro formato (ex.: "javascript:")
+ * vira null, porque o banco aceita o texto que a equipe digitar e um clique executaria o comando.
+ */
+export function linkSeguro(url) {
+  const texto = String(url || '').trim();
+  return /^https?:\/\/\S+$/i.test(texto) ? texto : null;
+}
+
+/**
  * Sanitiza identificadores numéricos ou de instâncias (ex: números de telefone, portas)
  */
 export function sanitizePhoneOrNumber(val) {

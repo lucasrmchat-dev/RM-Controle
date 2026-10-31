@@ -8,6 +8,7 @@ import { CheckIcon, BuildingIcon, UserIcon, CalendarIcon } from './Icons';
 import { enviarWhatsappReuniao, getWhatsappAgenda } from '@/lib/storage';
 import { STATUS_CONFIRMACAO, formatarTelefone } from '@/lib/whatsappAgenda';
 import { showToast } from './ToastNotification';
+import { linkSeguro } from '@/lib/sanitize';
 
 const COR_CONFIRMACAO = {
   amber: 'bg-amber-500/12 text-amber-700 dark:text-amber-300',
@@ -164,7 +165,7 @@ export default function AgendaEventoResumo({ evento, agendas = [], userEmail, on
       rodape={rodape}
     >
       {/* Sala: a ação mais usada fica no topo */}
-      {e.link_reuniao && !cancelada && (
+      {linkSeguro(e.link_reuniao) && !cancelada && (
         <div className="rounded-2xl bg-black/[0.03] dark:bg-white/[0.05] p-4 mb-2 flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-[12px] text-slate-500 dark:text-zinc-400">{/meet\.google\.com/.test(e.link_reuniao) ? 'Google Meet' : 'Sala virtual'}</p>
@@ -175,7 +176,7 @@ export default function AgendaEventoResumo({ evento, agendas = [], userEmail, on
               {copiado ? 'Copiado' : 'Copiar link'}
             </button>
             <a
-              href={e.link_reuniao}
+              href={linkSeguro(e.link_reuniao)}
               target="_blank"
               rel="noreferrer"
               className="h-10 px-4 rounded-full text-[13px] font-semibold bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] hover:opacity-90 inline-flex items-center gap-2"

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { minutosDe, horaDe } from './SeletoresTempo';
+import { linkSeguro } from '@/lib/sanitize';
 
 /**
  * Semana em grade de horários (como o Google Agenda). Arraste uma reunião para outro horário ou dia;
@@ -283,9 +284,9 @@ export default function AgendaGradeSemana({ dias, porDia, hojeIso, agora, corDaA
                             </p>
                           )}
                         </div>
-                        {!compacta && evt.link_reuniao && !cancelada && altura > 52 && (
+                        {!compacta && linkSeguro(evt.link_reuniao) && !cancelada && altura > 52 && (
                           <a
-                            href={evt.link_reuniao}
+                            href={linkSeguro(evt.link_reuniao)}
                             target="_blank"
                             rel="noreferrer"
                             onPointerDown={(e) => e.stopPropagation()}
