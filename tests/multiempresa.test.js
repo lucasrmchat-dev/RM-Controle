@@ -13,6 +13,7 @@ import { GET as lerConfig } from '../src/app/api/configuracoes/route.js';
 import { POST as criarMembro } from '../src/app/api/equipe/route.js';
 import { GET as listarPlataforma, POST as acaoPlataforma } from '../src/app/api/plataforma/route.js';
 import { GET as lerAgenda } from '../src/app/api/agenda/eventos/route.js';
+import { GET as lerFila } from '../src/app/api/fila/chamados/route.js';
 
 __definirSupabaseAdmin(mockSupabase);
 process.env.NEXT_PUBLIC_SUPABASE_URL ||= 'http://mock';
@@ -212,4 +213,16 @@ test('ninguém suspende a própria empresa', async () => {
   const propria = await acaoPlataforma(await req('POST', '/api/plataforma', 'lucas@rmchat.com', { acao: 'status', id: A, status: 'suspensa' }));
   assert.equal(propria.status, 400);
   assert.equal(db.tables.organizacoes.find((o) => o.id === A).status, 'ativa');
+});
+
+test('fila lida pelo servidor: só com login, só demandas abertas e só da própria empresa', async () => {
+  db.tables.suporte_chamados = [
+    { id: crypto.randomUUID(), organizacao_id: A, empresa_nome: 'Cliente da A', status: 'em_andamento', finalizado_em: null },
+    { id: crypto.randomUUID(), organizacao_id: A, empresa_nome: 'Concluída da A', status: 'finalizado', finalizado_em: new Date().toISOString() },
+    { id: crypto.randomUUID(), organizacao_id: OUTRA, empresa_nome: 'Cliente da Outra', status: 'aguardando_visualizacao', finalizado_em: null },
+  ];
+  assert.equal((await lerFila(new NextRequest('http://localhost/api/fila/chamados'))).status, 401);
+  const r = await lerFila(await req('GET', '/api/fila/chamados', 'caio@a.com'));
+  assert.equal(r.status, 200);
+  assert.deepEqual((await r.json()).chamados.map((c) => c.empresa_nome), ['Cliente da A']);
 });

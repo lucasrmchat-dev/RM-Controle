@@ -1772,6 +1772,40 @@ export async function diagnosticarVisibilidadeFila() {
   return { ocultas, total: d.ativosNoBanco, motivo };
 }
 
+/**
+ * Demandas abertas da nuvem. Leitura direta no banco (barata), renovando antes a sessão do navegador.
+ * Se a sessão expirou ou a leitura falhou, pergunta ao servidor (que não depende dessa sessão).
+ * Antes, a falha era silenciosa: a Fila ficava parada mostrando demandas que colegas já tinham concluído.
+ */
+// Nem o banco nem o servidor responderam: a lista na tela pode estar velha. Avisa (no máximo a cada 2 min).
+let ultimoAvisoFila = 0;
+function avisarFilaDesatualizada() {
+  if (Date.now() - ultimoAvisoFila < 120000) return;
+  ultimoAvisoFila = Date.now();
+  avisarFalhaSync('Não foi possível atualizar as demandas. A lista pode estar desatualizada: confira a internet ou entre de novo.');
+}
+
+async function lerAtivosDaNuvem() {
+  const sessao = await garantirSessaoBanco();
+  if (sessao.ok) {
+    const direto = await supabase
+      .from('suporte_chamados')
+      .select('*')
+      .in('status', ['aguardando_visualizacao', 'em_andamento', 'pendente'])
+      .is('finalizado_em', null)
+      .order('iniciado_em', { ascending: false });
+    if (!direto.error && Array.isArray(direto.data)) return direto;
+  }
+  try {
+    const r = await fetch('/api/fila/chamados', { credentials: 'same-origin', cache: 'no-store' });
+    const json = await r.json().catch(() => ({}));
+    if (r.ok && Array.isArray(json.chamados)) return { data: json.chamados, error: null };
+    return { data: null, error: new Error(json.mensagem || `Servidor respondeu ${r.status}`) };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
 let leituraFilaEmAndamento = null;
 export function fetchChamadosFila() {
   const versao = versaoMutacoesLocais;
@@ -1789,12 +1823,8 @@ async function lerChamadosFila() {
       await reenviarChamadosPendentes();
 
       const versaoInicial = versaoMutacoesLocais;
-      const { data, error } = await supabase
-        .from('suporte_chamados')
-        .select('*')
-        .in('status', ['aguardando_visualizacao', 'em_andamento', 'pendente'])
-        .is('finalizado_em', null)
-        .order('iniciado_em', { ascending: false });
+      const { data, error } = await lerAtivosDaNuvem();
+      if (error) avisarFilaDesatualizada();
 
       // Alguém concluiu/cancelou/assumiu/criou durante a consulta: este resultado já nasceu velho
       // e devolveria à fila uma demanda recém-concluída. O próximo ciclo traz o estado certo.
@@ -2531,6 +2561,8 @@ async function lerHistoricoChamados() {
   let dbChamados = [];
   if (isSupabaseConfigured && supabase) {
     try {
+      // Sessão do banco vencida faria a leitura falhar em silêncio (histórico parado): renova antes
+      await garantirSessaoBanco();
       // Paginação: os totais anuais não podem parar no limite padrão de 1.000 linhas.
       const data = [];
       let error = null;

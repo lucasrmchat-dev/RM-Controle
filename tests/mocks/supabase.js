@@ -23,6 +23,7 @@ export const db = {
     this.rpcs = {};
     this.authUsers = [];
     this.semSessao = false;
+    this.jwtExpirado = false;
     this.tables = { suporte_chamados: [], feedbacks: [], sistema_config: [], empresas: [], auditoria_logs: [], equipe_usuarios: [] };
     this.columns = { suporte_chamados: null, feedbacks: null };
     this.rls = { deleteAllowed: true, updateAllowed: true };
@@ -134,7 +135,8 @@ class Query {
     // O SELECT "fotografa" o banco no início (como a rede real); insert/update aplicam no fim
     if (this.op === 'select') {
       db.leituras[this.table] = (db.leituras[this.table] || 0) + 1;
-      const resultado = this.run();
+      // Sessão do navegador vencida: o Supabase recusa a leitura (como no app real)
+      const resultado = db.jwtExpirado ? { data: null, error: { code: 'PGRST301', message: 'JWT expired' } } : this.run();
       return new Promise((r) => setTimeout(() => r(resultado), ms)).then(resolve, reject);
     }
     return new Promise((r) => setTimeout(r, ms)).then(() => this.run()).then(resolve, reject);
