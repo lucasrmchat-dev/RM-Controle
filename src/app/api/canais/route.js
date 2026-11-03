@@ -7,6 +7,7 @@ import { canalRecebeGrupos, validarCanal } from '@/lib/canais';
 import { CHAVE_LIMPEZA_CANAIS, OPCOES_LIMPEZA, diasLimpezaCanais, limparCanaisInativos, registrarHistoricoCanal } from '@/lib/server/canais/historico';
 import { getNomeEquipe } from '@/lib/server/canais/equipe';
 import { isValidUUID } from '@/lib/sanitize';
+import { canalLiberado, permissaoDoChat } from '@/lib/server/canais/chat';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,8 +29,10 @@ export async function GET(request) {
   if (ctx.admin) await limparCanaisInativos(ctx.db, dias).catch(() => {});
   const { data, error } = await ctx.db.from('canais').select('*').order('criado_em');
   if (error) return json({ ok: false, mensagem: /canais/.test(error.message) ? 'Rode supabase/migration_canais_chat.sql no Supabase.' : error.message }, 500);
-  // Arquivados (inativos há muito tempo, com conversas guardadas) não aparecem mais na lista
-  const visiveis = (data || []).filter((c) => !c.config?.arquivado);
+  // Arquivados (inativos há muito tempo, com conversas guardadas) não aparecem mais na lista.
+  // Com canais liberados ligados na pessoa (mesmo administrador), só os canais marcados para ela.
+  const perm = await permissaoDoChat(ctx.db, ctx.email);
+  const visiveis = (data || []).filter((c) => !c.config?.arquivado && canalLiberado(perm, c.id));
   return json({ ok: true, canais: visiveis.map(canalPublico), admin: ctx.admin, servidorQr: Boolean(servidorQrDaPlataforma()), limpezaDias: dias });
 }
 

@@ -88,6 +88,13 @@ async function permissaoDoBanco(db, email) {
   return { ...perm, email: alvo, nome: membro?.nome || nomePeloEmail(alvo), chat };
 }
 
+/**
+ * Canal liberado para a pessoa (Servidores e equipe › Chat do WhatsApp › canais liberados).
+ * Com o controle ligado vale para todos, inclusive administradores: só os canais marcados aparecem
+ * nas listas e seletores. Desligado, todos os canais.
+ */
+export const canalLiberado = (perm, canalId) => !perm?.chat?.controleCanais || (perm.chat.canais || []).includes(canalId);
+
 export function podeVerConversa(perm, conversa) {
   if (!conversa) return false;
   if (perm.administrador) return true;
@@ -102,12 +109,13 @@ export function podeVerConversa(perm, conversa) {
 }
 
 /** Conversas visíveis com contato e canal (sem segredos). `aba`: abertas | resolvidas */
-export async function listarConversas(db, perm, { aba = 'abertas' } = {}) {
+// todos: administrador com "(Admin) Visualizar todos" ligado no Chat vê também os canais não liberados
+export async function listarConversas(db, perm, { aba = 'abertas', todos = false } = {}) {
   let q = db.from('conversas').select('*');
   q = aba === 'resolvidas' ? q.eq('status', 'resolvida') : q.neq('status', 'resolvida');
   const { data, error } = await q.order('ultima_mensagem_em', { ascending: false, nullsFirst: false }).limit(aba === 'resolvidas' ? 100 : 300);
   if (error) throw new Error(error.message);
-  const visiveis = (data || []).filter((c) => podeVerConversa(perm, c));
+  const visiveis = (data || []).filter((c) => podeVerConversa(perm, c) && (todos && perm.administrador ? true : canalLiberado(perm, c.canal_id)));
   // Grupos de um canal marcado para não receber grupos ficam de fora (o mesmo grupo segue no outro número)
   const lista = (await juntarDetalhes(db, visiveis)).filter((c) => !(c.canal?.ignorarGrupos && ehGrupo(c.contato?.telefone)));
   return trocarMencoesNasPrevias(db, lista);
