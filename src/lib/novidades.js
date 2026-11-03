@@ -15,6 +15,48 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-03-configuracoes-documentacao',
+    data: '2026-11-03',
+    titulo: 'Configurações: nova aba Documentação',
+    resumo: 'Administradores encontram num só lugar o significado de cada código de erro do Chat e como outros sistemas se conectam ao RM Controle.',
+    itens: [
+      'Erros do Chat: todos os códigos (como CHAT-101), com explicação, o que fazer e o que o desenvolvimento deve verificar. Dá para buscar por código ou palavra.',
+      'APIs e tokens: Suporte automático e Webhook do Comercial, com endereço, como enviar o token, exemplos e possíveis respostas de erro.',
+      'Passo a passo de como conseguir cada token, com um botão que leva direto para onde ele é gerado.',
+    ],
+    modulo: 'Configurações',
+    tickets: [],
+  },
+  {
+    id: '2026-11-03-chat-erro-explicado',
+    data: '2026-11-03',
+    titulo: 'Chat: mensagem não enviada agora explica o motivo',
+    resumo: 'Ao clicar na exclamação vermelha de uma mensagem que não foi enviada, aparece o que aconteceu em palavras simples, o que fazer e um botão para avisar o desenvolvimento.',
+    itens: [
+      'Cada erro tem um código (por exemplo, CHAT-101) e uma explicação simples.',
+      'A janela diz o que fazer: tentar de novo, conferir o número, pedir para reconectar o canal etc.',
+      'O botão “Avisar o desenvolvimento” abre um feedback com todos os detalhes, sem precisar escrever nada.',
+      'Embaixo da mensagem aparece o resumo do problema, em vez do texto técnico.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
+    id: '2026-11-03-resolvida-volta-pendentes',
+    data: '2026-11-03',
+    titulo: 'Chat: conversa resolvida volta para Pendentes quando o cliente escreve de novo',
+    resumo: 'Quando um cliente ou grupo manda mensagem numa conversa já resolvida, ela volta para a fila de Pendentes, para toda a equipe, com todo o histórico na mesma conversa.',
+    itens: [
+      'Vale para grupos e para conversas com pessoas.',
+      'A conversa volta sem responsável, em Pendentes, para qualquer pessoa da equipe assumir.',
+      'O histórico continua na mesma conversa: não precisa mais abrir “mensagens anteriores”.',
+      'Aparece o aviso “Conversa reaberta” no ponto em que o cliente voltou a escrever.',
+      'Mensagem enviada pela própria equipe (pelo celular, por exemplo) não reabre a conversa.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
     id: '2026-10-29-grupo-fechado-reabre',
     data: '2026-10-29',
     titulo: 'Chat: grupo fechado reabre a mesma conversa',

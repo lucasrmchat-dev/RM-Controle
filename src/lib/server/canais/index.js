@@ -101,27 +101,33 @@ async function contatoPorTelefone(db, numero, nome, { grupo = false } = {}) {
   throw new Error(`Não foi possível registrar o contato: ${error.message}`);
 }
 
-async function conversaAberta(db, canal, contatoId, { grupo = false, em } = {}) {
+async function conversaAberta(db, canal, contatoId, { grupo = false, em, reabrir = true } = {}) {
   const buscar = () => db.from('conversas').select('*').eq('canal_id', canal.id).eq('contato_id', contatoId).neq('status', 'resolvida').maybeSingle();
   const { data } = await buscar();
   if (data) return data;
-  // Grupo é sempre a mesma conversa: a última fechada volta a ficar aberta (com o responsável, em atendimento;
-  // sem ele, pendente na fila), com o histórico junto, em vez de nascer uma conversa vazia a cada interação
-  if (grupo) {
-    const { data: fechadas } = await db.from('conversas').select('*').eq('canal_id', canal.id).eq('contato_id', contatoId).eq('status', 'resolvida').order('ultima_mensagem_em', { ascending: false }).limit(1);
-    const fechada = (fechadas || [])[0];
-    if (fechada) {
-      const status = fechada.responsavel_email ? 'em_atendimento' : 'aguardando';
-      const { data: reaberta, error } = await db.from('conversas').update({ status, resolvida_em: null }).eq('id', fechada.id).eq('status', 'resolvida').select('*').maybeSingle();
-      if (!error && reaberta) {
-        const quando = new Date(new Date(em || Date.now()).getTime() - 1).toISOString();
-        await db.from('mensagens').insert([{ conversa_id: reaberta.id, direcao: 'nota', tipo: 'sistema', conteudo: 'Conversa reaberta: nova mensagem no grupo', status: 'enviada', criado_em: quando }]).then(() => {}, () => {});
-        return reaberta;
-      }
-      // Outro aviso reabriu ao mesmo tempo
-      const { data: jaAberta } = await buscar();
-      if (jaAberta) return jaAberta;
+  // Grupo ou pessoa que já teve atendimento: a última conversa fechada volta para a fila (Pendentes, sem
+  // responsável, para todos), com o histórico junto, em vez de nascer uma conversa vazia a cada interação.
+  // Mensagem da própria equipe (enviada pelo celular ou eco de um envio) entra nela sem reabrir.
+  const { data: fechadas } = await db.from('conversas').select('*').eq('canal_id', canal.id).eq('contato_id', contatoId).eq('status', 'resolvida').order('ultima_mensagem_em', { ascending: false }).limit(1);
+  const fechada = (fechadas || [])[0];
+  if (fechada) {
+    if (!reabrir) return fechada;
+    const { data: reaberta, error } = await db
+      .from('conversas')
+      .update({ status: 'aguardando', resolvida_em: null, responsavel_email: null, responsavel_nome: null })
+      .eq('id', fechada.id)
+      .eq('status', 'resolvida')
+      .select('*')
+      .maybeSingle();
+    if (!error && reaberta) {
+      const quando = new Date(new Date(em || Date.now()).getTime() - 1).toISOString();
+      const aviso = grupo ? 'Conversa reaberta: nova mensagem no grupo' : 'Conversa reaberta: o cliente mandou nova mensagem';
+      await db.from('mensagens').insert([{ conversa_id: reaberta.id, direcao: 'nota', tipo: 'sistema', conteudo: aviso, status: 'enviada', criado_em: quando }]).then(() => {}, () => {});
+      return reaberta;
     }
+    // Outro aviso reabriu ao mesmo tempo
+    const { data: jaAberta } = await buscar();
+    if (jaAberta) return jaAberta;
   }
   const { data: nova, error } = await db
     .from('conversas')
@@ -171,7 +177,7 @@ export async function registrarEventos(db, canal, eventos, { config = CONFIG_CHA
         continue;
       }
       const contatoId = await contatoPorTelefone(db, ev.telefone, nome, { grupo: ev.grupo });
-      const conversa = await conversaAberta(db, canal, contatoId, { grupo: ev.grupo, em: ev.em });
+      const conversa = await conversaAberta(db, canal, contatoId, { grupo: ev.grupo, em: ev.em, reabrir: !ev.deMim });
       let textoFinal = ev.texto;
       if (ev.grupo) {
         // Quem escreveu: participante do grupo e contato com o número de verdade (nunca o código interno)

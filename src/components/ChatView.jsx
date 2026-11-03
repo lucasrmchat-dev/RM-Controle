@@ -38,6 +38,7 @@ import { classeCampo, classeRotulo } from './NovaEmpresaCampos';
 import { showToast } from './ToastNotification';
 import EncaixeCabecalho, { ACOES_TITULO, LINHA_TITULO } from './EncaixeCabecalho';
 import { removerGrupo } from '@/lib/notificacoes';
+import { BotaoErroEnvio, ResumoErroEnvio } from './ChatErroEnvio';
 import NovaDemandaModal from './NovaDemandaModal';
 
 // ------------------------------------------------------------------------------
@@ -170,7 +171,7 @@ function TextoFormatado({ texto }) {
   });
 }
 
-function Tique({ status, erro }) {
+function Tique({ status, erro, m = null }) {
   if (status === 'pendente')
     return (
       <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-label="Enviando">
@@ -178,6 +179,8 @@ function Tique({ status, erro }) {
         <path d="M8 5v3.2l2 1.3" strokeLinecap="round" />
       </svg>
     );
+  // Com a mensagem em mãos, a exclamação abre a explicação do erro (código, o que fazer, avisar o desenvolvimento)
+  if (status === 'falhou' && m) return <BotaoErroEnvio m={m} />;
   if (status === 'falhou')
     return (
       <span title={erro || 'Não enviada'} className="text-rose-600 dark:text-rose-400" aria-label="Não enviada">
@@ -351,7 +354,7 @@ function Balao({ m, primeiraDoGrupo, reacoes = [], acoes }) {
           <MidiaMensagem m={m} minha={minha} />
           <span className={`absolute bottom-1 ${minha ? 'right-1' : 'left-1'} h-5 px-1.5 rounded-full bg-black/35 text-white text-[11px] flex items-center gap-1`}>
             {hora(m.criado_em)}
-            {minha && <Tique status={m.status} erro={m.erro} />}
+            {minha && <Tique status={m.status} erro={m.erro} m={m} />}
           </span>
           {reacoes.length > 0 && <Reacoes lista={reacoes} minha={minha} />}
         </div>
@@ -400,9 +403,9 @@ function Balao({ m, primeiraDoGrupo, reacoes = [], acoes }) {
           {m.favorita && <span title="Favorita">★</span>}
           {m.editada_em && !m.apagada_em && <span>Editada</span>}
           {hora(m.criado_em)}
-          {minha && <Tique status={m.status} erro={m.erro} />}
+          {minha && <Tique status={m.status} erro={m.erro} m={m} />}
         </span>
-        {m.status === 'falhou' && m.erro && <p className="text-[11.5px] text-rose-700 dark:text-rose-300 mt-1 max-w-[320px]">{m.erro}</p>}
+        {m.status === 'falhou' && m.erro && <ResumoErroEnvio m={m} />}
         {reacoes.length > 0 && <Reacoes lista={reacoes} minha={minha} />}
       </div>
     </div>
