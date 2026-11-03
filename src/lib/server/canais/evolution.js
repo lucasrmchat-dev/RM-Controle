@@ -108,7 +108,13 @@ export const evolution = {
 
   /** O WhatsApp deixa editar por até 15 minutos depois do envio. */
   async editar(canal, segredos, { telefone, chave, idExterno, texto }, { fetchImpl } = {}) {
-    await chamar(segredos, `/chat/updateMessage/${nomeInstancia(canal)}`, { metodo: 'POST', fetchImpl, corpo: { number: telefone, key: { ...chave, fromMe: true, id: idExterno }, text: texto } });
+    try {
+      await chamar(segredos, `/chat/updateMessage/${nomeInstancia(canal)}`, { metodo: 'POST', fetchImpl, corpo: { number: telefone, key: { ...chave, fromMe: true, id: idExterno }, text: texto } });
+    } catch (e) {
+      // Grupo com 2+ canais da empresa: a Evolution envia a edição ao WhatsApp e, ao conferir no próprio
+      // banco, acha a cópia do outro canal (recebida, não enviada) e responde 400, mesmo com a edição feita.
+      if (!/cannot edit others messages/i.test(e.message)) throw e;
+    }
   },
 
   async apagarParaTodos(canal, segredos, { chave, idExterno }, { fetchImpl } = {}) {

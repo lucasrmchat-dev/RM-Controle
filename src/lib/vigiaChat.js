@@ -13,6 +13,16 @@ const momento = (iso) => (iso ? new Date(iso).getTime() || 0 : 0);
 export function analisarConversas(anterior, conversas = [], { email, grupos = false } = {}) {
   const proximo = new Map();
   const avisos = [];
+  // A mesma mensagem de grupo chega a cada canal da empresa que está no grupo (uma conversa por canal,
+  // todas com a mesma hora): avisa uma vez só. Lembra das últimas para valer também entre uma consulta e outra.
+  const jaAvisadas = new Set(anterior?.jaAvisadas || []);
+  const avisarGrupoUmaVez = (c) => {
+    if (!ehGrupo(c.contato?.telefone)) return true;
+    const chave = `${c.contato.telefone}|${c.ultima_entrada_cliente_em || c.ultima_mensagem_em || ''}`;
+    if (jaAvisadas.has(chave)) return false;
+    jaAvisadas.add(chave);
+    return true;
+  };
   for (const c of conversas || []) {
     if (c.status === 'resolvida') continue;
     const atual = { naoLidas: c.nao_lidas || 0, entrada: momento(c.ultima_entrada_cliente_em) };
@@ -27,11 +37,12 @@ export function analisarConversas(anterior, conversas = [], { email, grupos = fa
     // Com a conversa aberta as mensagens já chegam lidas: vale a hora da última mensagem do cliente
     const chegouMensagem = antes && (atual.naoLidas > antes.naoLidas || atual.entrada > antes.entrada);
     if (!antes && pendente && atual.naoLidas > 0) {
-      avisos.push({ conversaId: c.id, titulo: `Nova conversa: ${nome}`, detalhe: previa, chave: `${c.id}-nova` });
+      if (avisarGrupoUmaVez(c)) avisos.push({ conversaId: c.id, titulo: `Nova conversa: ${nome}`, detalhe: previa, chave: `${c.id}-nova` });
     } else if (chegouMensagem && (pendente || minha)) {
-      avisos.push({ conversaId: c.id, titulo: `${pendente ? 'Na fila' : 'Mensagem'} de ${nome}`, detalhe: previa, chave: `${c.id}-${c.ultima_entrada_cliente_em || c.ultima_mensagem_em || atual.naoLidas}` });
+      if (avisarGrupoUmaVez(c)) avisos.push({ conversaId: c.id, titulo: `${pendente ? 'Na fila' : 'Mensagem'} de ${nome}`, detalhe: previa, chave: `${c.id}-${c.ultima_entrada_cliente_em || c.ultima_mensagem_em || atual.naoLidas}` });
     }
   }
+  proximo.jaAvisadas = [...jaAvisadas].slice(-200);
   return { proximo, avisos };
 }
 

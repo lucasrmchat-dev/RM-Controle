@@ -321,6 +321,15 @@ test('grupo com dois canais da empresa: cada canal guarda a sua cópia da mesma 
   assert.equal(db.tables.mensagens.find((m) => m.id === rx.responde_a).conversa_id, conversa2.id);
 });
 
+test('editar mensagem em grupo com vários canais: o 400 "cannot edit others messages" da Evolution não é erro', async () => {
+  const { evolution } = await import('../src/lib/server/canais/evolution.js');
+  const segredos = { url: 'https://evo.exemplo.com', apikey: 'k' };
+  const dados = { telefone: '1203@g.us', chave: { remoteJid: '1203@g.us' }, idExterno: 'X', texto: 'novo' };
+  const resposta = (status, message) => async () => new Response(JSON.stringify({ response: { message: [message] } }), { status });
+  await evolution.editar(canalQr, segredos, dados, { fetchImpl: resposta(400, 'You cannot edit others messages') });
+  await assert.rejects(evolution.editar(canalQr, segredos, dados, { fetchImpl: resposta(400, 'Message not found') }), /Message not found/);
+});
+
 test('Aviso ao vivo: tópico secreto por empresa e aviso sem conteúdo', async () => {
   const { topicoAoVivo, avisarAoVivo } = await import('../src/lib/server/canais/aoVivo.js');
   assert.equal(topicoAoVivo('org-a'), topicoAoVivo('org-a'));

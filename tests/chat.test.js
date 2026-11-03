@@ -428,6 +428,24 @@ test('vigia do chat: avisa conversa nova na fila e mensagem nas minhas (inclusiv
   assert.equal(chatEsperando([c('b')], { email: 'eu@a.com' }), true);
 });
 
+test('vigia do chat: a mesma mensagem de grupo em vários canais avisa uma vez só', async () => {
+  const { analisarConversas } = await import('../src/lib/vigiaChat.js');
+  const g = (id, em = '2026-11-03T22:00:00Z') => ({ id, status: 'aguardando', nao_lidas: 1, ultima_entrada_cliente_em: em, contato: { nome: 'Equipe', telefone: '1203@g.us' } });
+  const opcoes = { email: 'eu@a.com', grupos: true };
+  const inicio = analisarConversas(null, [g('c1', '2026-11-03T21:00:00Z'), g('c2', '2026-11-03T21:00:00Z')], opcoes);
+  // A cópia chega primeiro a um canal; o outro canal só recebe um instante depois (outra consulta)
+  const r = analisarConversas(inicio.proximo, [g('c1'), g('c2', '2026-11-03T21:00:00Z')], opcoes);
+  assert.equal(r.avisos.length, 1);
+  const r2 = analisarConversas(r.proximo, [g('c1'), g('c2')], opcoes);
+  assert.equal(r2.avisos.length, 0, 'a cópia do outro canal não avisa de novo');
+  // Quando as duas chegam na mesma consulta, também é um aviso só
+  const par = analisarConversas(inicio.proximo, [g('c1', '2026-11-03T21:30:00Z'), g('c2', '2026-11-03T21:30:00Z')], opcoes);
+  assert.equal(par.avisos.length, 1);
+  // Mensagem seguinte do grupo avisa de novo
+  const r3 = analisarConversas(r2.proximo, [g('c1', '2026-11-03T22:05:00Z'), g('c2', '2026-11-03T22:05:00Z')], opcoes);
+  assert.equal(r3.avisos.length, 1);
+});
+
 test('menção a quem nunca escreveu: atualiza a lista do grupo e mostra o nome (ou o número), nunca o código', async () => {
   const { POST: receber } = await import('../src/app/api/canais/webhook/[id]/route.js');
   db.tables.sistema_config = [{ organizacao_id: A, chave: 'chat', valor: { grupos: 'aba' } }];

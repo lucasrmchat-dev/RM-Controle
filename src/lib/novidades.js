@@ -15,6 +15,18 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-03-grupo-aviso-e-edicao',
+    data: '2026-11-03',
+    titulo: 'Chat: um aviso só por mensagem de grupo e edição sem erro falso',
+    resumo: 'Quando vários canais da empresa estão no mesmo grupo, a mesma mensagem tocava o som e criava aviso uma vez por canal. E editar uma mensagem nesses grupos mostrava um erro, embora a edição fosse enviada.',
+    itens: [
+      'Mensagem nova de grupo toca o som e avisa uma vez só, mesmo que vários canais estejam no grupo.',
+      'Editar uma mensagem em grupo com vários canais deixa de mostrar “Evolution respondeu 400” e atualiza o texto na tela.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
     id: '2026-11-03-grupos-varios-canais',
     data: '2026-11-03',
     titulo: 'Chat: mensagens de grupo não se perdem mais quando vários canais estão no mesmo grupo',
