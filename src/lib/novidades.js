@@ -15,6 +15,19 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-03-plataforma-empresa-usuarios',
+    data: '2026-11-03',
+    titulo: 'Plataforma: editar o nome da empresa e os usuários dela',
+    resumo: 'Na Plataforma, ao gerenciar uma empresa, a nova aba “Empresa e usuários” corrige o nome do estabelecimento e o nome, o e-mail e a senha de cada usuário.',
+    itens: [
+      'Trocar o e-mail troca também o login da pessoa.',
+      'Toda alteração fica registrada na auditoria da empresa.',
+      'Servidores e equipe: o administrador agora sempre vê a equipe da própria empresa, inclusive logo depois de a empresa ser criada.',
+    ],
+    modulo: 'Configurações',
+    tickets: [],
+  },
+  {
     id: '2026-11-03-canais-liberados-em-tudo',
     data: '2026-11-03',
     titulo: 'Canais liberados valem em todas as telas',

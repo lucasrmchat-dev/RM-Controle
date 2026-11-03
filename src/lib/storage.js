@@ -3651,7 +3651,11 @@ export async function fetchEquipeUsuarios() {
       // Colunas explícitas: a senha (hash) não é legível pelo navegador
       const colunas = 'id, nome, email, papel, ativo, departamentos, departamentos_bloqueados, primeiro_acesso_concluido, primeiro_acesso_data, created_at';
       // perfil_id existe depois de supabase/migration_perfis_acesso.sql; sem ela, lê sem a coluna
-      let { data, error } = await supabase.from('equipe_usuarios').select(`${colunas}, perfil_id`);
+      // Administrador: lista pelo servidor (já presa à empresa da sessão, não depende da sessão do
+      // banco no navegador). Antes, se a leitura do navegador falhasse, a tela mostrava a lista antiga
+      // guardada aqui e o próprio administrador de uma empresa nova não aparecia.
+      const doServidor = getCurrentUserRole() === 'administrador' ? await chamarApiEquipe('GET').catch(() => null) : null;
+      let { data, error } = Array.isArray(doServidor?.equipe) ? { data: doServidor.equipe, error: null } : await supabase.from('equipe_usuarios').select(`${colunas}, perfil_id`);
       if (error && /perfil_id/.test(error.message || '')) ({ data, error } = await supabase.from('equipe_usuarios').select(colunas));
 
       if (!error && Array.isArray(data)) {

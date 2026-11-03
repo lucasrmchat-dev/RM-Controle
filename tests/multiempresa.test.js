@@ -226,3 +226,31 @@ test('fila lida pelo servidor: só com login, só demandas abertas e só da pró
   assert.equal(r.status, 200);
   assert.deepEqual((await r.json()).chamados.map((c) => c.empresa_nome), ['Cliente da A']);
 });
+
+test('plataforma corrige nome da empresa e nome, e-mail e senha dos usuários dela (só de quem gerencia)', async () => {
+  const acao = async (email, corpo) => {
+    const r = await acaoPlataforma(await req('POST', '/api/plataforma', email, corpo));
+    return { status: r.status, ...(await r.json()) };
+  };
+  const lista = await acao('lucas@rmchat.com', { acao: 'usuarios', id: A });
+  assert.deepEqual(lista.usuarios.map((u) => u.email).sort(), ['ana@a.com', 'caio@a.com'], 'só os da empresa');
+  assert.equal(JSON.stringify(lista).includes('senha'), false);
+  assert.equal((await acao('rui@agencia.com', { acao: 'usuarios', id: A })).status, 404, 'revenda não vê usuários de fora');
+
+  const ana = db.tables.equipe_usuarios.find((u) => u.email === 'ana@a.com');
+  db.authUsers.push({ id: 'auth-ana', email: 'ana@a.com', password: 'Antiga123' });
+  const r = await acao('lucas@rmchat.com', { acao: 'editar_usuario', id: A, usuario_id: ana.id, nome: 'Ana Souza', email: 'ana.souza@a.com', senha: 'NovaSenha1' });
+  assert.equal(r.status, 200, r.mensagem);
+  assert.equal(ana.email, 'ana.souza@a.com');
+  assert.equal(ana.nome, 'Ana Souza');
+  assert.equal(db.authUsers.find((u) => u.id === 'auth-ana').email, 'ana.souza@a.com', 'o login muda junto');
+  assert.ok(db.tables.auditoria_logs.some((l) => l.organizacao_id === A && l.acao === 'plataforma_editou_usuario'));
+
+  // E-mail já usado em outra empresa: recusado; usuário de outra empresa: não encontrado
+  assert.equal((await acao('lucas@rmchat.com', { acao: 'editar_usuario', id: A, usuario_id: ana.id, email: 'cris@c.com' })).status, 409);
+  const cris = db.tables.equipe_usuarios.find((u) => u.email === 'cris@c.com');
+  assert.equal((await acao('lucas@rmchat.com', { acao: 'editar_usuario', id: A, usuario_id: cris.id, nome: 'X' })).status, 404);
+
+  const nome = await acao('lucas@rmchat.com', { acao: 'editar', id: A, nome: 'Clínica A Renovada' });
+  assert.equal(nome.organizacao.nome, 'Clínica A Renovada');
+});
