@@ -4,7 +4,7 @@ import { novoBanco } from './base.mjs';
 import assert from 'node:assert/strict';
 process.on('uncaughtException', (e) => { console.log('FALHOU:', e.message, '| consulta:', e.query || ''); process.exit(1); });
 
-const db = await novoBanco(['schema.sql', 'setup_secure_rls.sql', 'migration_feedbacks_e_departamentos.sql', 'migration_supabase_completa.sql', 'migration_perfis_acesso.sql', 'migration_google_agenda.sql', 'migration_descricao_historico.sql', 'migration_agenda_departamento.sql', 'migration_comercial_pipeline.sql', 'migration_comercial_webhooks.sql', 'migration_relato_atendimentos.sql', 'migration_feedbacks_subtarefas.sql', 'migration_descricao_demandas.sql', 'migration_whatsapp_agenda.sql', 'migration_multiempresa.sql', 'migration_canais_chat.sql', 'migration_canais_chat.sql', 'migration_chat_acoes.sql', 'migration_chat_acoes.sql', 'migration_chat_grupos.sql', 'migration_chat_grupos.sql', 'migration_desempenho.sql', 'migration_desempenho.sql', 'migration_daily.sql', 'migration_daily.sql', 'migration_equipe_protege_acesso.sql', 'migration_equipe_protege_acesso.sql', 'migration_auditoria_autor.sql', 'migration_auditoria_autor.sql']);
+const db = await novoBanco(['schema.sql', 'setup_secure_rls.sql', 'migration_feedbacks_e_departamentos.sql', 'migration_supabase_completa.sql', 'migration_perfis_acesso.sql', 'migration_google_agenda.sql', 'migration_descricao_historico.sql', 'migration_agenda_departamento.sql', 'migration_comercial_pipeline.sql', 'migration_comercial_webhooks.sql', 'migration_relato_atendimentos.sql', 'migration_feedbacks_subtarefas.sql', 'migration_descricao_demandas.sql', 'migration_whatsapp_agenda.sql', 'migration_multiempresa.sql', 'migration_canais_chat.sql', 'migration_canais_chat.sql', 'migration_chat_acoes.sql', 'migration_chat_acoes.sql', 'migration_chat_grupos.sql', 'migration_chat_grupos.sql', 'migration_desempenho.sql', 'migration_desempenho.sql', 'migration_daily.sql', 'migration_daily.sql', 'migration_equipe_protege_acesso.sql', 'migration_equipe_protege_acesso.sql', 'migration_auditoria_autor.sql', 'migration_auditoria_autor.sql', 'migration_fluxos.sql', 'migration_fluxo_esperas.sql', 'migration_fluxo_esperas.sql']);
 console.log('✔ migração aplicada (duas vezes, sem erro)');
 const RMCHAT = '00000000-0000-4000-8000-000000000002';
 
@@ -104,5 +104,15 @@ await falha('ana@rmchat.com', `INSERT INTO daily_reunioes (titulo) VALUES ('pelo
 await falha('ana@rmchat.com', `UPDATE daily_metas SET texto = 'x'`);
 await assert.rejects(servidor(`UPDATE daily_metas SET organizacao_id = $1`, [b.id]));
 console.log('✔ Daily: separado por empresa, navegador só lê, empresa imutável');
+
+// Pergunta do Fluxo: espera presa à empresa da conversa; o navegador não lê nem grava
+const [fluxo] = await servidor(`INSERT INTO fluxos (nome, organizacao_id) VALUES ('Triagem', $1) RETURNING id`, [RMCHAT]);
+await servidor(`INSERT INTO fluxo_esperas (fluxo_id, conversa_id, no_id, expira_em) VALUES ($1, $2, 'p1', now() + interval '1 hour')`, [fluxo.id, convSuporte.id]);
+assert.equal((await servidor(`SELECT organizacao_id FROM fluxo_esperas`))[0].organizacao_id, RMCHAT, 'herda a empresa da conversa');
+await assert.rejects(servidor(`INSERT INTO fluxo_esperas (fluxo_id, conversa_id, no_id, expira_em, organizacao_id) VALUES ($1, $2, 'p2', now(), $3)`, [fluxo.id, convVendas.id, b.id]), /mesma empresa/);
+await assert.rejects(servidor(`INSERT INTO fluxo_esperas (fluxo_id, conversa_id, no_id, expira_em) VALUES ($1, $2, 'p3', now())`, [fluxo.id, convSuporte.id]), /duplicate|unique/, 'uma pergunta por fluxo e conversa');
+await falha('ana@rmchat.com', `SELECT * FROM fluxo_esperas`);
+await falha('ana@rmchat.com', `DELETE FROM fluxo_esperas`);
+console.log('✔ Pergunta do Fluxo: espera na empresa da conversa, uma por conversa, navegador sem acesso');
 
 console.log('\nTODOS OS TESTES DE CANAIS PASSARAM');

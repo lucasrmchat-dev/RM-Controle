@@ -229,10 +229,10 @@ export async function registrarEventos(db, canal, eventos, { config = CONFIG_CHA
       await db.from('conversas').update(campos).eq('id', conversa.id);
       resumo.mensagens += 1;
       if (!ev.deMim) {
-        const { data: ct } = await db.from('contatos').select('nome, telefone').eq('id', contatoId).maybeSingle();
+        const { data: ct } = await db.from('contatos').select('nome, telefone, etiquetas').eq('id', contatoId).maybeSingle();
         resumo.recebidas.push({
           mensagem: { texto: textoFinal || '', tipo: ev.tipoMensagem },
-          contato: { nome: ct?.nome || ev.nome || '', telefone: ct?.telefone || ev.telefone },
+          contato: { nome: ct?.nome || ev.nome || '', telefone: ct?.telefone || ev.telefone, etiquetas: Array.isArray(ct?.etiquetas) ? ct.etiquetas : [] },
           participante: ev.grupo ? { nome: ev.participante?.nome || '', telefone: ev.participante?.telefone || '' } : null,
           conversa: { id: conversa.id, grupo: Boolean(ev.grupo), departamento: conversa.departamento || '', responsavel_email: conversa.responsavel_email || '' },
           canal: { id: canal.id, nome: canal.nome || '' },

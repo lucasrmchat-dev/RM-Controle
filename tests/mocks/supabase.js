@@ -188,7 +188,7 @@ class Query {
         const chaves = String(this.conflito).split(',').map((c) => c.trim());
         const existente = rows.find((r) => chaves.every((c) => r[c] === p[c]));
         if (existente) Object.assign(existente, p);
-        else rows.push({ ...p });
+        else rows.push({ id: randomUUID(), ...p }); // o banco real gera o id
       }
       return out(this.payload);
     }

@@ -6,6 +6,10 @@
  *  - cada fluxo roda no máximo 10 vezes por minuto para a mesma conversa ou reunião (evita robôs em círculo);
  *  - mensagens que a própria empresa envia nunca disparam fluxos (só as recebidas);
  *  - o que o fluxo muda na agenda não dispara outros fluxos de agenda.
+ *
+ * Bloco "Pergunta": a pergunta enviada fica em fluxo_esperas. A próxima mensagem do contato (ou de alguém
+ * do grupo) na conversa continua o fluxo pela saída "Respondeu"; vencido o prazo, pela "Sem resposta"
+ * (conferido a cada aviso do WhatsApp da empresa, no máximo uma vez por minuto).
  */
 import { GATILHOS_DO_EVENTO, executarFluxo } from '@/lib/fluxos';
 import { DESFECHOS_COMERCIAIS } from '@/lib/comercial';
@@ -99,6 +103,14 @@ export function efeitosReais(db, fluxo, { fetchImpl = fetch, esperar = (ms) => n
       if (error || !data?.length) throw new Error(`Não foi possível mover a reunião no processo comercial${error?.message ? `: ${error.message}` : ''}.`);
       return `Reunião movida para ${etapa.nome} em ${processo.nome}`;
     },
+    async aguardarResposta({ conversaId, noId, variavel, expiraEm, contexto }) {
+      // Uma pergunta por fluxo e conversa: a nova substitui a anterior
+      const { agora, ...semRelogio } = contexto || {};
+      const { error } = await db
+        .from('fluxo_esperas')
+        .upsert([{ fluxo_id: fluxo.id, conversa_id: conversaId, no_id: noId, variavel, contexto: semRelogio, expira_em: expiraEm.toISOString(), criado_em: new Date().toISOString() }], { onConflict: 'fluxo_id,conversa_id' });
+      if (error) throw new Error(/fluxo_esperas|does not exist|schema cache/i.test(error.message || '') ? 'Falta instalar a Pergunta no banco: rode supabase/migration_fluxo_esperas.sql no Supabase.' : `Não foi possível guardar a pergunta: ${error.message}`);
+    },
     async atualizarConversa(id, campos) {
       if (campos.resolver) {
         await db.from('conversas').update({ status: 'resolvida', resolvida_em: new Date().toISOString(), nao_lidas: 0 }).eq('id', id);
@@ -122,6 +134,31 @@ async function registrarExecucao(db, fluxo, evento, r) {
     .then(() => {}, () => {});
 }
 
+/** De onde veio a mensagem, em poucas palavras (para o registro de quando o fluxo não disparou). */
+function origemDaMensagem(d = {}) {
+  const quem = d.conversa?.grupo ? `grupo ${d.contato?.nome || d.contato?.telefone || ''}` : d.contato?.nome || d.contato?.telefone || 'contato';
+  const texto = String(d.mensagem?.texto || '').replace(/\s+/g, ' ').trim();
+  return `${quem.trim()}${d.canal?.nome ? ` · canal ${d.canal.nome}` : ''}${texto ? ` · “${texto.slice(0, 80)}${texto.length > 80 ? '…' : ''}”` : ''}`;
+}
+
+/**
+ * Mensagem que chegou e NÃO disparou o fluxo: fica nas execuções com o motivo (cinza na tela).
+ * Assim quem monta o fluxo vê que a mensagem chegou e por que não seguiu. De vez em quando apaga os
+ * registros "não disparou" mais antigos, para a lista não crescer sem fim.
+ */
+async function registrarNaoDisparou(db, fluxo, evento, motivo) {
+  const passos = [{ no: null, tipo: 'gatilho', rotulo: 'Mensagem recebida', resultado: origemDaMensagem(evento.dados) }, { no: null, tipo: 'gatilho', rotulo: 'Não disparou', erro: motivo }];
+  await db
+    .from('fluxo_execucoes')
+    .insert([{ fluxo_id: fluxo.id, gatilho: evento.tipo, status: 'ignorado', resumo: String(motivo || 'Não disparou').slice(0, 300), passos }])
+    .then(() => {}, () => {});
+  if (Math.random() < 0.1) {
+    const { data: antigos } = await db.from('fluxo_execucoes').select('id').eq('fluxo_id', fluxo.id).eq('status', 'ignorado').order('criado_em', { ascending: false }).range(200, 1199).then((x) => x, () => ({ data: [] }));
+    const ids = (antigos || []).map((a) => a.id);
+    if (ids.length) await db.from('fluxo_execucoes').delete().in('id', ids).then(() => {}, () => {});
+  }
+}
+
 /**
  * Roda os fluxos ativos que respondem ao evento. Nunca lança: um fluxo com problema não atrapalha o resto.
  * @returns {Promise<Array<{ fluxo_id, status, passos }>>}
@@ -129,11 +166,19 @@ async function registrarExecucao(db, fluxo, evento, r) {
 export async function dispararFluxos(db, evento, opcoes = {}) {
   const resultados = [];
   for (const fluxo of await fluxosDoEvento(db, evento.tipo)) {
+    if (opcoes.ignorar?.has(fluxo.id)) continue;
     try {
       const alvo = evento.dados?.conversa?.id || evento.dados?.reuniao?.id || 'geral';
-      if (!(await consumirLimite(`fluxo_${fluxo.id}_${alvo}`, 10, 60))) continue;
+      if (!(await consumirLimite(`fluxo_${fluxo.id}_${alvo}`, 10, 60))) {
+        if (evento.tipo === 'mensagem_recebida') await registrarNaoDisparou(db, fluxo, evento, 'Mais de 10 execuções em 1 minuto nesta conversa: pausado por segurança (evita repetição sem fim).');
+        continue;
+      }
       const r = await executarFluxo({ definicao: fluxo.definicao, evento, efeitos: efeitosReais(db, fluxo, opcoes) });
-      if (!r.casou) continue;
+      if (!r.casou) {
+        // Só mensagens do WhatsApp: reuniões não disparadas não interessam (seriam todas as da agenda)
+        if (evento.tipo === 'mensagem_recebida') await registrarNaoDisparou(db, fluxo, evento, r.motivo);
+        continue;
+      }
       await registrarExecucao(db, fluxo, evento, r);
       resultados.push({ fluxo_id: fluxo.id, status: r.status, passos: r.passos });
     } catch (e) {
@@ -143,10 +188,70 @@ export async function dispararFluxos(db, evento, opcoes = {}) {
   return resultados;
 }
 
-/** Mensagens recebidas pelo webhook do WhatsApp → eventos do fluxo. */
-export async function dispararMensagensRecebidas(db, recebidas, opcoes = {}) {
-  for (const dados of recebidas || []) {
-    await dispararFluxos(db, { tipo: 'mensagem_recebida', dados }, opcoes);
-  }
+/**
+ * Continua um fluxo parado numa Pergunta. A espera é apagada ANTES de continuar (quem apagar primeiro
+ * continua; dois avisos ao mesmo tempo não continuam duas vezes).
+ */
+async function retomarEspera(db, espera, evento, saida, opcoes) {
+  const { data: apagadas } = await db.from('fluxo_esperas').delete().eq('id', espera.id).select('id');
+  if (!apagadas?.length) return null;
+  const { data: fluxo } = await db.from('fluxos').select('id, nome, definicao, ativo').eq('id', espera.fluxo_id).maybeSingle();
+  if (!fluxo?.ativo) return null;
+  const resultado = saida === 'respondeu' ? `Resposta recebida: “${String(evento.dados?.mensagem?.texto || '').slice(0, 120)}”` : 'O prazo da pergunta venceu sem resposta';
+  const r = await executarFluxo({
+    definicao: fluxo.definicao,
+    evento,
+    efeitos: efeitosReais(db, fluxo, opcoes),
+    retomar: { noId: espera.no_id, saida, contexto: espera.contexto, variavel: espera.variavel, resultado },
+  });
+  if (!r.casou) return null;
+  await registrarExecucao(db, fluxo, { tipo: saida === 'respondeu' ? 'pergunta_respondida' : 'pergunta_sem_resposta' }, r);
+  return fluxo.id;
 }
 
+/** Perguntas esperando resposta nesta conversa: a mensagem que chegou é a resposta. Devolve os fluxos que continuaram. */
+async function responderPerguntas(db, dados, opcoes) {
+  if (!dados?.conversa?.id) return new Set();
+  const { data: esperas, error } = await db.from('fluxo_esperas').select('*').eq('conversa_id', dados.conversa.id);
+  if (error || !esperas?.length) return new Set();
+  const continuaram = new Set();
+  for (const espera of esperas) {
+    try {
+      const vencida = new Date(espera.expira_em).getTime() < Date.now();
+      const id = await retomarEspera(db, espera, vencida ? { tipo: 'mensagem_recebida', dados: {} } : { tipo: 'mensagem_recebida', dados }, vencida ? 'sem_resposta' : 'respondeu', opcoes);
+      if (id && !vencida) continuaram.add(id);
+    } catch (e) {
+      console.error('[fluxos] falha ao continuar a pergunta', espera.id, e.message);
+    }
+  }
+  return continuaram;
+}
+
+// Prazo das perguntas: conferido no máximo uma vez por minuto por empresa (em cada servidor)
+const ultimaConferencia = new Map();
+/** Perguntas com o prazo vencido seguem pela saída "Sem resposta". */
+export async function processarPerguntasVencidas(db, { forcar = false, ...opcoes } = {}) {
+  const chave = db?.organizacaoId || 'geral';
+  if (!forcar && Date.now() - (ultimaConferencia.get(chave) || 0) < 60000) return 0;
+  ultimaConferencia.set(chave, Date.now());
+  const { data: vencidas, error } = await db.from('fluxo_esperas').select('*').lt('expira_em', new Date().toISOString()).order('expira_em').limit(20);
+  if (error || !vencidas?.length) return 0;
+  let n = 0;
+  for (const espera of vencidas) {
+    try {
+      if (await retomarEspera(db, espera, { tipo: 'mensagem_recebida', dados: {} }, 'sem_resposta', opcoes)) n += 1;
+    } catch (e) {
+      console.error('[fluxos] falha no prazo da pergunta', espera.id, e.message);
+    }
+  }
+  return n;
+}
+
+/** Mensagens recebidas pelo webhook do WhatsApp → eventos do fluxo (antes, respostas às perguntas pendentes). */
+export async function dispararMensagensRecebidas(db, recebidas, opcoes = {}) {
+  for (const dados of recebidas || []) {
+    // Quem estava esperando a resposta continua; esse fluxo não começa de novo com a mesma mensagem
+    const continuaram = await responderPerguntas(db, dados, opcoes);
+    await dispararFluxos(db, { tipo: 'mensagem_recebida', dados }, { ...opcoes, ignorar: continuaram });
+  }
+}

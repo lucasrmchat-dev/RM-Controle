@@ -18,6 +18,9 @@ import { CORES_BLOCO, IconeBloco } from './visual';
 const LARGURA = 248;
 const ZOOM_MIN = 0.25;
 const ZOOM_MAX = 2;
+// Saídas com cor: "deu certo" em verde, "não deu" em vermelho
+const SAIDA_POSITIVA = new Set(['sim', 'respondeu']);
+const SAIDA_NEGATIVA = new Set(['nao', 'sem_resposta']);
 const portaY = (tipo, i) => (BLOCOS[tipo]?.saidas.length > 1 ? 72 + i * 28 : 26);
 const ENTRADA_Y = 26;
 
@@ -48,6 +51,10 @@ function resumoBloco(no, canaisPorId) {
       return [`Quando ficar ${rotuloStatus(c.status)}`];
     case 'enviar_mensagem':
       return [c.texto ? c.texto : 'Sem texto', { conversa: '→ na conversa', cliente_reuniao: '→ cliente da reunião', numero: `→ ${c.telefone || 'número'}` }[c.destino || 'conversa']];
+    case 'pergunta': {
+      const min = Number(c.minutos) || 60;
+      return [c.texto ? c.texto : 'Sem texto', `Espera ${min >= 60 ? `${Math.round(min / 6) / 10} h` : `${min} min`} · {{var.${c.variavel || 'resposta'}}}`];
+    }
     case 'condicao':
       return (c.regras || []).slice(0, 3).map((r) => `${r.campo} ${OPERADORES.find((o) => o.id === r.operador)?.rotulo || ''} ${OPERADORES.find((o) => o.id === r.operador)?.semValor ? '' : `“${r.valor || ''}”`}`.trim());
     case 'espera':
@@ -112,7 +119,7 @@ const CartaoBloco = React.memo(function CartaoBloco({ no, selecionado, estado, c
       {b.saidas.map((s, i) => (
         <React.Fragment key={s}>
           {multi && (
-            <span className={`absolute right-4 text-[11px] font-semibold ${s === 'sim' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`} style={{ top: portaY(no.tipo, i) - 8 }}>
+            <span className={`absolute right-4 text-[11px] font-semibold ${SAIDA_POSITIVA.has(s) ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`} style={{ top: portaY(no.tipo, i) - 8 }}>
               {ROTULO_SAIDA[s]}
             </span>
           )}
@@ -121,7 +128,7 @@ const CartaoBloco = React.memo(function CartaoBloco({ no, selecionado, estado, c
             aria-label={`Ligar a saída ${ROTULO_SAIDA[s] || ''} de ${b.rotulo}`}
             onPointerDown={(e) => onInicioLigar(e, no.id, s)}
             className={`absolute -right-[8px] w-4 h-4 rounded-full border-2 cursor-crosshair hover:scale-125 transition-transform ${
-              s === 'sim' ? 'bg-emerald-500 border-white dark:border-rm-elevado-escuro' : s === 'nao' ? 'bg-rose-500 border-white dark:border-rm-elevado-escuro' : 'bg-rm-acento-medio border-white dark:border-rm-elevado-escuro'
+              SAIDA_POSITIVA.has(s) ? 'bg-emerald-500 border-white dark:border-rm-elevado-escuro' : SAIDA_NEGATIVA.has(s) ? 'bg-rose-500 border-white dark:border-rm-elevado-escuro' : 'bg-rm-acento-medio border-white dark:border-rm-elevado-escuro'
             }`}
             style={{ top: portaY(no.tipo, i) - 8 }}
           />
@@ -134,6 +141,8 @@ const CartaoBloco = React.memo(function CartaoBloco({ no, selecionado, estado, c
 function Execucoes({ fluxoId, onFechar }) {
   const [lista, setLista] = useState(null);
   const [aberta, setAberta] = useState(null);
+  // "Não disparou": mensagens que chegaram e não seguiram (com o motivo). Ajudam a testar o gatilho.
+  const [verIgnoradas, setVerIgnoradas] = useState(true);
   const carregar = useCallback(() => {
     setLista(null);
     fetchExecucoesFluxo(fluxoId)
@@ -146,13 +155,17 @@ function Execucoes({ fluxoId, onFechar }) {
   useEffect(() => {
     carregar();
   }, [carregar]);
-  const nomeGatilho = { mensagem_recebida: 'Mensagem no WhatsApp', reuniao_agendada: 'Reunião agendada', reuniao_status: 'Status da reunião' };
+  const nomeGatilho = { mensagem_recebida: 'Mensagem no WhatsApp', reuniao_agendada: 'Reunião agendada', reuniao_status: 'Status da reunião', pergunta_respondida: 'Pergunta respondida', pergunta_sem_resposta: 'Pergunta sem resposta' };
   return (
     <div className="h-full flex flex-col">
       <div className="px-4 h-14 flex items-center gap-2 border-b border-black/[0.06] dark:border-white/[0.08] flex-shrink-0">
         <span className="text-[14.5px] font-semibold">Execuções</span>
-        <span className="text-[12px] text-slate-500">últimas 30</span>
-        <button type="button" onClick={carregar} className="ml-auto h-8 px-3 rounded-full text-[12px] font-medium bg-black/[0.05] dark:bg-white/[0.08] cursor-pointer">
+        <span className="text-[12px] text-slate-500">últimas 50</span>
+        <label className="ml-auto flex items-center gap-1.5 text-[12px] text-slate-500 cursor-pointer select-none">
+          <input type="checkbox" checked={verIgnoradas} onChange={(e) => setVerIgnoradas(e.target.checked)} className="accent-current" />
+          Não disparou
+        </label>
+        <button type="button" onClick={carregar} className="h-8 px-3 rounded-full text-[12px] font-medium bg-black/[0.05] dark:bg-white/[0.08] cursor-pointer">
           Atualizar
         </button>
         <button type="button" onClick={onFechar} aria-label="Fechar" className="w-8 h-8 rounded-full text-slate-500 hover:bg-black/[0.05] cursor-pointer text-[18px]">
@@ -165,12 +178,12 @@ function Execucoes({ fluxoId, onFechar }) {
         ) : lista.length === 0 ? (
           <p className="p-6 text-center text-[13px] text-slate-500">Nenhuma execução ainda. Ative o fluxo e ele roda sozinho quando o gatilho acontecer.</p>
         ) : (
-          lista.map((e) => (
+          lista.filter((e) => verIgnoradas || e.status !== 'ignorado').map((e) => (
             <div key={e.id} className="px-4 py-3">
               <button type="button" onClick={() => setAberta(aberta === e.id ? null : e.id)} className="w-full flex items-center gap-2 text-left cursor-pointer">
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${e.status === 'ok' ? 'bg-emerald-500' : e.status === 'erro' ? 'bg-rose-500' : 'bg-amber-500'}`} />
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${e.status === 'ok' ? 'bg-emerald-500' : e.status === 'erro' ? 'bg-rose-500' : e.status === 'ignorado' ? 'bg-slate-300 dark:bg-zinc-600' : 'bg-amber-500'}`} />
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-medium truncate">{nomeGatilho[e.gatilho] || e.gatilho}</span>
+                  <span className={`block text-[13px] font-medium truncate ${e.status === 'ignorado' ? 'text-slate-500 dark:text-zinc-400' : ''}`}>{e.status === 'ignorado' ? 'Não disparou' : nomeGatilho[e.gatilho] || e.gatilho}</span>
                   <span className="block text-[11.5px] text-slate-500 truncate">{e.resumo}</span>
                 </span>
                 <span className="text-[11.5px] text-slate-400 tabular-nums">{new Date(e.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
@@ -179,7 +192,7 @@ function Execucoes({ fluxoId, onFechar }) {
                 <ol className="mt-2 ml-4 space-y-1">
                   {(e.passos || []).map((p, i) => (
                     <li key={i} className="text-[12px] flex gap-2">
-                      <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${p.erro ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+                      <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${e.status === 'ignorado' ? 'bg-slate-300 dark:bg-zinc-600' : p.erro ? 'bg-rose-500' : 'bg-emerald-500'}`} />
                       <span>
                         <strong className="font-semibold">{p.rotulo}</strong> <span className="text-slate-500">{p.erro || p.resultado}</span>
                       </span>
@@ -702,7 +715,7 @@ export default function EditorFluxo({ fluxo: inicial, onVoltar, onMudou }) {
                 const y2 = para.y + ENTRADA_Y;
                 const sel = selecao?.tipo === 'ligacao' && selecao.id === l.id;
                 const andou = ligacoesPercorridas.has(l.id);
-                const cor = sel ? 'rgb(var(--rm-acento-medio))' : andou ? '#10b981' : l.saida === 'sim' ? '#34d399' : l.saida === 'nao' ? '#fb7185' : '#94a3b8';
+                const cor = sel ? 'rgb(var(--rm-acento-medio))' : andou ? '#10b981' : SAIDA_POSITIVA.has(l.saida) ? '#34d399' : SAIDA_NEGATIVA.has(l.saida) ? '#fb7185' : '#94a3b8';
                 return (
                   <g key={l.id}>
                     <path d={curva(x1, y1, x2, y2)} fill="none" stroke="transparent" strokeWidth="14" className="pointer-events-auto cursor-pointer" onPointerDown={(e) => { e.stopPropagation(); setSelecao({ tipo: 'ligacao', id: l.id }); }} />
