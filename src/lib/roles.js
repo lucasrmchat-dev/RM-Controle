@@ -12,7 +12,8 @@
 
 export const PAPEIS_VALIDOS = ['administrador', 'suporte', 'vendas'];
 
-export const ADMINS_PROPRIETARIOS = ['admin@rmcontrole.com', 'lucas.rmchat@gmail.com', 'lucas@rmchat.com'];
+// admin@rmcontrole.com saiu da lista (03/11/2026): ninguém usa essa caixa de e-mail e scripts antigos a criavam com senha fixa
+export const ADMINS_PROPRIETARIOS = ['lucas.rmchat@gmail.com', 'lucas@rmchat.com'];
 
 export const ROTULOS_PAPEL = {
   administrador: 'Administrador',

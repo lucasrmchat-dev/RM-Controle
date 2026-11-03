@@ -69,7 +69,8 @@ beforeEach(() => {
 test('papéis: proprietários são administradores, demais seguem o cadastro da equipe', () => {
   assert.equal(resolverPapel('lucas@rmchat.com', EQUIPE), 'administrador');
   assert.equal(resolverPapel('LUCAS@RMCHAT.COM ', EQUIPE), 'administrador');
-  assert.equal(resolverPapel('admin@rmcontrole.com', []), 'administrador');
+  assert.equal(resolverPapel('lucas.rmchat@gmail.com', []), 'administrador');
+  assert.equal(resolverPapel('admin@rmcontrole.com', []), 'suporte', 'e-mail antigo, sem uso, não é mais proprietário');
   assert.equal(resolverPapel('gestora@rmchat.com', EQUIPE), 'administrador');
   assert.equal(resolverPapel('maria@rmchat.com', EQUIPE), 'suporte');
   assert.equal(resolverPapel('carla@rmchat.com', EQUIPE), 'vendas');
