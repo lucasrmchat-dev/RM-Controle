@@ -101,6 +101,19 @@ async function contatoPorTelefone(db, numero, nome, { grupo = false } = {}) {
   throw new Error(`Não foi possível registrar o contato: ${error.message}`);
 }
 
+/** Atendente padrão do contato ou grupo (se ainda está ativo na equipe), ou null. */
+async function atendentePadrao(db, contatoId) {
+  const { data: ct, error } = await db.from('contatos').select('responsavel_padrao_email, responsavel_padrao_nome').eq('id', contatoId).maybeSingle();
+  if (error || !ct?.responsavel_padrao_email) return null; // banco sem a coluna ainda: segue sem atendente padrão
+  const { data: membro } = await db.from('equipe_usuarios').select('email, nome, ativo').eq('email', ct.responsavel_padrao_email).maybeSingle();
+  if (!membro || membro.ativo === false) return null;
+  return { email: membro.email, nome: membro.nome || ct.responsavel_padrao_nome || membro.email.split('@')[0] };
+}
+
+/** Campos de uma conversa que (re)começa: com atendente padrão, já fica com ele; sem, vai para Pendentes. */
+const camposDeEntrada = (padrao) =>
+  padrao ? { status: 'em_atendimento', responsavel_email: padrao.email, responsavel_nome: padrao.nome } : { status: 'aguardando', responsavel_email: null, responsavel_nome: null };
+
 async function conversaAberta(db, canal, contatoId, { grupo = false, em, reabrir = true } = {}) {
   const buscar = () => db.from('conversas').select('*').eq('canal_id', canal.id).eq('contato_id', contatoId).neq('status', 'resolvida').maybeSingle();
   const { data } = await buscar();
@@ -110,18 +123,19 @@ async function conversaAberta(db, canal, contatoId, { grupo = false, em, reabrir
   // Mensagem da própria equipe (enviada pelo celular ou eco de um envio) entra nela sem reabrir.
   const { data: fechadas } = await db.from('conversas').select('*').eq('canal_id', canal.id).eq('contato_id', contatoId).eq('status', 'resolvida').order('ultima_mensagem_em', { ascending: false }).limit(1);
   const fechada = (fechadas || [])[0];
+  if (fechada && !reabrir) return fechada;
+  const padrao = await atendentePadrao(db, contatoId);
   if (fechada) {
-    if (!reabrir) return fechada;
     const { data: reaberta, error } = await db
       .from('conversas')
-      .update({ status: 'aguardando', resolvida_em: null, responsavel_email: null, responsavel_nome: null })
+      .update({ ...camposDeEntrada(padrao), resolvida_em: null })
       .eq('id', fechada.id)
       .eq('status', 'resolvida')
       .select('*')
       .maybeSingle();
     if (!error && reaberta) {
       const quando = new Date(new Date(em || Date.now()).getTime() - 1).toISOString();
-      const aviso = grupo ? 'Conversa reaberta: nova mensagem no grupo' : 'Conversa reaberta: o cliente mandou nova mensagem';
+      const aviso = `${grupo ? 'Conversa reaberta: nova mensagem no grupo' : 'Conversa reaberta: o cliente mandou nova mensagem'}${padrao ? ` · com ${padrao.nome} (atendente padrão)` : ''}`;
       await db.from('mensagens').insert([{ conversa_id: reaberta.id, direcao: 'nota', tipo: 'sistema', conteudo: aviso, status: 'enviada', criado_em: quando }]).then(() => {}, () => {});
       return reaberta;
     }
@@ -131,7 +145,7 @@ async function conversaAberta(db, canal, contatoId, { grupo = false, em, reabrir
   }
   const { data: nova, error } = await db
     .from('conversas')
-    .insert([{ canal_id: canal.id, contato_id: contatoId, status: 'aguardando', departamento: canal.departamento_padrao || null }])
+    .insert([{ canal_id: canal.id, contato_id: contatoId, departamento: canal.departamento_padrao || null, ...camposDeEntrada(padrao) }])
     .select('*')
     .single();
   if (!error) return nova;

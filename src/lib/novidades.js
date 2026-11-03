@@ -15,6 +15,21 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-03-chat-acoes-em-massa',
+    data: '2026-11-03',
+    titulo: 'Chat: ações em massa nas conversas',
+    resumo: 'Marque várias conversas (contatos e grupos), ou todas as que aparecem com o filtro atual, e aplique uma ação em todas de uma vez.',
+    itens: [
+      'No Chat, clique em “Selecionar conversas” (no alto da lista), marque as conversas ou use “Selecionar todas” e depois “Ações”.',
+      'Ações: resolver, transferir para atendente, transferir para departamento, adicionar ou remover etiqueta, definir ou tirar o atendente padrão e colocar ou tirar do processo comercial.',
+      'Atendente padrão (só administradores): toda conversa nova do contato ou grupo já cai com essa pessoa, em vez de ir para Pendentes.',
+      'Status de lead: o contato vira uma oportunidade na etapa escolhida do processo comercial e aparece no Comercial.',
+      'Só entram as conversas que você pode ver; as outras ficam de fora e o aviso diz quantas.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
     id: '2026-11-03-fluxo-pergunta-etiquetas-registro',
     data: '2026-11-03',
     titulo: 'Fluxo Inteligente: bloco Pergunta, condição por etiqueta e registro de quando não dispara',

@@ -726,3 +726,72 @@ test('ticket #22: assinatura obrigatória assina no servidor mesmo que a tela pe
   const envio = enviados.find((e) => e.url.includes('sendText'));
   assert.match(envio.corpo.text, /^\*Ana Souza:\*\nOlá$/);
 });
+
+test('ações em massa: resolver, transferir, etiquetas, atendente padrão e lead; só conversas que a pessoa vê', async () => {
+  const { POST: emMassa } = await import('../src/app/api/chat/massa/route.js');
+  const massa = async (email, corpo) => ler(await emMassa(await como(email, '/api/chat/massa', 'POST', corpo)));
+  const contatoFin = { id: convFinanceiro.contato_id, organizacao_id: A, telefone: '5585988887777', nome: 'Grupo Suporte' };
+  db.tables.contatos.push(contatoFin);
+
+  // Etiqueta no contato e no grupo (vale para as próximas conversas); repetida não duplica
+  let r = await massa('ana@a.com', { ids: [convVendas.id, convFinanceiro.id], acao: 'etiqueta_adicionar', etiqueta: 'Suporte RM' });
+  assert.equal(r.status, 200, r.mensagem);
+  assert.deepEqual(contato.etiquetas, ['Suporte RM']);
+  assert.deepEqual(contatoFin.etiquetas, ['Suporte RM']);
+  await massa('ana@a.com', { ids: [convVendas.id], acao: 'etiqueta_adicionar', etiqueta: 'suporte rm' });
+  assert.deepEqual(contato.etiquetas, ['Suporte RM']);
+  await massa('ana@a.com', { ids: [convVendas.id], acao: 'etiqueta_remover', etiqueta: 'SUPORTE RM' });
+  assert.deepEqual(contato.etiquetas, []);
+
+  // Bia (perfil Vendas) só vê a conversa de Vendas: a do Financeiro e a de outra empresa ficam de fora
+  r = await massa('bia@a.com', { ids: [convVendas.id, convFinanceiro.id, convOutra.id], acao: 'transferir_departamento', departamento: 'Suporte' });
+  assert.equal(r.feitas, 1);
+  assert.equal(r.ignoradas, 2);
+  assert.equal(convVendas.departamento, 'Suporte');
+  assert.equal(convFinanceiro.departamento, 'Financeiro');
+  assert.equal(convOutra.departamento, null);
+
+  // Atendente padrão: só administrador
+  assert.equal((await massa('bia@a.com', { ids: [convVendas.id], acao: 'atendente_padrao', email: 'ana@a.com' })).status, 403);
+  r = await massa('ana@a.com', { ids: [convVendas.id], acao: 'atendente_padrao', email: 'bia@a.com' });
+  assert.equal(r.status, 200, r.mensagem);
+  assert.equal(contato.responsavel_padrao_email, 'bia@a.com');
+
+  // Transferir para atendente e resolver em massa
+  r = await massa('ana@a.com', { ids: [convVendas.id, convFinanceiro.id], acao: 'transferir_atendente', email: 'ana@a.com' });
+  assert.equal(r.feitas, 2);
+  assert.equal(convFinanceiro.responsavel_email, 'ana@a.com');
+  r = await massa('ana@a.com', { ids: [convVendas.id, convFinanceiro.id], acao: 'resolver' });
+  assert.equal(r.feitas, 2);
+  assert.ok([convVendas, convFinanceiro].every((c) => c.status === 'resolvida'));
+  assert.ok(db.tables.mensagens.some((m) => m.conversa_id === convVendas.id && /resolveu a conversa \(ação em massa\)/.test(m.conteudo)));
+
+  // O cliente escreve de novo: a conversa volta já com o atendente padrão (Bia), não para Pendentes
+  const { POST: receberWebhook } = await import('../src/app/api/canais/webhook/[id]/route.js');
+  await receberWebhook(new NextRequest(`http://localhost/api/canais/webhook/${canal.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rm-token': 't' }, body: JSON.stringify({ event: 'messages.upsert', data: { key: { remoteJid: '5585999990000@s.whatsapp.net', fromMe: false, id: 'MASSA1' }, pushName: 'Carla', message: { conversation: 'voltei' } } }) }), { params: Promise.resolve({ id: canal.id }) });
+  assert.equal(convVendas.status, 'em_atendimento');
+  assert.equal(convVendas.responsavel_email, 'bia@a.com');
+
+  // Status de lead: etapa do processo comercial, um lead por contato; tirar apaga só o do Chat
+  db.tables.sistema_config = [{ organizacao_id: A, chave: 'comercial', valor: { departamentos: ['Vendas'], pipelines: [{ id: 'p1', nome: 'Vendas novas', etapas: [{ id: 'e1', nome: 'Qualificação' }, { id: 'e2', nome: 'Proposta' }] }] } }];
+  db.tables.comercial_leads = [];
+  assert.equal((await massa('ana@a.com', { ids: [convVendas.id], acao: 'lead', pipeline_id: 'p1', etapa_id: 'nao-existe' })).status, 400);
+  r = await massa('ana@a.com', { ids: [convVendas.id], acao: 'lead', pipeline_id: 'p1', etapa_id: 'e1' });
+  assert.equal(r.status, 200, r.mensagem);
+  assert.equal(db.tables.comercial_leads.length, 1);
+  assert.equal(db.tables.comercial_leads[0].contato_id, contato.id);
+  assert.equal(db.tables.comercial_leads[0].organizacao_id, A);
+  assert.equal(db.tables.comercial_leads[0].departamento, 'Vendas');
+  await massa('ana@a.com', { ids: [convVendas.id], acao: 'lead', pipeline_id: 'p1', etapa_id: 'e2' });
+  assert.equal(db.tables.comercial_leads.length, 1, 'não duplica o lead');
+  assert.equal(db.tables.comercial_leads[0].comercial_etapa_id, 'e2');
+  db.tables.comercial_leads.push({ id: crypto.randomUUID(), organizacao_id: A, integracao_id: crypto.randomUUID(), contato_id: contato.id, externo_id: '9902', comercial_etapa_id: 'e1' });
+  r = await massa('ana@a.com', { ids: [convVendas.id], acao: 'lead', remover: true });
+  assert.equal(r.feitas, 1);
+  assert.equal(db.tables.comercial_leads.length, 1, 'o lead do webhook continua');
+  assert.notEqual(db.tables.comercial_leads[0].integracao_id, null);
+
+  // Sem conversas ou ação desconhecida
+  assert.equal((await massa('ana@a.com', { ids: [], acao: 'resolver' })).status, 400);
+  assert.equal((await massa('ana@a.com', { ids: [convVendas.id], acao: 'apagar_tudo' })).status, 400);
+});
