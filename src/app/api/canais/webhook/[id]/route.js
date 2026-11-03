@@ -1,6 +1,6 @@
 import { after } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
-import { dispararMensagensRecebidas } from '@/lib/server/fluxos';
+import { dispararMensagensRecebidas, processarPerguntasVencidas } from '@/lib/server/fluxos';
 import { escopoDoRegistro } from '@/lib/server/organizacao';
 import { configDoChat, provedorDo, registrarEventos, segredosDo } from '@/lib/server/canais/index';
 import { avisarAoVivo } from '@/lib/server/canais/aoVivo';
@@ -62,11 +62,13 @@ export async function POST(request, contexto) {
     const dbEmpresa = escopoDoRegistro(db, canal);
     const { recebidas, ...resumo } = await registrarEventos(dbEmpresa, canal, provedor.lerAviso(payload, canal), { config: await configDoChat(dbEmpresa) });
     if (resumo.mensagens || resumo.status || resumo.conexao) await avisarAoVivo(canal.organizacao_id);
-    // Fluxo Inteligente: roda depois de responder ao provedor (o aviso não espera os fluxos)
-    if (recebidas?.length) {
+    // Fluxo Inteligente: roda depois de responder ao provedor (o aviso não espera os fluxos).
+    // Todo aviso também confere o prazo das perguntas que estão esperando resposta.
+    {
       const tarefa = () =>
-        dispararMensagensRecebidas(dbEmpresa, recebidas)
-          .then(() => avisarAoVivo(canal.organizacao_id))
+        (recebidas?.length ? dispararMensagensRecebidas(dbEmpresa, recebidas) : Promise.resolve())
+          .then(() => processarPerguntasVencidas(dbEmpresa))
+          .then(() => (recebidas?.length ? avisarAoVivo(canal.organizacao_id) : null))
           .catch((e) => console.error('[fluxos] falha nos fluxos do aviso', canal.id, e.message));
       // Fora de uma requisição de verdade (testes, scripts) não há "depois": roda agora
       try {

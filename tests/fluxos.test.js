@@ -47,6 +47,7 @@ beforeEach(() => {
   db.tables.sistema_config = [];
   db.tables.fluxos = [];
   db.tables.fluxo_execucoes = [];
+  db.tables.fluxo_esperas = [];
   db.tables.agenda_eventos = [];
   enviados = [];
   globalThis.fetch = async (url, op) => {
@@ -183,6 +184,18 @@ test('WhatsApp: mensagem recebida dispara o fluxo ativo, responde sem assumir a 
   await receber(aviso('M2', 'bom dia'));
   await receber(aviso('M3', 'qual o preço?', '5585999990000@s.whatsapp.net', { fromMe: true }));
   assert.equal(enviados.filter((e) => e.url.includes('sendText')).length, 1);
+
+  // Mensagem que chega e não dispara: fica registrada com o motivo (para quem testa o fluxo)
+  db.tables.fluxos = [{ id: crypto.randomUUID(), organizacao_id: A, nome: 'Só grupos', ativo: true, definicao: desenhoBoasVindas({ origem: 'grupo' }), gatilhos: ['gatilho_mensagem'] }];
+  db.tables.fluxo_execucoes = [];
+  await receber(aviso('M4', 'oi, tudo bem?'));
+  const naoDisparou = db.tables.fluxo_execucoes;
+  assert.equal(naoDisparou.length, 1);
+  assert.equal(naoDisparou[0].status, 'ignorado');
+  assert.match(naoDisparou[0].resumo, /contato.*só para grupos/);
+  assert.match(naoDisparou[0].passos[0].resultado, /Carla.*oi, tudo bem/);
+  assert.equal(naoDisparou[0].organizacao_id, A);
+  assert.equal(enviados.filter((e) => e.url.includes('sendText')).length, 1, 'nada foi enviado');
 });
 
 test('Agenda: reunião realizada dispara o fluxo (dados do banco), uma vez por situação', async () => {
@@ -252,4 +265,86 @@ test('Processo comercial: move a reunião para a etapa que a empresa criou; etap
   const r = await executarFluxo({ definicao: encadeado, evento: { tipo: 'mensagem_recebida', dados: { mensagem: { texto: 'oi' }, contato: { nome: 'Carla' }, conversa: { id: 'c' } } }, efeitos: efeitosSimulados() });
   assert.equal(r.status, 'ok');
   assert.match(r.passos.at(-1).resultado, /Qualificação em Vendas/);
+});
+
+test('Grupos: mensagem de um participante dispara o fluxo "só grupos" e a resposta vai no próprio grupo', async () => {
+  db.tables.sistema_config = [{ organizacao_id: A, chave: 'chat', valor: { grupos: 'aba' } }];
+  db.tables.participantes_grupo = [];
+  db.tables.fluxos = [{ id: crypto.randomUUID(), organizacao_id: A, nome: 'Grupo suporte', ativo: true, definicao: desenhoBoasVindas({ origem: 'grupo' }), gatilhos: ['gatilho_mensagem'] }];
+  globalThis.fetch = async (url, op) => {
+    enviados.push({ url: String(url), corpo: op?.body ? JSON.parse(op.body) : null });
+    return new Response(JSON.stringify(String(url).includes('findGroupInfos') ? { subject: 'Suporte RM' } : { key: { id: `EVO-${enviados.length}`, remoteJid: '120363111@g.us' } }), { status: 200 });
+  };
+  const receber = (corpo) => receberWebhook(new NextRequest(`http://localhost/api/canais/webhook/${canal.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rm-token': 't' }, body: JSON.stringify(corpo) }), { params: Promise.resolve({ id: canal.id }) });
+  const doGrupo = (id, texto, extra = {}) => ({ event: 'messages.upsert', data: { key: { remoteJid: '120363111@g.us', fromMe: false, id, participant: '558598887777@s.whatsapp.net', ...extra }, pushName: 'Maria', message: { conversation: texto } } });
+
+  assert.equal((await receber(doGrupo('G1', 'qual o preço do plano?'))).status, 200);
+  const exec = db.tables.fluxo_execucoes;
+  assert.equal(exec.length, 1, exec.map((e) => e.resumo).join(' | '));
+  assert.equal(exec[0].status, 'ok');
+  const envio = enviados.find((e) => e.url.includes('sendText'));
+  assert.ok(envio, 'respondeu');
+  assert.equal(envio.corpo.number, '120363111@g.us', 'a resposta vai no grupo');
+
+  // A própria equipe escrevendo no grupo (número conectado) não dispara
+  await receber(doGrupo('G2', 'qual o preço?', { fromMe: true }));
+  assert.equal(enviados.filter((e) => e.url.includes('sendText')).length, 1);
+});
+
+test('Condição "tem a etiqueta": compara a etiqueta inteira do contato ou grupo, sem acento nem maiúscula', async () => {
+  const { regraCasa } = await import('../src/lib/fluxos.js');
+  const ctx = { contato: { etiquetas: ['Suporte RM', 'Cliente VIP'] } };
+  assert.equal(regraCasa({ campo: 'contato.etiquetas', operador: 'tem_item', valor: 'suporte rm' }, ctx), true);
+  assert.equal(regraCasa({ campo: 'contato.etiquetas', operador: 'tem_item', valor: 'Suporte' }, ctx), false, 'parte do nome não conta');
+  assert.equal(regraCasa({ campo: 'contato.etiquetas', operador: 'nao_tem_item', valor: 'Financeiro' }, ctx), true);
+  assert.equal(regraCasa({ campo: 'contato.etiquetas', operador: 'nao_tem_item', valor: 'cliente vip' }, ctx), false);
+  assert.equal(regraCasa({ campo: 'contato.etiquetas', operador: 'tem_item', valor: 'Suporte RM' }, { contato: {} }), false, 'sem etiquetas');
+  assert.equal(regraCasa({ campo: 'contato.etiquetas', operador: 'contem', valor: 'vip' }, ctx), true, 'contém olha o texto das etiquetas');
+});
+
+test('Pergunta: pergunta na conversa, espera, continua pela resposta (sem recomeçar o fluxo) e pelo prazo vencido', async () => {
+  const { processarPerguntasVencidas } = await import('../src/lib/server/fluxos.js');
+  const { escopo } = await import('../src/lib/server/organizacao.js');
+  const g = { ...novoBloco('gatilho_mensagem', 0, 0), id: 'g1', config: { canais: [], origem: 'todas', filtro: 'qualquer', texto: '' } };
+  const p = { ...novoBloco('pergunta', 300, 0), id: 'p1', config: { texto: 'Oi {{contato.nome}}, qual a sua dúvida?', variavel: 'duvida', minutos: 30 } };
+  const c = { ...novoBloco('condicao', 600, 0), id: 'c1', config: { combinar: 'todas', regras: [{ campo: 'var.duvida', operador: 'contem', valor: 'boleto' }] } };
+  const boleto = { ...novoBloco('enviar_mensagem', 900, 0), id: 'm1', config: { destino: 'conversa', texto: 'Segue o boleto, {{contato.nome}}.' } };
+  const outra = { ...novoBloco('enviar_mensagem', 900, 200), id: 'm2', config: { destino: 'conversa', texto: 'Vou chamar alguém da equipe.' } };
+  const semResposta = { ...novoBloco('enviar_mensagem', 600, 300), id: 'm3', config: { destino: 'conversa', texto: 'Como ninguém respondeu, encerro por aqui.' } };
+  const definicao = {
+    versao: 1,
+    nos: [g, p, c, boleto, outra, semResposta],
+    ligacoes: [
+      { id: 'l1', de: 'g1', saida: 'proximo', para: 'p1' },
+      { id: 'l2', de: 'p1', saida: 'respondeu', para: 'c1' },
+      { id: 'l3', de: 'c1', saida: 'sim', para: 'm1' },
+      { id: 'l4', de: 'c1', saida: 'nao', para: 'm2' },
+      { id: 'l5', de: 'p1', saida: 'sem_resposta', para: 'm3' },
+    ],
+  };
+  db.tables.fluxos = [{ id: crypto.randomUUID(), organizacao_id: A, nome: 'Triagem', ativo: true, definicao, gatilhos: ['gatilho_mensagem'] }];
+  const aviso = (id, texto) => ({ event: 'messages.upsert', data: { key: { remoteJid: '5585999990000@s.whatsapp.net', fromMe: false, id }, pushName: 'Carla', message: { conversation: texto } } });
+  const receber = (corpo) => receberWebhook(new NextRequest(`http://localhost/api/canais/webhook/${canal.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rm-token': 't' }, body: JSON.stringify(corpo) }), { params: Promise.resolve({ id: canal.id }) });
+  const textos = () => enviados.filter((e) => e.url.includes('sendText')).map((e) => e.corpo.text);
+
+  await receber(aviso('Q1', 'olá'));
+  assert.deepEqual(textos(), ['Oi Carla, qual a sua dúvida?']);
+  assert.equal(db.tables.fluxo_esperas.length, 1, 'ficou esperando a resposta');
+  assert.equal(db.tables.fluxo_esperas[0].organizacao_id, A);
+  assert.equal(db.tables.fluxo_esperas[0].variavel, 'duvida');
+
+  // A resposta continua o fluxo pela saída "Respondeu" e não começa outra pergunta
+  await receber(aviso('Q2', 'preciso da segunda via do boleto'));
+  assert.deepEqual(textos(), ['Oi Carla, qual a sua dúvida?', 'Segue o boleto, Carla.']);
+  assert.equal(db.tables.fluxo_esperas.length, 0);
+  assert.ok(db.tables.fluxo_execucoes.some((e) => e.gatilho === 'pergunta_respondida' && e.status === 'ok'));
+
+  // Nova conversa com o fluxo: pergunta de novo; ninguém responde e o prazo vence
+  await receber(aviso('Q3', 'oi de novo'));
+  assert.equal(textos().length, 3);
+  db.tables.fluxo_esperas[0].expira_em = new Date(Date.now() - 1000).toISOString();
+  assert.equal(await processarPerguntasVencidas(escopo(mockSupabase, A), { forcar: true }), 1);
+  assert.equal(textos().at(-1), 'Como ninguém respondeu, encerro por aqui.');
+  assert.equal(db.tables.fluxo_esperas.length, 0);
+  assert.ok(db.tables.fluxo_execucoes.some((e) => e.gatilho === 'pergunta_sem_resposta'));
 });

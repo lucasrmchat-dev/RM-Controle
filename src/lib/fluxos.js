@@ -37,6 +37,9 @@ export const OPERADORES = [
   { id: 'preenchido', rotulo: 'está preenchido', semValor: true },
   { id: 'maior', rotulo: 'é maior que' },
   { id: 'menor', rotulo: 'é menor que' },
+  // Para listas (ex.: etiquetas do contato/grupo): compara cada item inteiro, sem diferenciar maiúsculas e acentos
+  { id: 'tem_item', rotulo: 'tem a etiqueta' },
+  { id: 'nao_tem_item', rotulo: 'não tem a etiqueta' },
 ];
 
 export const ESPERA_MAXIMA_SEGUNDOS = 30;
@@ -65,6 +68,11 @@ export const BLOCOS = {
     categoria: 'mensagens', rotulo: 'Enviar mensagem', descricao: 'Texto no WhatsApp, com variáveis',
     cor: 'blue', saidas: ['proximo'],
     padrao: { destino: 'conversa', texto: '', telefone: '', canal_id: '' },
+  },
+  pergunta: {
+    categoria: 'mensagens', rotulo: 'Pergunta', descricao: 'Pergunta na conversa e espera a resposta do contato ou grupo',
+    cor: 'blue', saidas: ['respondeu', 'sem_resposta'],
+    padrao: { texto: '', variavel: 'resposta', minutos: 60 },
   },
   condicao: {
     categoria: 'logica', rotulo: 'Condição', descricao: 'Segue por Sim ou Não conforme as regras',
@@ -119,7 +127,10 @@ export const BLOCOS = {
   },
 };
 
-export const ROTULO_SAIDA = { proximo: '', sim: 'Sim', nao: 'Não' };
+export const ROTULO_SAIDA = { proximo: '', sim: 'Sim', nao: 'Não', respondeu: 'Respondeu', sem_resposta: 'Sem resposta' };
+
+/** Pergunta: espera de 1 minuto a 7 dias pela resposta. */
+export const PERGUNTA_MAX_MINUTOS = 7 * 24 * 60;
 
 /** Variáveis que cada gatilho oferece (para as regras e para {{variável}} nos textos). */
 export const VARIAVEIS_GATILHO = {
@@ -127,6 +138,7 @@ export const VARIAVEIS_GATILHO = {
     ['mensagem.texto', 'Texto da mensagem'],
     ['contato.nome', 'Nome do contato'],
     ['contato.telefone', 'Telefone do contato'],
+    ['contato.etiquetas', 'Etiquetas do contato ou grupo'],
     ['conversa.grupo', 'É grupo (sim/não)'],
     ['conversa.departamento', 'Departamento da conversa'],
     ['canal.nome', 'Nome do canal'],
@@ -269,6 +281,8 @@ export function problemasDoFluxo(def) {
     if (n.tipo === 'enviar_mensagem' && !String(n.config.texto || '').trim()) p.push(`“${b.rotulo}” está sem texto.`);
     if (n.tipo === 'enviar_mensagem' && n.config.destino === 'numero' && !String(n.config.telefone || '').trim()) p.push(`“${b.rotulo}” está sem o número.`);
     if (n.tipo === 'variavel' && !String(n.config.nome || '').trim()) p.push('“Variável” está sem nome.');
+    if (n.tipo === 'pergunta' && !String(n.config.texto || '').trim()) p.push('“Pergunta” está sem texto.');
+    if (n.tipo === 'pergunta' && !nos.some((g) => g.tipo === 'gatilho_mensagem')) p.push('“Pergunta” precisa do gatilho “Mensagem no WhatsApp” (ela pergunta na conversa).');
     if (n.tipo === 'conversa_departamento' && !String(n.config.departamento || '').trim()) p.push('“Mover para departamento” está sem departamento.');
     if (n.tipo === 'comercial_etapa' && !(n.config.processo_id && n.config.etapa_id)) p.push('“Mover no processo comercial” está sem processo ou etapa.');
     if (b?.gatilho && !(def.ligacoes || []).some((l) => l.de === n.id)) p.push(`O gatilho “${b.rotulo}” não está ligado a nenhum bloco.`);
@@ -286,15 +300,19 @@ const valorEm = (ctx, caminho) =>
     .split('.')
     .reduce((o, k) => (o && typeof o === 'object' ? o[k] : undefined), ctx);
 
-const comoTexto = (v) => (v === true ? 'sim' : v === false ? 'não' : v === undefined || v === null ? '' : String(v));
+const comoTexto = (v) => (v === true ? 'sim' : v === false ? 'não' : v === undefined || v === null ? '' : Array.isArray(v) ? v.map(comoTexto).join(', ') : String(v));
 
 /** "Olá {{contato.nome}}" → "Olá Maria". Variável que não existe vira vazio. */
 export const preencher = (texto, ctx) => String(texto ?? '').replace(/\{\{\s*([A-Za-z_][\w.]{0,80})\s*\}\}/g, (_, c) => comoTexto(valorEm(ctx, c)));
 
 export function regraCasa(regra, ctx) {
-  const atual = semAcento(comoTexto(valorEm(ctx, regra.campo)));
+  const bruto = valorEm(ctx, regra.campo);
+  const atual = semAcento(comoTexto(bruto));
   const alvo = semAcento(preencher(regra.valor, ctx));
+  const itens = () => (Array.isArray(bruto) ? bruto : comoTexto(bruto).split(',')).map((i) => semAcento(comoTexto(i)).trim()).filter(Boolean);
   switch (regra.operador) {
+    case 'tem_item': return Boolean(alvo) && itens().includes(alvo.trim());
+    case 'nao_tem_item': return !alvo || !itens().includes(alvo.trim());
     case 'contem': return alvo ? atual.includes(alvo) : true;
     case 'nao_contem': return alvo ? !atual.includes(alvo) : true;
     case 'igual': return atual === alvo;
@@ -319,25 +337,42 @@ export function regraCasa(regra, ctx) {
  *  { tipo: 'reuniao_status',   dados: { reuniao: {...}, contato: { telefone } } }
  */
 export function gatilhoCasa(no, evento) {
+  return avaliarGatilho(no, evento).casa;
+}
+
+/**
+ * Mesmo teste de gatilhoCasa, dizendo o motivo quando não dispara (aparece nas execuções do fluxo,
+ * para quem monta o fluxo saber que a mensagem chegou e por que não seguiu).
+ * @returns {{ casa: boolean, motivo?: string }}
+ */
+export function avaliarGatilho(no, evento) {
   const c = no.config || {};
   const d = evento?.dados || {};
+  const nao = (motivo) => ({ casa: false, motivo });
   if (no.tipo === 'gatilho_mensagem') {
-    if (evento.tipo !== 'mensagem_recebida') return false;
-    if (Array.isArray(c.canais) && c.canais.length && !c.canais.includes(d.canal?.id)) return false;
-    if (c.origem === 'contato' && d.conversa?.grupo) return false;
-    if (c.origem === 'grupo' && !d.conversa?.grupo) return false;
-    if (c.so_sem_responsavel && d.conversa?.responsavel_email) return false;
+    if (evento.tipo !== 'mensagem_recebida') return nao('Não é uma mensagem do WhatsApp.');
+    if (Array.isArray(c.canais) && c.canais.length && !c.canais.includes(d.canal?.id)) return nao(`Chegou pelo canal “${d.canal?.nome || 'outro'}”, que não está marcado no gatilho.`);
+    if (c.origem === 'contato' && d.conversa?.grupo) return nao('Veio de um grupo, e o gatilho é só para contatos.');
+    if (c.origem === 'grupo' && !d.conversa?.grupo) return nao('Veio de um contato, e o gatilho é só para grupos.');
+    if (c.so_sem_responsavel && d.conversa?.responsavel_email) return nao('A conversa já tem responsável, e o gatilho é só para conversas sem responsável.');
     const texto = semAcento(d.mensagem?.texto);
     const alvo = semAcento(c.texto);
-    if (c.filtro === 'contem') return Boolean(alvo) && texto.includes(alvo);
-    if (c.filtro === 'igual') return texto === alvo;
-    if (c.filtro === 'comeca') return Boolean(alvo) && texto.startsWith(alvo);
+    const textoNao = nao('O texto da mensagem não combina com o filtro do gatilho.');
+    if (c.filtro === 'contem') return Boolean(alvo) && texto.includes(alvo) ? { casa: true } : textoNao;
+    if (c.filtro === 'igual') return texto === alvo ? { casa: true } : textoNao;
+    if (c.filtro === 'comeca') return Boolean(alvo) && texto.startsWith(alvo) ? { casa: true } : textoNao;
     if (c.filtro === 'palavras') {
       const palavras = alvo.split(',').map((x) => x.trim()).filter(Boolean);
-      return palavras.some((p) => texto.includes(p));
+      return palavras.some((p) => texto.includes(p)) ? { casa: true } : textoNao;
     }
-    return true;
+    return { casa: true };
   }
+  return gatilhoOutros(no, evento) ? { casa: true } : nao('O evento não combina com o gatilho.');
+}
+
+function gatilhoOutros(no, evento) {
+  const c = no.config || {};
+  const d = evento?.dados || {};
   if (no.tipo === 'gatilho_reuniao_agendada') return evento.tipo === 'reuniao_agendada' && (!c.tipo || c.tipo === 'todos' || c.tipo === d.reuniao?.tipo);
   if (no.tipo === 'gatilho_reuniao_status') return evento.tipo === 'reuniao_status' && (!c.status || c.status === 'qualquer' || c.status === d.reuniao?.status);
   return false;
@@ -375,23 +410,34 @@ const somarMinutos = (hora, min) => {
 
 /**
  * Executa o fluxo para um evento. Começa no primeiro gatilho que combina.
- * efeitos: { enviarMensagem, esperar, atualizarReuniao, anotarReuniao, criarReuniao, atualizarConversa } (todos async,
+ * efeitos: { enviarMensagem, esperar, atualizarReuniao, anotarReuniao, criarReuniao, atualizarConversa, aguardarResposta } (todos async,
  * devolvem um texto curto do que foi feito).
  * @returns {Promise<{ casou: boolean, status: 'ok'|'erro'|'parou', passos: Array, variaveis: object }>}
  */
-export async function executarFluxo({ definicao, evento, efeitos, maxPassos = 60, agora = new Date() }) {
+export async function executarFluxo({ definicao, evento, efeitos, maxPassos = 60, agora = new Date(), retomar = null }) {
   const def = definicao || definicaoVazia();
-  const inicio = (def.nos || []).find((n) => BLOCOS[n.tipo]?.gatilho && gatilhoCasa(n, evento));
-  if (!inicio) return { casou: false, status: 'ok', passos: [], variaveis: {} };
+  const gatilhos = (def.nos || []).filter((n) => BLOCOS[n.tipo]?.gatilho);
+  // retomar: { noId, saida, contexto, resultado } — continua depois de uma Pergunta (respondida ou sem resposta)
+  const inicio = retomar ? (def.nos || []).find((n) => n.id === retomar.noId) : gatilhos.find((n) => gatilhoCasa(n, evento));
+  if (retomar && !inicio) return { casou: false, motivo: 'A pergunta foi apagada do fluxo.', status: 'ok', passos: [], variaveis: {} };
+  if (!inicio) {
+    // Por que não disparou (o primeiro gatilho do tipo do evento explica; sem gatilho, diz isso)
+    const doTipo = gatilhos.filter((n) => (GATILHOS_DO_EVENTO[evento?.tipo] || []).includes(n.tipo));
+    const motivo = doTipo.length ? avaliarGatilho(doTipo[0], evento).motivo : 'O fluxo não tem gatilho para este tipo de evento.';
+    return { casou: false, motivo, status: 'ok', passos: [], variaveis: {} };
+  }
 
   const relogio = agoraNoFuso(agora);
-  const ctx = { ...(evento.dados || {}), var: {}, agora: { data: relogio.data, hora: relogio.hora } };
+  const base = retomar ? { ...(retomar.contexto || {}), ...(evento.dados || {}) } : evento.dados || {};
+  const ctx = { ...base, var: { ...(retomar?.contexto?.var || {}) }, agora: { data: relogio.data, hora: relogio.hora } };
+  if (retomar?.variavel) ctx.var[retomar.variavel] = retomar.saida === 'respondeu' ? String(evento.dados?.mensagem?.texto || '') : '';
   const porId = new Map(def.nos.map((n) => [n.id, n]));
   const saindo = (id, saida) => (def.ligacoes || []).filter((l) => l.de === id && l.saida === saida).map((l) => porId.get(l.para)).filter(Boolean);
 
-  const passos = [{ no: inicio.id, tipo: inicio.tipo, rotulo: BLOCOS[inicio.tipo].rotulo, saida: 'proximo', resultado: 'Gatilho disparado' }];
+  const primeiraSaida = retomar ? retomar.saida : 'proximo';
+  const passos = [{ no: inicio.id, tipo: inicio.tipo, rotulo: BLOCOS[inicio.tipo].rotulo, saida: primeiraSaida, resultado: retomar ? retomar.resultado : 'Gatilho disparado' }];
   // Pilha (profundidade primeiro): uma saída ligada a vários blocos roda um depois do outro, na ordem das ligações
-  const pilha = saindo(inicio.id, 'proximo').reverse();
+  const pilha = saindo(inicio.id, primeiraSaida).reverse();
   let status = 'ok';
   while (pilha.length) {
     if (passos.length >= maxPassos) {
@@ -493,6 +539,21 @@ export async function executarFluxo({ definicao, evento, efeitos, maxPassos = 60
           passo.resultado = await efeitos.atualizarConversa(ctx.conversa.id, { resolver: true });
           break;
         }
+        case 'pergunta': {
+          // Envia na conversa e para este caminho: continua quando chegar a resposta (ou o prazo vencer)
+          if (!ctx.conversa?.id) throw new Error('A pergunta precisa de uma conversa: use o gatilho “Mensagem no WhatsApp”.');
+          const texto = preencher(c.texto, ctx).trim();
+          if (!texto) throw new Error('Pergunta sem texto.');
+          const variavel = String(c.variavel || 'resposta').trim().replace(/[^\w]/g, '_').slice(0, 40) || 'resposta';
+          const minutos = Math.max(1, Math.min(PERGUNTA_MAX_MINUTOS, Math.round(Number(c.minutos) || 60)));
+          await efeitos.enviarMensagem({ destino: 'conversa', conversaId: ctx.conversa.id, canalId: ctx.canal?.id || null, texto });
+          const expiraEm = new Date(agora.getTime() + minutos * 60000);
+          await efeitos.aguardarResposta({ conversaId: ctx.conversa.id, noId: no.id, variavel, expiraEm, contexto: ctx });
+          passo.texto = texto;
+          passo.resultado = `Pergunta enviada. Esperando a resposta (até ${minutos >= 60 ? `${Math.round(minutos / 6) / 10} h` : `${minutos} min`}); ela fica em {{var.${variavel}}}.`;
+          passos.push(passo);
+          continue;
+        }
         default:
           throw new Error('Bloco sem execução.');
       }
@@ -522,6 +583,8 @@ export function efeitosSimulados({ aoEnviar } = {}) {
     criarReuniao: async (r) => ({ id: 'reuniao-simulada', resultado: `Reunião “${r.titulo}” agendada para ${r.data.split('-').reverse().join('/')} às ${r.hora_inicio} (simulado)` }),
     moverNoProcesso: async (_id, { processoNome, etapaNome }) => `Reunião movida para ${etapaNome || 'a etapa'} em ${processoNome || 'processo comercial'} (simulado)`,
     atualizarConversa: async (_id, campos) => (campos.resolver ? 'Conversa resolvida (simulado)' : `Conversa movida para ${campos.departamento} (simulado)`),
+    // No teste, a pergunta é enviada mas ninguém responde: o caminho para depois da pergunta
+    aguardarResposta: async () => {},
   };
 }
 

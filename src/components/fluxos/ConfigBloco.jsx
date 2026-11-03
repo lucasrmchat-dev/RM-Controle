@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useRef } from 'react';
-import { BLOCOS, ESPERA_MAXIMA_SEGUNDOS, OPERADORES, STATUS_REUNIAO, VARIAVEIS_GATILHO, VARIAVEIS_SEMPRE } from '@/lib/fluxos';
+import { BLOCOS, ESPERA_MAXIMA_SEGUNDOS, OPERADORES, PERGUNTA_MAX_MINUTOS, STATUS_REUNIAO, VARIAVEIS_GATILHO, VARIAVEIS_SEMPRE } from '@/lib/fluxos';
 import { DESFECHOS_COMERCIAIS } from '@/lib/comercial';
 import { CORES_BLOCO, IconeBloco, campoClasse, rotuloClasse } from './visual';
 
@@ -13,6 +13,8 @@ export function variaveisDoFluxo(definicao) {
   for (const n of definicao?.nos || []) {
     const nome = String(n.config?.nome || '').trim().replace(/[^\w]/g, '_');
     if (n.tipo === 'variavel' && nome) lista.set(`var.${nome}`, `Variável ${nome}`);
+    const resposta = String(n.config?.variavel || '').trim().replace(/[^\w]/g, '_');
+    if (n.tipo === 'pergunta' && resposta) lista.set(`var.${resposta}`, `Resposta da pergunta (${resposta})`);
   }
   return [...lista.entries()];
 }
@@ -131,6 +133,9 @@ export default function ConfigBloco({ no, definicao, canais = [], equipe = [], d
               <span className="block text-[11.5px] text-slate-500 dark:text-zinc-400">Não responde quando alguém da equipe já está atendendo.</span>
             </span>
           </label>
+          <p className="text-[11.5px] leading-relaxed text-slate-500 dark:text-zinc-400 rounded-xl bg-black/[0.035] dark:bg-white/[0.06] px-3 py-2">
+            Mensagens enviadas pelo próprio número do canal (pelo RM Controle ou pelo celular conectado) não disparam o fluxo, para ele não responder a si mesmo. Para testar, escreva de outro número. Em “Execuções”, as mensagens que chegaram e não dispararam aparecem com o motivo.
+          </p>
         </>
       );
       break;
@@ -171,6 +176,27 @@ export default function ConfigBloco({ no, definicao, canais = [], equipe = [], d
           <Campo rotulo="Mensagem" dica="*negrito*, _itálico_ e as variáveis abaixo funcionam como no WhatsApp.">
             <TextoComVariaveis valor={c.texto || ''} onMudar={(v) => mudar({ texto: v })} variaveis={variaveis} linhas={6} placeholder="Olá {{contato.nome}}! Como posso ajudar?" />
           </Campo>
+        </>
+      );
+      break;
+    case 'pergunta':
+      corpo = (
+        <>
+          <Campo rotulo="Pergunta" dica="Vai na conversa que disparou o fluxo (contato ou grupo). *negrito* e variáveis funcionam.">
+            <TextoComVariaveis valor={c.texto || ''} onMudar={(v) => mudar({ texto: v })} variaveis={variaveis} linhas={5} placeholder="Olá {{contato.nome}}! Qual é a sua dúvida?" />
+          </Campo>
+          <Campo rotulo="Guardar a resposta em" dica={`Use depois como {{var.${String(c.variavel || 'resposta').trim().replace(/[^\w]/g, '_') || 'resposta'}}} (por exemplo, numa Condição).`}>
+            <input value={c.variavel ?? 'resposta'} onChange={(e) => mudar({ variavel: e.target.value })} placeholder="resposta" className={campoClasse} />
+          </Campo>
+          <Campo rotulo="Esperar a resposta por" dica="Se ninguém responder nesse tempo, o fluxo segue pela saída “Sem resposta”. Máximo de 7 dias.">
+            <div className="flex items-center gap-2">
+              <input type="number" min={1} max={PERGUNTA_MAX_MINUTOS} value={c.minutos ?? 60} onChange={(e) => mudar({ minutos: Number(e.target.value) })} className={`${campoClasse} w-28`} />
+              <span className="text-[13px] text-slate-500 dark:text-zinc-400">minutos</span>
+            </div>
+          </Campo>
+          <p className="text-[11.5px] leading-relaxed text-slate-500 dark:text-zinc-400 rounded-xl bg-black/[0.035] dark:bg-white/[0.06] px-3 py-2">
+            A próxima mensagem do contato (ou de qualquer pessoa do grupo) nessa conversa é a resposta: o fluxo continua pela saída “Respondeu”. Uma pergunta nova do mesmo fluxo na mesma conversa substitui a anterior.
+          </p>
         </>
       );
       break;

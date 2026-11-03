@@ -23,6 +23,7 @@ import {
   fetchContatoChat,
   abrirDemandaCompleta,
   getEmpresas,
+  getPermissoesAtuais,
 } from '@/lib/storage';
 import { contarConversasNovas, ehGrupo, janelaAtendimento, preencherResposta } from '@/lib/canais';
 import { ACEITOS, LIMITE_ENVIO, MidiaMensagem, PreviaArquivo, arquivoAceito, comprimirFoto, tipoPeloMime, useGravadorDeAudio } from './ChatMidia';
@@ -39,6 +40,7 @@ import { showToast } from './ToastNotification';
 import EncaixeCabecalho, { ACOES_TITULO, LINHA_TITULO } from './EncaixeCabecalho';
 import { removerGrupo } from '@/lib/notificacoes';
 import { BotaoErroEnvio, ResumoErroEnvio } from './ChatErroEnvio';
+import ChatAcoesEmMassa from './ChatAcoesEmMassa';
 import NovaDemandaModal from './NovaDemandaModal';
 
 // ------------------------------------------------------------------------------
@@ -1949,12 +1951,13 @@ function IconeAlfinete({ cheio = false, className = 'w-4 h-4' }) {
 }
 
 /** Uma conversa na lista ou no card do Kanban. Ao passar o mouse, o alfinete no canto fixa a conversa no topo. */
-function ItemConversa({ c, ativa, eu, onAbrir, cartao = false, arrastavel = false, fixada = false, onFixar }) {
+function ItemConversa({ c, ativa, eu, onAbrir, cartao = false, arrastavel = false, fixada = false, onFixar, marcada }) {
   return (
     <div className="relative group/item">
     <button
       type="button"
       onClick={() => onAbrir(c.id)}
+      aria-pressed={marcada === undefined ? undefined : marcada}
       draggable={arrastavel || undefined}
       onDragStart={
         arrastavel
@@ -1970,6 +1973,16 @@ function ItemConversa({ c, ativa, eu, onAbrir, cartao = false, arrastavel = fals
           : `w-full flex items-center gap-3 pl-3 pr-3.5 py-2.5 text-left cursor-pointer transition-colors ${ativa ? 'bg-rm-fundo dark:bg-rm-campo-escuro' : 'hover:bg-[#f5f6f6] dark:hover:bg-rm-elevado-escuro'}`
       }
     >
+      {/* Modo seleção (ações em massa): a caixa aparece antes da foto */}
+      {marcada !== undefined && (
+        <span aria-hidden="true" className={`w-5 h-5 flex-shrink-0 rounded-md ring-2 flex items-center justify-center transition-colors ${marcada ? 'bg-rm-acento-medio ring-rm-acento-medio text-white' : 'ring-black/20 dark:ring-white/25'}`}>
+          {marcada && (
+            <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3.5 8.5l3 3 6-7" />
+            </svg>
+          )}
+        </span>
+      )}
       <Avatar conversa={c} tamanho={cartao ? 'w-9 h-9 text-[12px]' : undefined} />
       <div className={`min-w-0 flex-1 ${cartao ? '' : 'border-b border-black/[0.05] dark:border-white/[0.05] pb-2.5 -mb-2.5'}`}>
         <div className="flex items-baseline gap-2">
@@ -2065,6 +2078,10 @@ export default function ChatView() {
   const [filtros, setFiltros] = useState(FILTROS_PADRAO);
   const [lembrarFiltros, setLembrarFiltros] = useState(false);
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  // Ações em massa: marcar conversas da lista (contatos e grupos) e aplicar uma ação em todas
+  const [selecionando, setSelecionando] = useState(false);
+  const [marcadas, setMarcadas] = useState(() => new Set());
+  const [acoesAbertas, setAcoesAbertas] = useState(false);
   const [contatosAbertos, setContatosAbertos] = useState(false);
   // Busca: nas conversas (nome, número) ou em todas as mensagens, num período
   const [periodo, setPeriodo] = useState(30);
@@ -2216,6 +2233,26 @@ export default function ChatView() {
     });
   }, [abertas, resolvidas, gruposAParte, doEscopo, comportamento, filtros.ordem, ordemFixadas]);
   const lista = useMemo(() => filtrar(aba), [filtrar, aba]);
+  // Só valem as marcadas que continuam na lista (com a aba e os filtros atuais)
+  const marcadasNaLista = useMemo(() => lista.filter((c) => marcadas.has(c.id)).map((c) => c.id), [lista, marcadas]);
+  const todasMarcadas = lista.length > 0 && marcadasNaLista.length === lista.length;
+  const alternarMarcada = useCallback(
+    (id) =>
+      setMarcadas((m) => {
+        const n = new Set(m);
+        if (n.has(id)) n.delete(id);
+        else n.add(id);
+        return n;
+      }),
+    []
+  );
+  const sairDaSelecao = useCallback(() => {
+    setSelecionando(false);
+    setMarcadas(new Set());
+  }, []);
+  useEffect(() => {
+    setMarcadas(new Set());
+  }, [aba]);
   const colunasKanban = ABAS.filter((a) => a.id !== 'grupos' || gruposAParte);
   // Kanban: arrastar um cartão para outra coluna muda o estado da conversa
   const [colunaAlvo, setColunaAlvo] = useState(null);
@@ -2450,6 +2487,17 @@ export default function ChatView() {
               d: ['M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0', 'M16 4v4M10 10v4M18 16v4'],
               marcado: filtrosAtivos(filtros),
             },
+            {
+              rotulo: selecionando ? 'Sair da seleção' : 'Selecionar conversas',
+              acao: () => {
+                if (selecionando) return sairDaSelecao();
+                // A seleção é feita na lista
+                if (kanban) trocarVisao();
+                setSelecionando(true);
+              },
+              d: ['M9 11l3 3 8-8', 'M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'],
+              marcado: selecionando,
+            },
             kanban
               ? { rotulo: 'Ver em lista', acao: trocarVisao, d: ['M8 6h13M8 12h13M8 18h13', 'M3.5 6h.01M3.5 12h.01M3.5 18h.01'] }
               : { rotulo: 'Ver em Kanban', acao: trocarVisao, d: ['M4 4h4.5v16H4z', 'M10 4h4.5v10H10z', 'M16 4h4.5v13H16z'] },
@@ -2505,6 +2553,29 @@ export default function ChatView() {
             </div>
           )}
         </div>
+
+        {selecionando && !kanban && !mostrandoBuscaMensagens && (
+          <div className="mx-3 mb-2 px-3 py-2 rounded-xl bg-rm-fundo dark:bg-rm-elevado-escuro flex items-center gap-2 text-[13px]">
+            <label className="flex items-center gap-2 cursor-pointer select-none text-[#111b21] dark:text-[#e9edef]">
+              <input
+                type="checkbox"
+                checked={todasMarcadas}
+                onChange={() => setMarcadas(todasMarcadas ? new Set() : new Set(lista.map((c) => c.id)))}
+                className="w-4 h-4 accent-[rgb(var(--rm-acento-medio))]"
+              />
+              {todasMarcadas ? 'Desmarcar todas' : `Selecionar todas (${lista.length})`}
+            </label>
+            <span className="ml-auto text-[12px] text-[#667781] dark:text-[#8696a0] tabular-nums">{marcadasNaLista.length} marcada{marcadasNaLista.length === 1 ? '' : 's'}</span>
+            <button
+              type="button"
+              disabled={!marcadasNaLista.length}
+              onClick={() => setAcoesAbertas(true)}
+              className="h-8 px-3.5 rounded-full bg-rm-acento-medio text-white dark:text-[#111b21] text-[12.5px] font-semibold disabled:opacity-40 cursor-pointer disabled:cursor-default"
+            >
+              Ações
+            </button>
+          </div>
+        )}
 
         <div className={`flex-1 ${kanban && !mostrandoBuscaMensagens ? 'min-h-0 overflow-hidden' : 'overflow-y-auto'}`}>
           {mostrandoBuscaMensagens ? (
@@ -2652,7 +2723,15 @@ export default function ChatView() {
             <ul>
               {lista.map((c) => (
                 <li key={c.id}>
-                  <ItemConversa c={c} ativa={c.id === selecionada} eu={eu} onAbrir={(id) => abrir(id)} fixada={ordemFixadas.has(c.id)} onFixar={alternarFixada} />
+                  <ItemConversa
+                    c={c}
+                    ativa={!selecionando && c.id === selecionada}
+                    eu={eu}
+                    onAbrir={selecionando ? alternarMarcada : (id) => abrir(id)}
+                    fixada={ordemFixadas.has(c.id)}
+                    onFixar={selecionando ? undefined : alternarFixada}
+                    marcada={selecionando ? marcadas.has(c.id) : undefined}
+                  />
                 </li>
               ))}
             </ul>
@@ -2705,6 +2784,19 @@ export default function ChatView() {
       </div>
 
       <GerenciarRespostas aberto={gerenciar} onFechar={() => setGerenciar(false)} respostas={respostas} admin={Boolean(eu?.admin)} onMudou={carregarRespostas} />
+      <ChatAcoesEmMassa
+        aberto={acoesAbertas}
+        onFechar={() => setAcoesAbertas(false)}
+        ids={marcadasNaLista}
+        eu={eu}
+        temComercial={Boolean(getPermissoesAtuais()?.modulos?.includes('comercial'))}
+        onFeito={() => {
+          setAcoesAbertas(false);
+          sairDaSelecao();
+          carregar();
+          if (resolvidas !== null) carregarResolvidas();
+        }}
+      />
       <FiltrosAvancados
         aberto={filtrosAbertos}
         onFechar={() => setFiltrosAbertos(false)}

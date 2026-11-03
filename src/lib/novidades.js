@@ -15,6 +15,36 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-03-chat-acoes-em-massa',
+    data: '2026-11-03',
+    titulo: 'Chat: ações em massa nas conversas',
+    resumo: 'Marque várias conversas (contatos e grupos), ou todas as que aparecem com o filtro atual, e aplique uma ação em todas de uma vez.',
+    itens: [
+      'No Chat, clique em “Selecionar conversas” (no alto da lista), marque as conversas ou use “Selecionar todas” e depois “Ações”.',
+      'Ações: resolver, transferir para atendente, transferir para departamento, adicionar ou remover etiqueta, definir ou tirar o atendente padrão e colocar ou tirar do processo comercial.',
+      'Atendente padrão (só administradores): toda conversa nova do contato ou grupo já cai com essa pessoa, em vez de ir para Pendentes.',
+      'Status de lead: o contato vira uma oportunidade na etapa escolhida do processo comercial e aparece no Comercial.',
+      'Só entram as conversas que você pode ver; as outras ficam de fora e o aviso diz quantas.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
+    id: '2026-11-03-fluxo-pergunta-etiquetas-registro',
+    data: '2026-11-03',
+    titulo: 'Fluxo Inteligente: bloco Pergunta, condição por etiqueta e registro de quando não dispara',
+    resumo: 'O fluxo agora pode perguntar e esperar a resposta, decidir pelas etiquetas do contato ou grupo, e mostra cada mensagem que chegou e não disparou, com o motivo.',
+    itens: [
+      'Novo bloco “Pergunta”: envia a pergunta na conversa (contato ou grupo), espera a resposta e segue por “Respondeu” ou “Sem resposta” depois do prazo escolhido.',
+      'A resposta fica guardada numa variável (por exemplo, {{var.resposta}}) para usar numa Condição ou numa mensagem.',
+      'Nova condição “tem a etiqueta” / “não tem a etiqueta”, com as etiquetas do contato ou do grupo (coloque a etiqueta em Dados do grupo, no Chat).',
+      'Em “Execuções”, as mensagens que chegaram e não dispararam o fluxo aparecem em cinza com o motivo (canal, contato ou grupo, texto, responsável…).',
+      'O gatilho avisa: mensagens enviadas pelo próprio número do canal não disparam o fluxo. Para testar, escreva de outro número.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
     id: '2026-11-03-fila-sempre-atualizada',
     data: '2026-11-03',
     titulo: 'Demandas: a fila não fica mais parada com demandas já concluídas',

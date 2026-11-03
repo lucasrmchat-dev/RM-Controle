@@ -3564,6 +3564,8 @@ export const fetchParticipantesConversa = (id) => chamarCanais(`/api/chat/${id}/
 export const buscarMensagensChat = (q, dias = 30) => chamarCanais(`/api/chat/busca?q=${encodeURIComponent(q)}&dias=${dias}`, 'GET');
 export const fetchListaContatos = (q = '', pagina = 0, { limite } = {}) => chamarCanais(`/api/chat/contatos?lista=1&pagina=${pagina}${limite ? `&limite=${limite}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`, 'GET');
 export const acaoConversa = (id, corpo) => chamarCanais(`/api/chat/${id}`, 'POST', corpo);
+/** Ações em massa nas conversas marcadas (resolver, transferir, etiquetas, atendente padrão, status de lead). */
+export const acaoEmMassaChat = (dados) => chamarCanais('/api/chat/massa', 'POST', dados);
 export const fetchRespostasRapidas = () => chamarCanais('/api/chat/respostas', 'GET');
 export const criarRespostaRapida = (dados) => chamarCanais('/api/chat/respostas', 'POST', dados);
 export const excluirRespostaRapida = (id) => chamarCanais('/api/chat/respostas', 'DELETE', { id });
