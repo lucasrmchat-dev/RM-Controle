@@ -168,9 +168,8 @@ diante) descrevem cada entrega em detalhe. Leia antes de mexer numa área.
 - Evolution API no Mac do Lucas → mover para servidor (plano: Magalu Cloud, ~R$ 93/mês).
 - Vercel Pro e Supabase Pro antes do primeiro cliente pagante (Hobby proíbe uso comercial).
 - Pausar o banco de Oregon depois de 1–2 semanas estável.
-- Plano de 30 dias para produção: feito em outra conversa e não salvo no repositório; quando o
-  Lucas trouxer, salvar em `docs/plano-30-dias.md`. Fase 1 (varredura de segurança e isolamento
-  entre empresas) foi feita nos PRs #3 a #5; falta a parte de LGPD (termos, política de privacidade).
+- Plano de lançamento (30 dias) com o que já foi feito: `docs/plano-30-dias.md`. Próximo da Fase 1:
+  documentos da LGPD (termos, política de privacidade, contrato de operador, plano de incidentes).
 - O Mac do Lucas tem 1 commit local na `main` que não está no GitHub (o `git pull` falha por
   divergência). Ver com `git log origin/main..main --stat` antes de descartar ou enviar.
 - PR #12 (Plataforma: editar empresa e usuários; equipe vinda do servidor): confirmar que o

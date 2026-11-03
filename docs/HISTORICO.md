@@ -10,8 +10,7 @@ entrega estão nos pull requests do GitHub `lucasrmchat-dev/RM-Controle` e nas `
   Agenda, Comercial e comissão, Daily, Feedbacks, Fluxo Inteligente, perfis de acesso.
 - Multiempresa (Plataforma → Revendas → Assinantes), RLS por empresa, Turnstile no login.
 - Migração do banco para São Paulo (30/10/2026), backup diário pelo GitHub Actions.
-- Plano de 30 dias para colocar em produção (Fase 1 = segurança). O texto do plano ficou naquela
-  conversa: salvar em `docs/plano-30-dias.md` quando for recuperado.
+- Plano de 30 dias para colocar em produção: `docs/plano-30-dias.md` (com o que já foi feito).
 
 ## Nov/2026 (Claude Code na nuvem, branch `claude/rm-controle-security-scan-b2cl9e`)
 
