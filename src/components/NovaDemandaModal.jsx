@@ -2,6 +2,8 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { getEmpresaById, getEmpresaCredenciais, getNomeTecnico } from '@/lib/storage';
+import { etiquetaCadastrada } from '@/lib/etiquetas';
+import { useEtiquetasCadastradas } from './SeletorEtiqueta';
 import { CalendarioMes, SeletorHorario, isoDoDia, rotuloData } from './SeletoresTempo';
 import NovaEmpresaCampos, { dadosNovaEmpresaIniciais, classeCampo, classeRotulo } from './NovaEmpresaCampos';
 import {
@@ -56,7 +58,6 @@ export default function NovaDemandaModal({
   empresas = [],
   empresaInicial = null,
   categorias = [],
-  etiquetasSugeridas = [],
   equipe = [],
   userEmail = '',
   onEnviar,
@@ -149,14 +150,16 @@ export default function NovaDemandaModal({
       .map((u) => ({ id: u.email.toLowerCase(), email: u.email.toLowerCase(), nome: u.nome || getNomeTecnico(u.email) }));
   }, [equipe, userEmail]);
 
+  // Só as etiquetas cadastradas em Configurações › Etiquetas (lista da Fila de Demandas)
+  const etiquetasCadastradas = useEtiquetasCadastradas('demandas');
   const tagsSugeridas = useMemo(() => {
     const q = normalizarBusca(tagTexto.replace(/^#/, ''));
-    return etiquetasSugeridas.filter((t) => !etiquetas.includes(t) && (!q || normalizarBusca(t).includes(q))).slice(0, 6);
-  }, [etiquetasSugeridas, etiquetas, tagTexto]);
+    return (etiquetasCadastradas || []).filter((t) => !etiquetas.includes(t) && (!q || normalizarBusca(t).includes(q))).slice(0, 12);
+  }, [etiquetasCadastradas, etiquetas, tagTexto]);
 
   const adicionarTag = (t) => {
-    const limpa = String(t || '').trim().replace(/^#/, '');
-    if (limpa && !etiquetas.includes(limpa)) setEtiquetas((e) => [...e, limpa]);
+    const cadastrada = etiquetaCadastrada(etiquetasCadastradas, t) || (tagTexto.trim() ? tagsSugeridas[0] : null);
+    if (cadastrada && !etiquetas.includes(cadastrada)) setEtiquetas((e) => [...e, cadastrada]);
     setTagTexto('');
   };
 
@@ -424,10 +427,13 @@ export default function NovaDemandaModal({
                       adicionarTag(tagTexto);
                     }
                   }}
-                  placeholder="Digite e tecle Enter"
+                  placeholder={etiquetasCadastradas?.length === 0 ? 'Nenhuma etiqueta cadastrada' : 'Buscar etiqueta cadastrada'}
                   autoComplete="off"
                   className={classeCampo}
                 />
+                {etiquetasCadastradas?.length === 0 && (
+                  <p className="mt-1.5 text-[12px] text-slate-500 dark:text-zinc-400">Um administrador cadastra as etiquetas em Configurações › Etiquetas.</p>
+                )}
                 {tagsSugeridas.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {tagsSugeridas.map((t) => (

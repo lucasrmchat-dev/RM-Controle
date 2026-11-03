@@ -6,6 +6,7 @@ import { acaoConversa, atualizarFotoContato, fetchAuditoriaConversa, fetchContat
 import { ehGrupo } from '@/lib/canais';
 import { formatarTelefone } from '@/lib/whatsappAgenda';
 import { Spinner } from './FormularioEtapas';
+import SeletorEtiqueta from './SeletorEtiqueta';
 import { showToast } from './ToastNotification';
 
 const ACOES_AUDITORIA = {
@@ -149,7 +150,6 @@ export default function ChatPerfilContato({ contatoId, conversaAtualId, Avatar, 
   const [nome, setNome] = useState('');
   const [editandoNome, setEditandoNome] = useState(false);
   const [observacoes, setObservacoes] = useState('');
-  const [novaEtiqueta, setNovaEtiqueta] = useState('');
   const [empresas, setEmpresas] = useState([]);
   const [buscaEmpresa, setBuscaEmpresa] = useState('');
   const [escolhendoEmpresa, setEscolhendoEmpresa] = useState(false);
@@ -333,17 +333,7 @@ export default function ChatPerfilContato({ contatoId, conversaAtualId, Avatar, 
                   </button>
                 </span>
               ))}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const t = novaEtiqueta.trim();
-                  if (!t) return;
-                  setNovaEtiqueta('');
-                  salvar({ etiquetas: [...etiquetas, t] });
-                }}
-              >
-                <input value={novaEtiqueta} onChange={(e) => setNovaEtiqueta(e.target.value)} maxLength={30} placeholder="+ etiqueta" aria-label="Nova etiqueta" className="h-7 w-[110px] rounded-full px-3 bg-rm-fundo dark:bg-rm-elevado-escuro outline-none text-[12.5px] focus:w-[150px] transition-all" />
-              </form>
+              <SeletorEtiqueta tipo="chat" usadas={etiquetas} onEscolher={(t) => salvar({ etiquetas: [...etiquetas, t] })} />
             </div>
           </Secao>
 

@@ -1868,7 +1868,6 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
           empresas={listasDemanda.empresas}
           empresaInicial={demandaDaMensagem.empresa}
           categorias={listasDemanda.categorias}
-          etiquetasSugeridas={['Urgente', 'Bug / Erro', 'Dúvida Operacional', 'Ajuste de Sistema', 'Financeiro', 'Treinamento', 'Melhoria', 'Acesso']}
           equipe={listasDemanda.equipe}
           userEmail={eu?.email || ''}
           descricaoInicial={demandaDaMensagem.descricao}

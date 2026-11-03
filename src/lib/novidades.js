@@ -15,6 +15,36 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-03-envios-em-massa',
+    data: '2026-11-03',
+    titulo: 'Envios em massa, com tempo entre as mensagens',
+    resumo: 'Nova aba “Envios em massa” (em Automação): mande uma mensagem para vários contatos e grupos, na hora ou agendada, com o intervalo que você escolher.',
+    itens: [
+      'Escreva a mensagem (dá para usar o nome de cada contato), escolha o número que envia e marque os contatos e grupos; filtre por etiqueta para achar rápido.',
+      'Envie agora ou escolha o dia e o horário.',
+      'Defina os segundos entre uma mensagem e outra. O medidor mostra o risco de bloqueio do número: quanto menor o tempo, maior o risco; ele nunca chega a zero.',
+      'Acompanhe o andamento, pause, retome ou cancele. Se o número desconectar, o envio pausa sozinho e avisa.',
+      'As mensagens ficam no histórico de cada conversa do Chat. Quem responder volta para a fila de atendimento.',
+      'Quem pode usar: administradores e os perfis com “Chat: envios em massa” ligado em Perfis de acesso.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
+    id: '2026-11-03-etiquetas-cadastradas',
+    data: '2026-11-03',
+    titulo: 'Etiquetas cadastradas, separadas para Chat e Demandas',
+    resumo: 'Agora as etiquetas são cadastradas pelos administradores em Configurações › Etiquetas, e a equipe só escolhe da lista.',
+    itens: [
+      'Duas listas separadas: uma para contatos e grupos do Chat e outra para a Fila de Demandas.',
+      'As etiquetas que já estavam em uso entraram na lista automaticamente.',
+      'Na ficha do contato, nas ações em massa, nas demandas e nas condições do Fluxo Inteligente, a etiqueta é escolhida da lista cadastrada.',
+      'Excluir uma etiqueta da lista não tira ela de quem já tem; ela só deixa de aparecer para escolher.',
+    ],
+    modulo: 'Configurações',
+    tickets: [],
+  },
+  {
     id: '2026-11-03-chat-acoes-em-massa',
     data: '2026-11-03',
     titulo: 'Chat: ações em massa nas conversas',

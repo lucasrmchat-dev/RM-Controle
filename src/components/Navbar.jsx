@@ -43,6 +43,7 @@ const ICONES_ABA = {
   feedbacks: ['M9 18h6', 'M10 21.5h4', 'M12 2.5a6.5 6.5 0 0 0-4 11.6c.6.5 1 1.2 1 2V16h6v-.1c0-.8.4-1.5 1-2A6.5 6.5 0 0 0 12 2.5z'],
   daily: ['M9 4.5H7a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6.5a2 2 0 0 0-2-2h-2', 'M9 3.5h6v3H9z', 'M8.5 12.5l2 2 4-4.5', 'M8.5 17.5h7'],
   fluxos: ['M4 4h5v5H4zM15 9.5h5v5h-5zM4 15h5v5H4z', 'M9 6.5h2.5a2 2 0 0 1 2 2v1M9 17.5h2.5a2 2 0 0 0 2-2v-1'],
+  envios: ['M21.5 2.5 10.5 13.5', 'M21.5 2.5l-7 19-4-8-8-4z'],
   canais: ['M7.5 2.5h9a1.5 1.5 0 0 1 1.5 1.5v16a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 20V4a1.5 1.5 0 0 1 1.5-1.5z', 'M11 18.5h2', 'M9.5 9.5a3.5 3.5 0 0 1 5 0M10.8 11.6a1.6 1.6 0 0 1 2.4 0'],
 };
 const ILHA =
@@ -51,7 +52,7 @@ const ILHA =
 /** Categorias do cabeçalho: cada uma junta abas parecidas (com uma aba só, vira a própria aba). */
 const GRUPOS = [
   { id: 'atendimento', label: 'Atendimento', icone: 'chat', itens: ['chat'] },
-  { id: 'automacao', label: 'Automação', icone: 'fluxos', itens: ['fluxos', 'conexoes'] },
+  { id: 'automacao', label: 'Automação', icone: 'fluxos', itens: ['fluxos', 'envios', 'conexoes'] },
   { id: 'demandas', label: 'Demandas', icone: 'fila', itens: ['fila', 'agenda'] },
   { id: 'gestao', label: 'Gestão', icone: 'dashboard', itens: ['dashboard', 'daily', 'comercial'] },
 ];
@@ -286,6 +287,7 @@ export default function Navbar({
     { id: 'chat', label: 'Chat', curto: 'Chat', descricao: 'Conversas do WhatsApp', badge: totalChat || null, icon: <IconeAba d={ICONES_ABA.chat} /> },
     { id: 'conexoes', label: 'Canais', curto: 'Canais', descricao: 'Números de WhatsApp conectados', icon: <IconeAba d={ICONES_ABA.canais} /> },
     { id: 'fluxos', label: 'Fluxo Inteligente', curto: 'Fluxos', descricao: 'Automações com gatilhos, regras e ações', icon: <IconeAba d={ICONES_ABA.fluxos} /> },
+    { id: 'envios', label: 'Envios em massa', curto: 'Envios', descricao: 'Uma mensagem para vários contatos e grupos', icon: <IconeAba d={ICONES_ABA.envios} /> },
     { id: 'fila', label: 'Demandas', curto: 'Demandas', descricao: 'Demandas dos clientes', badge: totalFila || null, icon: <IconeAba d={ICONES_ABA.fila} /> },
     { id: 'feedbacks', label: 'Feedbacks', curto: 'Feedbacks', descricao: 'Ideias, melhorias e problemas', icon: <IconeAba d={ICONES_ABA.feedbacks} /> },
     { id: 'agenda', label: 'Agenda', curto: 'Agenda', descricao: 'Reuniões e Google Agenda', badge: totalReunioesHoje || null, icon: <IconeAba d={ICONES_ABA.agenda} /> },

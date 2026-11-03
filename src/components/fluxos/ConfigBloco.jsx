@@ -4,6 +4,7 @@ import React, { useMemo, useRef } from 'react';
 import { BLOCOS, ESPERA_MAXIMA_SEGUNDOS, OPERADORES, PERGUNTA_MAX_MINUTOS, STATUS_REUNIAO, VARIAVEIS_GATILHO, VARIAVEIS_SEMPRE } from '@/lib/fluxos';
 import { DESFECHOS_COMERCIAIS } from '@/lib/comercial';
 import { CORES_BLOCO, IconeBloco, campoClasse, rotuloClasse } from './visual';
+import { useEtiquetasCadastradas } from '../SeletorEtiqueta';
 
 /** Variáveis disponíveis no fluxo: as dos gatilhos presentes, as de sempre e as criadas em blocos "Variável". */
 export function variaveisDoFluxo(definicao) {
@@ -80,6 +81,7 @@ export default function ConfigBloco({ no, definicao, canais = [], equipe = [], d
   const c = no.config || {};
   const cor = CORES_BLOCO[b.cor] || CORES_BLOCO.slate;
   const variaveis = useMemo(() => variaveisDoFluxo(definicao), [definicao]);
+  const etiquetasChat = useEtiquetasCadastradas('chat');
   const mudar = (campos) => onMudar({ ...c, ...campos });
   const canalSelect = (
     <select value={c.canal_id || ''} onChange={(e) => mudar({ canal_id: e.target.value })} className={campoClasse}>
@@ -233,7 +235,19 @@ export default function ConfigBloco({ no, definicao, canais = [], equipe = [], d
                       </option>
                     ))}
                   </select>
-                  {!op?.semValor && <input value={r.valor || ''} onChange={(e) => mudarRegra(i, { valor: e.target.value })} placeholder="valor" className={campoClasse} />}
+                  {!op?.semValor &&
+                    (r.campo === 'contato.etiquetas' && (r.operador === 'tem_item' || r.operador === 'nao_tem_item') ? (
+                      <select value={r.valor || ''} onChange={(e) => mudarRegra(i, { valor: e.target.value })} className={campoClasse}>
+                        <option value="">Escolha a etiqueta</option>
+                        {[...new Set([...(etiquetasChat || []), ...(r.valor ? [r.valor] : [])])].map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input value={r.valor || ''} onChange={(e) => mudarRegra(i, { valor: e.target.value })} placeholder="valor" className={campoClasse} />
+                    ))}
                 </div>
               );
             })}

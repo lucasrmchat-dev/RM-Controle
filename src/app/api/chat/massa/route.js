@@ -3,6 +3,7 @@ import {
   DESFECHOS_COMERCIAIS,
   validarConfigComercial,
 } from '@/lib/comercial';
+import { etiquetaCadastrada } from '@/lib/etiquetas';
 import { isValidUUID } from '@/lib/sanitize';
 import { avisarAoVivo } from '@/lib/server/canais/aoVivo';
 import {
@@ -11,6 +12,7 @@ import {
   podeVerConversa,
   registrarSistema,
 } from '@/lib/server/canais/chat';
+import { etiquetasDaEmpresa } from '@/lib/server/etiquetas';
 import { consumirLimite } from '@/lib/server/protecao';
 
 export const dynamic = 'force-dynamic';
@@ -121,8 +123,20 @@ export async function POST(request) {
       }
       case 'etiqueta_adicionar':
       case 'etiqueta_remover': {
-        const etiqueta = texto(body.etiqueta, 30);
-        if (!etiqueta) return json({ ok: false, mensagem: 'Escreva a etiqueta.' }, 400);
+        let etiqueta = texto(body.etiqueta, 30);
+        if (!etiqueta) return json({ ok: false, mensagem: 'Escolha a etiqueta.' }, 400);
+        // Para adicionar, só as cadastradas (Configurações › Etiquetas); para tirar, qualquer uma
+        if (body.acao === 'etiqueta_adicionar') {
+          etiqueta = etiquetaCadastrada(await etiquetasDaEmpresa(db, 'chat'), etiqueta);
+          if (!etiqueta)
+            return json(
+              {
+                ok: false,
+                mensagem: 'Essa etiqueta não está cadastrada. Cadastre em Configurações › Etiquetas.',
+              },
+              400,
+            );
+        }
         const mesma = (t) => t.toLowerCase() === etiqueta.toLowerCase();
         const { data: contatos } = await db
           .from('contatos')
