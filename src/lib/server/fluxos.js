@@ -14,7 +14,7 @@
 import { GATILHOS_DO_EVENTO, executarFluxo, gatilhoCasa } from '@/lib/fluxos';
 import { DESFECHOS_COMERCIAIS } from '@/lib/comercial';
 import { consumirLimite } from '@/lib/server/protecao';
-import { enviarTextoNaConversa, enviarTextoParaNumero } from '@/lib/server/canais/index';
+import { enviarTextoNaConversa, enviarTextoParaNumero, mensagemDoCanal } from '@/lib/server/canais/index';
 import { registrarSistema } from '@/lib/server/canais/chat';
 
 const tabelaAusente = (e) => /fluxo|does not exist|schema cache/i.test(String(e?.message || ''));
@@ -270,7 +270,7 @@ export async function registrarMensagensDaEquipe(db, lista) {
     const casam = fluxos.filter((f) => (f.definicao?.nos || []).some((n) => n.tipo === 'gatilho_mensagem' && gatilhoCasa(n, evento)));
     if (!casam.length) continue;
     if (idExterno) {
-      const { data: m } = await db.from('mensagens').select('autor_email').eq('id_externo', idExterno).maybeSingle();
+      const m = await mensagemDoCanal(db, dados.canal.id, idExterno, 'autor_email');
       if (String(m?.autor_email || '').startsWith('fluxo@')) continue;
     }
     for (const fluxo of casam) {

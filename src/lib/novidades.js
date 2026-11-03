@@ -15,6 +15,18 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-03-grupos-varios-canais',
+    data: '2026-11-03',
+    titulo: 'Chat: mensagens de grupo não se perdem mais quando vários canais estão no mesmo grupo',
+    resumo: 'Quando dois ou mais números da empresa participavam do mesmo grupo, só um deles guardava cada mensagem e os outros ficavam sem fotos, figurinhas e textos. Agora cada canal guarda a sua cópia.',
+    itens: [
+      'Fotos, figurinhas e textos de grupo passam a aparecer em todos os canais que estão no grupo.',
+      'Mensagens antigas que ficaram de fora não voltam sozinhas.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
     id: '2026-11-03-servidores-equipe-acesso',
     data: '2026-11-03',
     titulo: 'Servidores e equipe: a tela não some mais depois de carregar',

@@ -107,7 +107,7 @@ let enviados;
 
 beforeEach(() => {
   db.reset();
-  db.unicos = { mensagens: [['organizacao_id', 'id_externo']], contatos: [['organizacao_id', 'telefone']] };
+  db.unicos = { mensagens: [['conversa_id', 'id_externo']], contatos: [['organizacao_id', 'telefone']] };
   db.tables.organizacoes = [
     { id: ORG_PLATAFORMA, nome: 'RM Controle', tipo: 'plataforma', status: 'ativa', limites: {} },
     { id: A, nome: 'Clínica A', tipo: 'assinante', pai_id: ORG_PLATAFORMA, status: 'ativa', limites: {} },
@@ -294,6 +294,31 @@ test('reação fica presa à mensagem reagida; trocar substitui e vazia remove',
   await enviar(reacao('RX3', ''));
   assert.equal(db.tables.mensagens.filter((m) => m.tipo === 'reacao').length, 0, 'reação removida');
   assert.equal(db.tables.conversas[0].ultima_mensagem_texto, 'Segue a figurinha', 'reação não vira a última mensagem');
+});
+
+test('grupo com dois canais da empresa: cada canal guarda a sua cópia da mesma mensagem', async () => {
+  // O WhatsApp entrega a mesma mensagem (mesmo código) a todos os canais que estão no grupo
+  const canalQr2 = { ...canalQr, id: crypto.randomUUID(), nome: 'Suporte', webhook_token_hash: hashToken('tok-evo-2') };
+  db.tables.canais.push(canalQr2);
+  db.tables.sistema_config = [{ organizacao_id: A, chave: 'chat', valor: { grupos: 'aba' } }];
+  const grupo = (id, extra = {}) => ({ event: 'messages.upsert', data: { key: { remoteJid: '120363111@g.us', participant: '5585977776666@s.whatsapp.net', id }, pushName: 'Rita', message: { conversation: 'Bom dia, grupo' }, ...extra } });
+  const fetchAntes = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ subject: 'Equipe' }), { status: 200 });
+  await receberWebhook(aviso(canalQr, grupo('MESMA'), { 'x-rm-token': 'tok-evo' }), { params: { id: canalQr.id } });
+  await receberWebhook(aviso(canalQr2, grupo('MESMA'), { 'x-rm-token': 'tok-evo-2' }), { params: { id: canalQr2.id } });
+  // Reenvio do mesmo aviso para o mesmo canal continua sem duplicar
+  await receberWebhook(aviso(canalQr2, grupo('MESMA'), { 'x-rm-token': 'tok-evo-2' }), { params: { id: canalQr2.id } });
+  globalThis.fetch = fetchAntes;
+  assert.equal(db.tables.mensagens.filter((m) => m.id_externo === 'MESMA').length, 2, 'uma cópia por canal');
+  assert.equal(new Set(db.tables.conversas.map((c) => c.canal_id)).size, 2);
+
+  // Reação no canal 2 fica presa à cópia do canal 2
+  const reacao = { event: 'messages.upsert', data: { key: { remoteJid: '120363111@g.us', participant: '5585977776666@s.whatsapp.net', fromMe: false, id: 'RX' }, message: { reactionMessage: { key: { id: 'MESMA' }, text: '👍' } } } };
+  await receberWebhook(aviso(canalQr2, reacao, { 'x-rm-token': 'tok-evo-2' }), { params: { id: canalQr2.id } });
+  const conversa2 = db.tables.conversas.find((c) => c.canal_id === canalQr2.id);
+  const rx = db.tables.mensagens.find((m) => m.tipo === 'reacao');
+  assert.equal(rx.conversa_id, conversa2.id);
+  assert.equal(db.tables.mensagens.find((m) => m.id === rx.responde_a).conversa_id, conversa2.id);
 });
 
 test('Aviso ao vivo: tópico secreto por empresa e aviso sem conteúdo', async () => {

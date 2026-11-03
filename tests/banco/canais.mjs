@@ -4,7 +4,7 @@ import { novoBanco } from './base.mjs';
 import assert from 'node:assert/strict';
 process.on('uncaughtException', (e) => { console.log('FALHOU:', e.message, '| consulta:', e.query || ''); process.exit(1); });
 
-const db = await novoBanco(['schema.sql', 'setup_secure_rls.sql', 'migration_feedbacks_e_departamentos.sql', 'migration_supabase_completa.sql', 'migration_perfis_acesso.sql', 'migration_google_agenda.sql', 'migration_descricao_historico.sql', 'migration_agenda_departamento.sql', 'migration_comercial_pipeline.sql', 'migration_comercial_webhooks.sql', 'migration_relato_atendimentos.sql', 'migration_feedbacks_subtarefas.sql', 'migration_descricao_demandas.sql', 'migration_whatsapp_agenda.sql', 'migration_multiempresa.sql', 'migration_canais_chat.sql', 'migration_canais_chat.sql', 'migration_chat_acoes.sql', 'migration_chat_acoes.sql', 'migration_chat_grupos.sql', 'migration_chat_grupos.sql', 'migration_desempenho.sql', 'migration_desempenho.sql', 'migration_daily.sql', 'migration_daily.sql', 'migration_equipe_protege_acesso.sql', 'migration_equipe_protege_acesso.sql', 'migration_auditoria_autor.sql', 'migration_auditoria_autor.sql', 'migration_fluxos.sql', 'migration_fluxo_esperas.sql', 'migration_fluxo_esperas.sql', 'migration_chat_massa.sql', 'migration_chat_massa.sql', 'migration_envios_massa.sql', 'migration_envios_massa.sql']);
+const db = await novoBanco(['schema.sql', 'setup_secure_rls.sql', 'migration_feedbacks_e_departamentos.sql', 'migration_supabase_completa.sql', 'migration_perfis_acesso.sql', 'migration_google_agenda.sql', 'migration_descricao_historico.sql', 'migration_agenda_departamento.sql', 'migration_comercial_pipeline.sql', 'migration_comercial_webhooks.sql', 'migration_relato_atendimentos.sql', 'migration_feedbacks_subtarefas.sql', 'migration_descricao_demandas.sql', 'migration_whatsapp_agenda.sql', 'migration_multiempresa.sql', 'migration_canais_chat.sql', 'migration_canais_chat.sql', 'migration_chat_acoes.sql', 'migration_chat_acoes.sql', 'migration_chat_grupos.sql', 'migration_chat_grupos.sql', 'migration_desempenho.sql', 'migration_desempenho.sql', 'migration_daily.sql', 'migration_daily.sql', 'migration_equipe_protege_acesso.sql', 'migration_equipe_protege_acesso.sql', 'migration_auditoria_autor.sql', 'migration_auditoria_autor.sql', 'migration_fluxos.sql', 'migration_fluxo_esperas.sql', 'migration_fluxo_esperas.sql', 'migration_chat_massa.sql', 'migration_chat_massa.sql', 'migration_envios_massa.sql', 'migration_envios_massa.sql', 'migration_mensagens_codigo_por_conversa.sql']);
 console.log('✔ migração aplicada (duas vezes, sem erro)');
 const RMCHAT = '00000000-0000-4000-8000-000000000002';
 
@@ -39,6 +39,8 @@ console.log('✔ conversas e mensagens herdam a empresa do canal');
 
 // Mensagem repetida do WhatsApp não duplica
 await assert.rejects(servidor(`INSERT INTO mensagens (conversa_id, direcao, conteudo, id_externo) VALUES ($1, 'entrada', 'repetida', 'w1')`, [convSuporte.id]), /duplicate|unique/);
+// O mesmo código em OUTRA conversa (outro canal no mesmo grupo) é uma cópia legítima
+await servidor(`INSERT INTO mensagens (conversa_id, direcao, conteudo, id_externo) VALUES ($1, 'entrada', 'cópia do outro canal', 'w1')`, [convVendas.id]);
 // Uma conversa aberta por contato e canal
 await assert.rejects(servidor(`INSERT INTO conversas (canal_id, contato_id) VALUES ($1, $2)`, [canal.id, contato.id]), /duplicate|unique/);
 console.log('✔ sem duplicar mensagem nem conversa aberta');

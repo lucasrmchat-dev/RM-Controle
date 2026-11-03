@@ -56,6 +56,19 @@ export function canalPublico(c) {
 // ------------------------------------------------------------------------------
 // Recebimento (avisos do provedor)
 // ------------------------------------------------------------------------------
+/**
+ * Mensagem pelo código do WhatsApp, DENTRO de um canal. A mesma mensagem de grupo chega a todos os
+ * canais da empresa que estão no grupo, com o mesmo código: só o canal diz qual das cópias é a certa.
+ */
+export async function mensagemDoCanal(db, canalId, idExterno, colunas = 'id') {
+  if (!idExterno) return null;
+  const { data: achadas } = await db.from('mensagens').select(`${colunas}, conversa_id`).eq('id_externo', idExterno);
+  if (!achadas?.length) return null;
+  const { data: conversas } = await db.from('conversas').select('id').eq('canal_id', canalId).in('id', achadas.map((m) => m.conversa_id));
+  const doCanal = new Set((conversas || []).map((c) => c.id));
+  return achadas.find((m) => doCanal.has(m.conversa_id)) || null;
+}
+
 async function nomeDoGrupo(canal, jid, fetchImpl) {
   const p = provedorDo(canal);
   if (!p.nomeDoGrupo) return null;
@@ -167,7 +180,7 @@ export async function registrarEventos(db, canal, eventos, { config = CONFIG_CHA
   for (const ev of eventos) {
     if (ev.tipo === 'apagada' || ev.tipo === 'editada') {
       // Feito no WhatsApp (pelo cliente ou pelo celular da empresa): o texto anterior fica guardado
-      const { data: msg } = await db.from('mensagens').select('id, conteudo, conteudo_original').eq('id_externo', ev.idExterno).maybeSingle();
+      const msg = await mensagemDoCanal(db, canal.id, ev.idExterno, 'id, conteudo, conteudo_original');
       if (!msg) continue;
       const campos =
         ev.tipo === 'apagada'
@@ -189,9 +202,11 @@ export async function registrarEventos(db, canal, eventos, { config = CONFIG_CHA
         }
       }
       if (ev.tipoMensagem === 'reacao') {
-        if (await registrarReacao(db, ev)) resumo.mensagens += 1;
+        if (await registrarReacao(db, canal, ev)) resumo.mensagens += 1;
         continue;
       }
+      // Eco de algo que este canal já gravou (envio pelo RM Controle): não repete, mesmo que a conversa tenha mudado
+      if (ev.deMim && (await mensagemDoCanal(db, canal.id, ev.idExterno))) continue;
       const contatoId = await contatoPorTelefone(db, ev.telefone, nome, { grupo: ev.grupo });
       const conversa = await conversaAberta(db, canal, contatoId, { grupo: ev.grupo, em: ev.em, reabrir: !ev.deMim });
       let textoFinal = ev.texto;
@@ -244,7 +259,7 @@ export async function registrarEventos(db, canal, eventos, { config = CONFIG_CHA
         if (/duplicate|unique|23505/i.test(`${error.code} ${error.message}`)) continue; // aviso repetido
         throw new Error(`Não foi possível gravar a mensagem: ${error.message}`);
       }
-      await guardarDetalhes(db, gravada.id, { chave: ev.chave, respondeAExterno: ev.respondeA });
+      await guardarDetalhes(db, gravada.id, { chave: ev.chave, respondeAExterno: ev.respondeA, canalId: canal.id });
       if (TIPOS_COM_ARQUIVO.includes(ev.tipoMensagem)) await guardarArquivoRecebido(db, canal, conversa, gravada.id, ev, fetchImpl);
       const campos = { ultima_mensagem_em: ev.em, ultima_mensagem_texto: previaMensagem({ ...ev, texto: textoFinal }) };
       if (!ev.deMim) {
@@ -266,7 +281,7 @@ export async function registrarEventos(db, canal, eventos, { config = CONFIG_CHA
         });
       }
     } else if (ev.tipo === 'status') {
-      const { data: msg } = await db.from('mensagens').select('id, status').eq('id_externo', ev.idExterno).maybeSingle();
+      const msg = await mensagemDoCanal(db, canal.id, ev.idExterno, 'id, status');
       if (!msg) continue;
       // Avisos chegam fora de ordem: "entregue" atrasado não desfaz "lida"
       if (ev.status !== 'falhou' && (ORDEM_STATUS[ev.status] ?? 0) <= (ORDEM_STATUS[msg.status] ?? 0)) continue;
@@ -293,11 +308,11 @@ export async function registrarEventos(db, canal, eventos, { config = CONFIG_CHA
  * Chave do WhatsApp e mensagem citada. Gravadas à parte e sem travar: sem a migração das ações do chat
  * (supabase/migration_chat_acoes.sql) a coluna da chave não existe e a mensagem segue normalmente.
  */
-async function guardarDetalhes(db, mensagemId, { chave, respondeAExterno, respondeA } = {}) {
+async function guardarDetalhes(db, mensagemId, { chave, respondeAExterno, respondeA, canalId } = {}) {
   const campos = {};
   if (respondeA) campos.responde_a = respondeA;
   else if (respondeAExterno) {
-    const { data: citada } = await db.from('mensagens').select('id').eq('id_externo', respondeAExterno).maybeSingle();
+    const citada = await mensagemDoCanal(db, canalId, respondeAExterno, 'id');
     if (citada) campos.responde_a = citada.id;
   }
   if (campos.responde_a) await db.from('mensagens').update(campos).eq('id', mensagemId);
@@ -308,9 +323,9 @@ async function guardarDetalhes(db, mensagemId, { chave, respondeAExterno, respon
  * Reação (❤️, 👍...): fica presa à mensagem reagida, não vira mensagem solta na conversa.
  * Cada pessoa tem no máximo uma reação por mensagem; reação vazia = removida.
  */
-async function registrarReacao(db, ev) {
+async function registrarReacao(db, canal, ev) {
   if (!ev.reageA) return false;
-  const { data: alvo } = await db.from('mensagens').select('id, conversa_id').eq('id_externo', ev.reageA).maybeSingle();
+  const alvo = await mensagemDoCanal(db, canal.id, ev.reageA, 'id');
   if (!alvo) return false;
   const direcao = ev.deMim ? 'saida' : 'entrada';
   const autor = ev.participante?.nome || (ev.participante?.telefone ? formatarTelefone(ev.participante.telefone) : null);

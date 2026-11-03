@@ -23,7 +23,7 @@ let canal, carla, grupo, contatoB, enviados;
 
 beforeEach(() => {
   db.reset();
-  db.unicos = { mensagens: [['organizacao_id', 'id_externo']], contatos: [['organizacao_id', 'telefone']] };
+  db.unicos = { mensagens: [['conversa_id', 'id_externo']], contatos: [['organizacao_id', 'telefone']] };
   db.tables.organizacoes = [
     { id: ORG_PLATAFORMA, nome: 'RM Controle', tipo: 'plataforma', status: 'ativa', limites: {} },
     { id: A, nome: 'Clínica A', tipo: 'assinante', pai_id: ORG_PLATAFORMA, status: 'ativa', limites: {} },
