@@ -152,3 +152,26 @@ export function validarEnvio(body, { agora = new Date() } = {}) {
     agendadoPara,
   };
 }
+
+// Probabilidade alta ou muito alta não deixa enviar: só média ou baixa (tela e servidor)
+export const NIVEIS_BLOQUEADOS = ['alto', 'muito_alto'];
+export const envioBloqueado = (avaliacao) => NIVEIS_BLOQUEADOS.includes(avaliacao?.nivel?.id);
+
+/** Menor intervalo (de 5 em 5 s) que deixa a probabilidade em média ou baixa para esta quantidade. */
+export function intervaloSeguro({ quantidade = 0, personalizada = false } = {}) {
+  for (let s = INTERVALO_MIN; s <= INTERVALO_MAX; s += 5) {
+    if (!envioBloqueado(avaliarRisco({ segundos: s, quantidade, personalizada }))) return s;
+  }
+  return null;
+}
+
+/** Mensagem com o nome do contato (cada um recebe um texto diferente). */
+export const mensagemPersonalizada = (texto) =>
+  /\{\{\s*(primeiro_)?nome\s*\}\}/i.test(String(texto || ''));
+
+// Probabilidade média: só envia quem aceitar o termo (fica registrado na auditoria). Baixa: envia com a ressalva.
+export const exigeAceite = (avaliacao) => avaliacao?.nivel?.id === 'medio';
+export const TERMO_RISCO_MEDIO =
+  'Estou ciente de que a probabilidade de bloqueio deste envio é média. O WhatsApp por QR Code não foi feito para disparos em massa e o número pode ser bloqueado a qualquer momento. Assumo o risco e a responsabilidade por este envio.';
+export const RESSALVA_RISCO_BAIXO =
+  'Probabilidade baixa, mas não zero: o WhatsApp por QR Code não foi feito para disparos em massa. Use com moderação e só para quem espera a sua mensagem.';

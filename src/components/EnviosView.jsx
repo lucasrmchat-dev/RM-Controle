@@ -9,6 +9,11 @@ import {
   MENSAGEM_MAX,
   STATUS_ENVIO,
   avaliarRisco,
+  envioBloqueado,
+  exigeAceite,
+  RESSALVA_RISCO_BAIXO,
+  TERMO_RISCO_MEDIO,
+  intervaloSeguro,
   duracaoEstimada,
   formatarDuracao,
   preencherMensagem,
@@ -513,19 +518,20 @@ function NovoEnvio({ aberto, onFechar, onCriado }) {
   const [dia, setDia] = useState(() => isoDoDia(new Date()));
   const [hora, setHora] = useState('09:00');
   const [intervalo, setIntervalo] = useState(INTERVALO_PADRAO);
-  const [cienteRisco, setCienteRisco] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState('');
+  // O aceite do termo vale só para o nível em que foi dado (mudou o nível, precisa aceitar de novo)
+  const [aceiteNivel, setAceiteNivel] = useState(null);
 
   useEffect(() => {
     if (!aberto) return;
+    setAceiteNivel(null);
     setNome('');
     setMensagem('');
     setSelecionados(new Set());
     setQuando('agora');
     setDia(isoDoDia(new Date()));
     setIntervalo(INTERVALO_PADRAO);
-    setCienteRisco(false);
     setErro('');
     setDados({ destinos: null, canais: [] });
     fetchDestinosEnvio()
@@ -547,7 +553,14 @@ function NovoEnvio({ aberto, onFechar, onCriado }) {
     quantidade: selecionados.size,
     personalizada,
   });
-  const muitoAlto = avaliacao.nivel.id === 'muito_alto';
+  // Alta ou muito alta: não deixa enviar (o servidor confere de novo)
+  const bloqueado = selecionados.size > 0 && envioBloqueado(avaliacao);
+  const seguro = bloqueado
+    ? intervaloSeguro({ quantidade: selecionados.size, personalizada })
+    : null;
+  // Média: precisa aceitar o termo; ao mudar de nível, o aceite anterior não vale mais
+  const precisaAceite = selecionados.size > 0 && exigeAceite(avaliacao);
+  const aceite = aceiteNivel === avaliacao.nivel.id;
   const agendadoPara = quando === 'agendar' ? new Date(`${dia}T${hora}:00`) : null;
   const noPassado = agendadoPara && agendadoPara.getTime() < Date.now();
   const exemplo = (dados.destinos || []).find((d) => selecionados.has(d.id)) || {
@@ -559,7 +572,8 @@ function NovoEnvio({ aberto, onFechar, onCriado }) {
     canalId &&
     selecionados.size > 0 &&
     !noPassado &&
-    (!muitoAlto || cienteRisco);
+    !bloqueado &&
+    (!precisaAceite || aceite);
 
   const inserirVariavel = (v) =>
     setMensagem((m) => `${m}${m && !/\s$/.test(m) ? ' ' : ''}{{${v}}}`);
@@ -575,6 +589,7 @@ function NovoEnvio({ aberto, onFechar, onCriado }) {
         mensagem,
         intervalo_segundos: intervalo,
         contatos: [...selecionados],
+        aceite_risco: precisaAceite && aceite,
         agendado_para: agendadoPara ? agendadoPara.toISOString() : null,
       });
       showToast(
@@ -606,9 +621,13 @@ function NovoEnvio({ aberto, onFechar, onCriado }) {
             <ErroRodape erro={erro} />
             {!erro && (
               <p className="text-[12.5px] text-slate-500 dark:text-zinc-400">
-                {selecionados.size
-                  ? `${selecionados.size} ${selecionados.size === 1 ? 'destinatário' : 'destinatários'} · a cada ${formatarDuracao(intervalo)} · probabilidade de bloqueio ${avaliacao.nivel.rotulo.toLowerCase()}`
-                  : 'Escolha a mensagem e os destinatários.'}
+                {bloqueado
+                  ? 'Envio bloqueado: aumente o intervalo ou diminua a lista.'
+                  : precisaAceite && !aceite
+                    ? 'Probabilidade média: aceite o termo de ciência do risco para enviar.'
+                    : selecionados.size
+                      ? `${selecionados.size} ${selecionados.size === 1 ? 'destinatário' : 'destinatários'} · a cada ${formatarDuracao(intervalo)} · probabilidade de bloqueio ${avaliacao.nivel.rotulo.toLowerCase()}`
+                      : 'Escolha a mensagem e os destinatários.'}
               </p>
             )}
           </div>
@@ -778,32 +797,80 @@ function NovoEnvio({ aberto, onFechar, onCriado }) {
         ultima
       >
         <div className="grid gap-5 lg:grid-cols-2 items-start">
-          <SeletorIntervalo
-            valor={intervalo}
-            onMudar={(s) => {
-              setIntervalo(s);
-              setCienteRisco(false);
-            }}
-          />
+          <SeletorIntervalo valor={intervalo} onMudar={setIntervalo} />
           <div className="space-y-3">
             <MedidorRisco
               segundos={intervalo}
               quantidade={selecionados.size}
               personalizada={personalizada}
             />
-            {muitoAlto && (
-              <label className="flex items-start gap-2.5 rounded-2xl px-3.5 py-3 bg-rose-500/[0.07] text-[13px] cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={cienteRisco}
-                  onChange={(e) => setCienteRisco(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 accent-rose-500"
-                />
-                <span>
-                  Entendo que, com este intervalo e esta quantidade, o número pode ser bloqueado
-                  pelo WhatsApp.
+            {precisaAceite && (
+              <motion.label
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, ease: EASE }}
+                className={`block rounded-3xl p-4 border cursor-pointer transition-colors ${aceite ? 'bg-amber-500/10 border-amber-500/40' : 'bg-amber-500/5 border-amber-500/20'}`}
+              >
+                <span className="block text-[13.5px] font-semibold text-amber-700 dark:text-amber-300">
+                  Termo de ciência do risco
                 </span>
-              </label>
+                <span className="mt-2 flex items-start gap-2.5">
+                  <input
+                    type="checkbox"
+                    checked={aceite}
+                    onChange={(e) => setAceiteNivel(e.target.checked ? avaliacao.nivel.id : null)}
+                    className="mt-0.5 w-4 h-4 flex-shrink-0 accent-amber-500"
+                  />
+                  <span className="text-[12.5px] leading-snug text-[#1d1d1f]/85 dark:text-white/85">
+                    {TERMO_RISCO_MEDIO}
+                  </span>
+                </span>
+                <span className="block mt-2 text-[11.5px] text-slate-500 dark:text-zinc-400">
+                  O aceite fica registrado na auditoria com o seu nome, a data e a hora.
+                </span>
+              </motion.label>
+            )}
+            {selecionados.size > 0 && avaliacao.nivel.id === 'baixo' && (
+              <p className="rounded-2xl px-3.5 py-3 bg-emerald-500/10 text-[12.5px] leading-snug text-emerald-800 dark:text-emerald-200">
+                {RESSALVA_RISCO_BAIXO}
+              </p>
+            )}
+            {bloqueado && (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, ease: EASE }}
+                className="rounded-3xl p-4 bg-rose-500/10 border border-rose-500/20"
+              >
+                <p className="text-[13.5px] font-semibold text-rose-600 dark:text-rose-400">
+                  Envio bloqueado: probabilidade {avaliacao.nivel.rotulo.toLowerCase()}
+                </p>
+                <p className="mt-1 text-[12.5px] leading-snug text-[#1d1d1f]/80 dark:text-white/80">
+                  Para proteger o número, só é possível enviar com probabilidade média ou baixa.
+                  Para conseguir:
+                </p>
+                <ul className="mt-2 space-y-1 text-[12.5px] leading-snug text-[#1d1d1f]/80 dark:text-white/80">
+                  {seguro && (
+                    <li className="flex gap-2">
+                      <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 bg-rose-500" />
+                      Aumente o intervalo para pelo menos {formatarDuracao(seguro)}.
+                    </li>
+                  )}
+                  <li className="flex gap-2">
+                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 bg-rose-500" />
+                    Ou escolha menos destinatários e faça o resto em outro envio, em outro dia.
+                  </li>
+                </ul>
+                {seguro && (
+                  <button
+                    type="button"
+                    onClick={() => setIntervalo(seguro)}
+                    className="mt-3 h-9 px-4 rounded-full text-[12.5px] font-semibold bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] cursor-pointer"
+                  >
+                    Usar {formatarDuracao(seguro)} entre as mensagens
+                  </button>
+                )}
+              </motion.div>
             )}
           </div>
         </div>

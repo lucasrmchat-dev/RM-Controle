@@ -1,6 +1,16 @@
 import { after } from 'next/server';
 import { ehGrupo } from '@/lib/canais';
-import { DESTINOS_MAX, validarEnvio } from '@/lib/envios';
+import {
+  DESTINOS_MAX,
+  avaliarRisco,
+  envioBloqueado,
+  exigeAceite,
+  TERMO_RISCO_MEDIO,
+  formatarDuracao,
+  intervaloSeguro,
+  mensagemPersonalizada,
+  validarEnvio,
+} from '@/lib/envios';
 import { isValidUUID } from '@/lib/sanitize';
 import { permissaoDoChat, semModulo } from '@/lib/server/canais/chat';
 import { processarEnvios } from '@/lib/server/envios';
@@ -185,6 +195,35 @@ export async function POST(request) {
     if (!contatos.length)
       return json({ ok: false, mensagem: 'Nenhum dos contatos escolhidos foi encontrado.' }, 400);
 
+    // Probabilidade de bloqueio alta ou muito alta: não deixa enviar (só média ou baixa)
+    const personalizada = mensagemPersonalizada(dados.mensagem);
+    const avaliacao = avaliarRisco({
+      segundos: dados.intervalo,
+      quantidade: contatos.length,
+      personalizada,
+    });
+    if (envioBloqueado(avaliacao)) {
+      const seguro = intervaloSeguro({ quantidade: contatos.length, personalizada });
+      return json(
+        {
+          ok: false,
+          mensagem: `Envio bloqueado: probabilidade de bloqueio ${avaliacao.nivel.rotulo.toLowerCase()}. ${seguro ? `Use pelo menos ${formatarDuracao(seguro)} entre as mensagens ou ` : ''}escolha menos destinatários.`,
+        },
+        400,
+      );
+    }
+
+    // Média: só com o termo de ciência do risco aceito (registrado na auditoria)
+    if (exigeAceite(avaliacao) && body.aceite_risco !== true)
+      return json(
+        {
+          ok: false,
+          mensagem:
+            'Probabilidade de bloqueio média: aceite o termo de ciência do risco para enviar.',
+        },
+        400,
+      );
+
     const quando = dados.agendadoPara.toISOString();
     const { data: envio, error } = await db
       .from('envios_massa')
@@ -212,16 +251,14 @@ export async function POST(request) {
         },
         semTabela(error) ? 503 : 500,
       );
-    const { error: erroDestinos } = await db
-      .from('envios_massa_destinos')
-      .insert(
-        contatos.map((contato_id, ordem) => ({
-          envio_id: envio.id,
-          contato_id,
-          ordem,
-          status: 'pendente',
-        })),
-      );
+    const { error: erroDestinos } = await db.from('envios_massa_destinos').insert(
+      contatos.map((contato_id, ordem) => ({
+        envio_id: envio.id,
+        contato_id,
+        ordem,
+        status: 'pendente',
+      })),
+    );
     if (erroDestinos) {
       await db.from('envios_massa').delete().eq('id', envio.id);
       return json({ ok: false, mensagem: 'Não foi possível guardar os contatos do envio.' }, 500);
@@ -231,6 +268,8 @@ export async function POST(request) {
       total: contatos.length,
       intervalo: dados.intervalo,
       agendado_para: quando,
+      probabilidade_bloqueio: avaliacao.nivel.rotulo,
+      ...(exigeAceite(avaliacao) ? { termo_risco_aceito: TERMO_RISCO_MEDIO } : {}),
     });
     // Envio para agora: começa já, sem esperar o agendador (que continua o que não couber nesta chamada)
     if (new Date(quando).getTime() <= Date.now() + 5_000) {

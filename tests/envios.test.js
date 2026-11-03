@@ -9,7 +9,7 @@ import { __definirSupabaseAdmin } from '../src/lib/server/integracaoSuporte.js';
 import { ORG_PLATAFORMA } from '../src/lib/server/organizacao.js';
 import { createSessionToken, SESSION_COOKIE_NAME } from '../src/lib/session.js';
 import { cifrarSegredos, hashToken } from '../src/lib/server/canais/cofre.js';
-import { avaliarRisco, duracaoEstimada, formatarDuracao, nivelDoRisco, preencherMensagem, proximaEspera, riscoDoIntervalo, validarEnvio } from '../src/lib/envios.js';
+import { avaliarRisco, envioBloqueado, intervaloSeguro, duracaoEstimada, formatarDuracao, nivelDoRisco, preencherMensagem, proximaEspera, riscoDoIntervalo, validarEnvio } from '../src/lib/envios.js';
 import { dispararProximo, processarEnvios } from '../src/lib/server/envios.js';
 import { GET as lerEnvios, POST as agirEnvios } from '../src/app/api/envios/route.js';
 import { POST as processarRota } from '../src/app/api/envios/processar/route.js';
@@ -89,6 +89,14 @@ test('risco: cai conforme o intervalo aumenta, mas nunca chega a zero', () => {
   assert.ok(r.motivos.some((m) => /muito curto/.test(m)) && r.motivos.some((m) => /Muitos destinatários/.test(m)));
   assert.ok(r.recomendacoes.some((m) => /60 segundos/.test(m)) && r.recomendacoes.some((m) => /envios menores/.test(m)));
   assert.equal(nivelDoRisco(10).rotulo, 'Baixa');
+  // Alta ou muito alta bloqueia; o intervalo seguro deixa em média ou baixa
+  assert.equal(envioBloqueado(avaliarRisco({ segundos: 30, quantidade: 500 })), true);
+  assert.equal(envioBloqueado(avaliarRisco({ segundos: 60, quantidade: 3 })), false);
+  for (const n of [10, 100, 500, 1000]) {
+    const s = intervaloSeguro({ quantidade: n });
+    assert.ok(s && !envioBloqueado(avaliarRisco({ segundos: s, quantidade: n })), `${n} destinatários: ${s} s libera`);
+    if (s > 5) assert.ok(envioBloqueado(avaliarRisco({ segundos: s - 5, quantidade: n })), 'é o menor que libera');
+  }
   assert.ok(proximaEspera(30, 0) === 30_000 && proximaEspera(30, 1) === 42_000, 'variação só para mais (até +40%)');
   assert.equal(formatarDuracao(duracaoEstimada(121, 30)), '1 h');
   assert.equal(preencherMensagem('Oi {{primeiro_nome}}, tudo bem? ({{nome}})', { nome: 'Carla Mendes' }), 'Oi Carla, tudo bem? (Carla Mendes)');
@@ -115,6 +123,27 @@ test('só quem tem o sub-módulo "Chat: envios em massa" cria; contato de outra 
   assert.equal(d.destinos.find((x) => x.id === grupo.id).grupo, true);
   assert.deepEqual(d.canais.map((k) => k.id), [canal.id]);
   assert.equal(JSON.stringify(d).includes('credenciais'), false);
+});
+
+test('probabilidade alta não deixa criar o envio (o servidor confere, não só a tela)', async () => {
+  const muitos = Array.from({ length: 60 }, (_, i) => ({ id: crypto.randomUUID(), organizacao_id: A, telefone: `55859990${String(i).padStart(4, '0')}`, nome: `Contato ${i}` }));
+  db.tables.contatos.push(...muitos);
+  const r = await criar('ana@a.com', { contatos: muitos.map((c) => c.id), intervalo_segundos: 5 });
+  assert.equal(r.status, 400);
+  assert.match(r.mensagem, /Envio bloqueado/);
+  assert.match(r.mensagem, /Use pelo menos/);
+  assert.equal(db.tables.envios_massa.length, 0);
+  // No limite (média): só com o termo aceito, que fica na auditoria
+  const seguro = intervaloSeguro({ quantidade: 60, personalizada: true });
+  const corpo = { contatos: muitos.map((c) => c.id), intervalo_segundos: seguro, agendado_para: new Date(Date.now() + 3_600_000).toISOString() };
+  const semAceite = await criar('ana@a.com', corpo);
+  assert.equal(semAceite.status, 400);
+  assert.match(semAceite.mensagem, /aceite o termo/);
+  assert.equal((await criar('ana@a.com', { ...corpo, aceite_risco: true })).status, 200);
+  const log = db.tables.auditoria_logs.at(-1);
+  assert.equal(log.detalhes.probabilidade_bloqueio, 'Média');
+  assert.match(log.detalhes.termo_risco_aceito, /Assumo o risco/);
+  assert.equal(log.usuario_email, 'ana@a.com');
 });
 
 test('dispara um por vez respeitando o intervalo; grupo recebe; conversas não voltam para a fila', async () => {
