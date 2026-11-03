@@ -143,9 +143,35 @@ com motivo, registrado na auditoria da empresa (modelo LGPD escolhido pelo Lucas
 - Backup diário (`.github/workflows/backup-banco.yml`, 03h): usa o segredo `SUPABASE_DB_URL` do GitHub
   (banco SP desde 30/10/2026). O `gh` está instalado e logado: dá para ver e rodar workflows e segredos.
 
-## Pendências conhecidas (30/10/2026)
+## Histórico e contexto
+
+Resumo do que já foi feito (segurança, Chat, Fluxo, envios em massa, etiquetas, Plataforma) e de
+onde parou: `docs/HISTORICO.md`. Os pull requests no GitHub (`lucasrmchat-dev/RM-Controle`, #3 em
+diante) descrevem cada entrega em detalhe. Leia antes de mexer numa área.
+
+## Envios em massa e agendador (desde 03/11/2026)
+
+- Aba "Envios em massa" (sub-módulo `envios` do Chat em `lib/perfis.js`). Regras em `lib/envios.js`
+  (`avaliarRisco`: probabilidade de bloqueio por intervalo + quantidade; alta/muito alta bloqueia,
+  média exige termo aceito e registrado na auditoria). Disparo em `lib/server/envios.js`.
+- Agendador: pg_cron + pg_net no Supabase SP (job `rm-envios-massa`, a cada minuto) chama
+  `/api/envios/processar` com `CRON_SECRET`; URL e segredo ficam no Vault (`rm_app_url`,
+  `rm_cron_secret`). Religar/trocar segredo: `scripts/agendador/ligar-agendador.sh`.
+  Conferir: `select status_code, created from net._http_response order by created desc limit 3;`
+- Etiquetas cadastradas: `sistema_config` chaves `etiquetas_chat` e `etiquetas_demandas`
+  (`lib/etiquetas.js`, `/api/etiquetas`); só se atribui etiqueta cadastrada.
+- Canais liberados (Servidores e equipe › Chat) valem também para administrador, exceto no Chat com
+  "(Admin) Visualizar todos" (`canalLiberado` em `lib/server/canais/chat.js`).
+
+## Pendências conhecidas (03/11/2026)
 
 - Evolution API no Mac do Lucas → mover para servidor (plano: Magalu Cloud, ~R$ 93/mês).
 - Vercel Pro e Supabase Pro antes do primeiro cliente pagante (Hobby proíbe uso comercial).
 - Pausar o banco de Oregon depois de 1–2 semanas estável.
-- Fase 1 do plano: varredura de segurança, auditoria das rotas com chave mestra, LGPD.
+- Plano de 30 dias para produção: feito em outra conversa e não salvo no repositório; quando o
+  Lucas trouxer, salvar em `docs/plano-30-dias.md`. Fase 1 (varredura de segurança e isolamento
+  entre empresas) foi feita nos PRs #3 a #5; falta a parte de LGPD (termos, política de privacidade).
+- O Mac do Lucas tem 1 commit local na `main` que não está no GitHub (o `git pull` falha por
+  divergência). Ver com `git log origin/main..main --stat` antes de descartar ou enviar.
+- PR #12 (Plataforma: editar empresa e usuários; equipe vinda do servidor): confirmar que o
+  administrador de empresa nova aparece em Servidores e equipe depois de publicar.
