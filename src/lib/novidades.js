@@ -15,6 +15,19 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-03-configuracoes-documentacao',
+    data: '2026-11-03',
+    titulo: 'Configurações: nova aba Documentação',
+    resumo: 'Administradores encontram num só lugar o significado de cada código de erro do Chat e como outros sistemas se conectam ao RM Controle.',
+    itens: [
+      'Erros do Chat: todos os códigos (como CHAT-101), com explicação, o que fazer e o que o desenvolvimento deve verificar. Dá para buscar por código ou palavra.',
+      'APIs e tokens: Suporte automático e Webhook do Comercial, com endereço, como enviar o token, exemplos e possíveis respostas de erro.',
+      'Passo a passo de como conseguir cada token, com um botão que leva direto para onde ele é gerado.',
+    ],
+    modulo: 'Configurações',
+    tickets: [],
+  },
+  {
     id: '2026-11-03-chat-erro-explicado',
     data: '2026-11-03',
     titulo: 'Chat: mensagem não enviada agora explica o motivo',

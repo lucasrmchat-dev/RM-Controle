@@ -28,6 +28,7 @@ import { generateSecurePassword } from '@/lib/security';
 import ChannelsManagement from '@/components/ChannelsManagement';
 import ServerConfigView from './ServerConfigView';
 import AuditLogsView from './AuditLogsView';
+import DocumentacaoSettings from './DocumentacaoSettings';
 import SupportIntegrationSettings from './SupportIntegrationSettings';
 import GoogleAgendaSync from './GoogleAgendaSync';
 import PerfisAcessoView from './PerfisAcessoView';
@@ -382,6 +383,16 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
             </svg>
           ),
         },
+        {
+          id: 'documentacao',
+          label: 'Documentação',
+          icon: (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5V5a2 2 0 0 1 2-2h12v16H6a2 2 0 0 0-2 2z" />
+              <path d="M8 7h6M8 11h6" />
+            </svg>
+          ),
+        },
       ],
     },
   ];
@@ -417,6 +428,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
     servidores: 'Servidores e equipe',
     suporte_automatico: 'Suporte automático (API)',
     auditoria: 'Auditoria',
+    documentacao: 'Erros, APIs e tokens',
   };
   // Comissão: vendedores consultam as regras; quem altera é administrador ou gestor do comercial
   const temComercial = getPermissoesAtuais(userEmail).modulos?.includes('comercial');
@@ -432,6 +444,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
     { id: 'integracoes', titulo: 'Integrações', cor: 'bg-indigo-500/12 text-indigo-700 dark:text-indigo-300', ids: ['suporte_automatico'] },
     { id: 'plataforma', titulo: 'Plataforma', cor: 'bg-rm-acento/12 text-rm-acento dark:text-rm-acento-vivo', ids: gestao ? ['plataforma'] : [] },
     { id: 'seguranca', titulo: 'Segurança', cor: 'bg-rose-500/12 text-rose-700 dark:text-rose-300', ids: ['auditoria'] },
+    { id: 'documentacao', titulo: 'Documentação', cor: 'bg-slate-500/12 text-slate-600 dark:text-zinc-300', ids: ['documentacao'] },
   ]
     .map((c) => ({ ...c, itens: c.ids.filter((id) => porId[id] && (isAdmin || BASICAS.includes(id))).map((id) => ({ ...porId[id], rotulo: ROTULOS_MENU[id] || porId[id].label, categoria: c.titulo })) }))
     .filter((c) => c.itens.length);
@@ -1164,6 +1177,8 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
       {subTab === 'suporte_automatico' && (
         isAdmin ? <SupportIntegrationSettings /> : renderRestrictedNotice('Suporte Automático (API)')
       )}
+
+      {subTab === 'documentacao' && (isAdmin ? <DocumentacaoSettings onIrPara={setSubTab} /> : renderRestrictedNotice('Documentação'))}
 
       {subTab === 'auditoria' && (
         isAdmin ? (
