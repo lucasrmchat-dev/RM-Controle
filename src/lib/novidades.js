@@ -15,6 +15,20 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-03-fila-sempre-atualizada',
+    data: '2026-11-03',
+    titulo: 'Demandas: a fila não fica mais parada com demandas já concluídas',
+    resumo: 'Quando a conexão de alguém com o banco expirava, a fila dessa pessoa parava de atualizar sem avisar e continuava mostrando demandas que colegas já tinham concluído. Agora ela se atualiza mesmo assim.',
+    itens: [
+      'A conexão é renovada sozinha antes de cada atualização da fila.',
+      'Se mesmo assim não der para ler o banco, o sistema busca as demandas por outro caminho seguro, e a fila continua certa.',
+      'Se não houver nenhum caminho (sem internet, por exemplo), aparece o aviso de que a lista pode estar desatualizada.',
+      'Concluir, assumir ou criar uma demanda continua aparecendo para todos com permissão em poucos segundos.',
+    ],
+    modulo: 'Fila de Demandas',
+    tickets: [],
+  },
+  {
     id: '2026-11-03-configuracoes-documentacao',
     data: '2026-11-03',
     titulo: 'Configurações: nova aba Documentação',

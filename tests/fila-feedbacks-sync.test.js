@@ -264,6 +264,51 @@ test('dois colaboradores assumem a mesma demanda: o segundo é avisado', async (
   await assert.rejects(() => assumirSuporte({ chamado_id: ch.id, userEmail: 'ana@rmcontrole.com' }), /Não foi possível assumir/);
 });
 
+test('sessão do banco vencida: demanda que um colega concluiu some da fila (o servidor responde)', async () => {
+  const ch = await adicionarChamadoFila({ empresa_nome: 'Empresa X', userEmail: USER });
+  assert.equal((await fetchChamadosFila()).some((c) => c.id === ch.id), true);
+  // Outra colaboradora concluiu a demanda
+  Object.assign(db.tables.suporte_chamados[0], { status: 'finalizado', finalizado_em: new Date().toISOString() });
+  // Neste navegador a sessão do banco venceu e não renova: a leitura direta falha
+  db.semSessao = true;
+  db.jwtExpirado = true;
+  const fetchAntes = globalThis.fetch;
+  const chamadas = [];
+  globalThis.fetch = async (url) => {
+    chamadas.push(String(url));
+    const abertas = db.tables.suporte_chamados.filter((c) => ['aguardando_visualizacao', 'em_andamento', 'pendente'].includes(c.status) && !c.finalizado_em);
+    return new Response(JSON.stringify({ ok: true, chamados: abertas }), { status: 200 });
+  };
+  try {
+    const fila = await fetchChamadosFila();
+    assert.equal(fila.some((c) => c.id === ch.id), false, 'a demanda concluída não fica parada na tela');
+    assert.ok(chamadas.some((u) => u.includes('/api/fila/chamados')), 'pediu ao servidor');
+  } finally {
+    globalThis.fetch = fetchAntes;
+  }
+});
+
+test('sem banco e sem servidor: a fila avisa que pode estar desatualizada', async () => {
+  const ch = await adicionarChamadoFila({ empresa_nome: 'Empresa Y', userEmail: USER });
+  await fetchChamadosFila();
+  db.jwtExpirado = true;
+  const fetchAntes = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new Error('sem internet');
+  };
+  const avisos = [];
+  const ouvir = (e) => avisos.push(e.detail);
+  globalThis.window.addEventListener('rm_sync_erro', ouvir);
+  try {
+    const fila = await fetchChamadosFila();
+    assert.equal(fila.some((c) => c.id === ch.id), true, 'mantém o que tinha');
+    assert.match(avisos.at(-1) || '', /desatualizada/);
+  } finally {
+    globalThis.fetch = fetchAntes;
+    globalThis.window.removeEventListener('rm_sync_erro', ouvir);
+  }
+});
+
 test('sem sessão no banco: assumir explica o motivo e não muda nada localmente', async () => {
   const ch = await adicionarChamadoFila({ empresa_nome: 'Empresa S', userEmail: USER });
   db.semSessao = true;
