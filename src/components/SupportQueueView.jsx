@@ -2008,7 +2008,6 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
         onFechar={() => setNovaDemanda({ aberto: false, empresaInicial: null })}
         empresas={empresasLista}
         categorias={getCategoriasDemandas()}
-        etiquetasSugeridas={todasEtiquetasDisponiveis}
         equipe={equipeLista}
         userEmail={userEmail}
         onEnviar={criarDemanda}

@@ -4,7 +4,7 @@ import { novoBanco } from './base.mjs';
 import assert from 'node:assert/strict';
 process.on('uncaughtException', (e) => { console.log('FALHOU:', e.message, '| consulta:', e.query || ''); process.exit(1); });
 
-const db = await novoBanco(['schema.sql', 'setup_secure_rls.sql', 'migration_feedbacks_e_departamentos.sql', 'migration_supabase_completa.sql', 'migration_perfis_acesso.sql', 'migration_google_agenda.sql', 'migration_descricao_historico.sql', 'migration_agenda_departamento.sql', 'migration_comercial_pipeline.sql', 'migration_comercial_webhooks.sql', 'migration_relato_atendimentos.sql', 'migration_feedbacks_subtarefas.sql', 'migration_descricao_demandas.sql', 'migration_whatsapp_agenda.sql', 'migration_multiempresa.sql', 'migration_canais_chat.sql', 'migration_canais_chat.sql', 'migration_chat_acoes.sql', 'migration_chat_acoes.sql', 'migration_chat_grupos.sql', 'migration_chat_grupos.sql', 'migration_desempenho.sql', 'migration_desempenho.sql', 'migration_daily.sql', 'migration_daily.sql', 'migration_equipe_protege_acesso.sql', 'migration_equipe_protege_acesso.sql', 'migration_auditoria_autor.sql', 'migration_auditoria_autor.sql', 'migration_fluxos.sql', 'migration_fluxo_esperas.sql', 'migration_fluxo_esperas.sql', 'migration_chat_massa.sql', 'migration_chat_massa.sql']);
+const db = await novoBanco(['schema.sql', 'setup_secure_rls.sql', 'migration_feedbacks_e_departamentos.sql', 'migration_supabase_completa.sql', 'migration_perfis_acesso.sql', 'migration_google_agenda.sql', 'migration_descricao_historico.sql', 'migration_agenda_departamento.sql', 'migration_comercial_pipeline.sql', 'migration_comercial_webhooks.sql', 'migration_relato_atendimentos.sql', 'migration_feedbacks_subtarefas.sql', 'migration_descricao_demandas.sql', 'migration_whatsapp_agenda.sql', 'migration_multiempresa.sql', 'migration_canais_chat.sql', 'migration_canais_chat.sql', 'migration_chat_acoes.sql', 'migration_chat_acoes.sql', 'migration_chat_grupos.sql', 'migration_chat_grupos.sql', 'migration_desempenho.sql', 'migration_desempenho.sql', 'migration_daily.sql', 'migration_daily.sql', 'migration_equipe_protege_acesso.sql', 'migration_equipe_protege_acesso.sql', 'migration_auditoria_autor.sql', 'migration_auditoria_autor.sql', 'migration_fluxos.sql', 'migration_fluxo_esperas.sql', 'migration_fluxo_esperas.sql', 'migration_chat_massa.sql', 'migration_chat_massa.sql', 'migration_envios_massa.sql', 'migration_envios_massa.sql']);
 console.log('✔ migração aplicada (duas vezes, sem erro)');
 const RMCHAT = '00000000-0000-4000-8000-000000000002';
 
@@ -121,5 +121,21 @@ await servidor(`INSERT INTO comercial_leads (integracao_id, contato_id, externo_
 await assert.rejects(servidor(`INSERT INTO comercial_leads (integracao_id, contato_id, externo_id, nome, departamento, comercial_pipeline_id, comercial_etapa_id, ultima_ocorrencia_em, organizacao_id) VALUES (NULL, $1, 'chat:2', 'X', 'Vendas', 'p1', 'e1', now(), $2)`, [contato.id, RMCHAT]), /duplicate|unique/, 'um lead por contato');
 await assert.rejects(servidor(`INSERT INTO comercial_leads (integracao_id, contato_id, externo_id, nome, departamento, comercial_pipeline_id, comercial_etapa_id, ultima_ocorrencia_em, organizacao_id) VALUES (NULL, $1, 'chat:3', 'X', 'Vendas', 'p1', 'e1', now(), $2)`, [contato.id, b.id]), /mesma empresa/);
 console.log('✔ Ações em massa: atendente padrão no contato, lead do Chat preso à empresa do contato');
+
+// Envios em massa: envio e destinos presos à empresa do canal e do contato; o navegador não lê nem grava
+const [envio] = await servidor(`INSERT INTO envios_massa (nome, canal_id, mensagem, intervalo_segundos) VALUES ('Aviso', $1, 'Olá', 60) RETURNING id, organizacao_id`, [canal.id]);
+assert.equal(envio.organizacao_id, RMCHAT, 'envio herda a empresa do canal');
+await servidor(`INSERT INTO envios_massa_destinos (envio_id, contato_id) VALUES ($1, $2)`, [envio.id, contato.id]);
+assert.equal((await servidor(`SELECT organizacao_id FROM envios_massa_destinos`))[0].organizacao_id, RMCHAT);
+await assert.rejects(servidor(`INSERT INTO envios_massa_destinos (envio_id, contato_id) VALUES ($1, $2)`, [envio.id, contato.id]), /duplicate|unique/, 'um destino por contato');
+const [contatoB] = await servidor(`INSERT INTO contatos (telefone, nome, organizacao_id) VALUES ('5585977770000', 'Da B', $1) RETURNING id`, [b.id]);
+await assert.rejects(servidor(`INSERT INTO envios_massa_destinos (envio_id, contato_id) VALUES ($1, $2)`, [envio.id, contatoB.id]), /mesma empresa/, 'contato de outra empresa não entra');
+await assert.rejects(servidor(`INSERT INTO envios_massa (nome, canal_id, mensagem, organizacao_id) VALUES ('X', $1, 'Oi', $2)`, [canal.id, b.id]), /mesma empresa/, 'canal de outra empresa não serve');
+await assert.rejects(servidor(`INSERT INTO envios_massa (nome, canal_id, mensagem, intervalo_segundos) VALUES ('X', $1, 'Oi', 2)`, [canal.id]), /check/i, 'intervalo mínimo de 5 segundos');
+await assert.rejects(servidor(`UPDATE envios_massa SET organizacao_id = $1`, [b.id]));
+await falha('ana@rmchat.com', `SELECT * FROM envios_massa`);
+await falha('ana@rmchat.com', `SELECT * FROM envios_massa_destinos`);
+await falha('ana@rmchat.com', `DELETE FROM envios_massa`);
+console.log('✔ Envios em massa: presos à empresa do canal e do contato, navegador sem acesso');
 
 console.log('\nTODOS OS TESTES DE CANAIS PASSARAM');

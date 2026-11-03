@@ -3566,6 +3566,34 @@ export const fetchListaContatos = (q = '', pagina = 0, { limite } = {}) => chama
 export const acaoConversa = (id, corpo) => chamarCanais(`/api/chat/${id}`, 'POST', corpo);
 /** Ações em massa nas conversas marcadas (resolver, transferir, etiquetas, atendente padrão, status de lead). */
 export const acaoEmMassaChat = (dados) => chamarCanais('/api/chat/massa', 'POST', dados);
+// Envios em massa (aba Envios): o servidor confere o sub-módulo, a empresa e dispara com o intervalo escolhido
+export const fetchEnvios = () => chamarCanais('/api/envios', 'GET');
+export const fetchEnvio = (id) => chamarCanais(`/api/envios?id=${encodeURIComponent(id)}`, 'GET');
+export const fetchDestinosEnvio = () => chamarCanais('/api/envios?destinos=1', 'GET');
+export const criarEnvio = (dados) => chamarCanais('/api/envios', 'POST', { acao: 'criar', ...dados });
+export const acaoEnvio = (id, acao) => chamarCanais('/api/envios', 'POST', { acao, id });
+// Etiquetas cadastradas da empresa (Configurações › Etiquetas): { chat: [...], demandas: [...] }.
+// Uma leitura serve todas as telas; quem salva avisa as outras pelo evento 'rm-etiquetas'.
+let etiquetasEmCache = null;
+export function fetchEtiquetasCadastradas({ forcar = false } = {}) {
+  if (!etiquetasEmCache || forcar) {
+    etiquetasEmCache = chamarCanais('/api/etiquetas', 'GET')
+      .then((r) => ({ chat: r.chat || [], demandas: r.demandas || [] }))
+      .catch((e) => {
+        etiquetasEmCache = null;
+        throw e;
+      });
+  }
+  return etiquetasEmCache;
+}
+export async function salvarEtiquetasCadastradas(tipo, etiquetas) {
+  const r = await chamarCanais('/api/etiquetas', 'PUT', { tipo, etiquetas });
+  const atual = await (etiquetasEmCache || Promise.resolve({ chat: [], demandas: [] })).catch(() => ({ chat: [], demandas: [] }));
+  const novo = { ...atual, [tipo]: r.etiquetas };
+  etiquetasEmCache = Promise.resolve(novo);
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('rm-etiquetas', { detail: novo }));
+  return r.etiquetas;
+}
 export const fetchRespostasRapidas = () => chamarCanais('/api/chat/respostas', 'GET');
 export const criarRespostaRapida = (dados) => chamarCanais('/api/chat/respostas', 'POST', dados);
 export const excluirRespostaRapida = (id) => chamarCanais('/api/chat/respostas', 'DELETE', { id });

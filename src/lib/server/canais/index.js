@@ -114,7 +114,8 @@ async function atendentePadrao(db, contatoId) {
 const camposDeEntrada = (padrao) =>
   padrao ? { status: 'em_atendimento', responsavel_email: padrao.email, responsavel_nome: padrao.nome } : { status: 'aguardando', responsavel_email: null, responsavel_nome: null };
 
-async function conversaAberta(db, canal, contatoId, { grupo = false, em, reabrir = true } = {}) {
+// novaFechada: sem nenhuma conversa ainda, a nova já nasce resolvida (envio em massa não enche a fila)
+async function conversaAberta(db, canal, contatoId, { grupo = false, em, reabrir = true, novaFechada = false } = {}) {
   const buscar = () => db.from('conversas').select('*').eq('canal_id', canal.id).eq('contato_id', contatoId).neq('status', 'resolvida').maybeSingle();
   const { data } = await buscar();
   if (data) return data;
@@ -145,7 +146,7 @@ async function conversaAberta(db, canal, contatoId, { grupo = false, em, reabrir
   }
   const { data: nova, error } = await db
     .from('conversas')
-    .insert([{ canal_id: canal.id, contato_id: contatoId, departamento: canal.departamento_padrao || null, ...camposDeEntrada(padrao) }])
+    .insert([{ canal_id: canal.id, contato_id: contatoId, departamento: canal.departamento_padrao || null, ...(novaFechada ? { status: 'resolvida', resolvida_em: new Date().toISOString() } : camposDeEntrada(padrao)) }])
     .select('*')
     .single();
   if (!error) return nova;
@@ -402,6 +403,15 @@ export async function enviarTextoParaNumero(db, { canal, telefone, texto, autor,
   const contatoId = await contatoPorTelefone(db, numero, null);
   const conversa = await conversaAberta(db, canal, contatoId);
   return enviarTextoNaConversa(db, { conversa, texto, autor, assinar, assumir, fetchImpl });
+}
+
+/**
+ * Envio em massa: manda a mensagem no contato ou grupo sem mexer no atendimento. Conversa aberta continua
+ * como está; fechada continua fechada (volta para a fila só se a pessoa responder); sem conversa, nasce fechada.
+ */
+export async function enviarTextoParaContato(db, { canal, contato, texto, autor, fetchImpl = fetch }) {
+  const conversa = await conversaAberta(db, canal, contato.id, { grupo: ehGrupo(contato.telefone), reabrir: false, novaFechada: true });
+  return enviarTextoNaConversa(db, { conversa, texto, autor, assumir: false, fetchImpl });
 }
 
 /** Chave do WhatsApp quando a mensagem é antiga (sem chave guardada): monta pelo telefone do contato. */

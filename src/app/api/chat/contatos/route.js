@@ -4,6 +4,7 @@ import { guardarArquivo } from '@/lib/server/canais/midia';
 import { ehGrupo, formasDoTelefone, telefoneCanonico } from '@/lib/canais';
 import { normalizarTelefone } from '@/lib/whatsappAgenda';
 import { isValidUUID } from '@/lib/sanitize';
+import { conferirEtiquetasNovas, etiquetasDaEmpresa } from '@/lib/server/etiquetas';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,7 +54,11 @@ export async function PATCH(request) {
   if (body.observacoes !== undefined) campos.observacoes = String(body.observacoes || '').slice(0, 2000) || null;
   if (body.etiquetas !== undefined) {
     if (!Array.isArray(body.etiquetas)) return json({ ok: false, mensagem: 'Etiquetas inválidas.' }, 400);
-    campos.etiquetas = [...new Set(body.etiquetas.map((e) => String(e || '').trim().slice(0, 30)).filter(Boolean))].slice(0, 20);
+    // Etiqueta nova só se estiver cadastrada (Configurações › Etiquetas); as que já estavam continuam
+    const { data: atual } = await r.ctx.db.from('contatos').select('etiquetas').eq('id', body.id).maybeSingle();
+    const conferida = conferirEtiquetasNovas(await etiquetasDaEmpresa(r.ctx.db, 'chat').catch(() => []), atual?.etiquetas || [], body.etiquetas);
+    if (conferida.erro) return json({ ok: false, mensagem: conferida.erro }, 400);
+    campos.etiquetas = conferida.lista;
   }
   if (body.empresa_id !== undefined) {
     if (body.empresa_id && !isValidUUID(body.empresa_id)) return json({ ok: false, mensagem: 'Empresa inválida.' }, 400);

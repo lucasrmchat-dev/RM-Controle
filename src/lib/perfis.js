@@ -11,6 +11,8 @@ import { listaAdministradores, normalizarEmail } from './roles';
 
 export const MODULOS = [
   { id: 'chat', rotulo: 'Chat', descricao: 'Atender as conversas do WhatsApp' },
+  // Sub-módulo do Chat: aba própria no cabeçalho para mandar uma mensagem a vários contatos e grupos
+  { id: 'envios', rotulo: 'Chat: envios em massa', descricao: 'Mandar uma mensagem para vários contatos e grupos, na hora ou agendada' },
   { id: 'fila', rotulo: 'Demandas', descricao: 'Ver, assumir e concluir demandas' },
   { id: 'empresas', rotulo: 'Empresas', descricao: 'Cadastro, acessos e servidores das empresas' },
   { id: 'agenda', rotulo: 'Agenda', descricao: 'Reuniões e Google Agenda' },
@@ -32,9 +34,9 @@ export const ABAS_ADMIN = ['canais', 'servidores', 'auditoria'];
 // Acesso atual (antes dos perfis) por papel fixo
 const ABAS_POR_PAPEL = {
   administrador: [...IDS_MODULOS, ...ABAS_ADMIN],
-  // Comercial e Canais: só administradores por padrão (um perfil pode liberar)
-  suporte: IDS_MODULOS.filter((id) => !['comercial', 'comercial_gestao', 'conexoes', 'fluxos'].includes(id)),
-  vendas: IDS_MODULOS.filter((id) => !['comercial', 'comercial_gestao', 'conexoes', 'fluxos'].includes(id)),
+  // Comercial, Canais, Fluxo e Envios em massa: só administradores por padrão (um perfil pode liberar)
+  suporte: IDS_MODULOS.filter((id) => !['comercial', 'comercial_gestao', 'conexoes', 'fluxos', 'envios'].includes(id)),
+  vendas: IDS_MODULOS.filter((id) => !['comercial', 'comercial_gestao', 'conexoes', 'fluxos', 'envios'].includes(id)),
 };
 
 const norm = (s) => String(s || '').toLowerCase().trim();
@@ -48,8 +50,9 @@ export function permissoesEfetivas(opcoes) {
   // Módulos que a empresa contratou limitam todo mundo, inclusive administradores (Configurações sempre fica)
   const contratados = opcoes?.modulosDaEmpresa;
   if (!Array.isArray(contratados)) return perm;
-  // "Comercial: gestor" vem junto com o Comercial contratado
-  const contratado = (m) => contratados.includes(m === 'comercial_gestao' ? 'comercial' : m);
+  // "Comercial: gestor" vem junto com o Comercial contratado; "Chat: envios em massa", com o Chat
+  const SUB_MODULOS = { comercial_gestao: 'comercial', envios: 'chat' };
+  const contratado = (m) => contratados.includes(SUB_MODULOS[m] || m);
   return { ...perm, modulos: perm.modulos.filter((m) => m === 'configuracoes' || ABAS_ADMIN.includes(m) || contratado(m)) };
 }
 

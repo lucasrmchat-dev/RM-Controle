@@ -733,8 +733,13 @@ test('ações em massa: resolver, transferir, etiquetas, atendente padrão e lea
   const contatoFin = { id: convFinanceiro.contato_id, organizacao_id: A, telefone: '5585988887777', nome: 'Grupo Suporte' };
   db.tables.contatos.push(contatoFin);
 
+  // Só etiqueta cadastrada (Configurações › Etiquetas) entra
+  db.tables.sistema_config = [{ organizacao_id: A, chave: 'etiquetas_chat', valor: ['Suporte RM'] }];
+  let r = await massa('ana@a.com', { ids: [convVendas.id], acao: 'etiqueta_adicionar', etiqueta: 'Inventada' });
+  assert.equal(r.status, 400);
+  assert.match(r.mensagem, /não está cadastrada/);
   // Etiqueta no contato e no grupo (vale para as próximas conversas); repetida não duplica
-  let r = await massa('ana@a.com', { ids: [convVendas.id, convFinanceiro.id], acao: 'etiqueta_adicionar', etiqueta: 'Suporte RM' });
+  r = await massa('ana@a.com', { ids: [convVendas.id, convFinanceiro.id], acao: 'etiqueta_adicionar', etiqueta: 'Suporte RM' });
   assert.equal(r.status, 200, r.mensagem);
   assert.deepEqual(contato.etiquetas, ['Suporte RM']);
   assert.deepEqual(contatoFin.etiquetas, ['Suporte RM']);
@@ -794,4 +799,32 @@ test('ações em massa: resolver, transferir, etiquetas, atendente padrão e lea
   // Sem conversas ou ação desconhecida
   assert.equal((await massa('ana@a.com', { ids: [], acao: 'resolver' })).status, 400);
   assert.equal((await massa('ana@a.com', { ids: [convVendas.id], acao: 'apagar_tudo' })).status, 400);
+});
+
+test('etiquetas cadastradas: nascem das que já estão em uso, separadas por empresa e por tipo; só admin altera', async () => {
+  const { GET: lerEtiquetas, PUT: gravarEtiquetas } = await import('../src/app/api/etiquetas/route.js');
+  const { PATCH: editarContato } = await import('../src/app/api/chat/contatos/route.js');
+  contato.etiquetas = ['VIP', 'dep:Vendas', 'vip'];
+  db.tables.contatos.find((c) => c.organizacao_id === B).etiquetas = ['Segredo da B'];
+  db.tables.suporte_chamados = [{ id: crypto.randomUUID(), organizacao_id: A, etiquetas: ['Urgente'] }];
+  db.tables.sistema_config = [];
+
+  const r = await ler(await lerEtiquetas(await como('bia@a.com', '/api/etiquetas')));
+  assert.deepEqual(r.chat, ['VIP'], 'sem repetir, sem as internas, sem as da outra empresa');
+  assert.deepEqual(r.demandas, ['Urgente']);
+
+  // Só administrador altera a lista
+  assert.equal((await gravarEtiquetas(await como('bia@a.com', '/api/etiquetas', 'PUT', { tipo: 'chat', etiquetas: ['X'] }))).status, 403);
+  const salvo = await ler(await gravarEtiquetas(await como('ana@a.com', '/api/etiquetas', 'PUT', { tipo: 'chat', etiquetas: ['#Cliente VIP', 'cliente vip', 'Parceiro'] })));
+  assert.deepEqual(salvo.etiquetas, ['Cliente VIP', 'Parceiro']);
+  assert.deepEqual((await ler(await lerEtiquetas(await como('caio@b.com', '/api/etiquetas')))).chat, ['Segredo da B'], 'a lista da outra empresa não muda');
+
+  // Na ficha do contato: a nova precisa estar cadastrada; a que ele já tinha continua
+  const patch = async (etiquetas) => ler(await editarContato(await como('ana@a.com', '/api/chat/contatos', 'PATCH', { id: contato.id, etiquetas })));
+  let p = await patch(['VIP', 'Inventada']);
+  assert.equal(p.status, 400);
+  assert.match(p.mensagem, /Inventada/);
+  p = await patch(['VIP', 'parceiro']);
+  assert.equal(p.status, 200, p.mensagem);
+  assert.deepEqual(contato.etiquetas, ['VIP', 'Parceiro']);
 });

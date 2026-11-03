@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BuildingIcon, CheckIcon, PlayIcon, XMarkIcon, BellOffIcon, UsersIcon, KanbanIcon, EditIcon } from './Icons';
+import SeletorEtiqueta from './SeletorEtiqueta';
 
 // ==============================================================================
 // ESTADO, COR E PRIORIDADE DE CADA DEMANDA (uma regra só para lista, cards, kanban e painel)
@@ -357,13 +358,7 @@ export function ChipTempo({ ch, info, tempos, tamanho = 'normal' }) {
 const acaoTexto = 'h-8 px-2.5 rounded-lg text-[13px] font-medium inline-flex items-center gap-1.5 cursor-pointer text-slate-600 dark:text-zinc-300 hover:text-[#1d1d1f] dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.07] transition-colors disabled:opacity-50';
 
 function EditorEtiquetas({ chamado, acoes }) {
-  const [nova, setNova] = useState('');
   const etiquetas = chamado.etiquetas || [];
-  const adicionar = () => {
-    const limpa = nova.trim().replace(/^#/, '');
-    if (limpa && !etiquetas.includes(limpa)) acoes.etiquetas(chamado, [...etiquetas, limpa]);
-    setNova('');
-  };
   return (
     <div className="flex flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
       {etiquetas.map((t) => (
@@ -374,20 +369,8 @@ function EditorEtiquetas({ chamado, acoes }) {
           </button>
         </span>
       ))}
-      <input
-        type="text"
-        value={nova}
-        onChange={(e) => setNova(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            adicionar();
-          }
-        }}
-        placeholder="+ Etiqueta"
-        aria-label="Nova etiqueta"
-        className="h-7 w-24 px-2.5 rounded-full bg-transparent border border-dashed border-black/[0.15] dark:border-white/[0.2] text-[12.5px] placeholder:text-slate-400 focus:outline-none focus:border-solid focus:border-rm-acento dark:focus:border-rm-acento-escuro"
-      />
+      {/* Só etiquetas cadastradas em Configurações › Etiquetas (lista da Fila de Demandas) */}
+      <SeletorEtiqueta tipo="demandas" usadas={etiquetas} rotulo="+ Etiqueta" onEscolher={(t) => acoes.etiquetas(chamado, [...etiquetas, t])} />
     </div>
   );
 }

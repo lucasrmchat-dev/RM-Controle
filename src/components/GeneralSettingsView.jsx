@@ -29,6 +29,7 @@ import ChannelsManagement from '@/components/ChannelsManagement';
 import ServerConfigView from './ServerConfigView';
 import AuditLogsView from './AuditLogsView';
 import DocumentacaoSettings from './DocumentacaoSettings';
+import EtiquetasSettings from './EtiquetasSettings';
 import SupportIntegrationSettings from './SupportIntegrationSettings';
 import GoogleAgendaSync from './GoogleAgendaSync';
 import PerfisAcessoView from './PerfisAcessoView';
@@ -384,6 +385,16 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
           ),
         },
         {
+          id: 'etiquetas',
+          label: 'Etiquetas',
+          icon: (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+              <circle cx="7" cy="7" r="1.5" />
+            </svg>
+          ),
+        },
+        {
           id: 'documentacao',
           label: 'Documentação',
           icon: (
@@ -429,6 +440,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
     suporte_automatico: 'Suporte automático (API)',
     auditoria: 'Auditoria',
     documentacao: 'Erros, APIs e tokens',
+    etiquetas: 'Etiquetas do Chat e das Demandas',
   };
   // Comissão: vendedores consultam as regras; quem altera é administrador ou gestor do comercial
   const temComercial = getPermissoesAtuais(userEmail).modulos?.includes('comercial');
@@ -440,6 +452,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
     { id: 'demandas', titulo: 'Demandas', cor: 'bg-amber-500/14 text-amber-700 dark:text-amber-300', ids: ['regras_suporte', 'departamentos', 'feedbacks'] },
     { id: 'agenda', titulo: 'Agenda', cor: 'bg-sky-500/12 text-sky-700 dark:text-sky-300', ids: ['agenda', 'titulos_reuniao', 'whatsapp_envio', 'whatsapp'] },
     { id: 'comercial', titulo: 'Comercial', cor: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300', ids: ['comercial', 'comissao'] },
+    { id: 'etiquetas', titulo: 'Etiquetas', cor: 'bg-teal-500/12 text-teal-700 dark:text-teal-300', ids: ['etiquetas'] },
     { id: 'equipe', titulo: 'Equipe e acesso', cor: 'bg-violet-500/12 text-violet-700 dark:text-violet-300', ids: ['perfis', 'servidores'] },
     { id: 'integracoes', titulo: 'Integrações', cor: 'bg-indigo-500/12 text-indigo-700 dark:text-indigo-300', ids: ['suporte_automatico'] },
     { id: 'plataforma', titulo: 'Plataforma', cor: 'bg-rm-acento/12 text-rm-acento dark:text-rm-acento-vivo', ids: gestao ? ['plataforma'] : [] },
@@ -1178,6 +1191,7 @@ export default function GeneralSettingsView({ userEmail, initialSubTab = 'visual
         isAdmin ? <SupportIntegrationSettings /> : renderRestrictedNotice('Suporte Automático (API)')
       )}
 
+      {subTab === 'etiquetas' && (isAdmin ? <EtiquetasSettings /> : renderRestrictedNotice('Etiquetas'))}
       {subTab === 'documentacao' && (isAdmin ? <DocumentacaoSettings onIrPara={setSubTab} /> : renderRestrictedNotice('Documentação'))}
 
       {subTab === 'auditoria' && (

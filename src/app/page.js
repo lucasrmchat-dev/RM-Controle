@@ -64,6 +64,7 @@ import CanaisView from '@/components/CanaisView';
 import ChatView from '@/components/ChatView';
 import DailyView from '@/components/DailyView';
 import FluxosView from '@/components/fluxos/FluxosView';
+import EnviosView from '@/components/EnviosView';
 import AgendaView from '@/components/AgendaView';
 import ComercialView from '@/components/ComercialView';
 import { 
@@ -1725,6 +1726,9 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
 
               {/* FLUXO INTELIGENTE: automações com gatilhos do WhatsApp e da agenda */}
               {activeTab === 'fluxos' && abasPermitidas.includes('fluxos') && <FluxosView />}
+
+              {/* ENVIOS EM MASSA: uma mensagem para vários contatos e grupos, com intervalo entre os disparos */}
+              {activeTab === 'envios' && abasPermitidas.includes('envios') && <EnviosView />}
 
               {/* CANAIS: números de WhatsApp (QR Code / API oficial) */}
               {activeTab === 'conexoes' && abasPermitidas.includes('conexoes') && <CanaisView />}

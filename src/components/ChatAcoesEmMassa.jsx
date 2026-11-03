@@ -16,6 +16,7 @@ import {
   classeBotaoTexto,
 } from './FormularioEtapas';
 import { classeCampo, classeRotulo } from './NovaEmpresaCampos';
+import { useEtiquetasCadastradas } from './SeletorEtiqueta';
 import { showToast } from './ToastNotification';
 
 /**
@@ -69,6 +70,7 @@ export default function ChatAcoesEmMassa({ aberto, onFechar, ids, eu, temComerci
   const [departamento, setDepartamento] = useState('');
   const [etiqueta, setEtiqueta] = useState('');
   const [config, setConfig] = useState(null);
+  const etiquetasCadastradas = useEtiquetasCadastradas('chat');
   const [pipelineId, setPipelineId] = useState('');
   const [etapaId, setEtapaId] = useState('');
   const [removerLead, setRemoverLead] = useState(false);
@@ -219,13 +221,23 @@ export default function ChatAcoesEmMassa({ aberto, onFechar, ids, eu, temComerci
         {acao.startsWith('etiqueta_') && (
           <label className="block">
             <span className={classeRotulo}>Etiqueta</span>
-            <input
+            <select
               value={etiqueta}
               onChange={(e) => setEtiqueta(e.target.value)}
-              maxLength={30}
-              placeholder="Ex.: Suporte RM"
               className={classeCampo}
-            />
+            >
+              <option value="">{etiquetasCadastradas === null ? 'Carregando…' : 'Escolha a etiqueta'}</option>
+              {(etiquetasCadastradas || []).map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+            {etiquetasCadastradas?.length === 0 && (
+              <p className="mt-1.5 text-[12px] text-slate-500 dark:text-zinc-400">
+                Nenhuma etiqueta cadastrada. Um administrador cadastra em Configurações › Etiquetas.
+              </p>
+            )}
           </label>
         )}
         {acao === 'atendente_padrao' && (
