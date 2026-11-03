@@ -9,7 +9,7 @@ import {
   lerSegredo,
   salvarConfig,
   salvarPreferencias,
-  validarUrlWebhook,
+  validarDestinoWebhook,
   SEGREDO_TOKEN,
   SEGREDO_URL,
 } from '@/lib/server/whatsappAgenda';
@@ -61,7 +61,7 @@ export async function PUT(request) {
     if (body.tipo === 'preferencias') return json({ ok: true, preferencias: await salvarPreferencias(db, email, body.valor) });
     if (body.tipo !== 'config') return json({ ok: false, mensagem: 'Pedido inválido.' }, 400);
     if (!admin) return json({ ok: false, mensagem: 'Só administradores alteram o envio pelo WhatsApp.' }, 403);
-    if (typeof body.url === 'string' && body.url.trim()) await gravarSegredo(db, SEGREDO_URL, validarUrlWebhook(body.url));
+    if (typeof body.url === 'string' && body.url.trim()) await gravarSegredo(db, SEGREDO_URL, await validarDestinoWebhook(body.url));
     if (typeof body.token === 'string') await gravarSegredo(db, SEGREDO_TOKEN, body.token.trim().slice(0, 500));
     const config = await salvarConfig(db, body.valor);
     const url = await lerSegredo(db, SEGREDO_URL);

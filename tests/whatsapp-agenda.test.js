@@ -16,7 +16,7 @@ import {
   validarPreferencias,
   textoTempoAntes,
 } from '../src/lib/whatsappAgenda.js';
-import { validarUrlWebhook, enviarMensagem, processarLembretes } from '../src/lib/server/whatsappAgenda.js';
+import { validarUrlWebhook, validarDestinoWebhook, enviarMensagem, processarLembretes } from '../src/lib/server/whatsappAgenda.js';
 import { GET as lerPublico, POST as responderPublico } from '../src/app/api/publico/reuniao/route.js';
 
 __definirSupabaseAdmin(mockSupabase);
@@ -69,6 +69,19 @@ test('webhook: só https público, sem credenciais na URL (protege contra acesso
   assert.throws(() => validarUrlWebhook('https://169.254.169.254/latest', prod), /público/);
   assert.throws(() => validarUrlWebhook('https://user:senha@exemplo.com/w', prod), /usuário e senha/);
   assert.throws(() => validarUrlWebhook('não é url', prod), /inválido/);
+  // Endereços internos que antes passavam
+  for (const u of ['https://127.0.0.2/w', 'https://[::1]/w', 'https://[::ffff:169.254.169.254]/w', 'https://100.100.100.200/w', 'https://0.0.0.0/w', 'https://x.localhost/w']) {
+    assert.throws(() => validarUrlWebhook(u, prod), /público/, u);
+  }
+});
+
+test('webhook: nome que aponta para IP interno é recusado ao salvar', async () => {
+  const prod = { permitirLocal: false };
+  const aponta = (ip) => async () => [{ address: ip, family: ip.includes(':') ? 6 : 4 }];
+  assert.ok(await validarDestinoWebhook('https://api.exemplo.com/w', { ...prod, resolver: aponta('203.0.113.10') }));
+  await assert.rejects(validarDestinoWebhook('https://ruim.exemplo.com/w', { ...prod, resolver: aponta('169.254.169.254') }), /público/);
+  await assert.rejects(validarDestinoWebhook('https://ruim.exemplo.com/w', { ...prod, resolver: aponta('10.1.2.3') }), /público/);
+  await assert.rejects(validarDestinoWebhook('https://nao.existe/w', { ...prod, resolver: async () => { throw new Error('ENOTFOUND'); } }), /encontrar/);
 });
 
 test('lembrete sai na janela certa, uma vez, e nunca para reunião cancelada', () => {

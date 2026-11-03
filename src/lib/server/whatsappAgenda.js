@@ -8,6 +8,8 @@
  *  - a página pública só recebe dados mínimos da reunião, nunca ids ou dados da equipe
  */
 import crypto from 'crypto';
+import dns from 'node:dns';
+import net from 'node:net';
 import { cifrar, decifrar } from '@/lib/server/googleAgenda';
 import { escopoDoRegistro } from '@/lib/server/organizacao';
 import {
@@ -62,6 +64,21 @@ export async function gravarSegredo(db, chave, valor) {
  * Endereço do webhook: só https e nunca rede interna (o servidor não pode ser usado
  * para acessar máquinas privadas). Em desenvolvimento aceita http://localhost.
  */
+/** Endereço IP de rede interna (o servidor não deve chamar: nuvem, roteador, a própria máquina). */
+export function ipInterno(ip) {
+  const limpo = String(ip || '').replace(/^\[|\]$/g, '').toLowerCase();
+  if (net.isIPv4(limpo)) {
+    const [a, b] = limpo.split('.').map(Number);
+    return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+  }
+  if (net.isIPv6(limpo)) {
+    const v4 = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(limpo);
+    if (v4) return ipInterno(v4[1]);
+    return limpo === '::' || limpo === '::1' || /^f[cd]/.test(limpo) || /^fe[89ab]/.test(limpo) || limpo.startsWith('::ffff:');
+  }
+  return false;
+}
+
 export function validarUrlWebhook(valor, { permitirLocal = process.env.NODE_ENV !== 'production' } = {}) {
   let u;
   try {
@@ -70,22 +87,31 @@ export function validarUrlWebhook(valor, { permitirLocal = process.env.NODE_ENV 
     throw new Error('Endereço do webhook inválido.');
   }
   const host = u.hostname.toLowerCase();
-  const local = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  const local = host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
   if (local && permitirLocal) return u.toString();
   if (u.protocol !== 'https:') throw new Error('Use um endereço https:// para o webhook.');
-  const privado =
-    local ||
-    host.endsWith('.local') ||
-    host.endsWith('.internal') ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
-    /^169\.254\./.test(host) ||
-    /^0\./.test(host) ||
-    /^\[?(fc|fd|fe80)/i.test(host);
+  const privado = local || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal') || ipInterno(host);
   if (privado) throw new Error('O webhook precisa ser um endereço público da internet.');
   if (u.username || u.password) throw new Error('Não coloque usuário e senha no endereço; use o campo de token.');
   return u.toString();
+}
+
+/**
+ * Além do texto do endereço, confere para onde o nome aponta: um domínio pode apontar para um IP
+ * interno (ex.: 169.254.169.254) e passar pela checagem acima. Usar ao salvar o endereço.
+ */
+export async function validarDestinoWebhook(valor, { permitirLocal = process.env.NODE_ENV !== 'production', resolver = dns.promises.lookup } = {}) {
+  const url = validarUrlWebhook(valor, { permitirLocal });
+  const host = new URL(url).hostname.replace(/^\[|\]$/g, '');
+  if (permitirLocal || net.isIP(host)) return url;
+  let enderecos;
+  try {
+    enderecos = await resolver(host, { all: true });
+  } catch {
+    throw new Error('Não foi possível encontrar esse endereço. Confira se está certo.');
+  }
+  if (!enderecos.length || enderecos.some((e) => ipInterno(e.address))) throw new Error('O webhook precisa ser um endereço público da internet.');
+  return url;
 }
 
 export async function lerPreferencias(db, email) {
