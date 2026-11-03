@@ -8,11 +8,10 @@ import {
   INTERVALO_PADRAO,
   MENSAGEM_MAX,
   STATUS_ENVIO,
+  avaliarRisco,
   duracaoEstimada,
   formatarDuracao,
-  nivelDoRisco,
   preencherMensagem,
-  riscoDoIntervalo,
 } from '@/lib/envios';
 import { acaoEnvio, criarEnvio, fetchDestinosEnvio, fetchEnvio, fetchEnvios } from '@/lib/storage';
 import ConfirmModal from './ConfirmModal';
@@ -44,32 +43,35 @@ const indiceNaEscala = (s) =>
 
 const CORES_RISCO = {
   baixo: {
-    barra: 'bg-emerald-500',
-    texto: 'text-emerald-700 dark:text-emerald-300',
+    ponto: 'bg-emerald-500',
+    texto: 'text-emerald-600 dark:text-emerald-300',
     suave: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
   },
-  moderado: {
-    barra: 'bg-amber-500',
-    texto: 'text-amber-700 dark:text-amber-300',
+  medio: {
+    ponto: 'bg-amber-500',
+    texto: 'text-amber-600 dark:text-amber-300',
     suave: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
   },
   alto: {
-    barra: 'bg-orange-500',
-    texto: 'text-orange-700 dark:text-orange-300',
+    ponto: 'bg-orange-500',
+    texto: 'text-orange-600 dark:text-orange-300',
     suave: 'bg-orange-500/15 text-orange-700 dark:text-orange-300',
   },
   muito_alto: {
-    barra: 'bg-rose-500',
+    ponto: 'bg-rose-500',
     texto: 'text-rose-600 dark:text-rose-400',
     suave: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
   },
 };
-const TEXTO_RISCO = {
-  muito_alto: 'Intervalo muito curto. O WhatsApp pode entender como spam e bloquear o número.',
-  alto: 'Ainda arriscado, principalmente para listas grandes. Aumente o intervalo se puder.',
-  moderado: 'Equilíbrio razoável entre velocidade e segurança.',
-  baixo: 'Ritmo parecido com o de uma pessoa. Mesmo assim, no QR Code o risco nunca é zero.',
-};
+// Faixas do termômetro (mesmos cortes de nivelDoRisco): largura proporcional a cada faixa
+// Mensagem com o nome do contato (cada um recebe um texto diferente)
+const PERSONALIZADA = /\{\{\s*(primeiro_)?nome\s*\}\}/i;
+const FAIXAS_RISCO = [
+  ['baixo', 'Baixa'],
+  ['medio', 'Média'],
+  ['alto', 'Alta'],
+  ['muito_alto', 'Muito alta'],
+];
 const CORES_STATUS = {
   agendado: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
   enviando: 'bg-rm-acento-medio/15 text-rm-acento dark:text-rm-acento-vivo',
@@ -138,47 +140,85 @@ function Segmentos({ valor, opcoes, onMudar }) {
   );
 }
 
-/** Medidor do risco de bloqueio: sobe quando o intervalo diminui, desce (sem zerar) quando aumenta. */
-function MedidorRisco({ segundos, quantidade }) {
-  const risco = riscoDoIntervalo(segundos);
-  const nivel = nivelDoRisco(risco);
+/**
+ * Termômetro da probabilidade de bloqueio: junta o intervalo e a quantidade de destinatários.
+ * Passando o mouse (ou tocando), explica o porquê e o que fazer para diminuir.
+ */
+function MedidorRisco({ segundos, quantidade, personalizada }) {
+  const { pontos, nivel, motivos, recomendacoes } = avaliarRisco({
+    segundos,
+    quantidade,
+    personalizada,
+  });
   const cor = CORES_RISCO[nivel.id];
   return (
-    <div className="rounded-3xl p-5 bg-white dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] shadow-sm">
+    <div
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: o foco abre a explicação no celular e no teclado
+      tabIndex={0}
+      aria-describedby="explicacao-risco"
+      className="group relative rounded-3xl p-5 bg-white dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] shadow-sm outline-none focus-visible:ring-4 focus-visible:ring-rm-acento/15 cursor-help"
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
-            Risco estimado de bloqueio
+            Probabilidade de bloqueio
           </p>
-          <div className="mt-1 flex items-baseline gap-1">
-            <motion.span
-              key={risco}
-              initial={{ opacity: 0.4, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, ease: EASE }}
-              className={`text-[44px] leading-none font-bold tracking-tight tabular-nums ${cor.texto}`}
-            >
-              {risco}
-            </motion.span>
-            <span className={`text-[20px] font-semibold ${cor.texto}`}>%</span>
-          </div>
+          <motion.p
+            key={nivel.id}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: EASE }}
+            className={`mt-1 text-[30px] leading-tight font-bold tracking-tight ${cor.texto}`}
+          >
+            {nivel.rotulo}
+          </motion.p>
         </div>
-        <span
-          className={`h-7 px-3 rounded-full text-[12px] font-semibold inline-flex items-center whitespace-nowrap ${cor.suave}`}
-        >
-          {nivel.rotulo}
+        <span className="mt-1 h-7 px-3 rounded-full text-[11.5px] font-medium inline-flex items-center gap-1.5 bg-black/[0.04] dark:bg-white/[0.07] text-slate-500 dark:text-zinc-400 whitespace-nowrap">
+          <svg
+            className="w-3.5 h-3.5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 16v-4M12 8h.01" />
+          </svg>
+          Por quê?
         </span>
       </div>
-      <div className="mt-4 h-2 rounded-full bg-black/[0.06] dark:bg-white/[0.08] overflow-hidden">
+
+      {/* Termômetro: faixa colorida; a parte acima do nível fica apagada e o marcador desliza até ele */}
+      <div className="mt-5 relative h-3">
+        <div className="absolute inset-0 rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-500" />
         <div
-          className={`h-full w-full rounded-full origin-left transition-transform duration-500 ${cor.barra}`}
-          style={{ transform: `scaleX(${risco / 100})` }}
+          className="absolute inset-0 rounded-full bg-white/75 dark:bg-[#1c1c1e]/75 origin-right transition-transform duration-700 ease-out"
+          style={{ transform: `scaleX(${(100 - pontos) / 100})` }}
         />
+        <div
+          className="absolute inset-0 transition-transform duration-700 ease-out"
+          style={{ transform: `translateX(${pontos}%)` }}
+        >
+          <span
+            className={`absolute top-1/2 left-0 -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full ring-4 ring-white dark:ring-[#2c2c2e] shadow-[0_2px_8px_rgba(0,0,0,0.25)] ${cor.ponto}`}
+          />
+        </div>
       </div>
-      <p className="mt-3 text-[13px] leading-relaxed text-[#1d1d1f]/80 dark:text-white/80">
-        {TEXTO_RISCO[nivel.id]}
-      </p>
-      <dl className="mt-4 grid grid-cols-2 gap-3 text-[12.5px]">
+      <div className="mt-2.5 grid grid-cols-[20fr_25fr_25fr_30fr] text-[11px]">
+        {FAIXAS_RISCO.map(([id, rotulo]) => (
+          <span
+            key={id}
+            className={`${id === nivel.id ? `font-semibold ${cor.texto}` : 'text-slate-400 dark:text-zinc-500'} ${id === 'muito_alto' ? 'text-right' : ''}`}
+          >
+            {rotulo}
+          </span>
+        ))}
+      </div>
+
+      <dl className="mt-5 grid grid-cols-2 gap-3 text-[12.5px]">
         <div className="rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] px-3 py-2.5">
           <dt className="text-slate-500 dark:text-zinc-400">Destinatários</dt>
           <dd className="font-semibold tabular-nums text-[15px]">{quantidade}</dd>
@@ -191,9 +231,48 @@ function MedidorRisco({ segundos, quantidade }) {
         </div>
       </dl>
       <p className="mt-3 text-[11.5px] leading-snug text-slate-500 dark:text-zinc-400">
-        Cada espera varia um pouco (até 40% a mais) para o ritmo não parecer de robô. É uma
-        estimativa: o WhatsApp não divulga as regras de bloqueio.
+        Estimativa pelo tempo entre as mensagens e pela quantidade de destinatários. Passe o mouse
+        para ver o porquê.
       </p>
+
+      {/* Explicação ao passar o mouse ou focar */}
+      <div
+        id="explicacao-risco"
+        role="tooltip"
+        className="pointer-events-none absolute z-10 left-3 right-3 bottom-full mb-3 rounded-2xl p-4 bg-[#1d1d1f]/95 dark:bg-[#f5f5f7]/95 text-[#f5f5f7] dark:text-[#1d1d1f] shadow-2xl backdrop-blur opacity-0 translate-y-1 transition-[opacity,transform] duration-200 group-hover:opacity-100 group-hover:translate-y-0 group-focus:opacity-100 group-focus:translate-y-0"
+      >
+        <p className="text-[12.5px] font-semibold">
+          Por que a probabilidade está {nivel.rotulo.toLowerCase()}
+        </p>
+        <ul className="mt-1.5 space-y-1 text-[12.5px] leading-snug opacity-90">
+          {motivos.map((m) => (
+            <li key={m} className="flex gap-2">
+              <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${cor.ponto}`} />
+              {m}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-[12.5px] font-semibold">Como diminuir o risco</p>
+        <ul className="mt-1.5 space-y-1 text-[12.5px] leading-snug opacity-90">
+          {recomendacoes.map((r) => (
+            <li key={r} className="flex gap-2">
+              <svg
+                className="mt-0.5 w-3.5 h-3.5 flex-shrink-0 text-emerald-400 dark:text-emerald-600"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+              {r}
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
@@ -462,8 +541,13 @@ function NovoEnvio({ aberto, onFechar, onCriado }) {
       });
   }, [aberto]);
 
-  const risco = riscoDoIntervalo(intervalo);
-  const muitoAlto = nivelDoRisco(risco).id === 'muito_alto';
+  const personalizada = PERSONALIZADA.test(mensagem);
+  const avaliacao = avaliarRisco({
+    segundos: intervalo,
+    quantidade: selecionados.size,
+    personalizada,
+  });
+  const muitoAlto = avaliacao.nivel.id === 'muito_alto';
   const agendadoPara = quando === 'agendar' ? new Date(`${dia}T${hora}:00`) : null;
   const noPassado = agendadoPara && agendadoPara.getTime() < Date.now();
   const exemplo = (dados.destinos || []).find((d) => selecionados.has(d.id)) || {
@@ -523,7 +607,7 @@ function NovoEnvio({ aberto, onFechar, onCriado }) {
             {!erro && (
               <p className="text-[12.5px] text-slate-500 dark:text-zinc-400">
                 {selecionados.size
-                  ? `${selecionados.size} ${selecionados.size === 1 ? 'destinatário' : 'destinatários'} · a cada ${formatarDuracao(intervalo)} · risco ${risco}%`
+                  ? `${selecionados.size} ${selecionados.size === 1 ? 'destinatário' : 'destinatários'} · a cada ${formatarDuracao(intervalo)} · probabilidade de bloqueio ${avaliacao.nivel.rotulo.toLowerCase()}`
                   : 'Escolha a mensagem e os destinatários.'}
               </p>
             )}
@@ -689,7 +773,7 @@ function NovoEnvio({ aberto, onFechar, onCriado }) {
       <Etapa
         numero={4}
         titulo="Intervalo entre as mensagens"
-        descricao="Quanto maior o tempo entre um envio e outro, menor o risco de o número ser bloqueado."
+        descricao="Quanto maior o tempo entre um envio e outro (e menor a lista), menor o risco de o número ser bloqueado."
         estado="concluida"
         ultima
       >
@@ -702,7 +786,11 @@ function NovoEnvio({ aberto, onFechar, onCriado }) {
             }}
           />
           <div className="space-y-3">
-            <MedidorRisco segundos={intervalo} quantidade={selecionados.size} />
+            <MedidorRisco
+              segundos={intervalo}
+              quantidade={selecionados.size}
+              personalizada={personalizada}
+            />
             {muitoAlto && (
               <label className="flex items-start gap-2.5 rounded-2xl px-3.5 py-3 bg-rose-500/[0.07] text-[13px] cursor-pointer">
                 <input
@@ -712,7 +800,8 @@ function NovoEnvio({ aberto, onFechar, onCriado }) {
                   className="mt-0.5 w-4 h-4 accent-rose-500"
                 />
                 <span>
-                  Entendo que, com este intervalo, o número pode ser bloqueado pelo WhatsApp.
+                  Entendo que, com este intervalo e esta quantidade, o número pode ser bloqueado
+                  pelo WhatsApp.
                 </span>
               </label>
             )}
@@ -809,8 +898,11 @@ function DetalheEnvio({ envioId, onFechar }) {
 function CartaoEnvio({ envio, onAcao, onAbrir }) {
   const feitos = (envio.enviados || 0) + (envio.falhas || 0);
   const progresso = envio.total ? feitos / envio.total : 0;
-  const risco = riscoDoIntervalo(envio.intervalo_segundos);
-  const nivel = nivelDoRisco(risco);
+  const { nivel } = avaliarRisco({
+    segundos: envio.intervalo_segundos,
+    quantidade: envio.total,
+    personalizada: PERSONALIZADA.test(envio.mensagem),
+  });
   const ativo = envio.status === 'agendado' || envio.status === 'enviando';
   const linhaTempo =
     envio.status === 'agendado'
@@ -881,7 +973,7 @@ function CartaoEnvio({ envio, onAcao, onAbrir }) {
         <span
           className={`h-7 px-2.5 rounded-full text-[11.5px] font-medium inline-flex items-center ${CORES_RISCO[nivel.id].suave}`}
         >
-          risco {risco}%
+          bloqueio: {nivel.rotulo.toLowerCase()}
         </span>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-1 -mx-1.5 -mb-1.5 pt-3 border-t border-black/[0.06] dark:border-white/[0.08]">

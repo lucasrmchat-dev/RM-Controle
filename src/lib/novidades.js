@@ -22,7 +22,8 @@ export const NOVIDADES = [
     itens: [
       'Escreva a mensagem (dá para usar o nome de cada contato), escolha o número que envia e marque os contatos e grupos; filtre por etiqueta para achar rápido.',
       'Envie agora ou escolha o dia e o horário.',
-      'Defina os segundos entre uma mensagem e outra. O medidor mostra o risco de bloqueio do número: quanto menor o tempo, maior o risco; ele nunca chega a zero.',
+      'Defina os segundos entre uma mensagem e outra. O termômetro mostra a probabilidade de bloqueio do número (baixa, média, alta ou muito alta) pelo tempo e pela quantidade de destinatários; ela nunca chega a zero.',
+      'Passe o mouse no termômetro para ver o porquê e o que fazer para diminuir o risco.',
       'Acompanhe o andamento, pause, retome ou cancele. Se o número desconectar, o envio pausa sozinho e avisa.',
       'As mensagens ficam no histórico de cada conversa do Chat. Quem responder volta para a fila de atendimento.',
       'Quem pode usar: administradores e os perfis com “Chat: envios em massa” ligado em Perfis de acesso.',

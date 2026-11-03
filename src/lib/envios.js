@@ -27,12 +27,59 @@ export function riscoDoIntervalo(segundos) {
   return Math.round(3 + 92 * Math.exp(-s / 25));
 }
 
-/** Faixa do risco, para cor e texto: baixo, moderado, alto ou muito alto. */
-export function nivelDoRisco(risco) {
-  if (risco >= 60) return { id: 'muito_alto', rotulo: 'Risco muito alto' };
-  if (risco >= 30) return { id: 'alto', rotulo: 'Risco alto' };
-  if (risco >= 10) return { id: 'moderado', rotulo: 'Risco moderado' };
-  return { id: 'baixo', rotulo: 'Risco baixo' };
+/** Faixa da probabilidade de bloqueio (0 a 100) para mostrar à pessoa, sem números. */
+export function nivelDoRisco(pontos) {
+  if (pontos >= 70) return { id: 'muito_alto', rotulo: 'Muito alta' };
+  if (pontos >= 45) return { id: 'alto', rotulo: 'Alta' };
+  if (pontos >= 20) return { id: 'medio', rotulo: 'Média' };
+  return { id: 'baixo', rotulo: 'Baixa' };
+}
+
+/**
+ * Probabilidade estimada de bloqueio do número pelo envio todo: junta o intervalo e a quantidade de
+ * destinatários. É uma estimativa para orientar (o WhatsApp não divulga as regras), de propósito cautelosa.
+ *  - Intervalo curto pesa mais quanto mais mensagens houver (3 mensagens rápidas preocupam pouco; 300, muito).
+ *  - Volume pesa sozinho: muitas mensagens iguais no mesmo dia chamam atenção mesmo com intervalo longo.
+ * Ex.: 3 grupos a cada 60 s → baixo · 100 contatos a cada 60 s → médio · 500 a cada 30 s → alto ·
+ * 500 a cada 10 s → muito alto. Nunca chega a zero.
+ * @returns {{ pontos: number, nivel: {id, rotulo}, motivos: string[], recomendacoes: string[] }}
+ */
+export function avaliarRisco({ segundos, quantidade = 0, personalizada = false } = {}) {
+  const s = Math.max(INTERVALO_MIN, Number(segundos) || INTERVALO_MIN);
+  const n = Math.max(0, Number(quantidade) || 0);
+  const peloIntervalo = riscoDoIntervalo(s) * Math.min(1, 0.3 + n / 40);
+  const peloVolume = 40 * (1 - Math.exp(-n / 300));
+  const pontos = Math.round(Math.min(98, Math.max(3, peloIntervalo + peloVolume)));
+  const nivel = nivelDoRisco(pontos);
+
+  const motivos = [];
+  const recomendacoes = [];
+  if (s < 20)
+    motivos.push(`Tempo entre as mensagens muito curto (${s} s): parece disparo automático.`);
+  else if (s < 60) motivos.push(`Tempo entre as mensagens curto (${s} s).`);
+  if (n > 200)
+    motivos.push(`Muitos destinatários (${n}): volume alto para um número só no mesmo dia.`);
+  else if (n > 50) motivos.push(`Lista grande (${n} destinatários).`);
+  if (n > 50 && !personalizada) motivos.push('A mesma mensagem idêntica para todos.');
+  if (!motivos.length)
+    motivos.push(
+      n
+        ? 'Poucos destinatários e tempo confortável entre as mensagens.'
+        : 'Escolha os destinatários para ver a estimativa completa.',
+    );
+
+  if (s < 60 && n > 10) recomendacoes.push('Aumente o intervalo para 60 segundos ou mais.');
+  if (n > 100) recomendacoes.push('Divida em envios menores (até 100 por vez) em dias diferentes.');
+  if (!personalizada && n > 10)
+    recomendacoes.push(
+      'Personalize com o nome do contato: mensagens diferentes chamam menos atenção.',
+    );
+  if (n > 50)
+    recomendacoes.push('Prefira quem já conversou com este número; desconhecidos denunciam mais.');
+  recomendacoes.push(
+    'No QR Code o risco nunca é zero: evite números novos e mensagens só com link.',
+  );
+  return { pontos, nivel, motivos, recomendacoes };
 }
 
 /** Tempo total aproximado do envio (sem contar a variação aleatória), em segundos. */
