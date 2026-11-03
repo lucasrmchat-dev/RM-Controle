@@ -115,13 +115,15 @@ test('senha padrão: guardada cifrada, nunca em texto puro no navegador, e invis
   assert.equal(config.senha_padrao, undefined);
 });
 
-test('primeira sincronização envia ao Supabase o que só existia neste navegador', async () => {
-  localStorage.setItem('rm_categorias_demandas', JSON.stringify(['Suporte', 'Departamento Antigo']));
-  localStorage.setItem('rm_senha_padrao_redefinicao', 'SenhaAntiga#123');
+test('sincronização nunca envia ao banco o que está guardado no navegador (pode ser de outra empresa)', async () => {
+  db.tables.sistema_config = db.tables.sistema_config.filter((c) => c.chave !== 'departamentos');
+  delete db.segredos.senha_padrao;
+  localStorage.setItem('rm_categorias_demandas', JSON.stringify(['Suporte', 'Comercial: Outra Empresa']));
+  localStorage.setItem('rm_senha_padrao_redefinicao', 'SenhaDeOutraEmpresa#1');
   await storage.sincronizarConfiguracoesGlobais();
-  assert.deepEqual(db.tables.sistema_config.find((c) => c.chave === 'departamentos').valor, ['Suporte', 'Departamento Antigo']);
-  assert.ok(db.segredos.senha_padrao);
-  assert.equal(localStorage.getItem('rm_senha_padrao_redefinicao'), null, 'texto puro removido do navegador');
+  await esperar();
+  assert.equal(db.tables.sistema_config.find((c) => c.chave === 'departamentos'), undefined, 'departamentos locais não sobem');
+  assert.equal(db.segredos.senha_padrao, undefined, 'senha padrão local não sobe');
 });
 
 // ---------------------------------------------------------------- detalhes do servidor

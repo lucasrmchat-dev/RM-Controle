@@ -184,40 +184,17 @@ function aplicarConfigGlobalLocal(chave, valor) {
   }
 }
 
-function valorLocalParaMigrar(chave) {
-  if (typeof window === 'undefined') return undefined;
-  const ler = (k) => {
-    try {
-      const bruto = localStorage.getItem('rm_' + k);
-      return bruto ? JSON.parse(bruto) : undefined;
-    } catch (e) {
-      return undefined;
-    }
-  };
-  if (chave === 'departamentos') return ler('categorias_demandas');
-  if (chave === 'configuracoes_suporte') return ler('configuracoes_suporte');
-  if (chave === 'servidor_config_padrao') return ler('servidor_config_padrao');
-  if (chave === 'senha_padrao') return localStorage.getItem('rm_senha_padrao_redefinicao') || undefined;
-  return undefined;
-}
-
-/** Baixa as configurações da equipe e, na primeira vez, envia o que só existia neste navegador. */
+/**
+ * Baixa as configurações da equipe. Nunca envia ao banco o que estiver guardado neste navegador:
+ * a cópia local pode ser de OUTRA empresa (o mesmo navegador usado em duas empresas, ou no modo
+ * suporte), e a antiga "migração inicial" levava departamentos e a senha padrão de uma empresa para outra.
+ */
 export async function sincronizarConfiguracoesGlobais() {
   if (!podeFalarComServidor()) return;
   const res = await fetch('/api/configuracoes', { cache: 'no-store' }).catch(() => null);
   if (!res || !res.ok) return;
-  const { config = {}, ausentes = [] } = await res.json().catch(() => ({}));
+  const { config = {} } = await res.json().catch(() => ({}));
   Object.entries(config).forEach(([chave, valor]) => aplicarConfigGlobalLocal(chave, valor));
-  for (const chave of ausentes) {
-    const local = valorLocalParaMigrar(chave);
-    if (local === undefined || local === null || local === '') continue;
-    try {
-      await salvarConfiguracaoGlobal(chave, local);
-      if (chave === 'senha_padrao') guardarSenhaPadraoSessao(local);
-    } catch (e) {
-      console.warn(`Migração de "${chave}" para o Supabase não concluída:`, e.message);
-    }
-  }
 }
 
 export const getConfigComercial = () => getLocalData('comercial', CONFIG_COMERCIAL_PADRAO);
@@ -2021,8 +1998,7 @@ registrarFonteChamadosAtivos(() => getChamadosSuporte().filter((c) => !isChamado
 
 /**
  * Baixa tudo que é compartilhado pela equipe (configurações, catálogos, colaboradores, soluções
- * e agenda). Na primeira execução em cada navegador também envia ao Supabase o que antes só
- * existia localmente. Cada parte falha de forma independente.
+ * e agenda). Cada parte falha de forma independente.
  */
 let sincronizacaoEmAndamento = null;
 export function sincronizarDadosCompartilhados() {
@@ -3461,12 +3437,15 @@ export function definirOrganizacaoAtual(organizacao, gestao) {
   const id = organizacao?.id || 'principal';
   let trocou = false;
   try {
+    // Sem registro da empresa anterior também apaga: não dá para saber de quem são os dados guardados
     const anterior = localStorage.getItem('rm_organizacao_atual');
-    if (anterior && anterior !== id) {
+    if (anterior !== id) {
       Object.keys(localStorage).forEach((k) => {
-        if (k.startsWith('rm_') && !PRESERVAR_AO_TROCAR_EMPRESA.has(k)) localStorage.removeItem(k);
+        if (k.startsWith('rm_') && !PRESERVAR_AO_TROCAR_EMPRESA.has(k)) {
+          localStorage.removeItem(k);
+          trocou = true;
+        }
       });
-      trocou = true;
     }
     localStorage.setItem('rm_organizacao_atual', id);
   } catch (e) {}
