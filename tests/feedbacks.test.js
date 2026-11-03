@@ -197,3 +197,30 @@ test('só a área de desenvolvimento publica novidades; todos leem', async () =>
   const doDev = await (await lerNovidades(await requisicao('GET', 'dev@rmchat.com'))).json();
   assert.equal(doDev.desenvolvimento, true);
 });
+
+test('novidades: administrador de uma assinante cliente não publica para todas', async () => {
+  db.reset();
+  const RMCHAT = '00000000-0000-4000-8000-000000000002';
+  const CLIENTE = crypto.randomUUID();
+  db.tables.organizacoes = [
+    { id: '00000000-0000-4000-8000-000000000001', nome: 'RM Controle', tipo: 'plataforma', pai_id: null, status: 'ativa', limites: {} },
+    { id: RMCHAT, nome: 'RM Chat', tipo: 'assinante', pai_id: '00000000-0000-4000-8000-000000000001', status: 'ativa', limites: {} },
+    { id: CLIENTE, nome: 'Clínica', tipo: 'assinante', pai_id: '00000000-0000-4000-8000-000000000001', status: 'ativa', limites: {} },
+  ];
+  db.tables.sessoes_suporte = [];
+  db.tables.rm_admins_proprietarios = [];
+  db.tables.perfis_acesso = [];
+  db.tables.equipe_usuarios = [
+    { id: crypto.randomUUID(), email: 'dev@rmchat.com', nome: 'Dev', papel: 'suporte', ativo: true, departamentos: ['Automação'], organizacao_id: RMCHAT },
+    { id: crypto.randomUUID(), email: 'bia@clinica.com', nome: 'Bia', papel: 'administrador', ativo: true, departamentos: [], organizacao_id: CLIENTE },
+  ];
+  db.tables.sistema_config = [{ chave: 'feedbacks', valor: { departamentos_dev: ['Automação'] }, organizacao_id: RMCHAT }];
+  const id = NOVIDADES[0].id;
+
+  const negado = await publicar(await requisicao('POST', 'bia@clinica.com', { id, publicar: true }));
+  assert.equal(negado.status, 403);
+  assert.equal((await (await lerNovidades(await requisicao('GET', 'bia@clinica.com'))).json()).desenvolvimento, false);
+
+  const ok = await publicar(await requisicao('POST', 'dev@rmchat.com', { id, publicar: true }));
+  assert.equal(ok.status, 200);
+});

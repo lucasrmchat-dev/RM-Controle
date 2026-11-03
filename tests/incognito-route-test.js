@@ -29,10 +29,10 @@ async function runTests() {
   }
 
   // --------------------------------------------------------------------------
-  // TESTE 1: Acesso Anônimo à Rota Privada de API (/api/calendar)
+  // TESTE 1: Acesso Anônimo à Rota Privada de API (/api/equipe)
   // --------------------------------------------------------------------------
   try {
-    const res = await fetch(`${BASE_URL}/api/calendar?url=https://calendar.google.com/test.ics`, {
+    const res = await fetch(`${BASE_URL}/api/equipe`, {
       method: 'GET',
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (Incognito Test)',
@@ -42,7 +42,7 @@ async function runTests() {
 
     assert(
       res.status === 401,
-      'Bloqueio de usuário não autenticado na rota privada /api/calendar',
+      'Bloqueio de usuário não autenticado na rota privada /api/equipe',
       `Esperado: 401 Unauthorized | Recebido: ${res.status}`
     );
   } catch (e) {

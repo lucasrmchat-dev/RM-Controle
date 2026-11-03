@@ -25,6 +25,7 @@ export function isChamadoFeedback(c) {
 import { triggerSupportNotification, stopSupportNotificationLoop, registrarFonteChamadosAtivos } from './audioNotifications';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { logAuditoria } from './security';
+import { linkSeguro } from './sanitize';
 import { resolverPapel, ADMINS_PROPRIETARIOS } from './roles';
 import { permissoesEfetivas, podeVerDemanda } from './perfis';
 
@@ -5919,6 +5920,7 @@ function linhaAgenda(evento) {
   CAMPOS_AGENDA.forEach((c) => {
     if (evento[c] !== undefined) linha[c] = evento[c];
   });
+  if (linha.link_reuniao !== undefined) linha.link_reuniao = linkSeguro(linha.link_reuniao) || '';
   return linha;
 }
 
@@ -6086,7 +6088,7 @@ export async function addAgendaEvento(eventoData, { gerarMeet = false } = {}) {
     responsavel_email: eventoData.responsavel_email ? eventoData.responsavel_email.trim().toLowerCase() : null,
     responsavel_nome: eventoData.responsavel_email ? eventoData.responsavel_nome || getNomeTecnico(eventoData.responsavel_email) : null,
     google_calendar_id: eventoData.google_calendar_id || null,
-    link_reuniao: (eventoData.link_reuniao || '').trim(),
+    link_reuniao: linkSeguro(eventoData.link_reuniao) || '',
     status: eventoData.status || 'agendada',
     tipo: eventoData.tipo || 'cliente',
     observacoes: (eventoData.observacoes || '').trim(),
@@ -6232,7 +6234,7 @@ export function parseIcalEvents(icsContent) {
           hora_fim,
           responsavel_email: 'suporte@rmchat.com.br',
           responsavel_nome: 'Equipe de Suporte',
-          link_reuniao: matchMeet ? matchMeet[0] : (current.URL || ''),
+          link_reuniao: matchMeet ? matchMeet[0] : linkSeguro(current.URL) || '',
           status: 'agendada',
           tipo: 'google_calendar',
           observacoes: desc ? desc.slice(0, 200) : 'Sincronizado do Google Agenda',

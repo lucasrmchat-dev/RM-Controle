@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { globalRateLimiter } from './lib/rateLimit';
-import { verifySessionToken, SESSION_COOKIE_NAME } from './lib/session';
 
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
@@ -55,20 +54,6 @@ export async function middleware(request) {
       });
     }
     response.headers.set('X-Robots-Tag', 'noindex, nofollow');
-  }
-
-  // 3. Validação de Rotas Protegidas de API
-  // APIs internas que exigem sessão ativa (ex: /api/calendar)
-  if (pathname.startsWith('/api/calendar')) {
-    const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const sessionPayload = await verifySessionToken(sessionCookie);
-
-    if (!sessionPayload) {
-      return new NextResponse(
-        JSON.stringify({ error: 'Acesso não autorizado. Sessão inválida ou expirada.' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
   }
 
   // 4. Cabeçalhos de Segurança Estritos (Security Headers - OWASP & LGPD)

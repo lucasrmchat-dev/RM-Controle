@@ -4,7 +4,7 @@ import { novoBanco } from './base.mjs';
 import assert from 'node:assert/strict';
 process.on('uncaughtException', (e) => { console.log('FALHOU:', e.message, '| consulta:', e.query || ''); process.exit(1); });
 
-const db = await novoBanco(['schema.sql', 'setup_secure_rls.sql', 'migration_feedbacks_e_departamentos.sql', 'migration_supabase_completa.sql', 'migration_perfis_acesso.sql', 'migration_google_agenda.sql', 'migration_descricao_historico.sql', 'migration_agenda_departamento.sql', 'migration_comercial_pipeline.sql', 'migration_comercial_webhooks.sql', 'migration_relato_atendimentos.sql', 'migration_feedbacks_subtarefas.sql', 'migration_descricao_demandas.sql', 'migration_whatsapp_agenda.sql', 'migration_multiempresa.sql', 'migration_canais_chat.sql', 'migration_canais_chat.sql', 'migration_chat_acoes.sql', 'migration_chat_acoes.sql', 'migration_chat_grupos.sql', 'migration_chat_grupos.sql', 'migration_desempenho.sql', 'migration_desempenho.sql', 'migration_daily.sql', 'migration_daily.sql']);
+const db = await novoBanco(['schema.sql', 'setup_secure_rls.sql', 'migration_feedbacks_e_departamentos.sql', 'migration_supabase_completa.sql', 'migration_perfis_acesso.sql', 'migration_google_agenda.sql', 'migration_descricao_historico.sql', 'migration_agenda_departamento.sql', 'migration_comercial_pipeline.sql', 'migration_comercial_webhooks.sql', 'migration_relato_atendimentos.sql', 'migration_feedbacks_subtarefas.sql', 'migration_descricao_demandas.sql', 'migration_whatsapp_agenda.sql', 'migration_multiempresa.sql', 'migration_canais_chat.sql', 'migration_canais_chat.sql', 'migration_chat_acoes.sql', 'migration_chat_acoes.sql', 'migration_chat_grupos.sql', 'migration_chat_grupos.sql', 'migration_desempenho.sql', 'migration_desempenho.sql', 'migration_daily.sql', 'migration_daily.sql', 'migration_equipe_protege_acesso.sql', 'migration_equipe_protege_acesso.sql', 'migration_auditoria_autor.sql', 'migration_auditoria_autor.sql']);
 console.log('✔ migração aplicada (duas vezes, sem erro)');
 const RMCHAT = '00000000-0000-4000-8000-000000000002';
 
@@ -64,6 +64,20 @@ assert.deepEqual((await como('caio@rmchat.com', `SELECT conteudo FROM mensagens`
 await servidor(`UPDATE conversas SET responsavel_email = 'caio@rmchat.com' WHERE id = $1`, [convVendas.id]);
 assert.equal((await como('caio@rmchat.com', `SELECT id FROM conversas`)).length, 2, 'vê também a conversa que está com ele');
 console.log('✔ cada um vê os departamentos dele e as conversas que estão com ele');
+
+// Ninguém além do administrador muda o próprio acesso pelo navegador (perfil e departamentos)
+assert.equal((await como('ana@rmchat.com', `UPDATE equipe_usuarios SET departamentos_bloqueados = '{Vendas}' WHERE email = 'caio@rmchat.com' RETURNING id`)).length, 1, 'administrador continua alterando');
+await falha('caio@rmchat.com', `UPDATE equipe_usuarios SET perfil_id = NULL WHERE email = 'caio@rmchat.com'`, /Apenas administradores/);
+await falha('caio@rmchat.com', `UPDATE equipe_usuarios SET departamentos_bloqueados = '{}' WHERE email = 'caio@rmchat.com'`, /Apenas administradores/);
+await falha('caio@rmchat.com', `UPDATE equipe_usuarios SET departamentos = '{Suporte,Vendas}' WHERE email = 'caio@rmchat.com'`, /Apenas administradores/);
+assert.equal((await como('caio@rmchat.com', `UPDATE equipe_usuarios SET primeiro_acesso_concluido = true WHERE email = 'caio@rmchat.com' RETURNING id`)).length, 1, 'o resto do próprio cadastro continua editável');
+console.log('✔ só o administrador muda perfil e departamentos de alguém');
+
+// Auditoria pelo navegador: só no nome de quem está logado
+await falha('caio@rmchat.com', `INSERT INTO auditoria_logs (usuario_email, acao) VALUES ('ana@rmchat.com', 'excluiu_empresa')`, /row-level security/);
+await como('caio@rmchat.com', `INSERT INTO auditoria_logs (usuario_email, acao) VALUES ('caio@rmchat.com', 'visualizou')`);
+assert.equal((await servidor(`SELECT usuario_email FROM auditoria_logs WHERE acao IN ('excluiu_empresa', 'visualizou')`)).map((r) => r.usuario_email).join(), 'caio@rmchat.com');
+console.log('✔ auditoria não aceita registro em nome de outra pessoa');
 
 // Outra empresa não vê nada
 assert.equal((await como('bia@b.com', `SELECT id FROM conversas`)).length, 0);
