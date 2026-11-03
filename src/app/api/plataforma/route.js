@@ -1,6 +1,6 @@
 import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
 import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
-import { garantirContaAuth, removerContaAuth } from '@/lib/server/acesso';
+import { garantirContaAuth, removerContaAuth, trocarEmailAuth } from '@/lib/server/acesso';
 import { consumirLimite, ipDaRequisicao } from '@/lib/server/protecao';
 import { escopo, limparMemoriaOrganizacao, mensagemLimite, organizacaoAtual, perfilDeGestao, podeGerir, ORG_PLATAFORMA, redeDaRequisicao } from '@/lib/server/organizacao';
 import { listaAdministradores, normalizarEmail } from '@/lib/roles';
@@ -16,6 +16,8 @@ export const dynamic = 'force-dynamic';
  *       { acao: 'editar', id, ... }        dados e limites
  *       { acao: 'status', id, status }     ativa | suspensa | cancelada
  *       { acao: 'contrato', id, ... }      novo contrato (o anterior é encerrado)
+ *       { acao: 'usuarios', id }           usuários da empresa (nome, e-mail, papel)
+ *       { acao: 'editar_usuario', id, usuario_id, nome, email, senha? }   corrige nome, e-mail e senha
  *       { acao: 'entrar_suporte', id }     abre a empresa por 2 horas, com registro na auditoria DELA
  *       { acao: 'sair_suporte' }
  * Tudo conferido no servidor: revenda só mexe nas assinantes dela; ninguém mexe na plataforma.
@@ -165,8 +167,58 @@ export async function POST(request) {
       if (body.limites !== undefined) campos.limites = validarLimites(body.limites, org.tipo);
       const { data, error } = await db.from('organizacoes').update(campos).eq('id', org.id).select('*').single();
       if (error) return json({ ok: false, mensagem: error.message }, 400);
-      await auditar(db, org.id, email, 'plataforma_editou_empresa', { limites: campos.limites }, request);
+      await auditar(db, org.id, email, 'plataforma_editou_empresa', { ...(campos.limites ? { limites: campos.limites } : {}), ...(data.nome !== org.nome ? { nome_anterior: org.nome, nome: data.nome } : {}) }, request);
       return json({ ok: true, organizacao: data });
+    }
+
+    // ----------------------------------------------------- usuários da empresa
+    if (body.acao === 'usuarios') {
+      const { data, error } = await db
+        .from('equipe_usuarios')
+        .select('id, nome, email, papel, ativo, primeiro_acesso_concluido')
+        .eq('organizacao_id', org.id)
+        .order('nome');
+      if (error) return json({ ok: false, mensagem: error.message }, 500);
+      return json({ ok: true, usuarios: data || [] });
+    }
+
+    if (body.acao === 'editar_usuario') {
+      if (!isValidUUID(body.usuario_id)) return json({ ok: false, mensagem: 'Usuário inválido.' }, 400);
+      const { data: atual } = await db.from('equipe_usuarios').select('id, nome, email, papel').eq('id', body.usuario_id).eq('organizacao_id', org.id).maybeSingle();
+      if (!atual) return json({ ok: false, mensagem: 'Usuário não encontrado nesta empresa.' }, 404);
+      const nome = String(body.nome ?? atual.nome ?? '').trim().slice(0, 120);
+      if (nome.length < 2) return json({ ok: false, mensagem: 'Informe o nome do usuário.' }, 400);
+      const novoEmail = body.email === undefined ? normalizarEmail(atual.email) : sanitizeEmail(body.email);
+      if (!novoEmail) return json({ ok: false, mensagem: 'E-mail inválido.' }, 400);
+      const antigo = normalizarEmail(atual.email);
+      const trocouEmail = novoEmail !== antigo;
+      if (trocouEmail) {
+        const { data: jaExiste } = await db.from('equipe_usuarios').select('id').eq('email', novoEmail).maybeSingle();
+        if (jaExiste || listaAdministradores(process.env.RM_ADMIN_EMAILS).has(novoEmail)) return json({ ok: false, mensagem: 'Este e-mail já é usado por alguém no sistema.' }, 409);
+      }
+      if (body.senha) {
+        const erroSenha = validarSenhaInicial(body.senha);
+        if (erroSenha) return json({ ok: false, mensagem: erroSenha.replace('inicial ', '') }, 400);
+      }
+      // Login primeiro (se falhar, nada muda no cadastro)
+      if (trocouEmail) {
+        const troca = await trocarEmailAuth(antigo, novoEmail);
+        if (!troca.ok) return json({ ok: false, mensagem: `Não foi possível trocar o e-mail do login: ${troca.erro}` }, 500);
+      }
+      if (body.senha) {
+        const conta = await garantirContaAuth(novoEmail, body.senha, { name: nome, papel: atual.papel });
+        if (!conta.ok) return json({ ok: false, mensagem: `Não foi possível trocar a senha do login: ${conta.erro}` }, 500);
+      }
+      const campos = { nome, email: novoEmail, ...(body.senha ? { senha: body.senha } : {}) };
+      const { data, error } = await db.from('equipe_usuarios').update(campos).eq('id', atual.id).eq('organizacao_id', org.id).select('id, nome, email, papel, ativo, primeiro_acesso_concluido').single();
+      if (error) {
+        if (trocouEmail) await trocarEmailAuth(novoEmail, antigo);
+        return json({ ok: false, mensagem: error.message }, 400);
+      }
+      limparMemoriaOrganizacao(antigo);
+      if (trocouEmail) limparMemoriaOrganizacao(novoEmail);
+      await auditar(db, org.id, email, 'plataforma_editou_usuario', { usuario: antigo, ...(trocouEmail ? { novo_email: novoEmail } : {}), ...(nome !== atual.nome ? { novo_nome: nome } : {}), ...(body.senha ? { trocou_senha: true } : {}) }, request);
+      return json({ ok: true, usuario: data });
     }
 
     if (body.acao === 'status') {

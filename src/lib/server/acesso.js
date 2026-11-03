@@ -122,6 +122,16 @@ export async function garantirContaAuth(email, senha, metadados = {}) {
   return erroAtualizar ? { ok: false, erro: erroAtualizar.message } : { ok: true };
 }
 
+/** Troca o e-mail do login (Supabase Auth). Sem conta de login ainda: nada a trocar (ok). */
+export async function trocarEmailAuth(antigo, novo) {
+  const admin = getSupabaseAdmin();
+  if (!admin) return { ok: false, erro: 'Servidor sem SUPABASE_SERVICE_ROLE_KEY.' };
+  const existente = await localizarUsuarioAuth(admin, normalizarEmail(antigo));
+  if (!existente) return { ok: true };
+  const { error } = await admin.auth.admin.updateUserById(existente.id, { email: normalizarEmail(novo), email_confirm: true });
+  return error ? { ok: false, erro: error.message } : { ok: true };
+}
+
 export async function removerContaAuth(email) {
   const admin = getSupabaseAdmin();
   if (!admin) return;

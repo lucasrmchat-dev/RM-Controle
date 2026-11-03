@@ -287,6 +287,142 @@ function NovaEmpresaModal({ aberto, onFechar, nivel, revendas, onCriada }) {
   );
 }
 
+/** Usuário da empresa: corrige nome, e-mail (também o do login) e, se quiser, define uma senha nova. */
+function LinhaUsuario({ org, usuario, onSalvo }) {
+  const [editando, setEditando] = useState(false);
+  const [nome, setNome] = useState(usuario.nome || '');
+  const [email, setEmail] = useState(usuario.email || '');
+  const [senha, setSenha] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState('');
+  const abrir = () => {
+    setNome(usuario.nome || '');
+    setEmail(usuario.email || '');
+    setSenha('');
+    setErro('');
+    setEditando(true);
+  };
+  const salvar = async () => {
+    setSalvando(true);
+    setErro('');
+    try {
+      const r = await acaoPlataforma({ acao: 'editar_usuario', id: org.id, usuario_id: usuario.id, nome, email, ...(senha ? { senha } : {}) });
+      showToast('Usuário atualizado.', 'success');
+      setEditando(false);
+      onSalvo(r.usuario);
+    } catch (e) {
+      setErro(e.message);
+    } finally {
+      setSalvando(false);
+    }
+  };
+  if (!editando) {
+    return (
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[13.5px] font-medium truncate">
+            {usuario.nome}
+            {usuario.ativo === false && <span className="ml-2 text-[11.5px] text-slate-400">inativo</span>}
+          </p>
+          <p className="text-[12.5px] text-slate-500 dark:text-zinc-400 truncate">
+            {usuario.email} · {usuario.papel === 'administrador' ? 'Administrador' : 'Equipe'}
+            {usuario.primeiro_acesso_concluido ? '' : ' · ainda não entrou'}
+          </p>
+        </div>
+        <button type="button" onClick={abrir} className="h-8 px-3 rounded-full text-[12.5px] font-medium hover:bg-black/[0.05] dark:hover:bg-white/[0.08] cursor-pointer">
+          Editar
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="px-4 py-4 space-y-3 bg-black/[0.02] dark:bg-white/[0.03]">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className={classeRotulo}>Nome</span>
+          <input value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} className={classeCampo} />
+        </label>
+        <label className="block">
+          <span className={classeRotulo}>E-mail de acesso</span>
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={160} className={classeCampo} />
+        </label>
+      </div>
+      <label className="block">
+        <span className={classeRotulo}>Nova senha (opcional)</span>
+        <input type="text" value={senha} onChange={(e) => setSenha(e.target.value)} maxLength={128} placeholder="Deixe em branco para manter a senha atual" autoComplete="new-password" className={classeCampo} />
+      </label>
+      {email.trim().toLowerCase() !== String(usuario.email || '').toLowerCase() && (
+        <p className="text-[12px] text-amber-700 dark:text-amber-300">O login passa a ser pelo e-mail novo. O histórico antigo continua com o e-mail anterior.</p>
+      )}
+      {erro && <p className="text-[12.5px] text-rose-600 dark:text-rose-400">{erro}</p>}
+      <div className="flex justify-end gap-2">
+        <button type="button" onClick={() => setEditando(false)} disabled={salvando} className="h-9 px-4 rounded-full text-[13px] font-medium hover:bg-black/[0.05] dark:hover:bg-white/[0.08] cursor-pointer">
+          Cancelar
+        </button>
+        <button type="button" onClick={salvar} disabled={salvando || nome.trim().length < 2 || !email.trim()} className={`${classeBotaoPrimario} h-9`}>
+          {salvando && <Spinner />}
+          Salvar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Nome da empresa e usuários dela (corrigir digitação, trocar e-mail ou senha do administrador). */
+function EmpresaEUsuarios({ org, onAtualizada }) {
+  const [nome, setNome] = useState(org.nome || '');
+  const [salvandoNome, setSalvandoNome] = useState(false);
+  const [usuarios, setUsuarios] = useState(null);
+  const [erro, setErro] = useState('');
+  useEffect(() => {
+    setNome(org.nome || '');
+    setUsuarios(null);
+    acaoPlataforma({ acao: 'usuarios', id: org.id })
+      .then((r) => setUsuarios(r.usuarios || []))
+      .catch((e) => setErro(e.message));
+  }, [org.id, org.nome]);
+  const salvarNome = async () => {
+    setSalvandoNome(true);
+    try {
+      await acaoPlataforma({ acao: 'editar', id: org.id, nome });
+      showToast('Nome atualizado.', 'success');
+      onAtualizada();
+    } catch (e) {
+      showToast(e.message, 'error');
+    } finally {
+      setSalvandoNome(false);
+    }
+  };
+  return (
+    <div className="space-y-6">
+      <div>
+        <span className={classeRotulo}>Nome do estabelecimento</span>
+        <div className="flex gap-2">
+          <input value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} aria-label="Nome do estabelecimento" className={classeCampo} />
+          <button type="button" onClick={salvarNome} disabled={salvandoNome || nome.trim().length < 2 || nome.trim() === org.nome} className={`${classeBotaoPrimario} flex-shrink-0`}>
+            {salvandoNome && <Spinner />}
+            Salvar
+          </button>
+        </div>
+      </div>
+      <div>
+        <span className={classeRotulo}>Usuários</span>
+        {erro && <p className="text-[13px] text-rose-600 dark:text-rose-400">{erro}</p>}
+        {!erro && usuarios === null && <p className="text-[13px] text-slate-500">Carregando…</p>}
+        {usuarios && !usuarios.length && <p className="text-[13px] text-slate-500 dark:text-zinc-400">Nenhum usuário cadastrado nesta empresa.</p>}
+        {usuarios?.length > 0 && (
+          <div className="rounded-2xl border border-black/[0.08] dark:border-white/[0.1] divide-y divide-black/[0.06] dark:divide-white/[0.08] overflow-hidden">
+            {usuarios.map((u) => (
+              <LinhaUsuario key={u.id} org={org} usuario={u} onSalvo={(novo) => setUsuarios((l) => l.map((x) => (x.id === novo.id ? novo : x)))} />
+            ))}
+          </div>
+        )}
+        <p className="mt-2 text-[12px] text-slate-500 dark:text-zinc-400">Toda alteração fica registrada na auditoria da empresa.</p>
+      </div>
+    </div>
+  );
+}
+
 function GerenciarModal({ org, onFechar, onAtualizada }) {
   const [aba, setAba] = useState('contrato');
   const [limites, setLimites] = useState({});
@@ -338,10 +474,13 @@ function GerenciarModal({ org, onFechar, onAtualizada }) {
             onMudar={setAba}
             opcoes={[
               { id: 'contrato', rotulo: 'Plano e contrato' },
+              { id: 'empresa', rotulo: 'Empresa e usuários' },
               { id: 'situacao', rotulo: 'Situação' },
             ]}
           />
-          {aba === 'contrato' ? (
+          {aba === 'empresa' ? (
+            <EmpresaEUsuarios org={org} onAtualizada={onAtualizada} />
+          ) : aba === 'contrato' ? (
             <div className="space-y-5">
               {org.contrato && (
                 <div className="rounded-2xl bg-black/[0.03] dark:bg-white/[0.05] px-4 py-3 text-[13px]">
