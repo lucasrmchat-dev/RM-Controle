@@ -235,7 +235,7 @@ export default function EditorFluxo({ fluxo: inicial, onVoltar, onMudou }) {
   const [processos, setProcessos] = useState(() => getConfigComercial()?.pipelines || []);
   useEffect(() => {
     fetchCanais()
-      .then((r) => setCanais(r.canais || []))
+      .then((r) => setCanais((r.canais || []).filter((c) => c.ativo)))
       .catch(() => {});
     fetchConfigComercial()
       .then((c) => setProcessos(c?.pipelines || []))

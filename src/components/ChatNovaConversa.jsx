@@ -113,8 +113,10 @@ export default function ChatNovaConversa({ aberto, onFechar, onCriada, telefoneI
     setNumero(pais ? d.slice(pais.ddi.length) : d);
     fetchCanais()
       .then((r) => {
-        setCanais(r.canais || []);
-        const primeiro = (r.canais || []).find((c) => c.ativo && c.status === 'conectado' && c.tipo === 'whatsapp_qr');
+        // Só canais ativos (os liberados para a pessoa já vêm filtrados pelo servidor)
+        const ativos = (r.canais || []).filter((c) => c.ativo);
+        setCanais(ativos);
+        const primeiro = ativos.find((c) => c.ativo && c.status === 'conectado' && c.tipo === 'whatsapp_qr');
         setCanalId(primeiro?.id || '');
         setDepartamento(primeiro?.departamento_padrao || '');
       })

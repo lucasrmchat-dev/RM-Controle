@@ -12,7 +12,7 @@ import {
   validarEnvio,
 } from '@/lib/envios';
 import { isValidUUID } from '@/lib/sanitize';
-import { permissaoDoChat, semModulo } from '@/lib/server/canais/chat';
+import { canalLiberado, permissaoDoChat, semModulo } from '@/lib/server/canais/chat';
 import { processarEnvios } from '@/lib/server/envios';
 import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
 import { contextoDaRequisicao } from '@/lib/server/organizacao';
@@ -68,7 +68,7 @@ async function acesso(request) {
 
 // Canais que a pessoa pode usar (controle de canais do Chat vale aqui também)
 const podeUsarCanal = (perm, canalId) =>
-  perm.administrador || !perm.chat?.controleCanais || (perm.chat.canais || []).includes(canalId);
+  canalLiberado(perm, canalId);
 
 export async function GET(request) {
   const r = await acesso(request);

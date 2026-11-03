@@ -2097,9 +2097,12 @@ export default function ChatView() {
     setLembrarFiltros(salvo.lembrar);
   }, []);
 
+  // "(Admin) Visualizar todos": administrador com canais liberados passa a ver todos os canais
+  const verTodosRef = useRef(false);
+  verTodosRef.current = Boolean(filtros.verTodos);
   const carregar = useCallback(async () => {
     try {
-      const r = await fetchConversas('abertas');
+      const r = await fetchConversas('abertas', { todos: verTodosRef.current });
       setAbertas(r.conversas);
       setEu(r.eu);
       if (r.config) setConfig(r.config);
@@ -2111,8 +2114,17 @@ export default function ChatView() {
       setErro(e.message);
     }
   }, []);
-  const carregarResolvidas = useCallback(() => fetchConversas('resolvidas').then((r) => setResolvidas(r.conversas)).catch((e) => showToast(e.message, 'error')), []);
+  const carregarResolvidas = useCallback(() => fetchConversas('resolvidas', { todos: verTodosRef.current }).then((r) => setResolvidas(r.conversas)).catch((e) => showToast(e.message, 'error')), []);
   const carregarRespostas = useCallback(() => fetchRespostasRapidas().then((r) => setRespostas(r.respostas)).catch(() => {}), []);
+
+  // Ligou ou desligou "Visualizar todos": recarrega (o servidor decide quais canais entram)
+  const verTodosAnterior = useRef(filtros.verTodos);
+  useEffect(() => {
+    if (verTodosAnterior.current === filtros.verTodos) return;
+    verTodosAnterior.current = filtros.verTodos;
+    carregar();
+    if (resolvidas) carregarResolvidas();
+  }, [filtros.verTodos, carregar, carregarResolvidas, resolvidas]);
 
   useEffect(() => {
     carregar();

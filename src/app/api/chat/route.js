@@ -22,7 +22,7 @@ export async function GET(request) {
   if (semModulo(perm, 'chat', 'ao Chat')) return json({ ok: false, mensagem: semModulo(perm, 'chat', 'ao Chat') }, 403);
   const aba = new URL(request.url).searchParams.get('aba') === 'resolvidas' ? 'resolvidas' : 'abertas';
   try {
-    const conversas = await listarConversas(ctx.db, perm, { aba });
+    const conversas = await listarConversas(ctx.db, perm, { aba, todos: new URL(request.url).searchParams.get('todos') === '1' });
     const [config, fixadas] = await Promise.all([configDoChat(ctx.db), lerFixadas(ctx.db, perm.email)]);
     return json({ ok: true, conversas, eu: { email: perm.email, nome: perm.nome, admin: perm.administrador }, config, fixadas, aoVivo: topicoAoVivo(ctx.org?.id || null) });
   } catch (e) {

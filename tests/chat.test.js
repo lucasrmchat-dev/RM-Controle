@@ -828,3 +828,20 @@ test('etiquetas cadastradas: nascem das que já estão em uso, separadas por emp
   assert.equal(p.status, 200, p.mensagem);
   assert.deepEqual(contato.etiquetas, ['VIP', 'Parceiro']);
 });
+
+test('canais liberados valem também para administrador; "Visualizar todos" mostra tudo; seletores de canais filtrados', async () => {
+  const { GET: listarCanais } = await import('../src/app/api/canais/route.js');
+  const outro = { id: crypto.randomUUID(), organizacao_id: A, nome: 'Outro', tipo: 'whatsapp_qr', provedor: 'evolution', status: 'conectado', ativo: true, config: {} };
+  db.tables.canais.push(outro);
+  convFinanceiro.canal_id = outro.id;
+  db.tables.sistema_config = [{ organizacao_id: A, chave: 'chat_acesso_usuarios', valor: { 'ana@a.com': { controleCanais: true, canais: [canal.id] } } }];
+  const ana = await ler(await listar(await como('ana@a.com', '/api/chat')));
+  assert.deepEqual(ana.conversas.map((c) => c.id), [convVendas.id], 'administradora só vê o canal liberado');
+  const todos = await ler(await listar(await como('ana@a.com', '/api/chat?todos=1')));
+  assert.deepEqual(todos.conversas.map((c) => c.id).sort(), [convVendas.id, convFinanceiro.id].sort(), 'com Visualizar todos, vê tudo');
+  const canais = await ler(await listarCanais(await como('ana@a.com', '/api/canais')));
+  assert.deepEqual(canais.canais.map((c) => c.id), [canal.id]);
+  // Sem o controle ligado, administrador continua vendo todos
+  db.tables.sistema_config = [];
+  assert.equal((await ler(await listarCanais(await como('ana@a.com', '/api/canais')))).canais.length, 2);
+});

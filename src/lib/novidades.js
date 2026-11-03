@@ -15,6 +15,19 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-03-canais-liberados-em-tudo',
+    data: '2026-11-03',
+    titulo: 'Canais liberados valem em todas as telas',
+    resumo: 'Quem tem canais liberados (Servidores e equipe › Chat do WhatsApp) agora só vê esses canais em todo o sistema, inclusive administradores.',
+    itens: [
+      'Vale no Chat, nos filtros, em Criar atendimento, em Envios em massa, em Canais e no Fluxo Inteligente.',
+      'Administrador com canais liberados pode ver todos os canais quando quiser: no Chat, ligue “(Admin) Visualizar todos” nos filtros.',
+      'Canais inativos não aparecem mais para escolher em Criar atendimento e no Fluxo Inteligente.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
     id: '2026-11-03-envios-em-massa',
     data: '2026-11-03',
     titulo: 'Envios em massa, com tempo entre as mensagens',
