@@ -365,12 +365,30 @@ test('grupo: participante salvo com o número de verdade, menção vira nome e e
   assert.equal(doGrupo[0].resolvida_em, null);
   assert.equal(db.tables.mensagens.find((m) => m.id_externo === 'G3').conversa_id, id, 'a mensagem fica na conversa reaberta');
   assert.ok(db.tables.mensagens.some((m) => m.conversa_id === id && m.tipo === 'sistema' && /reaberta/.test(m.conteudo)));
-  // Com responsável: volta em atendimento com ele
+  // Com responsável: também volta para Pendentes, sem responsável (a fila toda vê)
   Object.assign(doGrupo[0], { status: 'resolvida', responsavel_email: 'ana@a.com', responsavel_nome: 'Ana Souza' });
   await aviso('G4', { participant: '279619886420042@lid' }, { conversation: 'Mais uma' }, 'Maria Albano');
   assert.equal(db.tables.conversas.filter((c) => c.contato_id === grupo.id).length, 1);
-  assert.equal(doGrupo[0].status, 'em_atendimento');
-  assert.equal(doGrupo[0].responsavel_email, 'ana@a.com');
+  assert.equal(doGrupo[0].status, 'aguardando');
+  assert.equal(doGrupo[0].responsavel_email, null);
+  // Mensagem da própria equipe (celular ou eco de envio) entra na fechada sem reabrir
+  Object.assign(doGrupo[0], { status: 'resolvida', resolvida_em: new Date().toISOString() });
+  await aviso('G5', { fromMe: true }, { conversation: 'mandei pelo celular' }, 'Ana');
+  assert.equal(db.tables.conversas.filter((c) => c.contato_id === grupo.id).length, 1);
+  assert.equal(doGrupo[0].status, 'resolvida', 'mensagem nossa não reabre');
+  assert.equal(db.tables.mensagens.find((m) => m.id_externo === 'G5').conversa_id, id);
+
+  // Conversa com uma pessoa: a mesma conversa fechada volta para Pendentes, com o histórico (sem conversa nova)
+  const pessoa = (idMsg, message) => receber(new NextRequest(`http://localhost/api/canais/webhook/${canal.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rm-token': 't' }, body: JSON.stringify({ event: 'messages.upsert', data: { key: { remoteJid: '5585997776666@s.whatsapp.net', id: idMsg }, pushName: 'Bruno', message } }) }), { params: { id: canal.id } });
+  await pessoa('P1', { conversation: 'Oi, preciso de ajuda' });
+  const conversaPessoa = db.tables.conversas.find((c) => c.id === db.tables.mensagens.find((m) => m.id_externo === 'P1').conversa_id);
+  Object.assign(conversaPessoa, { status: 'resolvida', resolvida_em: new Date().toISOString(), responsavel_email: 'ana@a.com', responsavel_nome: 'Ana Souza' });
+  await pessoa('P2', { conversation: 'Voltei com outra dúvida' });
+  assert.equal(db.tables.conversas.filter((c) => c.contato_id === conversaPessoa.contato_id).length, 1, 'não nasce conversa nova');
+  assert.equal(db.tables.mensagens.find((m) => m.id_externo === 'P2').conversa_id, conversaPessoa.id);
+  assert.equal(conversaPessoa.status, 'aguardando');
+  assert.equal(conversaPessoa.responsavel_email, null);
+  assert.ok(db.tables.mensagens.some((m) => m.conversa_id === conversaPessoa.id && m.tipo === 'sistema' && /cliente mandou nova mensagem/.test(m.conteudo)));
 });
 
 test('busca de mensagens respeita o período e quem pode ver; lista de contatos sem grupos', async () => {

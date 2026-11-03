@@ -15,6 +15,21 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-03-resolvida-volta-pendentes',
+    data: '2026-11-03',
+    titulo: 'Chat: conversa resolvida volta para Pendentes quando o cliente escreve de novo',
+    resumo: 'Quando um cliente ou grupo manda mensagem numa conversa já resolvida, ela volta para a fila de Pendentes, para toda a equipe, com todo o histórico na mesma conversa.',
+    itens: [
+      'Vale para grupos e para conversas com pessoas.',
+      'A conversa volta sem responsável, em Pendentes, para qualquer pessoa da equipe assumir.',
+      'O histórico continua na mesma conversa: não precisa mais abrir “mensagens anteriores”.',
+      'Aparece o aviso “Conversa reaberta” no ponto em que o cliente voltou a escrever.',
+      'Mensagem enviada pela própria equipe (pelo celular, por exemplo) não reabre a conversa.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
     id: '2026-10-29-grupo-fechado-reabre',
     data: '2026-10-29',
     titulo: 'Chat: grupo fechado reabre a mesma conversa',
