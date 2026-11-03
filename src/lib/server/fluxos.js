@@ -11,7 +11,7 @@
  * do grupo) na conversa continua o fluxo pela saída "Respondeu"; vencido o prazo, pela "Sem resposta"
  * (conferido a cada aviso do WhatsApp da empresa, no máximo uma vez por minuto).
  */
-import { GATILHOS_DO_EVENTO, executarFluxo } from '@/lib/fluxos';
+import { GATILHOS_DO_EVENTO, executarFluxo, gatilhoCasa } from '@/lib/fluxos';
 import { DESFECHOS_COMERCIAIS } from '@/lib/comercial';
 import { consumirLimite } from '@/lib/server/protecao';
 import { enviarTextoNaConversa, enviarTextoParaNumero } from '@/lib/server/canais/index';
@@ -253,5 +253,28 @@ export async function dispararMensagensRecebidas(db, recebidas, opcoes = {}) {
     // Quem estava esperando a resposta continua; esse fluxo não começa de novo com a mesma mensagem
     const continuaram = await responderPerguntas(db, dados, opcoes);
     await dispararFluxos(db, { tipo: 'mensagem_recebida', dados }, { ...opcoes, ignorar: continuaram });
+  }
+}
+
+/**
+ * Mensagens do próprio número do canal (equipe, pelo RM Controle ou pelo celular) não disparam fluxos.
+ * Quando uma delas DISPARARIA um fluxo ativo, fica nas execuções como "não disparou", com o motivo,
+ * para quem testa entender. As enviadas pelo próprio fluxo ficam de fora (seriam ruído).
+ */
+export async function registrarMensagensDaEquipe(db, lista) {
+  if (!lista?.length) return;
+  const fluxos = await fluxosDoEvento(db, 'mensagem_recebida');
+  if (!fluxos.length) return;
+  for (const { idExterno, dados } of lista) {
+    const evento = { tipo: 'mensagem_recebida', dados };
+    const casam = fluxos.filter((f) => (f.definicao?.nos || []).some((n) => n.tipo === 'gatilho_mensagem' && gatilhoCasa(n, evento)));
+    if (!casam.length) continue;
+    if (idExterno) {
+      const { data: m } = await db.from('mensagens').select('autor_email').eq('id_externo', idExterno).maybeSingle();
+      if (String(m?.autor_email || '').startsWith('fluxo@')) continue;
+    }
+    for (const fluxo of casam) {
+      await registrarNaoDisparou(db, fluxo, evento, 'A mensagem foi enviada pelo próprio número do canal (pelo RM Controle ou pelo celular conectado). Mensagens da equipe não disparam o fluxo; para testar, escreva de outro número.');
+    }
   }
 }
