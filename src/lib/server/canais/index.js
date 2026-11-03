@@ -160,7 +160,8 @@ async function conversaAberta(db, canal, contatoId, { grupo = false, em, reabrir
  */
 export async function registrarEventos(db, canal, eventos, { config = CONFIG_CHAT_PADRAO, fetchImpl = fetch } = {}) {
   // recebidas: mensagens dos clientes gravadas agora (para o Fluxo Inteligente disparar depois)
-  const resumo = { mensagens: 0, status: 0, conexao: null, recebidas: [] };
+  // daEquipe: mensagens do próprio número (não disparam fluxos; só entram no registro "não disparou")
+  const resumo = { mensagens: 0, status: 0, conexao: null, recebidas: [], daEquipe: [] };
   const nomesDeGrupo = new Map();
   for (const ev of eventos) {
     if (ev.tipo === 'apagada' || ev.tipo === 'editada') {
@@ -212,6 +213,17 @@ export async function registrarEventos(db, canal, eventos, { config = CONFIG_CHA
           }
           textoFinal = trocarMencoes(ev.texto, nomes);
         }
+      }
+      if (ev.deMim) {
+        resumo.daEquipe.push({
+          idExterno: ev.idExterno || null,
+          dados: {
+            mensagem: { texto: textoFinal || '', tipo: ev.tipoMensagem },
+            contato: { nome: ev.nome || '', telefone: ev.telefone, etiquetas: [] },
+            conversa: { id: conversa.id, grupo: Boolean(ev.grupo), departamento: conversa.departamento || '', responsavel_email: conversa.responsavel_email || '' },
+            canal: { id: canal.id, nome: canal.nome || '' },
+          },
+        });
       }
       const { data: gravada, error } = await db.from('mensagens').insert([
         {

@@ -286,9 +286,18 @@ test('Grupos: mensagem de um participante dispara o fluxo "só grupos" e a respo
   assert.ok(envio, 'respondeu');
   assert.equal(envio.corpo.number, '120363111@g.us', 'a resposta vai no grupo');
 
-  // A própria equipe escrevendo no grupo (número conectado) não dispara
+  // A própria equipe escrevendo no grupo (número conectado) não dispara, mas fica registrado com o motivo
+  db.tables.fluxo_execucoes = [];
   await receber(doGrupo('G2', 'qual o preço?', { fromMe: true }));
   assert.equal(enviados.filter((e) => e.url.includes('sendText')).length, 1);
+  assert.equal(db.tables.fluxo_execucoes.length, 1);
+  assert.equal(db.tables.fluxo_execucoes[0].status, 'ignorado');
+  assert.match(db.tables.fluxo_execucoes[0].resumo, /próprio número do canal/);
+  // A resposta que o próprio fluxo mandou (eco do envio) não vira registro
+  const idDaResposta = db.tables.mensagens.find((m) => m.autor_email === 'fluxo@rmcontrole')?.id_externo;
+  assert.ok(idDaResposta, 'a resposta do fluxo foi gravada');
+  await receber(doGrupo(idDaResposta, 'Olá Maria, já te mando a tabela!', { fromMe: true }));
+  assert.equal(db.tables.fluxo_execucoes.length, 1, 'eco da resposta do fluxo não registra');
 });
 
 test('Condição "tem a etiqueta": compara a etiqueta inteira do contato ou grupo, sem acento nem maiúscula', async () => {
