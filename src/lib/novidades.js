@@ -15,6 +15,20 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-03-chat-erro-explicado',
+    data: '2026-11-03',
+    titulo: 'Chat: mensagem não enviada agora explica o motivo',
+    resumo: 'Ao clicar na exclamação vermelha de uma mensagem que não foi enviada, aparece o que aconteceu em palavras simples, o que fazer e um botão para avisar o desenvolvimento.',
+    itens: [
+      'Cada erro tem um código (por exemplo, CHAT-101) e uma explicação simples.',
+      'A janela diz o que fazer: tentar de novo, conferir o número, pedir para reconectar o canal etc.',
+      'O botão “Avisar o desenvolvimento” abre um feedback com todos os detalhes, sem precisar escrever nada.',
+      'Embaixo da mensagem aparece o resumo do problema, em vez do texto técnico.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
     id: '2026-11-03-resolvida-volta-pendentes',
     data: '2026-11-03',
     titulo: 'Chat: conversa resolvida volta para Pendentes quando o cliente escreve de novo',
