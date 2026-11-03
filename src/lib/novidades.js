@@ -15,6 +15,18 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-03-servidores-equipe-acesso',
+    data: '2026-11-03',
+    titulo: 'Servidores e equipe: a tela não some mais depois de carregar',
+    resumo: 'O administrador de uma empresa nova via a tela de Servidores e equipe por alguns segundos e depois aparecia “Acesso restrito”. Agora a tela confere a permissão da mesma forma que o resto do sistema.',
+    itens: [
+      'Em empresa nova ou navegador novo, a equipe é buscada direto no servidor.',
+      'Quem não é administrador continua sem acesso a essa tela.',
+    ],
+    modulo: 'Configurações',
+    tickets: [],
+  },
+  {
     id: '2026-11-03-plataforma-empresa-usuarios',
     data: '2026-11-03',
     titulo: 'Plataforma: editar o nome da empresa e os usuários dela',

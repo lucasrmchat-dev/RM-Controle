@@ -3654,7 +3654,9 @@ export async function fetchEquipeUsuarios() {
       // Administrador: lista pelo servidor (já presa à empresa da sessão, não depende da sessão do
       // banco no navegador). Antes, se a leitura do navegador falhasse, a tela mostrava a lista antiga
       // guardada aqui e o próprio administrador de uma empresa nova não aparecia.
-      const doServidor = getCurrentUserRole() === 'administrador' ? await chamarApiEquipe('GET').catch(() => null) : null;
+      // Equipe ainda vazia aqui (empresa nova, navegador novo): o papel local não sabe nada, então
+      // pergunta ao servidor, que só responde para administrador.
+      const doServidor = getCurrentUserRole() === 'administrador' || getEquipeUsuarios().length === 0 ? await chamarApiEquipe('GET').catch(() => null) : null;
       let { data, error } = Array.isArray(doServidor?.equipe) ? { data: doServidor.equipe, error: null } : await supabase.from('equipe_usuarios').select(`${colunas}, perfil_id`);
       if (error && /perfil_id/.test(error.message || '')) ({ data, error } = await supabase.from('equipe_usuarios').select(colunas));
 

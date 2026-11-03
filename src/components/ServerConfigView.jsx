@@ -19,7 +19,7 @@ import {
   vincularProprietario,
   addEquipeUsuario,
   deleteEquipeUsuario,
-  getCurrentUserRole,
+  getPermissoesAtuais,
   setCurrentUserRole,
   PERMISSOES_PADRAO,
   getSenhaPadraoRedefinicao,
@@ -79,7 +79,10 @@ export default function ServerConfigView() {
   const [perfis, setPerfis] = useState(getPerfisAcesso());
   const [novoUsuarioEmpresa, setNovoUsuarioEmpresa] = useState('Todas as Empresas');
   const [empresasLista, setEmpresasLista] = useState([]);
-  const [userRole, setUserRole] = useState('administrador');
+  // Mesma regra de quem abre esta tela (Configurações): permissões da pessoa, não só o papel gravado
+  // no navegador. Antes a tela aparecia e, ao terminar de carregar, trocava para "Acesso restrito".
+  const papelAtual = () => (getPermissoesAtuais().administrador ? 'administrador' : 'suporte');
+  const [userRole, setUserRole] = useState(papelAtual);
 
   // Modal de Edição de Membro
   const [usuarioEditando, setUsuarioEditando] = useState(null);
@@ -135,7 +138,7 @@ export default function ServerConfigView() {
     } catch (e) {}
     setEquipe(getEquipeUsuarios());
     setPerfis(await fetchPerfisAcesso());
-    setUserRole(getCurrentUserRole());
+    setUserRole(papelAtual());
     setSenhaPadrao(getSenhaPadraoRedefinicao());
     setConfigSuporte(getConfiguracoesSuporte());
     setMotivosList(await fetchMotivosSuporte());
