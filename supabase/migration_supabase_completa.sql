@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS public.rm_admins_proprietarios (
   email TEXT PRIMARY KEY
 );
 INSERT INTO public.rm_admins_proprietarios (email) VALUES
-  ('admin@rmcontrole.com'), ('lucas.rmchat@gmail.com'), ('lucas@rmchat.com')
+  ('lucas.rmchat@gmail.com'), ('lucas@rmchat.com')
 ON CONFLICT (email) DO NOTHING;
 
 -- Colunas de equipe usadas pelo app (garantidas antes das funções que as leem)

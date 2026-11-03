@@ -131,8 +131,8 @@ test('ticket #22: gravações dos feedbacks só para feedbacks da empresa, com f
 
 test('proprietário vira membro da empresa sem mexer no login, e não pode ser desativado, rebaixado nem removido', async () => {
   const { GET, POST, PATCH, DELETE } = await import('../src/app/api/equipe/route.js');
-  db.tables.rm_admins_proprietarios = [{ email: 'admin@rmcontrole.com', organizacao_id: A }];
-  const dono = 'admin@rmcontrole.com';
+  db.tables.rm_admins_proprietarios = [{ email: 'lucas.rmchat@gmail.com', organizacao_id: A }];
+  const dono = 'lucas.rmchat@gmail.com';
   const situacao = await ler(await GET(await como(dono, '/api/equipe?proprietario=1')));
   assert.deepEqual([situacao.proprietario, situacao.vinculado, situacao.podeVincular], [true, false, true]);
 

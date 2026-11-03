@@ -529,7 +529,7 @@ export default function Home() {
       } catch (e) {}
     }
 
-    // Tudo que é compartilhado pela equipe vem do Supabase (e o legado local é enviado na 1ª vez)
+    // Tudo que é compartilhado pela equipe vem do Supabase
     sincronizarDadosCompartilhados();
     let ultimaSincronizacao = Date.now();
     const sincronizarAoVoltar = () => {
