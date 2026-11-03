@@ -1,6 +1,6 @@
 import { contextoDaRequisicao, mensagemLimite } from '@/lib/server/organizacao';
 import { moduloContratado } from '@/lib/plataforma';
-import { validarUrlWebhook } from '@/lib/server/whatsappAgenda';
+import { validarDestinoWebhook } from '@/lib/server/whatsappAgenda';
 import { cifrarSegredos, hashToken, novoToken } from '@/lib/server/canais/cofre';
 import { canalPublico, configDoChat, enderecoWebhook, provedorDo, segredosDo, servidorQrDaPlataforma } from '@/lib/server/canais/index';
 import { canalRecebeGrupos, validarCanal } from '@/lib/canais';
@@ -41,7 +41,7 @@ export async function POST(request) {
   let dados;
   try {
     dados = validarCanal({ ...body, servidorDaPlataforma: Boolean(servidorQrDaPlataforma()) });
-    if (dados.canal.provedor === 'evolution' && dados.segredos.url) dados.segredos.url = validarUrlWebhook(dados.segredos.url).replace(/\/$/, '');
+    if (dados.canal.provedor === 'evolution' && dados.segredos.url) dados.segredos.url = (await validarDestinoWebhook(dados.segredos.url)).replace(/\/$/, '');
   } catch (e) {
     return json({ ok: false, mensagem: e.message }, 400);
   }

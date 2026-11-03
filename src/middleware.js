@@ -99,11 +99,17 @@ export async function middleware(request) {
 
   headers.set('Content-Security-Policy', cspHeader);
 
-  // 5. Configuração Restrita de CORS
+  // 5. Configuração Restrita de CORS: só o próprio site (endereço exato; antes bastava "conter" o nome,
+  // e rmcontrole.qualquercoisa.com passava). Em desenvolvimento, também o localhost.
   const origin = request.headers.get('origin');
   if (origin) {
-    const allowedHost = request.headers.get('host');
-    if (origin.includes(allowedHost) || origin.includes('localhost') || origin.includes('rmcontrole')) {
+    let hostDaOrigem = '';
+    try {
+      hostDaOrigem = new URL(origin).host;
+    } catch {}
+    const mesmoSite = Boolean(hostDaOrigem) && hostDaOrigem === request.headers.get('host');
+    const localDev = process.env.NODE_ENV !== 'production' && /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(hostDaOrigem);
+    if (mesmoSite || localDev) {
       headers.set('Access-Control-Allow-Origin', origin);
       headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
       headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');

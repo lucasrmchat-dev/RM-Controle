@@ -6,6 +6,13 @@
 -- O script vigente é supabase/migration_supabase_completa.sql.
 -- ==============================================================================
 
+-- Trava: num banco multiempresa (produção) este arquivo se recusa a rodar.
+DO $$ BEGIN
+  IF to_regclass('public.organizacoes') IS NOT NULL THEN
+    RAISE EXCEPTION 'Script antigo com regras abertas (USING (true)): não rode num banco multiempresa, ele removeria a separação entre empresas.';
+  END IF;
+END $$;
+
 -- ==============================================================================
 -- RM CONTROLE - CONFIGURAÇÃO DEFINITIVA DE SEGURANÇA, RLS & LGPD
 -- ==============================================================================

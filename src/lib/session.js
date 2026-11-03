@@ -62,6 +62,18 @@ async function sign(data, secret) {
 }
 
 /**
+ * Compara as assinaturas sem parar no primeiro caractere diferente (o tempo da resposta não revela
+ * quanto de uma assinatura forjada estava certo). JS puro: também roda no middleware (Edge).
+ */
+function iguaisEmTempoConstante(a, b) {
+  const x = String(a || '');
+  const y = String(b || '');
+  let diferenca = x.length ^ y.length;
+  for (let i = 0; i < y.length; i++) diferenca |= (x.charCodeAt(i) || 0) ^ y.charCodeAt(i);
+  return diferenca === 0;
+}
+
+/**
  * Cria um token de sessão assinado e com expiração
  */
 export async function createSessionToken({ email, role, userId = null }) {
@@ -95,7 +107,7 @@ export async function verifySessionToken(token) {
 
   try {
     const expectedSig = await sign(dataToSign, getSessionSecret());
-    if (signature !== expectedSig) {
+    if (!iguaisEmTempoConstante(signature, expectedSig)) {
       return null; // Assinatura adulterada
     }
 

@@ -145,6 +145,9 @@ console.log('✔ demanda ligada pelo nome só encontra empresas da mesma assinan
 // A migração completa antiga se recusa a rodar (ela tiraria a separação entre empresas)
 const ANTIGA = fs.readFileSync(new URL('../../supabase/migration_supabase_completa.sql', import.meta.url), 'utf8').replace(/CREATE EXTENSION IF NOT EXISTS supabase_vault CASCADE;/, '').replace(/^NOTIFY pgrst.*$/gm, '');
 await assert.rejects(db.exec('RESET ROLE; ' + ANTIGA), /já usa migration_multiempresa/);
+for (const arq of ['setup_secure_rls.sql', 'fix_rls_policies.sql']) {
+  await assert.rejects(db.exec('RESET ROLE; ' + fs.readFileSync(new URL(`../../supabase/${arq}`, import.meta.url), 'utf8')), /banco multiempresa/, arq);
+}
 assert.equal((await como('bia@b.com', `SELECT nome FROM empresas WHERE organizacao_id = '${RMCHAT}'`)).length, 0, 'isolamento continua depois da tentativa');
 console.log('✔ migração antiga recusada; isolamento intacto');
 console.log('\nTODOS OS TESTES DE ISOLAMENTO PASSARAM');
