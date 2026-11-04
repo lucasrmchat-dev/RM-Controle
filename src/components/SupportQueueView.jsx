@@ -2011,16 +2011,15 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
 
       {entradaEmpresa && (
         <EntradaEmpresaFoco
-          chamado={entradaEmpresa.chamado}
+          // A demanda ao vivo (a fila atualiza quando ela é assumida); sumiu da fila = foi encerrada
+          chamado={chamados.find((c) => c.id === entradaEmpresa.chamado.id) || { ...entradaEmpresa.chamado, status: 'finalizado' }}
           empresa={entradaEmpresa.empresa}
           userEmail={userEmail}
           onSair={() => setEntradaEmpresa(null)}
-          onContinuar={() => {
-            const { empresa: emp, chamado } = entradaEmpresa;
-            // O Cockpit da empresa mostra a demanda de onde a pessoa veio
-            try {
-              sessionStorage.setItem('rm_demanda_foco', JSON.stringify({ id: chamado.id, empresa_id: emp.id }));
-            } catch {}
+          onAssumir={(ch) => assumirSuporte({ chamado_id: ch.id, userEmail: userEmail || 'admin@rmcontrole.com' }).then(() => stopSupportNotificationLoop())}
+          onConcluir={(ch) => acoesDemanda.concluir(ch)}
+          onAbrirEmpresa={() => {
+            const emp = entradaEmpresa.empresa;
             setEntradaEmpresa(null);
             onSelectEmpresa(emp);
           }}

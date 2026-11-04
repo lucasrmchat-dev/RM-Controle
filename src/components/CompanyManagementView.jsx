@@ -21,7 +21,6 @@ import {
   cancelarSuporte,
   getChamadoAtivo,
   getChamadosSuporte,
-  assumirSuporte,
   getCategoriasDemandas,
   getNomeTecnico,
   isMockDataEnabled
@@ -830,30 +829,6 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
     .filter((c) => c.finalizado_em || c.status === 'concluido')
     .sort((a, b) => new Date(b.finalizado_em || b.iniciado_em || b.created_at || 0) - new Date(a.finalizado_em || a.iniciado_em || a.created_at || 0))[0];
   const notasFixas = (empresa.observacoes || []).filter((o) => o.titulo === 'Nota fixa');
-  // Demanda de onde a pessoa veio (tela de entrada na empresa): aparece aqui para já dar para assumir e começar
-  const [demandaFoco, setDemandaFoco] = useState(null);
-  const [assumindoFoco, setAssumindoFoco] = useState(false);
-  useEffect(() => {
-    try {
-      const salvo = JSON.parse(sessionStorage.getItem('rm_demanda_foco') || 'null');
-      if (!salvo) return;
-      sessionStorage.removeItem('rm_demanda_foco');
-      if (salvo.empresa_id === empresa.id) setDemandaFoco(salvo.id);
-    } catch {}
-  }, [empresa.id]);
-  const demandaDaEntrada = !chamadoAtivo && demandaFoco ? getChamadosSuporte().find((c) => String(c.id) === String(demandaFoco) && ['aguardando_visualizacao', 'pendente'].includes(c.status)) : null;
-  const assumirDemandaDaEntrada = async () => {
-    setAssumindoFoco(true);
-    try {
-      await assumirSuporte({ chamado_id: demandaDaEntrada.id, userEmail });
-      setDemandaFoco(null);
-      showToast('Atendimento iniciado.');
-    } catch (e) {
-      showToast(e.message || 'Não foi possível assumir a demanda.', 'error');
-    } finally {
-      setAssumindoFoco(false);
-    }
-  };
   const relatoAtivo = String(chamadoAtivo?.observacao_inicial || '').trim();
   const sugestoesDoRelato = relatoAtivo ? sugerirSolucoes(relatoAtivo, getSolucoesSuporte({ empresa_id: empresa.id }), 3) : [];
 
@@ -887,13 +862,8 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
   };
 
   return (
-    <div className="relative isolate space-y-6 text-[#0a0a0c] dark:text-[#ffffff] pb-16">
-      {/* Fundo vivo do Modo foco: luzes suaves que respiram na cor do sistema */}
-      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden="true">
-        <motion.div className="absolute -top-40 -left-40 w-[620px] h-[620px] rounded-full blur-[120px] opacity-40 dark:opacity-90" style={{ background: 'rgb(var(--rm-acento-medio) / 0.3)' }} animate={{ x: [0, 80, 0], y: [0, 50, 0] }} transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }} />
-        <motion.div className="absolute -bottom-48 -right-32 w-[560px] h-[560px] rounded-full blur-[130px] bg-violet-500/10 dark:bg-violet-500/20" animate={{ x: [0, -60, 0], y: [0, -40, 0] }} transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }} />
-      </div>
-
+    <div className="space-y-6 text-[#0a0a0c] dark:text-[#ffffff] pb-16">
+      
       {/* Topo: voltar à esquerda, ilha do cabeçalho no meio e ações à direita; as abas ficam na linha de baixo */}
       <div className="space-y-3 pb-3 border-b border-black/[0.06] dark:border-white/[0.11]">
         <div className={`flex flex-wrap items-center justify-between gap-3 ${LINHA_TITULO}`}>
@@ -980,7 +950,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
       )}
 
       {/* Cartão da empresa: quem é, onde entrar, resumo em uma linha, acesso recolhido e avisos fixos */}
-      <div className="rounded-[32px] p-6 sm:p-8 bg-white/80 dark:bg-white/[0.06] backdrop-blur-2xl ring-1 ring-black/[0.06] dark:ring-white/10 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.35)] dark:shadow-[0_40px_120px_-40px_rgba(0,0,0,0.8)] space-y-4">
+      <div className="rounded-2xl p-5 border border-black/10 dark:border-white/12 bg-white dark:bg-rm-cartao-escuro shadow-sm space-y-3">
         <div className="flex flex-col md:flex-row md:items-center gap-4">
           <div className="min-w-0 flex-1">
             {isEditingNomeInline ? (
@@ -1010,7 +980,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
               </form>
             ) : (
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-[30px] sm:text-[44px] font-semibold tracking-[-0.03em] leading-[1.05] text-[#0a0a0c] dark:text-white break-words">{empresaNomeEditInput || empresa.nome}</h1>
+                <h1 className="text-xl font-bold tracking-tight text-[#0a0a0c] dark:text-white truncate">{empresaNomeEditInput || empresa.nome}</h1>
                 <button
                   type="button"
                   onClick={() => setIsEditingNomeInline(true)}
@@ -1050,8 +1020,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
             <button
               type="button"
               onClick={abrirServidorDaEmpresa}
-              className="md:w-72 h-14 px-6 rounded-full text-white font-semibold text-[15px] flex items-center justify-between gap-3 shadow-[0_14px_40px_-10px_rgb(var(--rm-acento-medio)/0.8)] hover:scale-[1.02] active:scale-[0.97] transition-transform cursor-pointer flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg, rgb(var(--rm-acento-medio)), rgb(var(--rm-acento)))' }}
+              className="md:w-64 px-4 py-2.5 rounded-xl bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-sm flex items-center justify-between gap-3 hover:opacity-95 transition-all cursor-pointer flex-shrink-0"
             >
               <span className="text-left leading-tight">
                 Entrar no servidor
@@ -1145,8 +1114,8 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
 
       {/* Suporte em aberto: um bloco só; o cronômetro e os botões (parte de cima) acompanham a rolagem */}
       {chamadoAtivo && (
-        <div className="rounded-[28px] bg-white/80 dark:bg-white/[0.06] backdrop-blur-2xl ring-1 ring-black/[0.06] dark:ring-white/10 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.3)]">
-          <div className="sticky top-20 z-40 rounded-t-[28px] bg-white/90 dark:bg-[#14161c]/90 backdrop-blur-xl border-b border-black/[0.06] dark:border-white/[0.11] px-4 py-3 flex flex-wrap items-center gap-3 shadow-sm">
+        <div className="rounded-2xl border border-black/10 dark:border-white/12 bg-white dark:bg-rm-cartao-escuro">
+          <div className="sticky top-20 z-40 rounded-t-2xl bg-white dark:bg-rm-cartao-escuro border-b border-black/[0.06] dark:border-white/[0.11] px-4 py-3 flex flex-wrap items-center gap-3 shadow-sm">
             <span className="w-2 h-2 rounded-full bg-slate-500 dark:bg-zinc-400 animate-pulse"></span>
             <div className="min-w-0 flex-1">
               <span className="block text-xs font-bold text-[#0a0a0c] dark:text-white">Suporte em aberto · <span className="font-mono tabular-nums">{formatarTempo(tempoSuporteSegundos)}</span></span>
@@ -1162,8 +1131,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 verificarChamadoAtivo();
                 setIsFinalizarModalOpen(true);
               }}
-              className="h-11 px-6 rounded-full text-white font-semibold text-sm shadow-[0_14px_40px_-10px_rgb(var(--rm-acento-medio)/0.8)] hover:scale-[1.03] active:scale-[0.96] transition-transform flex items-center gap-2 cursor-pointer"
-              style={{ background: 'linear-gradient(135deg, rgb(var(--rm-acento-medio)), rgb(var(--rm-acento)))' }}
+              className="px-4 py-2 rounded-xl bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs hover:opacity-95 flex items-center gap-2 cursor-pointer"
             >
               <CheckIcon className="w-4 h-4 stroke-[2.5]" />
               <span>Concluir chamado</span>
@@ -1181,32 +1149,11 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
               {chamadoAtivo.prazo_limite && <span>Prazo: <strong className="text-slate-700 dark:text-zinc-200">{new Date(chamadoAtivo.prazo_limite).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</strong></span>}
             </div>
             {relatoAtivo ? (
-              <p className="text-[17px] leading-relaxed text-slate-800 dark:text-zinc-100 whitespace-pre-wrap"><span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400 mb-1">O que a pessoa relatou</span>{relatoAtivo}</p>
+              <p className="text-sm text-slate-800 dark:text-zinc-100 whitespace-pre-wrap"><span className="block text-[11px] font-medium text-slate-500 dark:text-zinc-400 mb-0.5">O que a pessoa relatou</span>{relatoAtivo}</p>
             ) : (
               <p className="text-slate-500 dark:text-zinc-400">Esta demanda foi aberta sem relato. Use a pesquisa de soluções abaixo.</p>
             )}
           </div>
-        </div>
-      )}
-
-      {demandaDaEntrada && (
-        <div className="rounded-[28px] p-6 sm:p-8 bg-white/80 dark:bg-white/[0.06] backdrop-blur-2xl ring-1 ring-black/[0.06] dark:ring-white/10 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.3)] space-y-3">
-          <p className="text-[12px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Demanda aguardando você</p>
-          <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500 dark:text-zinc-400">
-            {Array.isArray(demandaDaEntrada.categorias) && demandaDaEntrada.categorias.length > 0 && <span>Categoria: <strong className="text-slate-700 dark:text-zinc-200">{demandaDaEntrada.categorias.join(', ')}</strong></span>}
-            {demandaDaEntrada.colaborador_solicitante && <span>Solicitante: <strong className="text-slate-700 dark:text-zinc-200">{demandaDaEntrada.colaborador_solicitante}</strong></span>}
-            {demandaDaEntrada.criador_email && <span>Aberta por: <strong className="text-slate-700 dark:text-zinc-200">{getNomeTecnico(demandaDaEntrada.criador_email)}</strong></span>}
-          </div>
-          <p className="text-[17px] leading-relaxed text-slate-800 dark:text-zinc-100 whitespace-pre-wrap">{String(demandaDaEntrada.observacao_inicial || demandaDaEntrada.descricao || demandaDaEntrada.observacoes || '').trim() || 'Sem relato escrito.'}</p>
-          <button
-            type="button"
-            disabled={assumindoFoco}
-            onClick={assumirDemandaDaEntrada}
-            className="h-12 px-7 rounded-full text-white font-semibold text-[15px] shadow-[0_14px_40px_-10px_rgb(var(--rm-acento-medio)/0.8)] hover:scale-[1.03] active:scale-[0.96] transition-transform disabled:opacity-60 cursor-pointer"
-            style={{ background: 'linear-gradient(135deg, rgb(var(--rm-acento-medio)), rgb(var(--rm-acento)))' }}
-          >
-            {assumindoFoco ? 'Assumindo…' : '▶ Assumir e começar'}
-          </button>
         </div>
       )}
 
