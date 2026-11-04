@@ -15,6 +15,20 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-04-demanda-da-conversa-fluxo-reuniao',
+    data: '2026-11-04',
+    titulo: 'Demanda criada pelo Chat avisa no grupo; reunião pelo menu da mensagem',
+    resumo: 'Os fluxos agora entendem demandas criadas a partir de uma mensagem do Chat e podem responder na mesma conversa, ao solicitante ou no grupo da empresa. E dá para criar reunião direto pelo menu da mensagem.',
+    itens: [
+      'Gatilhos de demanda ganham “Criada a partir de”: qualquer lugar, de uma conversa ou de um grupo.',
+      'Em “Enviar mensagem” há três destinos novos: na própria conversa da demanda, ao solicitante (número gravado no colaborador) e ao grupo da empresa.',
+      'Ao criar uma demanda de uma mensagem de grupo, o número de quem escreveu fica gravado no colaborador da empresa e o grupo passa a ser ligado à empresa.',
+      'O menu da mensagem tem “Criar reunião”: abre a Agenda com o nome e o número da pessoa que escreveu (e não o nome do grupo).',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
     id: '2026-11-04-fluxo-gatilhos-demandas',
     data: '2026-11-04',
     titulo: 'Fluxo Inteligente: gatilhos de demandas e editor mais organizado',

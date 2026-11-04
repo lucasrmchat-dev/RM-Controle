@@ -51,15 +51,15 @@ function resumoBloco(no, canaisPorId) {
       return [`Quando ficar ${rotuloStatus(c.status)}`];
     case 'gatilho_demanda_criada':
     case 'gatilho_demanda_andamento':
-      return [c.departamento ? `Departamento: ${c.departamento}` : 'Todos os departamentos'];
+      return [{ qualquer: 'Criada em qualquer lugar', conversa: 'Criada de uma conversa', grupo: 'Criada de um grupo' }[c.origem || 'qualquer'], c.departamento ? `Departamento: ${c.departamento}` : 'Todos os departamentos'];
     case 'gatilho_demanda_fechada':
       return [{ qualquer: 'Concluída ou cancelada', concluida: 'Só concluídas', cancelada: 'Só canceladas' }[c.resultado || 'qualquer'], c.departamento ? `Departamento: ${c.departamento}` : 'Todos os departamentos'];
     case 'gatilho_demanda_sla':
       return [`${(c.em || 'aguardando') === 'aguardando' ? 'Esperando alguém assumir' : 'Em atendimento'} há mais de ${c.minutos ?? 30} min`, c.departamento ? `Departamento: ${c.departamento}` : 'Todos os departamentos'];
     case 'enviar_mensagem': {
       const canal = c.canal_id ? canaisPorId.get(c.canal_id)?.nome || 'canal removido' : null;
-      const para = { conversa: '→ na conversa', cliente_reuniao: '→ cliente da reunião', numero: `→ ${c.telefone || 'número'}` }[c.destino || 'conversa'];
-      return [c.texto ? c.texto : 'Sem texto', c.destino === 'conversa' ? para : `${para} · pelo canal ${canal || 'padrão'}`];
+      const para = { conversa: '→ na conversa', cliente_reuniao: '→ cliente da reunião', solicitante: '→ solicitante da demanda', grupo_empresa: '→ grupo da empresa', numero: `→ ${c.telefone || 'número'}` }[c.destino || 'conversa'];
+      return [c.texto ? c.texto : 'Sem texto', c.destino === 'conversa' || c.destino === 'grupo_empresa' ? para : `${para} · pelo canal ${canal || 'padrão'}`];
     }
     case 'pergunta': {
       const min = Number(c.minutos) || 60;

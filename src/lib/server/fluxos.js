@@ -283,11 +283,52 @@ export async function registrarMensagensDaEquipe(db, lista) {
 // ------------------------------------------------------------------------------
 // Demandas
 // ------------------------------------------------------------------------------
-/** Nome da pessoa responsável (e-mail da equipe → nome). */
-async function nomeDoResponsavel(db, email) {
-  if (!email || email === 'geral') return '';
-  const { data } = await db.from('equipe_usuarios').select('nome').eq('email', email).maybeSingle();
-  return data?.nome || '';
+const semAcentoSrv = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+const ehGrupoJid = (t) => /@g\.us$/.test(String(t || ''));
+
+/**
+ * Tudo o que o fluxo precisa saber de uma demanda além da linha dela: nome do responsável, a conversa de onde
+ * ela nasceu (se nasceu de uma mensagem do Chat), o número do solicitante (cadastrado na empresa) e a conversa
+ * do grupo de WhatsApp ligado à empresa.
+ */
+async function contextoDaDemanda(db, chamado) {
+  const saida = { responsavelNome: '', chat: null, solicitanteTelefone: '', grupoConversaId: '' };
+  if (chamado.tecnico_email && chamado.tecnico_email !== 'geral') {
+    const { data } = await db.from('equipe_usuarios').select('nome').eq('email', chamado.tecnico_email).maybeSingle();
+    saida.responsavelNome = data?.nome || '';
+  }
+  let conversa = null;
+  let contato = null;
+  if (chamado.chat_conversa_id) {
+    const { data } = await db.from('conversas').select('*').eq('id', chamado.chat_conversa_id).maybeSingle();
+    conversa = data || null;
+    if (conversa) {
+      const [{ data: c }, { data: k }] = await Promise.all([
+        db.from('contatos').select('id, nome, telefone').eq('id', conversa.contato_id).maybeSingle(),
+        db.from('canais').select('id, nome').eq('id', conversa.canal_id).maybeSingle(),
+      ]);
+      contato = c || null;
+      saida.chat = { id: conversa.id, grupo: ehGrupoJid(c?.telefone), departamento: conversa.departamento || '', responsavel_email: conversa.responsavel_email || '', contato_nome: c?.nome || '', contato_telefone: c?.telefone || '', canal_id: conversa.canal_id, canal_nome: k?.nome || '' };
+    }
+  }
+  if (chamado.empresa_id) {
+    const alvo = semAcentoSrv(chamado.colaborador_solicitante);
+    if (alvo) {
+      const { data: colaboradores } = await db.from('empresa_colaboradores').select('nome, telefone').eq('empresa_id', chamado.empresa_id);
+      saida.solicitanteTelefone = (colaboradores || []).find((c) => c.telefone && semAcentoSrv(c.nome) === alvo)?.telefone || '';
+    }
+    // Grupo da empresa: se a demanda nasceu de um grupo, é ele; senão, o grupo mais recente ligado à empresa
+    if (saida.chat?.grupo) saida.grupoConversaId = saida.chat.id;
+    else {
+      const { data: contatos } = await db.from('contatos').select('id, telefone').eq('empresa_id', chamado.empresa_id);
+      const ids = (contatos || []).filter((c) => ehGrupoJid(c.telefone)).map((c) => c.id);
+      if (ids.length) {
+        const { data: conversas } = await db.from('conversas').select('id, ultima_mensagem_em').in('contato_id', ids).order('ultima_mensagem_em', { ascending: false }).limit(1);
+        saida.grupoConversaId = conversas?.[0]?.id || '';
+      }
+    }
+  }
+  return saida;
 }
 
 /**
@@ -299,7 +340,7 @@ export async function dispararFluxosDeDemanda(db, tipo, chamado, opcoes = {}) {
   if (tipo === 'demanda_criada' && fechada) return [];
   if (tipo === 'demanda_andamento' && chamado.status !== 'em_andamento') return [];
   if (tipo === 'demanda_fechada' && !fechada) return [];
-  const dados = dadosDaDemanda(chamado, { responsavelNome: await nomeDoResponsavel(db, chamado.tecnico_email) });
+  const dados = dadosDaDemanda(chamado, await contextoDaDemanda(db, chamado));
   return dispararFluxos(db, { tipo, dados }, opcoes);
 }
 
@@ -325,7 +366,7 @@ export async function verificarSlaDemandas(dbGlobal, opcoes = {}) {
       if (!status.length) continue;
       const { data: chamados } = await db.from('suporte_chamados').select('*').in('status', status).limit(300);
       for (const chamado of chamados || []) {
-        const evento = { tipo: 'demanda_sla', dados: dadosDaDemanda(chamado, { responsavelNome: await nomeDoResponsavel(db, chamado.tecnico_email) }) };
+        const evento = { tipo: 'demanda_sla', dados: dadosDaDemanda(chamado, await contextoDaDemanda(db, chamado)) };
         for (const no of nos) {
           if (!gatilhoCasa(no, evento)) continue;
           // Demanda que já passou muito do limite (ex.: antiga, de antes do fluxo existir) não dispara: evita uma enxurrada

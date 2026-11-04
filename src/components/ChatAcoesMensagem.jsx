@@ -112,6 +112,7 @@ const ICONES = {
   editar: ['M12 20h9', 'M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z'],
   dados: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M12 11v6', 'M12 7.5h.01'],
   criar_demanda: ['M3 13.5h4.2l1.6 2.5h6.4l1.6-2.5H21', 'M5.3 5.6L3 13.5V18a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4.5l-2.3-7.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.9 1.6z', 'M12 7v5M9.5 9.5h5'],
+  criar_reuniao: ['M8 2.8v3.4M16 2.8v3.4', 'M5 4.6h14a2 2 0 0 1 2 2V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6.6a2 2 0 0 1 2-2z', 'M3 9.6h18', 'M12 13v5M9.5 15.5h5'],
   apagar: ['M4 7h16', 'M10 11v6M14 11v6', 'M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12', 'M9 7V4h6v3'],
 };
 
@@ -128,6 +129,8 @@ export function MenuMensagem({ ancora, m, onAcao, onFechar }) {
     m.acoes?.editar && { id: 'editar', rotulo: 'Editar' },
     // Ticket #24: a mensagem vira o relato de uma demanda, com a empresa e quem pediu já preenchidos
     !m.apagada_em && { id: 'criar_demanda', rotulo: 'Criar demanda' },
+    // Abre a Agenda com a reunião já em nome da pessoa que escreveu (no grupo, quem mandou, não o grupo)
+    !m.apagada_em && !nota && { id: 'criar_reuniao', rotulo: 'Criar reunião' },
     { id: 'dados', rotulo: 'Dados da mensagem' },
     { separador: true },
     { id: 'apagar_mim', rotulo: 'Apagar para mim', perigo: true, icone: 'apagar' },

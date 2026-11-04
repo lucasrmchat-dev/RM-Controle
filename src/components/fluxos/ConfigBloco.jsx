@@ -166,6 +166,9 @@ export default function ConfigBloco({ no, definicao, canais = [], equipe = [], d
               <Segmentos valor={c.resultado || 'qualquer'} onMudar={(v) => mudar({ resultado: v })} opcoes={[['qualquer', 'Qualquer'], ['concluida', 'Concluída'], ['cancelada', 'Cancelada']]} />
             </Campo>
           )}
+          <Campo rotulo="Criada a partir de" dica="“De uma conversa” é a demanda criada pelo menu da mensagem no Chat. Com ela, “Enviar mensagem” pode responder na mesma conversa.">
+            <Segmentos valor={c.origem || 'qualquer'} onMudar={(v) => mudar({ origem: v })} opcoes={[['qualquer', 'Qualquer lugar'], ['conversa', 'De uma conversa'], ['grupo', 'De um grupo']]} />
+          </Campo>
           <Campo rotulo="Departamento" dica="Deixe em “Todos” para valer para qualquer departamento.">
             <select value={c.departamento || ''} onChange={(e) => mudar({ departamento: e.target.value })} className={campoClasse}>
               <option value="">Todos os departamentos</option>
@@ -177,7 +180,7 @@ export default function ConfigBloco({ no, definicao, canais = [], equipe = [], d
             </select>
           </Campo>
           <p className="text-[11.5px] leading-relaxed text-slate-500 dark:text-zinc-400 rounded-xl bg-black/[0.035] dark:bg-white/[0.06] px-3 py-2">
-            Demandas não têm conversa de WhatsApp. Para avisar alguém, use “Enviar mensagem” com a opção “Número” e escolha o canal que vai enviar. Use as informações da demanda (empresa, relato, departamento…) no texto.
+            Para avisar alguém, use “Enviar mensagem”: dá para mandar na mesma conversa (demanda criada de uma conversa), ao solicitante, ao grupo da empresa ou a um número. Use as informações da demanda (empresa, relato, departamento…) no texto.
           </p>
         </>
       );
@@ -206,9 +209,13 @@ export default function ConfigBloco({ no, definicao, canais = [], equipe = [], d
     case 'enviar_mensagem': {
       const temConversa = definicao?.nos?.some((n) => ['gatilho_mensagem'].includes(n.tipo));
       const temReuniao = definicao?.nos?.some((n) => ['gatilho_reuniao_agendada', 'gatilho_reuniao_status'].includes(n.tipo));
+      const temDemanda = definicao?.nos?.some((n) => String(n.tipo).startsWith('gatilho_demanda'));
+      const demandaDeConversa = definicao?.nos?.some((n) => String(n.tipo).startsWith('gatilho_demanda') && (n.config?.origem === 'conversa' || n.config?.origem === 'grupo'));
       const destino = c.destino || 'conversa';
       const opcoesDestino = [
-        ['conversa', 'Na própria conversa', 'Responde a quem escreveu. Só com o gatilho “Mensagem no WhatsApp”.', temConversa],
+        ['conversa', 'Na própria conversa', 'Responde a quem escreveu. Com “Mensagem no WhatsApp” ou com uma demanda criada de uma conversa.', temConversa || demandaDeConversa],
+        ['solicitante', 'Ao solicitante da demanda', 'Usa o número gravado no colaborador quando a demanda é criada de uma conversa de grupo.', temDemanda],
+        ['grupo_empresa', 'Ao grupo da empresa', 'Manda no grupo de WhatsApp ligado à empresa da demanda.', temDemanda],
         ['cliente_reuniao', 'Ao cliente da reunião', 'Usa o telefone cadastrado na reunião. Só com gatilhos de reunião.', temReuniao],
         ['numero', 'A um número específico', 'Você escolhe o número. Serve para avisar a equipe, por exemplo.', true],
       ];
@@ -236,7 +243,9 @@ export default function ConfigBloco({ no, definicao, canais = [], equipe = [], d
               <input value={c.telefone || ''} onChange={(e) => mudar({ telefone: e.target.value })} placeholder="85 99999-0000 ou {{contato.telefone}}" className={campoClasse} />
             </Campo>
           )}
-          {destino !== 'conversa' ? (
+          {destino === 'grupo_empresa' ? (
+            <p className="text-[11.5px] text-slate-500 dark:text-zinc-400 rounded-xl bg-black/[0.035] dark:bg-white/[0.06] px-3 py-2">No grupo, a mensagem sai pelo mesmo número (canal) que já está no grupo.</p>
+          ) : destino !== 'conversa' ? (
             <Campo rotulo="Enviar pelo número (canal)" dica={canalEscolhido ? `A mensagem sai pelo WhatsApp ${canalEscolhido.numero || canalEscolhido.nome}.` : 'Sem escolha, usa o primeiro canal conectado. Escolha um para ter certeza de por onde sai.'}>
               {canalSelect}
             </Campo>

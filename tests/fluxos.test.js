@@ -408,3 +408,39 @@ test('Demandas: criada, em andamento, fechada (o servidor confere no banco) e SL
   await avisar('ana@a.com', { tipo: 'demanda_fechada', chamado_id: chamado.id });
   assert.equal(textos().at(-1), 'Cancelada: Polysite');
 });
+
+test('Demandas criadas de uma conversa de grupo: responde no grupo, avisa o solicitante e o grupo da empresa', async () => {
+  const empresaId = crypto.randomUUID();
+  const grupo = { id: crypto.randomUUID(), organizacao_id: A, nome: 'RM | Polysite', telefone: '120363000000@g.us', empresa_id: empresaId };
+  const conversa = { id: crypto.randomUUID(), organizacao_id: A, canal_id: canal.id, contato_id: grupo.id, status: 'aberta', responsavel_email: null, departamento: '', ultima_mensagem_em: new Date().toISOString() };
+  db.tables.contatos = [grupo];
+  db.tables.conversas = [conversa];
+  db.tables.empresa_colaboradores = [{ id: crypto.randomUUID(), organizacao_id: A, empresa_id: empresaId, nome: 'Felipe Souza', telefone: '5585977776666' }];
+  const chamado = { id: crypto.randomUUID(), organizacao_id: A, empresa_id: empresaId, empresa_nome: 'Polysite', status: 'aguardando_visualizacao', categorias: ['Suporte'], observacao_inicial: 'Sem internet', colaborador_solicitante: 'Felipe Souza', tecnico_email: 'geral', created_at: new Date().toISOString(), chat_conversa_id: conversa.id };
+  const deSistema = { ...chamado, id: crypto.randomUUID(), chat_conversa_id: null };
+  db.tables.suporte_chamados = [chamado, deSistema];
+  const msg = (destino, texto) => ({ tipo: 'enviar_mensagem', config: { destino, texto, telefone: '' } });
+  const def = validarDefinicao({
+    nos: [
+      { id: 'g', tipo: 'gatilho_demanda_criada', config: { origem: 'grupo' } },
+      { id: 'a', ...msg('conversa', 'Recebemos, {{contato.nome}}: {{demanda.relato}}') },
+      { id: 'b', ...msg('solicitante', 'Oi {{demanda.solicitante}}, abrimos sua demanda') },
+      { id: 'c', ...msg('grupo_empresa', 'Demanda aberta para {{demanda.empresa}}') },
+    ],
+    ligacoes: [{ de: 'g', para: 'a' }, { de: 'a', para: 'b' }, { de: 'b', para: 'c' }],
+  });
+  db.tables.fluxos = [{ id: crypto.randomUUID(), organizacao_id: A, nome: 'Boas-vindas', ativo: true, definicao: def, gatilhos: gatilhosDe(def) }];
+  const avisar = async (corpo) => ler(await disparar(await como('bia@a.com', '/api/fluxos/disparar', 'POST', corpo)));
+
+  // Criada na tela de demandas: o gatilho “de um grupo” não dispara
+  await avisar({ tipo: 'demanda_criada', chamado_id: deSistema.id });
+  assert.equal(enviados.filter((e) => e.url.includes('sendText')).length, 0);
+  // Criada de uma conversa de grupo: responde no grupo, avisa o solicitante e o grupo da empresa
+  await avisar({ tipo: 'demanda_criada', chamado_id: chamado.id });
+  const textos = enviados.filter((e) => e.url.includes('sendText')).map((e) => [e.corpo.number, e.corpo.text]);
+  assert.deepEqual(textos, [
+    ['120363000000@g.us', 'Recebemos, RM | Polysite: Sem internet'],
+    ['5585977776666', 'Oi Felipe Souza, abrimos sua demanda'],
+    ['120363000000@g.us', 'Demanda aberta para Polysite'],
+  ]);
+});

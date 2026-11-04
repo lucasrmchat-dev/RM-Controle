@@ -24,6 +24,7 @@ import {
   abrirDemandaCompleta,
   getEmpresas,
   getPermissoesAtuais,
+  salvarContatoChat,
 } from '@/lib/storage';
 import { canaisCaidos, contarConversasNovas, ehGrupo, janelaAtendimento, preencherResposta } from '@/lib/canais';
 import { avisoDeFalhaDeEnvio } from '@/lib/errosChat';
@@ -1477,6 +1478,23 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
   // ---- Criar demanda a partir da mensagem (ticket #24) ----
   const [demandaDaMensagem, setDemandaDaMensagem] = useState(null);
   const [listasDemanda, setListasDemanda] = useState(null);
+  // Número de quem escreveu: no grupo vem da lista de participantes (pelo nome ou pelo número que aparece como nome)
+  const telefoneDoAutor = (m) => {
+    if (!ehConversaDeGrupo(conversa)) return String(conversa.contato?.telefone || '');
+    const alvo = semAcento(m.autor_nome);
+    const achado = participantes.find((p) => p.telefone && ((alvo && semAcento(p.nome) === alvo) || (alvo && String(m.autor_nome || '').replace(/\D/g, '') === String(p.telefone).replace(/\D/g, ''))));
+    return String(achado?.telefone || '');
+  };
+  // Reunião a partir da mensagem: abre a Agenda com a pessoa (e não o nome do grupo) já preenchida
+  const criarReuniaoDaMensagem = (m) => {
+    const daEquipe = m.direcao !== 'entrada';
+    const nome = (daEquipe ? '' : (m.autor_nome || '').trim()) || nomeDoContato(conversa);
+    const telefone = daEquipe ? (ehConversaDeGrupo(conversa) ? '' : String(conversa.contato?.telefone || '')) : telefoneDoAutor(m);
+    try {
+      localStorage.setItem('rm_reuniao_rascunho', JSON.stringify({ nome, telefone, obs: `Reunião criada a partir de uma mensagem no Chat${ehConversaDeGrupo(conversa) ? ` (grupo ${nomeDoContato(conversa)})` : ''}.`, em: Date.now() }));
+    } catch {}
+    window.dispatchEvent(new CustomEvent('rm_ir_para_aba', { detail: { aba: 'agenda' } }));
+  };
   const abrirCriarDemanda = async (m) => {
     let listas = listasDemanda;
     if (!listas) {
@@ -1501,7 +1519,7 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
         if (pessoa) destino = { tipo: 'outra', pessoa: { id: autorEmail, email: autorEmail, nome: pessoa.nome || m.autor_nome || autorEmail } };
       }
     }
-    const solicitante = daEquipe ? null : { nome: (m.autor_nome || nomeContato || '').trim() || 'Contato do WhatsApp', telefone: ehConversaDeGrupo(conversa) ? '' : String(conversa.contato?.telefone || ''), novo: true };
+    const solicitante = daEquipe ? null : { nome: (m.autor_nome || nomeContato || '').trim() || 'Contato do WhatsApp', telefone: telefoneDoAutor(m), novo: true };
     const tipos = { imagem: 'Imagem', video: 'Vídeo', audio: 'Áudio', documento: 'Documento', figurinha: 'Figurinha' };
     const texto = (m.conteudo || '').trim() || (tipos[m.tipo] ? `[${tipos[m.tipo]} enviado no WhatsApp]` : '');
     setDemandaDaMensagem({
@@ -1516,6 +1534,15 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
     const m = demandaDaMensagem.m;
     const r = await abrirDemandaCompleta(dados, { ...opcoes, userEmail: eu?.email, chat: { conversa_id: conversa.id, mensagem_id: m.id, mensagem_em: m.criado_em } });
     if (r.avisoSolicitante) showToast(r.avisoSolicitante, 'warning');
+    // Conversa de grupo: o grupo passa a ser da empresa (para os fluxos avisarem no grupo certo)
+    if (r.empresaId && ehConversaDeGrupo(conversa) && conversa.contato?.id && conversa.contato.empresa_id !== r.empresaId) {
+      salvarContatoChat({ id: conversa.contato.id, empresa_id: r.empresaId })
+        .then(() => {
+          setConversa((c) => (c ? { ...c, contato: { ...c.contato, empresa_id: r.empresaId } } : c));
+          showToast(`Grupo ligado à empresa ${r.empresaNome}.`, 'info');
+        })
+        .catch(() => {});
+    }
     setDemandaDaMensagem(null);
     showToast(r.criado?.sync_estado === 'pendente' ? `Demanda de ${r.empresaNome} salva neste computador; o envio à equipe será repetido.` : `Demanda de ${r.empresaNome} aberta${opcoes.paraMim ? ' e iniciada' : ''}. Em Demandas, “Ver no chat” volta a esta mensagem.`, r.criado?.sync_estado === 'pendente' ? 'warning' : 'success');
   };
@@ -1535,6 +1562,8 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
         setDados(m);
       } else if (id === 'criar_demanda') {
         await abrirCriarDemanda(m);
+      } else if (id === 'criar_reuniao') {
+        criarReuniaoDaMensagem(m);
       } else if (id === 'reacao') {
         await acaoConversa(conversaId, { acao: 'reagir', mensagem_id: m.id, emoji: extra });
         recarregar();

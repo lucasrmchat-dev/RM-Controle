@@ -26,7 +26,7 @@ export default function TestarFluxo({ definicao, canais = [], onResultado, onFec
   const [rodando, setRodando] = useState(false);
   const [passos, setPassos] = useState([]);
   const [reuniao, setReuniao] = useState({ titulo: 'Apresentação da plataforma', empresa: 'Empresa Teste', status: 'concluida', tipo: 'cliente', cliente_telefone: '5585999990000' });
-  const [demanda, setDemanda] = useState({ empresa: 'Empresa Teste', departamento: 'Suporte', relato: 'A impressora não imprime.', minutos: 45 });
+  const [demanda, setDemanda] = useState({ empresa: 'Empresa Teste', departamento: 'Suporte', relato: 'A impressora não imprime.', minutos: 45, origem: 'sistema' });
   const fim = useRef(null);
   useEffect(() => {
     fim.current?.scrollIntoView({ block: 'end' });
@@ -93,7 +93,8 @@ export default function TestarFluxo({ definicao, canais = [], onResultado, onFec
       ...extra,
     };
     const rotulos = { demanda_criada: 'criada', demanda_andamento: 'em andamento', demanda_fechada: 'fechada', demanda_sla: `parada há ${minutos} min` };
-    rodar({ tipo, dados: dadosDaDemanda(chamado) }, `🗂 Demanda ${rotulos[tipo]}: ${demanda.empresa}`);
+    const chat = demanda.origem === 'sistema' ? null : { id: 'conversa-teste', grupo: demanda.origem === 'grupo', contato_nome: demanda.origem === 'grupo' ? 'Grupo de Teste' : 'Cliente Teste', contato_telefone: '5585999990000', canal_id: 'teste', canal_nome: 'Canal de teste' };
+    rodar({ tipo, dados: dadosDaDemanda(chamado, { chat, solicitanteTelefone: '5585988887777', grupoConversaId: 'grupo-teste' }) }, `🗂 Demanda ${rotulos[tipo]}: ${demanda.empresa}`);
   };
 
   const limpar = () => {
@@ -190,6 +191,11 @@ export default function TestarFluxo({ definicao, canais = [], onResultado, onFec
                 <input value={demanda.empresa} onChange={(e) => setDemanda({ ...demanda, empresa: e.target.value })} placeholder="Empresa" className={campoClasse} />
                 <input value={demanda.departamento} onChange={(e) => setDemanda({ ...demanda, departamento: e.target.value })} placeholder="Departamento" className={campoClasse} />
               </div>
+              <select value={demanda.origem} onChange={(e) => setDemanda({ ...demanda, origem: e.target.value })} className={campoClasse}>
+                <option value="sistema">Criada na tela de demandas</option>
+                <option value="conversa">Criada de uma conversa</option>
+                <option value="grupo">Criada de um grupo</option>
+              </select>
               <input value={demanda.relato} onChange={(e) => setDemanda({ ...demanda, relato: e.target.value })} placeholder="O que a pessoa relatou" className={campoClasse} />
               <div className="flex flex-wrap gap-2">
                 {tipos.has('gatilho_demanda_criada') && <button type="button" disabled={rodando} onClick={() => simularDemanda('demanda_criada')} className="h-9 px-3 rounded-full text-[12.5px] font-semibold bg-orange-500/12 text-orange-700 dark:text-orange-300 cursor-pointer disabled:opacity-50">Criada</button>}

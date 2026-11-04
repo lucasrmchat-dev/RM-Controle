@@ -68,22 +68,22 @@ export const BLOCOS = {
   gatilho_demanda_criada: {
     categoria: 'gatilhos_demandas', rotulo: 'Demanda criada', descricao: 'Quando uma demanda nova entra na fila',
     cor: 'orange', gatilho: true, saidas: ['proximo'],
-    padrao: { departamento: '' },
+    padrao: { origem: 'qualquer', departamento: '' },
   },
   gatilho_demanda_andamento: {
     categoria: 'gatilhos_demandas', rotulo: 'Demanda em andamento', descricao: 'Quando alguém começa a atender a demanda',
     cor: 'orange', gatilho: true, saidas: ['proximo'],
-    padrao: { departamento: '' },
+    padrao: { origem: 'qualquer', departamento: '' },
   },
   gatilho_demanda_fechada: {
     categoria: 'gatilhos_demandas', rotulo: 'Demanda fechada', descricao: 'Quando a demanda é concluída ou cancelada',
     cor: 'orange', gatilho: true, saidas: ['proximo'],
-    padrao: { resultado: 'qualquer', departamento: '' },
+    padrao: { resultado: 'qualquer', origem: 'qualquer', departamento: '' },
   },
   gatilho_demanda_sla: {
     categoria: 'gatilhos_demandas', rotulo: 'Demanda passou do prazo (SLA)', descricao: 'Quando a demanda passa de X minutos parada',
     cor: 'orange', gatilho: true, saidas: ['proximo'],
-    padrao: { em: 'aguardando', minutos: 30, departamento: '' },
+    padrao: { em: 'aguardando', minutos: 30, origem: 'qualquer', departamento: '' },
   },
   enviar_mensagem: {
     categoria: 'mensagens', rotulo: 'Enviar mensagem', descricao: 'Texto no WhatsApp, com variáveis',
@@ -185,6 +185,8 @@ VARIAVEIS_GATILHO.gatilho_demanda_criada = [
   ['demanda.status', 'Situação'],
   ['demanda.minutos', 'Minutos desde que ficou nesta situação'],
   ['demanda.motivo', 'Motivo informado ao concluir'],
+  ['contato.nome', 'Nome do contato (se veio de uma conversa)'],
+  ['canal.nome', 'Canal da conversa (se veio de uma conversa)'],
 ];
 VARIAVEIS_GATILHO.gatilho_demanda_andamento = VARIAVEIS_GATILHO.gatilho_demanda_criada;
 VARIAVEIS_GATILHO.gatilho_demanda_fechada = VARIAVEIS_GATILHO.gatilho_demanda_criada;
@@ -406,6 +408,10 @@ export function avaliarGatilho(no, evento) {
 
 // Gatilhos de demanda: o departamento do gatilho (vazio = qualquer) está entre os da demanda?
 function departamentoCasa(c, d) {
+  // Criada a partir de: qualquer lugar | de uma conversa (inclui grupos) | só de um grupo
+  const origem = d.demanda?.origem || 'sistema';
+  if (c.origem === 'conversa' && origem === 'sistema') return false;
+  if (c.origem === 'grupo' && origem !== 'grupo') return false;
   const alvo = semAcento(c.departamento);
   if (!alvo) return true;
   return (d.demanda?.departamentos || []).some((x) => semAcento(x) === alvo);
@@ -507,10 +513,24 @@ export async function executarFluxo({ definicao, evento, efeitos, maxPassos = 60
         case 'enviar_mensagem': {
           const texto = preencher(c.texto, ctx).trim();
           if (!texto) throw new Error('Mensagem sem texto.');
-          const telefone = c.destino === 'numero' ? preencher(c.telefone, ctx) : c.destino === 'cliente_reuniao' ? ctx.contato?.telefone : null;
-          if (c.destino === 'conversa' && !ctx.conversa?.id) throw new Error('Este gatilho não tem conversa: escolha “Número” ou “Cliente da reunião”.');
-          if (c.destino !== 'conversa' && !telefone) throw new Error('Sem número para enviar.');
-          passo.resultado = await efeitos.enviarMensagem({ destino: c.destino, conversaId: ctx.conversa?.id || null, telefone, canalId: c.canal_id || ctx.canal?.id || null, texto });
+          let destino = c.destino;
+          let conversaId = ctx.conversa?.id || null;
+          let telefone = c.destino === 'numero' ? preencher(c.telefone, ctx) : c.destino === 'cliente_reuniao' ? ctx.contato?.telefone : null;
+          // Demandas: o solicitante (número cadastrado no colaborador) ou o grupo de WhatsApp ligado à empresa
+          if (c.destino === 'solicitante') {
+            if (!ctx.demanda?.id) throw new Error('“Ao solicitante” só funciona com gatilhos de demanda.');
+            telefone = ctx.demanda.solicitante_telefone;
+            if (!telefone) throw new Error('O solicitante não tem número cadastrado. Ele é gravado quando a demanda é criada a partir de uma conversa.');
+            destino = 'numero';
+          } else if (c.destino === 'grupo_empresa') {
+            if (!ctx.demanda?.id) throw new Error('“Ao grupo da empresa” só funciona com gatilhos de demanda.');
+            conversaId = ctx.demanda.grupo_conversa_id;
+            if (!conversaId) throw new Error('Esta empresa não tem grupo de WhatsApp ligado. Ele é ligado quando uma demanda é criada a partir de uma conversa do grupo.');
+            destino = 'conversa';
+          }
+          if (destino === 'conversa' && !conversaId) throw new Error('Este gatilho não tem conversa: escolha “Número”, “Cliente da reunião”, “Solicitante” ou “Grupo da empresa”.');
+          if (destino !== 'conversa' && !telefone) throw new Error('Sem número para enviar.');
+          passo.resultado = await efeitos.enviarMensagem({ destino, conversaId, telefone, canalId: c.canal_id || ctx.canal?.id || null, texto });
           passo.texto = texto;
           break;
         }
@@ -662,7 +682,7 @@ export function dadosDaReuniao(e) {
  * Dados de uma demanda (linha de suporte_chamados) para os fluxos.
  * `estado`: em que situação ela está parada (aguardando alguém assumir ou em andamento) e há quantos `minutos`.
  */
-export function dadosDaDemanda(c, { responsavelNome = '', agora = Date.now() } = {}) {
+export function dadosDaDemanda(c, { responsavelNome = '', agora = Date.now(), chat = null, solicitanteTelefone = '', grupoConversaId = '' } = {}) {
   const departamentos = (Array.isArray(c.categorias) && c.categorias.length ? c.categorias : String(c.motivo || '').split(',')).map((x) => String(x).trim()).filter(Boolean);
   const emAndamento = c.status === 'em_andamento';
   const desde = new Date((emAndamento ? c.iniciado_em : c.created_at) || c.created_at || agora).getTime();
@@ -675,6 +695,10 @@ export function dadosDaDemanda(c, { responsavelNome = '', agora = Date.now() } =
       departamento: departamentos.join(', '),
       departamentos,
       solicitante: c.colaborador_solicitante || '',
+      solicitante_telefone: solicitanteTelefone || '',
+      grupo_conversa_id: grupoConversaId || '',
+      // De onde a demanda nasceu: sistema (tela de demandas) | conversa | grupo (a partir de uma mensagem do Chat)
+      origem: chat ? (chat.grupo ? 'grupo' : 'conversa') : 'sistema',
       responsavel: c.tecnico_email && c.tecnico_email !== 'geral' ? responsavelNome || c.atendente || c.tecnico_email : '',
       responsavel_email: c.tecnico_email && c.tecnico_email !== 'geral' ? c.tecnico_email : '',
       status: c.status || '',
@@ -683,5 +707,12 @@ export function dadosDaDemanda(c, { responsavelNome = '', agora = Date.now() } =
       minutos: Math.max(0, Math.floor((agora - desde) / 60000)),
       motivo: fechada ? String(c.motivo || '') : '',
     },
+    ...(chat
+      ? {
+          conversa: { id: chat.id, grupo: Boolean(chat.grupo), departamento: chat.departamento || '', responsavel_email: chat.responsavel_email || '' },
+          contato: { nome: chat.contato_nome || '', telefone: chat.contato_telefone || '' },
+          canal: { id: chat.canal_id || '', nome: chat.canal_nome || '' },
+        }
+      : {}),
   };
 }
