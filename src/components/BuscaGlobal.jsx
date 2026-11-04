@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { buscarMensagensChat, getEmpresas, getFilaChamados, getPermissoesAtuais, getNomeTecnico, removerAcentos } from '@/lib/storage';
 import { podeVerDemanda } from '@/lib/perfis';
 import { ehGrupo } from '@/lib/canais';
@@ -72,6 +72,8 @@ export default function BuscaGlobal({ aberta, onAbertaChange, abaAtual, userEmai
   const [empresas, setEmpresas] = useState(CACHE_EMPRESAS.lista || []);
   const [mensagens, setMensagens] = useState({ estado: 'parado', itens: [] });
   const [, forcar] = useState(0);
+  // O painel fica montado só enquanto abre/fecha: some do DOM logo depois de fechar (nada invisível fica no caminho)
+  const [montado, setMontado] = useState(false);
   const campo = useRef(null);
   const caixa = useRef(null);
   const painel = useRef(null);
@@ -87,6 +89,15 @@ export default function BuscaGlobal({ aberta, onAbertaChange, abaAtual, userEmai
     setAtivo(0);
     setMensagens({ estado: 'parado', itens: [] });
   }, [onAbertaChange]);
+
+  useEffect(() => {
+    if (aberta) {
+      setMontado(true);
+      return undefined;
+    }
+    const t = setTimeout(() => setMontado(false), 260);
+    return () => clearTimeout(t);
+  }, [aberta]);
 
   // Atalhos: "/" e Ctrl/Cmd+K abrem; Esc fecha
   useEffect(() => {
@@ -374,16 +385,14 @@ export default function BuscaGlobal({ aberta, onAbertaChange, abaAtual, userEmai
       </motion.div>
 
       {/* Painel: desce logo abaixo da ilha */}
-      <AnimatePresence>
-        {aberta && (
-          <div className="absolute left-1/2 -translate-x-1/2 top-full pt-2 z-50 w-[min(720px,calc(100vw-32px))]">
+      {montado && (
+          <motion.div key="busca-painel" style={{ x: '-50%' }} className="absolute left-1/2 top-full pt-2 z-50 w-[min(720px,calc(100vw-32px))] pointer-events-none">
             <motion.div
               ref={painel}
               initial={{ opacity: 0, scale: 0.96, y: -10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.97, y: -6, transition: { duration: 0.14 } }}
-              transition={MOLA_PAINEL}
-              style={{ transformOrigin: 'top center' }}
+              animate={aberta ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.97, y: -6 }}
+              transition={aberta ? MOLA_PAINEL : { duration: 0.16 }}
+              style={{ transformOrigin: 'top center', pointerEvents: aberta ? 'auto' : 'none' }}
               className="rounded-[28px] bg-white/90 dark:bg-rm-elevado-escuro/90 backdrop-blur-2xl border border-black/[0.07] dark:border-white/[0.11] shadow-[0_24px_60px_-20px_rgba(0,0,0,0.3)] dark:shadow-[0_28px_70px_-20px_rgba(0,0,0,0.8)] overflow-hidden"
               role="dialog"
               aria-label="Busca"
@@ -421,9 +430,8 @@ export default function BuscaGlobal({ aberta, onAbertaChange, abaAtual, userEmai
                 {podeCriar && <ul className="mt-1 border-t border-black/[0.06] dark:border-white/[0.1] pt-1">{renderItem(plana[plana.length - 1], plana.length - 1)}</ul>}
               </div>
             </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+          </motion.div>
+      )}
     </>
   );
 }

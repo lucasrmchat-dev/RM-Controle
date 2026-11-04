@@ -372,7 +372,10 @@ export default function Navbar({
         >
           {/* Ilha: marca, categorias, notificações e conta */}
           {/* Avisos na tela (ilha e sino) presos à pílula */}
-          <AvisosNaTela local="cabecalho" onAbrirAba={(aba) => (aba === 'fila' || permitidas.includes(aba)) && irPara(aba)} />
+          {/* Com a busca aberta os avisos presos à ilha saem de cena (o painel ocupa o mesmo lugar) e voltam ao fechar */}
+          <div className={`transition-opacity duration-300 ease-out ${buscaAberta ? 'opacity-0 pointer-events-none [&_*]:!pointer-events-none' : ''}`} aria-hidden={buscaAberta || undefined}>
+            <AvisosNaTela local="cabecalho" onAbrirAba={(aba) => (aba === 'fila' || permitidas.includes(aba)) && irPara(aba)} />
+          </div>
           <div ref={ilhaRef} data-ilha-cabecalho className={`${ILHA} h-[48px] rounded-full flex items-center gap-1 pl-1 pr-1 backdrop-blur-xl relative`}>
             <BuscaGlobal
               aberta={buscaAberta}
