@@ -25,7 +25,8 @@ import {
   getEmpresas,
   getPermissoesAtuais,
 } from '@/lib/storage';
-import { contarConversasNovas, ehGrupo, janelaAtendimento, preencherResposta } from '@/lib/canais';
+import { canaisCaidos, contarConversasNovas, ehGrupo, janelaAtendimento, preencherResposta } from '@/lib/canais';
+import { avisoDeFalhaDeEnvio } from '@/lib/errosChat';
 import { ACEITOS, LIMITE_ENVIO, MidiaMensagem, PreviaArquivo, arquivoAceito, comprimirFoto, tipoPeloMime, useGravadorDeAudio } from './ChatMidia';
 import ChatPerfilContato from './ChatPerfilContato';
 import { fotoGuardada, linkDaFoto } from '@/lib/fotosContatos';
@@ -1359,7 +1360,7 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
       }
     } catch (e) {
       setMensagens((l) => l.filter((m) => m.id !== tmp.id));
-      showToast(e.message, 'error');
+      showToast(avisoDeFalhaDeEnvio(e.message), 'error');
       recarregar();
     } finally {
       setTimeout(() => URL.revokeObjectURL(previewUrl), 60000);
@@ -1395,7 +1396,7 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
       }
     } catch (e) {
       setMensagens((l) => l.filter((m) => m.id !== tmp.id));
-      showToast(e.message, 'error');
+      showToast(avisoDeFalhaDeEnvio(e.message), 'error');
       recarregar();
       throw e;
     }
@@ -2088,6 +2089,18 @@ export default function ChatView() {
   const [buscando, setBuscando] = useState(false);
   const escolhidaPorPadrao = useRef(false);
   const gruposAParte = config.grupos === 'aba';
+  // Números que caíram: faixa fixa na lista e um aviso na hora em que a conexão cai
+  const caidos = useMemo(() => canaisCaidos(abertas || []), [abertas]);
+  const caidosAntes = useRef(null);
+  useEffect(() => {
+    if (abertas === null) return;
+    const ids = new Set(caidos.map((c) => c.id));
+    if (caidosAntes.current) {
+      const novos = caidos.filter((c) => !caidosAntes.current.has(c.id));
+      if (novos.length) showToast(`A conexão caiu: ${novos.map((c) => c.nome).join(', ')}. Reconecte em Canais.`, 'warning');
+    }
+    caidosAntes.current = ids;
+  }, [abertas, caidos]);
   /** Aba (e coluna do Kanban) onde a conversa aparece. */
   const abaDaConversa = (c) => (c.status === 'resolvida' ? 'resolvidas' : gruposAParte && ehConversaDeGrupo(c) ? 'grupos' : !c.responsavel_email ? 'pendentes' : 'ativos');
 
@@ -2564,6 +2577,13 @@ export default function ChatView() {
             </div>
           )}
         </div>
+
+        {caidos.length > 0 && (
+          <div role="alert" className="mx-3 mb-2 px-3 py-2 rounded-xl bg-amber-500/10 text-amber-900 dark:text-amber-200 text-[12.5px] leading-snug">
+            <p className="font-semibold">{caidos.length === 1 ? 'A conexão deste número caiu' : 'A conexão destes números caiu'}</p>
+            <p>{caidos.map((c) => c.nome).join(', ')}. Mensagens novas não chegam e não dá para responder até reconectar em Canais.</p>
+          </div>
+        )}
 
         {selecionando && !kanban && !mostrandoBuscaMensagens && (
           <div className="mx-3 mb-2 px-3 py-2 rounded-xl bg-rm-fundo dark:bg-rm-elevado-escuro flex items-center gap-2 text-[13px]">

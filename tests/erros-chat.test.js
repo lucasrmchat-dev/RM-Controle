@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ERROS_CHAT, explicarErroChat, relatorioErroChat } from '../src/lib/errosChat.js';
+import { avisoDeFalhaDeEnvio, ERROS_CHAT, explicarErroChat, relatorioErroChat } from '../src/lib/errosChat.js';
 
 test('erros do chat: cada texto técnico conhecido vira o código certo', () => {
   const casos = {
@@ -35,4 +35,12 @@ test('erros do chat: códigos únicos, textos completos e relatório para o dese
   assert.equal('reconhece' in erro, false);
   const texto = relatorioErroChat(erro, { mensagemId: 'm1', conversaId: 'c1', quando: '2026-11-03T11:08:00Z', conteudo: 'oi' });
   for (const trecho of ['CHAT-101', 'Conversa: c1', 'Mensagem: m1', 'Erro técnico: Evolution respondeu 404', 'O que verificar:']) assert.ok(texto.includes(trecho), trecho);
+});
+
+test('aviso de falha de envio: texto simples, sem "Evolution respondeu"', () => {
+  const aviso = avisoDeFalhaDeEnvio('Evolution respondeu 404');
+  assert.match(aviso, /Servidor do WhatsApp fora do ar/);
+  assert.doesNotMatch(aviso, /Evolution respondeu/);
+  // Texto fora do catálogo continua aparecendo como veio, para não esconder o problema
+  assert.equal(avisoDeFalhaDeEnvio('Algo novo deu errado'), 'Algo novo deu errado');
 });

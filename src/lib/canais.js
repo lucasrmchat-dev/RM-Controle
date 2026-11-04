@@ -22,6 +22,17 @@ export const STATUS_CANAL = {
   erro: { rotulo: 'Com erro', cor: 'vermelho' },
 };
 
+/** Números que caíram (ativos, mas desconectados), sem repetir, a partir das conversas da lista. */
+export function canaisCaidos(conversas = []) {
+  const vistos = new Map();
+  for (const c of conversas || []) {
+    const canal = c?.canal;
+    if (!canal?.ativo || !['desconectado', 'aguardando_qr'].includes(canal.status)) continue;
+    if (!vistos.has(canal.id)) vistos.set(canal.id, canal);
+  }
+  return [...vistos.values()];
+}
+
 export const JANELA_ATENDIMENTO_MS = 24 * 60 * 60 * 1000;
 
 /** Janela de 24h da API oficial: aberta até 24h depois da última mensagem do cliente. */

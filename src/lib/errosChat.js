@@ -177,3 +177,10 @@ export function relatorioErroChat(erro, { mensagemId, conversaId, quando, conteu
     .filter((l) => l !== null)
     .join('\n');
 }
+
+/** Aviso curto para a tela quando um envio falha: o que houve e o que fazer (sem texto técnico). */
+export function avisoDeFalhaDeEnvio(tecnico) {
+  const erro = explicarErroChat(tecnico);
+  if (erro.codigo === ERRO_CHAT_DESCONHECIDO.codigo) return String(tecnico || '').trim() || erro.titulo;
+  return `${erro.titulo}. ${erro.oQueFazer}`;
+}

@@ -15,6 +15,35 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-04-chat-conexao-caiu',
+    data: '2026-11-04',
+    titulo: 'Chat: aviso claro quando a conexão do número cai',
+    resumo: 'Quando o WhatsApp de um canal desconecta, o Chat agora avisa na hora e explica o que fazer, em vez de mostrar um erro técnico.',
+    itens: [
+      'Aparece um aviso na tela e uma faixa fixa no alto da lista com o nome do número que caiu, até ele ser reconectado em Canais.',
+      'Se uma mensagem não sair por causa da conexão, o aviso diz o que aconteceu e o que fazer (antes aparecia “Evolution respondeu 404”).',
+    ],
+    modulo: 'Chat',
+    tickets: ['f5ba56bc-5926-499c-ae8e-4c78aac8cc78'],
+  },
+  {
+    id: '2026-11-04-empresa-topo-organizado',
+    data: '2026-11-04',
+    titulo: 'Tela da empresa: nova organização do Cockpit',
+    resumo: 'Ao entrar numa empresa, tudo o que se usa no atendimento fica à vista: acesso, senha, relato da demanda e sugestões de solução.',
+    itens: [
+      'Topo reorganizado: Voltar à esquerda, Nova demanda e Registrar suporte à direita, abas em linha própria.',
+      'Cartão da empresa com servidor, tipo de cliente, usuário e senha do acesso principal sempre à vista.',
+      '“Entrar no servidor” copia a senha e abre o servidor do cliente num clique.',
+      'Mostra o último atendimento e avisos fixos da empresa (por exemplo, “ligar antes das 9h”).',
+      'Durante o suporte em aberto, o cronômetro e o botão de concluir acompanham a rolagem, e o relato da demanda aparece com categoria, solicitante, responsável e prazo.',
+      'O sistema sugere soluções parecidas com o que a pessoa relatou; sem relato, fica a pesquisa por sintoma ou código de erro.',
+      'Abas sem número deixam de mostrar uma bolinha vazia.',
+    ],
+    modulo: 'Empresas',
+    tickets: [],
+  },
+  {
     id: '2026-11-03-grupo-aviso-e-edicao',
     data: '2026-11-03',
     titulo: 'Chat: um aviso só por mensagem de grupo e edição sem erro falso',

@@ -7,7 +7,7 @@ import { NextRequest } from 'next/server.js';
 import { db, supabase as mockSupabase } from './mocks/supabase.js';
 import { __definirSupabaseAdmin } from '../src/lib/server/integracaoSuporte.js';
 import { createSessionToken, SESSION_COOKIE_NAME } from '../src/lib/session.js';
-import { eventosDaEvolution, eventosDaMeta, janelaAtendimento, podeEnviarTextoLivre, validarCanal } from '../src/lib/canais.js';
+import { canaisCaidos, eventosDaEvolution, eventosDaMeta, janelaAtendimento, podeEnviarTextoLivre, validarCanal } from '../src/lib/canais.js';
 import { cifrarSegredos, decifrarSegredos, hashToken } from '../src/lib/server/canais/cofre.js';
 import { GET as verificarWebhook, POST as receberWebhook } from '../src/app/api/canais/webhook/[id]/route.js';
 import { GET as listarCanais, POST as criarCanal } from '../src/app/api/canais/route.js';
@@ -353,4 +353,17 @@ test('Aviso ao vivo: tópico secreto por empresa e aviso sem conteúdo', async (
     if (antes.url === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL; else process.env.NEXT_PUBLIC_SUPABASE_URL = antes.url;
     if (antes.chave === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY; else process.env.SUPABASE_SERVICE_ROLE_KEY = antes.chave;
   }
+});
+
+test('canaisCaidos: lista só os números ativos que desconectaram, sem repetir', () => {
+  const conversas = [
+    { canal: { id: 'a', nome: 'Lucas', ativo: true, status: 'desconectado' } },
+    { canal: { id: 'a', nome: 'Lucas', ativo: true, status: 'desconectado' } },
+    { canal: { id: 'b', nome: 'Maria', ativo: true, status: 'conectado' } },
+    { canal: { id: 'c', nome: 'Antigo', ativo: false, status: 'desconectado' } },
+    { canal: { id: 'd', nome: 'Novo', ativo: true, status: 'conectando' } },
+    { canal: null },
+  ];
+  assert.deepEqual(canaisCaidos(conversas).map((c) => c.id), ['a']);
+  assert.deepEqual(canaisCaidos(null), []);
 });
