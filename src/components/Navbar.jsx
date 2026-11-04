@@ -10,6 +10,7 @@ import BuscaGlobal from './BuscaGlobal';
 import { EVENTO_NOTIFICACOES, listarNotificacoes } from '@/lib/notificacoes';
 import {
   getFilaChamados,
+  getHistoricoChamados,
   getAbasPermitidas,
   getGestaoAtual,
   getCurrentUserRole,
@@ -24,6 +25,7 @@ import {
   fetchPedidosTratativa,
 } from '@/lib/storage';
 import { chamadoEhDe, STATUS_ABERTOS, textoPrazo } from '@/lib/pedidosTratativa';
+import { primeiroNome, saudacaoDaHora } from '@/lib/resumoDoDia';
 import { contarConversasNovas } from '@/lib/canais';
 import { analisarConversas, chatEsperando } from '@/lib/vigiaChat';
 import { getSomDoModulo, pararSomDoModulo, tocarSomDoModulo } from '@/lib/audioNotifications';
@@ -171,6 +173,13 @@ export default function Navbar({
     };
   }, []);
   const [totalFila, setTotalFila] = useState(0);
+  // O dia da pessoa: demandas concluídas hoje e as que ainda estão com ela (vira o anel da logo)
+  const [diaDaPessoa, setDiaDaPessoa] = useState({ feitas: 0, total: 0 });
+  const [horaSaudacao, setHoraSaudacao] = useState(() => new Date().getHours());
+  useEffect(() => {
+    const t = setInterval(() => setHoraSaudacao(new Date().getHours()), 5 * 60000);
+    return () => clearInterval(t);
+  }, []);
   const [totalReunioesHoje, setTotalReunioesHoje] = useState(0);
   // Conversas do Chat com mensagens novas e notificações não lidas (aparecem também com o cabeçalho recolhido)
   const [totalChat, setTotalChat] = useState(0);
@@ -184,6 +193,13 @@ export default function Navbar({
     const perm = getPermissoesAtuais(userEmail);
     setTotalFila((getFilaChamados ? getFilaChamados() : []).filter((c) => podeVerDemanda(perm, c)).length);
     setUserRole(getCurrentUserRole());
+    try {
+      const inicioDia = new Date();
+      inicioDia.setHours(0, 0, 0, 0);
+      const feitas = (getHistoricoChamados() || []).filter((c) => ['finalizado', 'resolvido', 'concluido'].includes(c.status) && new Date(c.finalizado_em || 0) >= inicioDia && chamadoEhDe(c, userEmail)).length;
+      const abertas = (getFilaChamados() || []).filter((c) => ['em_andamento', 'pendente'].includes(c.status) && chamadoEhDe(c, userEmail)).length;
+      setDiaDaPessoa({ feitas, total: feitas + abertas });
+    } catch (e) {}
     try {
       const hojeIso = new Date().toISOString().split('T')[0];
       setTotalReunioesHoje((getAgendaEventos() || []).filter((e) => e.data === hojeIso && e.status !== 'cancelada').length);
@@ -420,17 +436,17 @@ export default function Navbar({
               getConversas={() => conversasBusca.current}
               onAcao={onBuscaAcao}
             />
-            <button
-              type="button"
+            {/* A logo é o botão Início: o anel mostra quanto do dia já foi resolvido; dentro do Início ela cumprimenta */}
+            <BotaoInicio
+              ativo={activeTab === 'resumo'}
+              comNome={comNome}
+              saudacao={`${saudacaoDaHora(horaSaudacao)}${primeiroNome(nome) ? `, ${primeiroNome(nome)}` : ''}`}
+              dia={diaDaPessoa}
               onClick={() => irPara('resumo')}
-              aria-label="RM Controle — ir para o Início"
-              className="h-10 w-10 flex items-center justify-center rounded-full cursor-pointer flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rm-acento/40"
-            >
-              <BrandMark size={34} />
-            </button>
+            />
 
             <nav aria-label="Seções" className="flex items-center gap-0.5 ml-0.5">
-              {grupos.map((g) => (
+              {grupos.filter((g) => g.id !== 'inicio').map((g) => (
                 <CategoriaCabecalho key={g.id} grupo={g} activeTab={activeTab} aberto={grupoAberto === g.id} onAbrir={(v) => setGrupoAberto((atual) => (v ? g.id : atual === g.id ? null : atual))} onIr={irPara} comNome={comNome} />
               ))}
             </nav>
@@ -553,6 +569,47 @@ export default function Navbar({
         })}
       </nav>
     </>
+  );
+}
+
+/**
+ * Botão Início = a logo. O anel verde mostra as demandas resolvidas hoje; dentro do Início o nome vira a saudação.
+ * Os dois textos ficam empilhados (o maior manda na largura), então a ilha nunca muda de tamanho ao trocar de tela.
+ */
+function BotaoInicio({ ativo, comNome, saudacao, dia, onClick }) {
+  const temDia = dia.total > 0;
+  const fracao = temDia ? dia.feitas / dia.total : 0;
+  const pct = Math.round(fracao * 100);
+  const raio = 18.4;
+  const c = 2 * Math.PI * raio;
+  const titulo = temDia ? `Início · ${pct}% das demandas de hoje resolvidas (${dia.feitas} de ${dia.total})` : 'Início · sem demandas hoje';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={titulo}
+      aria-label={`RM Controle, ir para o Início. ${titulo}`}
+      aria-current={ativo ? 'page' : undefined}
+      className={`relative h-10 flex items-center rounded-full cursor-pointer flex-shrink-0 transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rm-acento/40 ${ativo ? 'bg-black/[0.06] dark:bg-white/[0.12]' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.08]'}`}
+    >
+      <span className="relative w-10 h-10 flex items-center justify-center flex-shrink-0">
+        <BrandMark size={32} />
+        <svg className="absolute inset-0 -rotate-90 pointer-events-none" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+          {temDia && (
+            <>
+              <circle cx="20" cy="20" r={raio} stroke="currentColor" strokeWidth="1.6" className="text-black/10 dark:text-white/15" />
+              <motion.circle cx="20" cy="20" r={raio} stroke="#a3e635" strokeWidth="2" strokeLinecap="round" strokeDasharray={c} initial={false} animate={{ strokeDashoffset: c * (1 - fracao) }} transition={{ type: 'spring', bounce: 0, duration: 1 }} />
+            </>
+          )}
+        </svg>
+      </span>
+      <motion.span className="overflow-hidden inline-flex" initial={false} animate={{ width: comNome ? 'auto' : 0, opacity: comNome ? 1 : 0 }} transition={{ type: 'spring', stiffness: 420, damping: 36 }}>
+        <span className="relative grid justify-items-start text-left pr-3.5 pl-0.5 text-[13.5px] font-medium">
+          <span className={`[grid-area:1/1] whitespace-nowrap ${ativo ? 'text-[#1d1d1f] dark:text-white' : 'invisible'}`} aria-hidden={!ativo}>{saudacao}</span>
+          <span className={`[grid-area:1/1] whitespace-nowrap ${ativo ? 'invisible' : 'text-slate-500 dark:text-zinc-400'}`} aria-hidden={ativo}>Início</span>
+        </span>
+      </motion.span>
+    </button>
   );
 }
 

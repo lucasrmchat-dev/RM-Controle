@@ -186,10 +186,11 @@ export default function ResumoDoDiaView({ userEmail }) {
 
   return (
     <div className="relative text-[#1d1d1f] dark:text-white pb-24">
-      {/* Fundo vivo, no mesmo clima do Modo foco */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden -z-0" aria-hidden="true">
-        <motion.div className="absolute -top-44 -left-40 w-[680px] h-[680px] rounded-full blur-[130px] opacity-60 dark:opacity-100" style={{ background: 'rgb(var(--rm-acento-medio) / 0.3)' }} animate={{ x: [0, 90, 0], y: [0, 60, 0] }} transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }} />
-        <motion.div className="absolute -bottom-52 -right-36 w-[620px] h-[620px] rounded-full blur-[140px] bg-violet-500/15 dark:bg-violet-500/25" animate={{ x: [0, -70, 0], y: [0, -50, 0] }} transition={{ duration: 26, repeat: Infinity, ease: 'easeInOut' }} />
+      {/* Fundo vivo, no mesmo clima do Modo foco (cobre a janela inteira) */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden z-0" aria-hidden="true">
+        <motion.div className="absolute -top-44 -left-40 w-[720px] h-[720px] rounded-full blur-[130px] opacity-60 dark:opacity-100" style={{ background: 'rgb(var(--rm-acento-medio) / 0.3)' }} animate={{ x: [0, 90, 0], y: [0, 60, 0] }} transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }} />
+        <motion.div className="absolute -bottom-52 -right-36 w-[680px] h-[680px] rounded-full blur-[140px] bg-violet-500/15 dark:bg-violet-500/25" animate={{ x: [0, -70, 0], y: [0, -50, 0] }} transition={{ duration: 26, repeat: Infinity, ease: 'easeInOut' }} />
+        <motion.div className="absolute top-1/3 -right-48 w-[520px] h-[520px] rounded-full blur-[130px] bg-amber-400/10" animate={{ x: [0, -40, 0], y: [0, 40, 0] }} transition={{ duration: 30, repeat: Infinity, ease: 'easeInOut' }} />
       </div>
 
       <div className="relative z-[1] max-w-[1180px] mx-auto pt-4 sm:pt-[72px]">

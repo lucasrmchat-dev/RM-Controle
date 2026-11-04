@@ -223,12 +223,14 @@ body {
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    /* "none" (e não translate 0): uma transformação parada prende tudo que é "fixo" dentro da tela */
+    transform: none;
   }
 }
 
 .animate-fade-in {
-  animation: appleFadeIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  /* "backwards" (e não "forwards"): terminada a animação, nada de transformação ativa prendendo elementos "fixos" da tela */
+  animation: appleFadeIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 /* ==============================================================================
