@@ -573,7 +573,7 @@ export default function Navbar({
 }
 
 /**
- * Botão Início = a logo. O anel verde mostra as demandas resolvidas hoje; dentro do Início o nome vira a saudação.
+ * Botão Início = a logo. O anel verde mostra as demandas resolvidas hoje; nas outras telas o nome é a saudação, e dentro do Início diz "Início" (a tela já cumprimenta).
  * Os dois textos ficam empilhados (o maior manda na largura), então a ilha nunca muda de tamanho ao trocar de tela.
  */
 function BotaoInicio({ ativo, comNome, saudacao, dia, onClick }) {
@@ -605,8 +605,8 @@ function BotaoInicio({ ativo, comNome, saudacao, dia, onClick }) {
       </span>
       <motion.span className="overflow-hidden inline-flex" initial={false} animate={{ width: comNome ? 'auto' : 0, opacity: comNome ? 1 : 0 }} transition={{ type: 'spring', stiffness: 420, damping: 36 }}>
         <span className="relative grid justify-items-start text-left pr-3.5 pl-0.5 text-[13.5px] font-medium">
-          <span className={`[grid-area:1/1] whitespace-nowrap ${ativo ? 'text-[#1d1d1f] dark:text-white' : 'invisible'}`} aria-hidden={!ativo}>{saudacao}</span>
-          <span className={`[grid-area:1/1] whitespace-nowrap ${ativo ? 'invisible' : 'text-slate-500 dark:text-zinc-400'}`} aria-hidden={ativo}>Início</span>
+          <span className={`[grid-area:1/1] whitespace-nowrap ${ativo ? 'invisible' : 'text-slate-500 dark:text-zinc-400'}`} aria-hidden={ativo}>{saudacao}</span>
+          <span className={`[grid-area:1/1] whitespace-nowrap ${ativo ? 'text-[#1d1d1f] dark:text-white' : 'invisible'}`} aria-hidden={!ativo}>Início</span>
         </span>
       </motion.span>
     </button>

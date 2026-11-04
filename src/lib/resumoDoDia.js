@@ -58,16 +58,18 @@ export function desempenhoDe(ranking, chavesMinhas = [], equipe = 0) {
   return { ...base, tom: 'neutro', titulo: `Você está em ${posicao}º de ${participantes}`, texto: `${total} ${total === 1 ? 'demanda concluída' : 'demandas concluídas'} neste mês. Dá para subir: foque nas que estão com você.` };
 }
 
-/** A frase do topo, juntando o que importa hoje. */
-export function frasePrincipal({ minhas = 0, fila = 0, perdidas = 0, reunioes = 0, pedidos = 0 } = {}) {
+/** A frase do topo: só o que mais importa (no máximo `max` itens, do mais para o menos urgente). */
+export function frasePrincipal({ minhas = 0, fila = 0, perdidas = 0, reunioes = 0, pedidos = 0 } = {}, max = 3) {
   const pedaco = (n, um, varios) => (n ? `${n} ${n === 1 ? um : varios}` : null);
   const partes = [
     pedaco(pedidos, 'pedido de tratativa para você', 'pedidos de tratativa para você'),
-    pedaco(minhas, 'demanda com você', 'demandas com você'),
     pedaco(perdidas, 'conversa esperando resposta', 'conversas esperando resposta'),
-    pedaco(reunioes, 'reunião hoje', 'reuniões hoje'),
+    pedaco(minhas, 'demanda com você', 'demandas com você'),
+    pedaco(reunioes, 'reunião pela frente', 'reuniões pela frente'),
     pedaco(fila, 'na fila sem responsável', 'na fila sem responsável'),
-  ].filter(Boolean);
+  ]
+    .filter(Boolean)
+    .slice(0, max);
   if (!partes.length) return 'Está tudo em dia por aqui. Aproveite para respirar.';
   const ultima = partes.pop();
   return `${partes.length ? `${partes.join(', ')} e ` : ''}${ultima}.`.replace(/^./, (c) => c.toUpperCase());

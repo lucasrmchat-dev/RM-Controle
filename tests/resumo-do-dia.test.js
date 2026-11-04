@@ -54,7 +54,8 @@ test('sozinho no sistema não compara', () => {
 });
 
 test('frase do topo e tempo', () => {
-  assert.match(frasePrincipal({ minhas: 3, perdidas: 1, reunioes: 2 }), /^3 demandas com você, 1 conversa esperando resposta e 2 reuniões hoje\.$/);
+  assert.equal(frasePrincipal({ minhas: 3, perdidas: 1, reunioes: 2 }), '1 conversa esperando resposta, 3 demandas com você e 2 reuniões pela frente.');
+  assert.equal(frasePrincipal({ pedidos: 1, perdidas: 2, minhas: 3, reunioes: 4, fila: 5 }), '1 pedido de tratativa para você, 2 conversas esperando resposta e 3 demandas com você.', 'só os três mais importantes');
   assert.match(frasePrincipal({}), /tudo em dia/i);
   assert.equal(haQuanto(35), 'há 35 min');
   assert.equal(haQuanto(180), 'há 3 h');
