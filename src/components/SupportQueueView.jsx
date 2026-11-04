@@ -51,7 +51,6 @@ import QueueCommandBar from './QueueCommandBar';
 import NovaDemandaModal from './NovaDemandaModal';
 import { ListaDemandas, CardsDemandas, KanbanDemandas } from './FilaDemandasVisoes';
 import ModoFoco, { SeletorModoFoco, focoEmAndamento } from './ModoFoco';
-import EntradaEmpresaFoco from './EntradaEmpresaFoco';
 import { focoSilenciaAvisos } from '@/lib/modoFoco';
 import { SupportQueueSkeleton } from './SkeletonLoaders';
 import { 
@@ -1115,13 +1114,16 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
     ) || (ch.empresa_nome ? { id: ch.empresa_id || ch.empresa_nome, nome: ch.empresa_nome } : null);
 
   const [assumindoId, setAssumindoId] = useState(null);
-  // Entrar na empresa de uma demanda passa antes pela tela de foco (acesso e demanda)
-  const [entradaEmpresa, setEntradaEmpresa] = useState(null);
+  // Entrar na empresa de uma demanda: a tela da empresa já abre em foco, com a demanda à frente (acesso, relato e botões)
   const entrarNaEmpresa = (chamado) => {
     const emp = empresaDoChamado(chamado) || { id: chamado.empresa_id, nome: chamado.empresa_nome };
     if (!onSelectEmpresa) return;
-    if (chamado.is_demanda_interna || !emp?.id) return onSelectEmpresa(emp);
-    setEntradaEmpresa({ chamado, empresa: emp });
+    if (!chamado.is_demanda_interna && emp?.id) {
+      try {
+        sessionStorage.setItem('rm_demanda_empresa', JSON.stringify({ empresa_id: emp.id, chamado }));
+      } catch {}
+    }
+    onSelectEmpresa(emp);
   };
 
   // abrirEmpresa: depois de assumir, já leva para a tela da empresa (sem procurar a demanda na lista)
@@ -2006,28 +2008,6 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
           tempos={temposDemanda}
           eMinha={isMeuAtendimento}
           onSair={() => setFoco(false)}
-        />
-      )}
-
-      {entradaEmpresa && (
-        <EntradaEmpresaFoco
-          // A demanda ao vivo (a fila atualiza quando ela é assumida); sumiu da fila = foi encerrada
-          chamado={chamados.find((c) => c.id === entradaEmpresa.chamado.id) || { ...entradaEmpresa.chamado, status: 'finalizado' }}
-          empresa={entradaEmpresa.empresa}
-          userEmail={userEmail}
-          onSair={() => setEntradaEmpresa(null)}
-          onAssumir={(ch) => assumirSuporte({ chamado_id: ch.id, userEmail: userEmail || 'admin@rmcontrole.com' }).then(() => stopSupportNotificationLoop())}
-          onConcluir={(ch) => acoesDemanda.concluir(ch)}
-          onCancelar={(ch) => acoesDemanda.cancelar(ch)}
-          onAbrirEmpresa={(destino = {}) => {
-            const emp = entradaEmpresa.empresa;
-            // A empresa abre já na aba (ou ação) pedida na Linha do atendimento
-            try {
-              if (destino.aba || destino.acao) sessionStorage.setItem('rm_destino_empresa', JSON.stringify({ ...destino, empresa_id: emp.id }));
-            } catch {}
-            setEntradaEmpresa(null);
-            onSelectEmpresa(emp);
-          }}
         />
       )}
 

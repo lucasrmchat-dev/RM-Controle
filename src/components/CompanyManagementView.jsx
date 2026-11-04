@@ -20,6 +20,7 @@ import {
   iniciarSuporte,
   cancelarSuporte,
   getChamadoAtivo,
+  assumirSuporte,
   getChamadosSuporte,
   getCategoriasDemandas,
   getNomeTecnico,
@@ -72,6 +73,7 @@ import {
   deleteSolucaoSuporte
 } from '@/lib/storage';
 import RegisterSupportModal from './RegisterSupportModal';
+import AcessoEmpresaFoco from './AcessoEmpresaFoco';
 import ExcluirEmpresaModal from './ExcluirEmpresaModal';
 import EmpresaRecorrencias from './EmpresaRecorrencias';
 import EmpresaContratos from './EmpresaContratos';
@@ -79,6 +81,11 @@ import { fetchChamadosFila, fetchHistoricoChamados, getPermissoesAtuais } from '
 import { podeVerDemanda } from '@/lib/perfis';
 import { sugerirSolucoes } from '@/lib/sugestoesSolucao';
 import EncaixeCabecalho, { ACOES_TITULO, LINHA_TITULO } from './EncaixeCabecalho';
+
+// Visual do Modo foco (mesmas pílulas e botão principal da tela de Demandas)
+const SUAVE_FOCO = 'bg-black/[0.05] hover:bg-black/[0.08] dark:bg-white/10 dark:hover:bg-white/15';
+const PRINCIPAL_FOCO = 'h-14 px-8 rounded-full text-[16px] font-semibold text-white shadow-[0_14px_40px_-10px_rgb(var(--rm-acento-medio)/0.8)] cursor-pointer disabled:opacity-60 inline-flex items-center gap-2';
+const FUNDO_PRINCIPAL_FOCO = { background: 'linear-gradient(135deg, rgb(var(--rm-acento-medio)), rgb(var(--rm-acento)))' };
 
 export default function CompanyManagementView({ empresa, onBack, onUpdated, userEmail, voltarRotulo = 'Voltar para a lista de empresas' }) {
   const [historicoCarregando, setHistoricoCarregando] = useState(true);
@@ -94,6 +101,17 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
   const [servidor2UrlInput, setServidor2UrlInput] = useState('');
   const [excluirAberto, setExcluirAberto] = useState(false);
   const [cockpitMobileTab, setCockpitMobileTab] = useState('acessos'); // 'acessos' | 'como_resolver' | 'empresa'
+  // Vindo da lista de Demandas: a demanda que trouxe a pessoa (relato, assumir) e o painel de acesso já aberto
+  const [demandaAlvo, setDemandaAlvo] = useState(() => {
+    try {
+      const d = JSON.parse(sessionStorage.getItem('rm_demanda_empresa') || 'null');
+      return d && d.empresa_id === empresa?.id ? d.chamado : null;
+    } catch {
+      return null;
+    }
+  });
+  const [painelAcesso, setPainelAcesso] = useState(Boolean(demandaAlvo));
+  const [assumindoAlvo, setAssumindoAlvo] = useState(false);
 
   // Garante que ao abrir a tela de suporte de uma empresa, a aba padrão seja sempre "Como Resolver Chamado"
   useEffect(() => {
@@ -876,303 +894,211 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
     }
   };
 
+  // Tela cheia no visual do Modo foco: sem rolagem da página por trás; Esc volta (se não houver janela aberta)
+  useEffect(() => {
+    const html = document.documentElement;
+    const antes = [html.style.overflow, document.body.style.overflow];
+    html.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    return () => {
+      [html.style.overflow, document.body.style.overflow] = antes;
+    };
+  }, []);
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem('rm_demanda_empresa');
+    } catch {}
+  }, []);
+  useEffect(() => {
+    const esc = (e) => {
+      if (e.key !== 'Escape' || e.target.closest?.('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return;
+      if (isRegistrarModalOpen || isFinalizarModalOpen || modalIniciarDemandaOpen || isEditServidoresModalOpen || excluirAberto || confirmDialog) return;
+      onBack?.();
+    };
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  });
+
+  // A demanda que trouxe a pessoa até aqui e ainda não foi assumida
+  const demandaPendente = !chamadoAtivo && demandaAlvo && ['aguardando_visualizacao', 'pendente'].includes(demandaAlvo.status) ? demandaAlvo : null;
+  const relatoDaDemanda = relatoAtivo || String(demandaPendente?.observacao_inicial || demandaPendente?.descricao || demandaPendente?.observacoes || '').trim();
+  const demandaEmFoco = chamadoAtivo || demandaPendente;
+  const categoriasFoco = (Array.isArray(demandaEmFoco?.categorias) && demandaEmFoco.categorias.length ? demandaEmFoco.categorias : String(demandaEmFoco?.motivo || '').split(',').map((x) => x.trim())).filter(Boolean);
+  const metaFoco = [
+    categoriasFoco.length && categoriasFoco.join(', '),
+    (demandaEmFoco?.colaborador_solicitante || demandaEmFoco?.solicitante_nome) && `pedido por ${demandaEmFoco.colaborador_solicitante || demandaEmFoco.solicitante_nome}`,
+    demandaEmFoco?.criador_email && `aberta por ${getNomeTecnico(demandaEmFoco.criador_email)}`,
+    chamadoAtivo?.tecnico_email && `responsável: ${getNomeTecnico(chamadoAtivo.tecnico_email, chamadoAtivo.tecnico_nome)}`,
+    chamadoAtivo?.prazo_limite && `prazo ${new Date(chamadoAtivo.prazo_limite).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`,
+  ].filter(Boolean).join(' · ');
+
+  const assumirDemanda = async () => {
+    setAssumindoAlvo(true);
+    try {
+      await assumirSuporte({ chamado_id: demandaPendente.id, userEmail: userEmail || 'admin@rmcontrole.com' });
+      setDemandaAlvo(null);
+      verificarChamadoAtivo();
+    } catch (err) {
+      showToast(err?.message || 'Não foi possível assumir a demanda.', 'error');
+    } finally {
+      setAssumindoAlvo(false);
+    }
+  };
+
+  const abasFoco = [
+    { id: 'cockpit', label: 'Atendimento' },
+    { id: 'canais', label: 'Canais', count: empresa.canais?.length || 0 },
+    { id: 'credenciais', label: 'Acessos e senhas', count: credenciaisList.length },
+    { id: 'servidor', label: 'Servidor', count: `${concluidosChecklist}/${totalChecklist}` },
+    { id: 'recorrencias', label: 'Problemas recorrentes' },
+    { id: 'contrato', label: 'Contrato' },
+    { id: 'chamados', label: 'Histórico', count: chamadosEmpresa.length },
+  ];
+
   return (
-    <div className="space-y-6 text-[#0a0a0c] dark:text-[#ffffff] pb-16">
-      
-      {/* Topo: voltar à esquerda, ilha do cabeçalho no meio e ações à direita; as abas ficam na linha de baixo */}
-      <div className="space-y-3 pb-3 border-b border-black/[0.06] dark:border-white/[0.11]">
-        <div className={`flex flex-wrap items-center justify-between gap-3 ${LINHA_TITULO}`}>
-          <button
-            onClick={onBack}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-rm-cartao-escuro text-xs font-semibold text-slate-700 dark:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5 shadow-xs transition-all flex-shrink-0 lg:justify-self-start cursor-pointer"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="19" y1="12" x2="5" y2="12"/>
-              <polyline points="12 19 5 12 12 5"/>
-            </svg>
-            <span>{voltarRotulo}</span>
-          </button>
-
-          <EncaixeCabecalho />
-        {/* Ações de Suporte: Permite adicionar múltiplas demandas para a mesma empresa */}
-        <div className={`flex items-center gap-2 ${ACOES_TITULO} flex-shrink-0`}>
-          <motion.button
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleAbrirModalIniciarSuporte}
-            className="px-4 py-2.5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-rm-acento/20 hover:opacity-95 flex items-center gap-2 transition-all cursor-pointer"
-          >
-            <PlayIcon className="w-3.5 h-3.5" />
-            <span>{chamadoAtivo ? '+ Nova Demanda' : 'Iniciar Atendimento de Demanda'}</span>
-          </motion.button>
-
-          <button
-            type="button"
-            onClick={() => setIsRegistrarModalOpen(true)}
-            className="px-3.5 py-2.5 rounded-full border border-black/10 dark:border-white/15 bg-white dark:bg-rm-campo-escuro hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold text-[#1d1d1f] dark:text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-          >
-            <span>+ Registrar Suporte</span>
-          </button>
-        </div>
-        </div>
-
-          {/* Abas */}
-          <div className="flex items-center gap-1.5 overflow-x-auto max-w-full w-fit py-0.5 px-0.5 rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.05] dark:border-white/[0.09]">
-            {[
-              { id: 'cockpit', label: 'Cockpit de Atendimento', highlight: true },
-              { id: 'canais', label: 'Canais de Atendimento', count: empresa.canais?.length || 0 },
-              { id: 'servidor', label: 'Configurações do Servidor', count: `${concluidosChecklist}/${totalChecklist}` },
-              { id: 'recorrencias', label: 'Problemas recorrentes' },
-              { id: 'contrato', label: 'Contrato' },
-              { id: 'chamados', label: 'Histórico de Atendimentos', count: chamadosEmpresa.length },
-            ].map((tab) => {
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`py-2 px-3.5 text-xs font-semibold rounded-xl transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer ${
-                    isActive
-                      ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs font-bold'
-                      : 'text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
-                  }`}
-                >
-                  {tab.highlight && <LightBulbIcon className="w-3.5 h-3.5" />}
-                  <span>{tab.label}</span>
-                  {tab.count !== undefined && (
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                      isActive
-                        ? 'bg-white/20 dark:bg-black/20 text-white dark:text-black'
-                        : 'bg-black/5 dark:bg-white/10 text-slate-500 dark:text-zinc-400'
-                    }`}>
-                      {tab.count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+    <>
+      {createPortal(
+        <div className="fixed inset-0 z-[45] overflow-y-auto overscroll-none bg-rm-fundo dark:bg-[#0b0d12] text-[#1d1d1f] dark:text-white [scrollbar-width:thin]">
+          {/* Fundo vivo: as mesmas luzes suaves do Modo foco */}
+          <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
+            <motion.div className="absolute -top-40 -left-40 w-[620px] h-[620px] rounded-full blur-[120px] opacity-50 dark:opacity-100" style={{ background: 'rgb(var(--rm-acento-medio) / 0.35)' }} animate={{ x: [0, 80, 0], y: [0, 50, 0] }} transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }} />
+            <motion.div className="absolute -bottom-48 -right-32 w-[560px] h-[560px] rounded-full blur-[130px] bg-violet-500/15 dark:bg-violet-500/25" animate={{ x: [0, -60, 0], y: [0, -40, 0] }} transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }} />
           </div>
-      </div>
 
-      {toast.text && (
-        <div className={`p-3.5 rounded-2xl text-xs font-semibold flex items-center gap-2 shadow-sm ${
-          toast.type === 'error'
-            ? 'bg-red-500/10 text-red-700 border border-red-500/30 dark:text-red-300'
-            : 'bg-emerald-500/10 text-emerald-800 border border-emerald-500/30 dark:text-emerald-300'
-        }`}>
-          <span>{toast.text}</span>
-        </div>
-      )}
+          <div className="relative max-w-[1040px] mx-auto px-4 sm:px-8 pt-6 sm:pt-[84px] lg:pt-[92px] pb-20">
+            {/* Barra de cima */}
+            <div className="flex items-center gap-4">
+              <div className="min-w-0">
+                <p className="text-[12px] font-semibold tracking-wide uppercase text-black/45 dark:text-white/50">{chamadoAtivo ? 'Em atendimento' : demandaPendente ? 'Demanda da vez' : 'Empresa'}</p>
+                <p className="text-[15px] font-medium truncate">{chamadoAtivo ? <span className="tabular-nums">⏱ {formatarTempo(tempoSuporteSegundos)}</span> : empresa.nome}</p>
+              </div>
+              <button type="button" onClick={onBack} className={`ml-auto h-10 px-4 rounded-full ${SUAVE_FOCO} text-[13px] font-medium cursor-pointer whitespace-nowrap`}>
+                {voltarRotulo} <kbd className="hidden sm:inline ml-1.5 px-1.5 py-0.5 rounded-md bg-black/[0.06] dark:bg-white/10 text-[10.5px] font-medium text-black/45 dark:text-white/60 font-sans">Esc</kbd>
+              </button>
+            </div>
 
-      {/* Cartão da empresa: quem é, onde entrar, resumo em uma linha, acesso recolhido e avisos fixos */}
-      <div className="rounded-2xl p-5 border border-black/10 dark:border-white/12 bg-white dark:bg-rm-cartao-escuro shadow-sm space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center gap-4">
-          <div className="min-w-0 flex-1">
-            {isEditingNomeInline ? (
-              <form onSubmit={handleSalvarNomeInline} className="space-y-2 max-w-sm">
-                <input
-                  type="text"
-                  value={empresaNomeEditInput}
-                  onChange={(e) => setEmpresaNomeEditInput(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded-lg border border-black/15 dark:border-white/20 bg-white dark:bg-rm-campo-escuro text-sm font-bold text-[#0a0a0c] dark:text-white focus:outline-none focus:ring-2 focus:ring-rm-acento"
-                  autoFocus
-                />
-                <div className="flex items-center gap-1.5">
-                  <button type="submit" disabled={salvandoEmpresaServidor} className="px-3 py-1 rounded-lg bg-black text-white dark:bg-white dark:text-black text-xs font-bold hover:opacity-90 cursor-pointer">
-                    Salvar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmpresaNomeEditInput(empresa.nome);
-                      setIsEditingNomeInline(false);
-                    }}
-                    className="px-3 py-1 rounded-lg text-xs text-slate-500 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
-                  >
-                    Cancelar
+            {toast.text && (
+              <div className={`mt-4 p-3.5 rounded-2xl text-xs font-semibold flex items-center gap-2 shadow-sm ${toast.type === 'error' ? 'bg-red-500/10 text-red-700 border border-red-500/30 dark:text-red-300' : 'bg-emerald-500/10 text-emerald-800 border border-emerald-500/30 dark:text-emerald-300'}`}>
+                <span>{toast.text}</span>
+              </div>
+            )}
+
+            {/* A empresa e a demanda da vez, como o cartão do Modo foco */}
+            <motion.article initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', bounce: 0.2, duration: 0.5 }} className="mt-4 rounded-[32px] bg-white/80 dark:bg-white/[0.06] backdrop-blur-2xl ring-1 ring-black/[0.06] dark:ring-white/10 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.35)] dark:shadow-[0_40px_120px_-40px_rgba(0,0,0,0.8)] p-6 sm:p-10">
+              <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
+                <span className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-black/[0.05] dark:bg-white/10">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  Empresa ativa
+                </span>
+                <span className="h-7 px-3 rounded-full bg-black/[0.035] dark:bg-white/[0.06] text-black/60 dark:text-white/70 inline-flex items-center">{nomeServidorDaEmpresa}</span>
+                <span className="h-7 px-3 rounded-full bg-black/[0.035] dark:bg-white/[0.06] text-black/60 dark:text-white/70 inline-flex items-center">{empresa.tipo_cliente ? TIPOS_CLIENTE[empresa.tipo_cliente] : 'Tipo de cliente não informado'}</span>
+                <button type="button" onClick={() => setActiveTab('servidor')} className="h-7 px-2 text-black/50 dark:text-white/55 hover:text-black dark:hover:text-white hover:underline cursor-pointer">Alterar</button>
+                {empresa.is_mock && <span className="text-[10px] font-mono text-black/40 dark:text-white/40">Mock Dev</span>}
+              </div>
+
+              {isEditingNomeInline ? (
+                <form onSubmit={handleSalvarNomeInline} className="mt-5 flex flex-wrap items-center gap-2 max-w-xl">
+                  <input type="text" value={empresaNomeEditInput} onChange={(e) => setEmpresaNomeEditInput(e.target.value)} className="flex-1 min-w-0 h-12 px-4 rounded-2xl bg-white dark:bg-white/[0.07] ring-1 ring-black/[0.1] dark:ring-white/[0.14] text-[17px] font-semibold outline-none focus:ring-2 focus:ring-rm-acento-medio" autoFocus />
+                  <button type="submit" disabled={salvandoEmpresaServidor} className="h-12 px-5 rounded-full bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f] text-[14px] font-semibold cursor-pointer">Salvar</button>
+                  <button type="button" onClick={() => { setEmpresaNomeEditInput(empresa.nome); setIsEditingNomeInline(false); }} className={`h-12 px-5 rounded-full ${SUAVE_FOCO} text-[14px] font-medium cursor-pointer`}>Cancelar</button>
+                </form>
+              ) : (
+                <div className="mt-5 sm:mt-6 flex items-start gap-3">
+                  <h2 className="text-[30px] sm:text-[46px] font-semibold tracking-[-0.03em] leading-[1.05] break-words min-w-0">{empresaNomeEditInput || empresa.nome}</h2>
+                  <button type="button" onClick={() => setIsEditingNomeInline(true)} className="mt-1 sm:mt-2 p-2 rounded-full text-black/35 dark:text-white/40 hover:text-black dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/10 transition-colors cursor-pointer flex-shrink-0" title="Editar nome da empresa">
+                    <EditIcon className="w-4 h-4" />
                   </button>
                 </div>
-              </form>
-            ) : (
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl font-bold tracking-tight text-[#0a0a0c] dark:text-white truncate">{empresaNomeEditInput || empresa.nome}</h1>
-                <button
-                  type="button"
-                  onClick={() => setIsEditingNomeInline(true)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
-                  title="Editar nome da empresa"
-                >
-                  <EditIcon className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-            <div className="flex items-center gap-x-2 gap-y-1 mt-1 flex-wrap text-xs text-slate-500 dark:text-zinc-400">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                Empresa ativa
-              </span>
-              <span>·</span>
-              <span>{nomeServidorDaEmpresa}</span>
-              {empresa.tipo_cliente ? (
+              )}
+
+              {demandaEmFoco ? (
                 <>
-                  <span>·</span>
-                  <span>{TIPOS_CLIENTE[empresa.tipo_cliente]}</span>
+                  {relatoDaDemanda ? (
+                    <p className="mt-4 text-[17px] sm:text-[20px] leading-relaxed text-black/75 dark:text-white/80 whitespace-pre-wrap break-words">{relatoDaDemanda}</p>
+                  ) : (
+                    <p className="mt-4 text-[18px] text-black/35 dark:text-white/40">Demanda sem relato. Use a pesquisa de soluções.</p>
+                  )}
+                  {metaFoco && <p className="mt-4 text-[13.5px] text-black/45 dark:text-white/50">{metaFoco}</p>}
                 </>
               ) : (
-                <>
-                  <span>·</span>
-                  <span>Tipo de cliente não informado</span>
-                </>
+                <p className="mt-4 text-[17px] text-black/45 dark:text-white/50">Nenhum atendimento em andamento nesta empresa.</p>
               )}
-              <button type="button" onClick={() => setActiveTab('servidor')} className="font-semibold text-slate-700 dark:text-zinc-200 hover:underline cursor-pointer">
-                Alterar
-              </button>
-              {empresa.is_mock && <span className="text-[10px] font-mono text-slate-400">Mock Dev</span>}
-            </div>
-          </div>
 
-          {urlServidorDaEmpresa ? (
-            <button
-              type="button"
-              onClick={abrirServidorDaEmpresa}
-              className="md:w-64 px-4 py-2.5 rounded-xl bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-sm flex items-center justify-between gap-3 hover:opacity-95 transition-all cursor-pointer flex-shrink-0"
-            >
-              <span className="text-left leading-tight">
-                Entrar no servidor
-                <span className="block text-[11px] font-medium opacity-80">{acessoPrincipal?.senha ? 'Copia a senha e abre' : 'Abre o servidor do cliente'}</span>
-              </span>
-              <ExternalLinkIcon className="w-4 h-4 flex-shrink-0" />
-            </button>
-          ) : (
-            <p className="md:w-64 text-[11px] leading-snug text-slate-500 dark:text-zinc-400 flex-shrink-0">
-              Link do {nomeServidorDaEmpresa} ainda não configurado. Um administrador pode definir em Configurações Gerais › Servidores.
-            </p>
-          )}
-        </div>
+              {painelAcesso && (
+                <div className="mt-6">
+                  <AcessoEmpresaFoco empresa={empresa} chamado={demandaEmFoco} userEmail={userEmail} onConsegui={() => setPainelAcesso(false)} onFechar={() => setPainelAcesso(false)} />
+                </div>
+              )}
 
-        {/* Os números e o último atendimento, em uma linha de texto */}
-        <p className="text-xs text-slate-500 dark:text-zinc-400">
-          {empresa.canais?.length || 0} canais ativos · {credenciaisList.length} acessos técnicos · {chamadosEmpresa.length} chamados ·{' '}
-          {totalChecklist > 0 ? `servidor ${pctChecklist}% configurado` : 'servidor sem lista de configuração'} ·{' '}
-          {ultimoAtendimento
-            ? `último atendimento em ${new Date(ultimoAtendimento.finalizado_em || ultimoAtendimento.iniciado_em || ultimoAtendimento.created_at).toLocaleDateString('pt-BR')} (${ultimoAtendimento.motivo || ultimoAtendimento.observacao_inicial || 'sem motivo registrado'})`
-            : 'ainda sem atendimento'}
-        </p>
-
-        {/* Acesso principal recolhido: usuário e senha só aparecem quando precisar */}
-        {acessoPrincipal && (acessoPrincipal.usuario_email || acessoPrincipal.senha) ? (
-          <details className="text-xs">
-            <summary className="cursor-pointer select-none font-semibold text-slate-700 dark:text-zinc-200 hover:underline w-fit">Ver acesso</summary>
-            <div className="mt-2 space-y-2">
-              <div className="flex flex-col md:flex-row gap-2">
-                {acessoPrincipal.usuario_email && (
-                  <div className="flex-1 min-w-0 flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-black/[0.03] dark:bg-white/[0.04]">
-                    <span className="min-w-0 truncate"><span className="text-slate-500 dark:text-zinc-400 mr-2">Usuário</span><span className="font-mono">{acessoPrincipal.usuario_email}</span></span>
-                    <button type="button" onClick={() => handleCopiarTexto(acessoPrincipal.usuario_email, 'topo_u')} className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer" title="Copiar usuário">
-                      {copiadoId === 'topo_u' ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <CopyIcon className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
+              {/* Botões: um principal e o resto em pílulas suaves */}
+              <div className="mt-6 sm:mt-8 flex flex-wrap items-center gap-2.5">
+                {chamadoAtivo ? (
+                  <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }} onClick={() => { verificarChamadoAtivo(); setIsFinalizarModalOpen(true); }} className={PRINCIPAL_FOCO} style={FUNDO_PRINCIPAL_FOCO}>✓ Concluir chamado</motion.button>
+                ) : demandaPendente ? (
+                  <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }} disabled={assumindoAlvo} onClick={assumirDemanda} className={PRINCIPAL_FOCO} style={FUNDO_PRINCIPAL_FOCO}>{assumindoAlvo ? 'Assumindo…' : '▶ Assumir e começar'}</motion.button>
+                ) : (
+                  <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }} onClick={handleAbrirModalIniciarSuporte} className={PRINCIPAL_FOCO} style={FUNDO_PRINCIPAL_FOCO}>▶ Iniciar atendimento</motion.button>
                 )}
-                {acessoPrincipal.senha && (
-                  <div className="flex-1 min-w-0 flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-black/[0.03] dark:bg-white/[0.04]">
-                    <span className="min-w-0 truncate"><span className="text-slate-500 dark:text-zinc-400 mr-2">Senha</span><span className="font-mono">{senhasReveladas[acessoPrincipal.id] ? acessoPrincipal.senha : '••••••••••••'}</span></span>
-                    <span className="flex items-center gap-1">
-                      <button type="button" onClick={() => handleToggleVerSenha(acessoPrincipal)} className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer" title={senhasReveladas[acessoPrincipal.id] ? 'Ocultar' : 'Visualizar'}>
-                        {senhasReveladas[acessoPrincipal.id] ? <EyeOffIcon className="w-3.5 h-3.5" /> : <EyeIcon className="w-3.5 h-3.5" />}
-                      </button>
-                      <button type="button" onClick={() => handleCopiarTexto(acessoPrincipal.senha, 'topo_s')} className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer" title="Copiar senha">
-                        {copiadoId === 'topo_s' ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <CopyIcon className="w-3.5 h-3.5" />}
-                      </button>
-                    </span>
-                  </div>
+                {urlServidorDaEmpresa ? (
+                  <button type="button" onClick={abrirServidorDaEmpresa} className={`h-12 px-5 rounded-full ${SUAVE_FOCO} text-[14px] font-medium cursor-pointer`}>Entrar no servidor ↗</button>
+                ) : (
+                  <span className="text-[12.5px] text-black/45 dark:text-white/50 max-w-[16rem] leading-snug">Link do {nomeServidorDaEmpresa} ainda não configurado (Configurações Gerais › Servidores).</span>
+                )}
+                <button type="button" onClick={() => setPainelAcesso((v) => !v)} className={`h-12 px-5 rounded-full ${SUAVE_FOCO} text-[14px] font-medium cursor-pointer`}>{painelAcesso ? 'Fechar acesso' : 'Acesso e senha'}</button>
+                {demandaEmFoco && (
+                  <button type="button" onClick={handleAbrirModalIniciarSuporte} className={`h-12 px-5 rounded-full ${SUAVE_FOCO} text-[14px] font-medium cursor-pointer`}>+ Nova demanda</button>
+                )}
+                <button type="button" onClick={() => setIsRegistrarModalOpen(true)} className={`h-12 px-5 rounded-full ${SUAVE_FOCO} text-[14px] font-medium cursor-pointer`}>+ Registrar suporte</button>
+                {chamadoAtivo && (
+                  <button type="button" onClick={handleCancelarChamado} className="h-12 px-5 rounded-full text-black/60 hover:text-rose-600 dark:text-white/70 dark:hover:text-rose-300 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] text-[14px] font-medium cursor-pointer">Cancelar atendimento</button>
                 )}
               </div>
-              <button type="button" onClick={() => setActiveTab('credenciais')} className="text-slate-500 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:underline cursor-pointer">
-                Ver todos os acessos e senhas
-              </button>
-            </div>
-          </details>
-        ) : (
-          <p className="text-xs text-slate-500 dark:text-zinc-400">
-            Nenhum acesso cadastrado.{' '}
-            <button type="button" onClick={() => setActiveTab('credenciais')} className="font-semibold text-slate-700 dark:text-zinc-200 hover:underline cursor-pointer">Cadastrar acesso</button>
-          </p>
-        )}
 
-        {/* Avisos fixos: a lista só aparece quando existe aviso; sem aviso, fica só o "+ Aviso" */}
-        {notasFixas.length > 0 && (
-          <ul className="text-xs space-y-1.5 border-l-2 border-black/15 dark:border-white/20 pl-3">
-            {notasFixas.map((n) => (
-              <li key={n.id} className="flex items-start justify-between gap-2">
-                <span className="whitespace-pre-wrap">{n.conteudo}</span>
-                <button type="button" onClick={() => handleRemoverObservacao(n.id)} className="text-slate-400 hover:text-red-500 cursor-pointer flex-shrink-0" title="Remover aviso">×</button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {mostrandoNotaFixa ? (
-          <form onSubmit={handleSalvarNotaFixa} className="flex items-center gap-2 text-xs">
-            <input
-              autoFocus
-              value={novaNotaFixa}
-              onChange={(e) => setNovaNotaFixa(e.target.value)}
-              placeholder="Ligar antes das 9h"
-              className="flex-1 min-w-0 px-3 py-1.5 rounded-lg border border-black/15 dark:border-white/20 bg-white dark:bg-rm-campo-escuro focus:outline-none focus:ring-2 focus:ring-rm-acento"
-            />
-            <button type="submit" className="px-3 py-1.5 rounded-lg bg-black text-white dark:bg-white dark:text-black font-bold hover:opacity-90 cursor-pointer">Salvar</button>
-            <button type="button" onClick={() => { setMostrandoNotaFixa(false); setNovaNotaFixa(''); }} className="px-2 py-1.5 text-slate-500 cursor-pointer">Cancelar</button>
-          </form>
-        ) : (
-          <button type="button" onClick={() => setMostrandoNotaFixa(true)} className="block text-xs font-semibold text-slate-500 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:underline cursor-pointer">+ Aviso</button>
-        )}
-      </div>
+              {/* Os números e o último atendimento, em uma linha de texto */}
+              <p className="mt-6 text-[12.5px] text-black/45 dark:text-white/50">
+                {empresa.canais?.length || 0} canais ativos · {credenciaisList.length} acessos técnicos · {chamadosEmpresa.length} chamados ·{' '}
+                {totalChecklist > 0 ? `servidor ${pctChecklist}% configurado` : 'servidor sem lista de configuração'} ·{' '}
+                {ultimoAtendimento
+                  ? `último atendimento em ${new Date(ultimoAtendimento.finalizado_em || ultimoAtendimento.iniciado_em || ultimoAtendimento.created_at).toLocaleDateString('pt-BR')} (${ultimoAtendimento.motivo || ultimoAtendimento.observacao_inicial || 'sem motivo registrado'})`
+                  : 'ainda sem atendimento'}
+              </p>
 
-      {/* Suporte em aberto: um bloco só; o cronômetro e os botões (parte de cima) acompanham a rolagem */}
-      {chamadoAtivo && (
-        <div className="rounded-2xl border border-black/10 dark:border-white/12 bg-white dark:bg-rm-cartao-escuro">
-          <div className="sticky top-20 z-40 rounded-t-2xl bg-white dark:bg-rm-cartao-escuro border-b border-black/[0.06] dark:border-white/[0.11] px-4 py-3 flex flex-wrap items-center gap-3 shadow-sm">
-            <span className="w-2 h-2 rounded-full bg-slate-500 dark:bg-zinc-400 animate-pulse"></span>
-            <div className="min-w-0 flex-1">
-              <span className="block text-xs font-bold text-[#0a0a0c] dark:text-white">Suporte em aberto · <span className="font-mono tabular-nums">{formatarTempo(tempoSuporteSegundos)}</span></span>
-              <span className="block text-[11px] text-slate-500 dark:text-zinc-400">Responsável: <strong className="text-slate-700 dark:text-zinc-200">{getNomeTecnico(chamadoAtivo.tecnico_email, chamadoAtivo.tecnico_nome)}</strong></span>
-            </div>
-            <button type="button" onClick={handleCancelarChamado} className="text-xs font-medium text-slate-500 hover:text-red-500 dark:text-zinc-400 dark:hover:text-red-400 px-2 py-1.5 cursor-pointer">
-              Cancelar atendimento
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                // Dados frescos da demanda (solicitante, descrição) no momento de concluir
-                verificarChamadoAtivo();
-                setIsFinalizarModalOpen(true);
-              }}
-              className="px-4 py-2 rounded-xl bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs hover:opacity-95 flex items-center gap-2 cursor-pointer"
-            >
-              <CheckIcon className="w-4 h-4 stroke-[2.5]" />
-              <span>Concluir chamado</span>
-            </button>
-          </div>
-
-          <div className="px-4 py-3 text-xs space-y-2">
-            <div className="flex flex-wrap gap-x-5 gap-y-1 text-slate-500 dark:text-zinc-400">
-              {Array.isArray(chamadoAtivo.categorias) && chamadoAtivo.categorias.length > 0 && (
-                <span>Categoria: <strong className="text-slate-700 dark:text-zinc-200">{chamadoAtivo.categorias.join(', ')}</strong></span>
+              {/* Avisos fixos: a lista só aparece quando existe aviso; sem aviso, fica só o "+ Aviso" */}
+              {notasFixas.length > 0 && (
+                <ul className="mt-3 text-[13px] space-y-1.5 border-l-2 border-black/15 dark:border-white/20 pl-3">
+                  {notasFixas.map((n) => (
+                    <li key={n.id} className="flex items-start justify-between gap-2">
+                      <span className="whitespace-pre-wrap">{n.conteudo}</span>
+                      <button type="button" onClick={() => handleRemoverObservacao(n.id)} className="text-black/35 hover:text-rose-500 cursor-pointer flex-shrink-0" title="Remover aviso">×</button>
+                    </li>
+                  ))}
+                </ul>
               )}
-              {chamadoAtivo.colaborador_solicitante && <span>Solicitante: <strong className="text-slate-700 dark:text-zinc-200">{chamadoAtivo.colaborador_solicitante}</strong></span>}
-              {chamadoAtivo.criador_email && <span>Aberta por: <strong className="text-slate-700 dark:text-zinc-200">{getNomeTecnico(chamadoAtivo.criador_email)}</strong></span>}
-              {chamadoAtivo.atribuido_a && <span>Atribuída a: <strong className="text-slate-700 dark:text-zinc-200">{getNomeTecnico(chamadoAtivo.atribuido_a)}</strong></span>}
-              {chamadoAtivo.prazo_limite && <span>Prazo: <strong className="text-slate-700 dark:text-zinc-200">{new Date(chamadoAtivo.prazo_limite).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</strong></span>}
-            </div>
-            {relatoAtivo ? (
-              <p className="text-sm text-slate-800 dark:text-zinc-100 whitespace-pre-wrap"><span className="block text-[11px] font-medium text-slate-500 dark:text-zinc-400 mb-0.5">O que a pessoa relatou</span>{relatoAtivo}</p>
-            ) : (
-              <p className="text-slate-500 dark:text-zinc-400">Esta demanda foi aberta sem relato. Use a pesquisa de soluções abaixo.</p>
-            )}
-          </div>
-        </div>
-      )}
+              {mostrandoNotaFixa ? (
+                <form onSubmit={handleSalvarNotaFixa} className="mt-3 flex items-center gap-2 text-[13px]">
+                  <input autoFocus value={novaNotaFixa} onChange={(e) => setNovaNotaFixa(e.target.value)} placeholder="Ligar antes das 9h" className="flex-1 min-w-0 h-10 px-4 rounded-full bg-white dark:bg-white/[0.07] ring-1 ring-black/[0.1] dark:ring-white/[0.14] outline-none focus:ring-2 focus:ring-rm-acento-medio" />
+                  <button type="submit" className="h-10 px-4 rounded-full bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f] font-semibold cursor-pointer">Salvar</button>
+                  <button type="button" onClick={() => { setMostrandoNotaFixa(false); setNovaNotaFixa(''); }} className="h-10 px-3 text-black/50 dark:text-white/55 cursor-pointer">Cancelar</button>
+                </form>
+              ) : (
+                <button type="button" onClick={() => setMostrandoNotaFixa(true)} className="mt-3 block text-[13px] font-medium text-black/45 dark:text-white/50 hover:text-black dark:hover:text-white hover:underline cursor-pointer">+ Aviso</button>
+              )}
+            </motion.article>
 
-      <div className="grid grid-cols-1 gap-6 items-start">
+            {/* Seções da empresa: pílulas suaves, a ativa em preto (como o seletor do Modo foco) */}
+            <div className="mt-5 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
+              {abasFoco.map((tab) => {
+                const ativa = activeTab === tab.id;
+                return (
+                  <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} className={`h-11 px-5 rounded-full text-[14px] font-medium whitespace-nowrap inline-flex items-center gap-2 cursor-pointer transition-colors ${ativa ? 'bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f] font-semibold' : `${SUAVE_FOCO} text-black/70 dark:text-white/75`}`}>
+                    {tab.label}
+                    {tab.count !== undefined && <span className={`text-[11px] tabular-nums px-1.5 rounded-full ${ativa ? 'bg-white/20 dark:bg-black/15' : 'bg-black/[0.06] dark:bg-white/10 text-black/55 dark:text-white/60'}`}>{tab.count}</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 gap-6 items-start">
 
         {/* COLUNA DIREITA: CONTEÚDO DINÂMICO EM ABAS (~65%) */}
         <div className="space-y-5">
@@ -2434,7 +2360,11 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
 
         </div>
 
-      </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Modal para Edição das URLs dos Servidores 1 e 2 */}
       {isEditServidoresModalOpen && (
@@ -2941,6 +2871,6 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
         onClose={() => setConfirmDialog(null)}
       />
 
-    </div>
+    </>
   );
 }
