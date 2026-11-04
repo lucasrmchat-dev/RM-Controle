@@ -51,6 +51,7 @@ import QueueCommandBar from './QueueCommandBar';
 import NovaDemandaModal from './NovaDemandaModal';
 import { ListaDemandas, CardsDemandas, KanbanDemandas } from './FilaDemandasVisoes';
 import ModoFoco, { SeletorModoFoco, focoEmAndamento } from './ModoFoco';
+import EntradaEmpresaFoco from './EntradaEmpresaFoco';
 import { focoSilenciaAvisos } from '@/lib/modoFoco';
 import { SupportQueueSkeleton } from './SkeletonLoaders';
 import { 
@@ -1114,6 +1115,14 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
     ) || (ch.empresa_nome ? { id: ch.empresa_id || ch.empresa_nome, nome: ch.empresa_nome } : null);
 
   const [assumindoId, setAssumindoId] = useState(null);
+  // Entrar na empresa de uma demanda passa antes pela tela de foco (acesso e demanda)
+  const [entradaEmpresa, setEntradaEmpresa] = useState(null);
+  const entrarNaEmpresa = (chamado) => {
+    const emp = empresaDoChamado(chamado) || { id: chamado.empresa_id, nome: chamado.empresa_nome };
+    if (!onSelectEmpresa) return;
+    if (chamado.is_demanda_interna || !emp?.id) return onSelectEmpresa(emp);
+    setEntradaEmpresa({ chamado, empresa: emp });
+  };
 
   // abrirEmpresa: depois de assumir, já leva para a tela da empresa (sem procurar a demanda na lista)
   const handleAceitarSuporte = async (chamado, { abrirEmpresa = false } = {}) => {
@@ -1124,7 +1133,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
       stopSupportNotificationLoop();
       if (abrirEmpresa && onSelectEmpresa && !chamado.is_demanda_interna) {
         showToast(`Atendimento de ${chamado.empresa_nome} iniciado.`, 'success');
-        onSelectEmpresa(empresaDoChamado(chamado) || { id: chamado.empresa_id, nome: chamado.empresa_nome });
+        entrarNaEmpresa(chamado);
         return;
       }
       showFeedbackMsg(`Você aceitou o suporte de ${chamado.empresa_nome}. Cronômetro ativo iniciado!`);
@@ -1366,7 +1375,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
     },
     abrirEmpresa: (ch) => {
       setDetalheId(null);
-      if (onSelectEmpresa) onSelectEmpresa(empresaDoChamado(ch) || { id: ch.empresa_id, nome: ch.empresa_nome });
+      entrarNaEmpresa(ch);
     },
     // Demanda aberta de uma mensagem do Chat (ticket #24): leva à conversa, já na mensagem de origem
     abrirChat: (ch) => {
@@ -1997,6 +2006,20 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
           tempos={temposDemanda}
           eMinha={isMeuAtendimento}
           onSair={() => setFoco(false)}
+        />
+      )}
+
+      {entradaEmpresa && (
+        <EntradaEmpresaFoco
+          chamado={entradaEmpresa.chamado}
+          empresa={entradaEmpresa.empresa}
+          userEmail={userEmail}
+          onSair={() => setEntradaEmpresa(null)}
+          onContinuar={() => {
+            const emp = entradaEmpresa.empresa;
+            setEntradaEmpresa(null);
+            onSelectEmpresa(emp);
+          }}
         />
       )}
 

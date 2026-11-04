@@ -12,6 +12,8 @@ import { GET as listarFluxos, POST as criarFluxos } from '../src/app/api/fluxos/
 import { GET as lerFluxo, PATCH as salvarFluxo, DELETE as excluirFluxo } from '../src/app/api/fluxos/[id]/route.js';
 import { POST as disparar } from '../src/app/api/fluxos/disparar/route.js';
 import { verificarSlaDemandas } from '../src/lib/server/fluxos.js';
+import { GET as destinoPedido, POST as pedirAcesso } from '../src/app/api/chat/pedir-acesso/route.js';
+import { MENSAGEM_PEDIR_ACESSO } from '../src/lib/pedirAcesso.js';
 import { POST as receberWebhook } from '../src/app/api/canais/webhook/[id]/route.js';
 import {
   ajustarCanais, dadosDaDemanda, efeitosSimulados, executarFluxo, exportarFluxo, gatilhoCasa, gatilhosDe, lerArquivoFluxo, novoBloco, preencher, problemasDoFluxo, validarDefinicao,
@@ -443,4 +445,30 @@ test('Demandas criadas de uma conversa de grupo: responde no grupo, avisa o soli
     ['5585977776666', 'Oi Felipe Souza, abrimos sua demanda'],
     ['120363000000@g.us', 'Demanda aberta para Polysite'],
   ]);
+});
+
+test('Entrada na empresa: não conseguiu acessar manda o pedido pronto no grupo ligado à empresa (ou diz que não há grupo)', async () => {
+  const empresaId = crypto.randomUUID();
+  const grupo = { id: crypto.randomUUID(), organizacao_id: A, nome: 'RM | Polysite', telefone: '120363111@g.us', empresa_id: empresaId };
+  const conversa = { id: crypto.randomUUID(), organizacao_id: A, canal_id: canal.id, contato_id: grupo.id, status: 'aberta', responsavel_email: null, departamento: '', ultima_mensagem_em: new Date().toISOString(), criado_em: new Date().toISOString() };
+  db.tables.contatos = [grupo];
+  db.tables.conversas = [conversa];
+  db.tables.auditoria_logs = [];
+  const url = `/api/chat/pedir-acesso?empresa_id=${empresaId}&chamado_id=`;
+
+  const antes = await ler(await destinoPedido(await como('bia@a.com', url)));
+  assert.deepEqual([antes.destino.nome, antes.destino.grupo], ['RM | Polysite', true]);
+  const r = await ler(await pedirAcesso(await como('bia@a.com', '/api/chat/pedir-acesso', 'POST', { empresa_id: empresaId })));
+  assert.equal(r.ok, true);
+  const envio = enviados.find((e) => e.url.includes('sendText'));
+  assert.equal(envio.corpo.number, '120363111@g.us');
+  assert.ok(envio.corpo.text.includes(MENSAGEM_PEDIR_ACESSO), 'a mensagem pronta vai inteira');
+  assert.equal(db.tables.auditoria_logs.at(-1).acao, 'pediu_acesso_cliente');
+
+  // Empresa sem grupo ligado (e demanda sem conversa): nada é enviado
+  const outra = crypto.randomUUID();
+  assert.equal((await ler(await destinoPedido(await como('bia@a.com', `/api/chat/pedir-acesso?empresa_id=${outra}&chamado_id=`)))).destino, null);
+  const sem = await ler(await pedirAcesso(await como('bia@a.com', '/api/chat/pedir-acesso', 'POST', { empresa_id: outra })));
+  assert.equal(sem.status, 404);
+  assert.equal(enviados.filter((e) => e.url.includes('sendText')).length, 1);
 });

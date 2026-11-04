@@ -15,6 +15,34 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-04-entrada-empresa-foco',
+    data: '2026-11-04',
+    titulo: 'Demandas: entrada na empresa em duas etapas, no estilo do Modo foco',
+    resumo: 'Ao abrir a empresa de uma demanda, uma tela de foco mostra primeiro o acesso e depois a demanda, e já resolve o caso de não conseguir entrar.',
+    itens: [
+      'Etapa 1, Acesso: e-mail e senha de administrador, botão “Acessar a empresa” (copia a senha e abre o servidor) e as respostas “Consegui acessar” ou “Não consegui acessar”.',
+      '“Consegui acessar” segue direto, sem mandar nada ao cliente.',
+      '“Não consegui acessar”: pede o acesso ao cliente com uma mensagem pronta, enviada na hora no grupo de WhatsApp ligado à empresa, ou deixa trocar o e-mail e a senha ali mesmo (quando o cliente mandou o acesso certo no privado).',
+      'Etapa 2, Demanda: o que a pessoa relatou, categoria, quem pediu e o responsável, e então abre a empresa.',
+    ],
+    modulo: 'Fila de Demandas',
+    tickets: [],
+  },
+  {
+    id: '2026-11-04-reuniao-rapida-chat',
+    data: '2026-11-04',
+    titulo: 'Chat: reunião rápida, sem formulário',
+    resumo: 'Criar uma reunião pelo Chat agora é um clique: ela nasce na hora, em nome da pessoa, e o resto você completa depois na Agenda.',
+    itens: [
+      'No menu da mensagem, “Reunião e abrir o Meet” cria a reunião e já abre o Google Meet numa aba nova; “Reunião (só o link)” cria e copia o link.',
+      'A reunião vai com o nome (e o número) da pessoa que escreveu, e não o nome do grupo. Departamento e empresa ficam para completar na Agenda.',
+      'Digitar # no campo de mensagem mostra as mesmas duas opções, no lugar de “30 minutos” e “1 hora”.',
+      'O link não é mais enviado sozinho ao cliente: cole na conversa quando quiser.',
+    ],
+    modulo: 'Chat',
+    tickets: [],
+  },
+  {
     id: '2026-11-04-demanda-da-conversa-fluxo-reuniao',
     data: '2026-11-04',
     titulo: 'Demanda criada pelo Chat avisa no grupo; reunião pelo menu da mensagem',

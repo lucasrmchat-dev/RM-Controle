@@ -3572,6 +3572,8 @@ export const salvarAcessoChat = (dados) => chamarCanais('/api/chat/acesso', 'PUT
 export const fetchParticipantesConversa = (id) => chamarCanais(`/api/chat/${id}/participantes`, 'GET');
 export const buscarMensagensChat = (q, dias = 30) => chamarCanais(`/api/chat/busca?q=${encodeURIComponent(q)}&dias=${dias}`, 'GET');
 export const fetchListaContatos = (q = '', pagina = 0, { limite } = {}) => chamarCanais(`/api/chat/contatos?lista=1&pagina=${pagina}${limite ? `&limite=${limite}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`, 'GET');
+export const fetchDestinoPedirAcesso = (empresaId, chamadoId) => chamarCanais(`/api/chat/pedir-acesso?empresa_id=${encodeURIComponent(empresaId || '')}&chamado_id=${encodeURIComponent(chamadoId || '')}`, 'GET');
+export const pedirAcessoAoCliente = (empresaId, chamadoId) => chamarCanais('/api/chat/pedir-acesso', 'POST', { empresa_id: empresaId, chamado_id: chamadoId });
 export const acaoConversa = (id, corpo) => chamarCanais(`/api/chat/${id}`, 'POST', corpo);
 /** Ações em massa nas conversas marcadas (resolver, transferir, etiquetas, atendente padrão, status de lead). */
 export const acaoEmMassaChat = (dados) => chamarCanais('/api/chat/massa', 'POST', dados);

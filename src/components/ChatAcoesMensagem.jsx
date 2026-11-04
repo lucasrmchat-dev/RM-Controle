@@ -130,7 +130,8 @@ export function MenuMensagem({ ancora, m, onAcao, onFechar }) {
     // Ticket #24: a mensagem vira o relato de uma demanda, com a empresa e quem pediu já preenchidos
     !m.apagada_em && { id: 'criar_demanda', rotulo: 'Criar demanda' },
     // Abre a Agenda com a reunião já em nome da pessoa que escreveu (no grupo, quem mandou, não o grupo)
-    !m.apagada_em && !nota && { id: 'criar_reuniao', rotulo: 'Criar reunião' },
+    !m.apagada_em && !nota && { id: 'reuniao_abrir', rotulo: 'Reunião e abrir o Meet', icone: 'criar_reuniao' },
+    !m.apagada_em && !nota && { id: 'reuniao_link', rotulo: 'Reunião (só o link)', icone: 'criar_reuniao' },
     { id: 'dados', rotulo: 'Dados da mensagem' },
     { separador: true },
     { id: 'apagar_mim', rotulo: 'Apagar para mim', perigo: true, icone: 'apagar' },

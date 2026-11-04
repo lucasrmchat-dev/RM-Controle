@@ -76,3 +76,18 @@ test('#meet sem Google Agenda conectado: erro claro e nada fica na agenda', asyn
   await assert.rejects(criarMeetDaConversa({ ctx: { db: mockSupabase, org: null }, perm, conversa, fetchImpl: googleFalso().fetchImpl }), /Conecte o Google Agenda/);
   assert.equal(db.tables.agenda_eventos.length, 0);
 });
+
+test('Reunião rápida pelo Chat: nasce na hora em nome da pessoa (não do grupo), com o telefone, e fica para completar', async () => {
+  const g = googleFalso();
+  const grupo = { id: crypto.randomUUID(), nome: 'RM | Clínica', telefone: '120363000@g.us', empresa_id: null };
+  db.tables.contatos = [grupo];
+  const r = await criarMeetDaConversa({ ctx: { db: mockSupabase, org: null }, perm, conversa: { ...conversa, contato_id: grupo.id, departamento: '' }, fetchImpl: g.fetchImpl, pessoa: { nome: 'Marcos Lima', telefone: '(85) 98888-7777' } });
+  assert.equal(r.titulo, 'Reunião com Marcos Lima');
+  const linha = db.tables.agenda_eventos[0];
+  assert.equal(linha.participante_nome, 'Marcos Lima');
+  assert.equal(linha.participante_tipo, 'cliente_novo');
+  assert.equal(linha.cliente_telefone, '85988887777');
+  assert.equal(linha.departamento, undefined, 'sem departamento: fica para preencher na Agenda');
+  assert.match(linha.observacoes, /Falta completar/);
+  assert.equal(linha.link_reuniao, 'https://meet.google.com/abc-defg-hij');
+});

@@ -37,7 +37,6 @@ export default function AgendaEventoModal({
   aberto,
   onFechar,
   evento = null,
-  rascunho = null,
   dataInicial = null,
   horaInicial = null,
   equipe = [],
@@ -168,13 +167,6 @@ export default function AgendaEventoModal({
       setAgendaId(agendaPadrao);
       setLink('');
       setGerarMeet(Boolean(googleAtivo));
-    }
-    // Reunião pedida pelo Chat: a pessoa que escreveu (não o grupo) já é a participante
-    if (!evento && rascunho?.nome) {
-      setTipoParticipante('cliente_novo');
-      setClienteDigitado(rascunho.nome);
-      if (rascunho.telefone) setTelefone(formatarTelefone(rascunho.telefone));
-      setObs(rascunho.obs || '');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aberto, evento?.id]);

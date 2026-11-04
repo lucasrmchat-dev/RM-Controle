@@ -23,6 +23,7 @@ export const ACOES_AUDITORIA = {
   excluiu_historico_chamado: A('Excluiu demanda do histórico', 'Demandas', 'vermelho'),
   registrou_suporte_retroativo: A('Registrou suporte retroativo', 'Demandas'),
   integracao_abriu_demanda: A('Demanda aberta pela integração', 'Demandas', 'azul'),
+  pediu_acesso_cliente: A('Pediu o acesso ao cliente', 'Demandas', 'ambar'),
   // Empresas
   cadastrou_empresa_manual: A('Cadastrou empresa', 'Empresas', 'roxo'),
   cadastrou_empresas_em_massa: A('Importou empresas', 'Empresas', 'roxo'),

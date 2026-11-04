@@ -157,16 +157,6 @@ function CartaoReuniao({ evt, cor, agora, onAbrir }) {
 }
 
 export default function AgendaView({ userEmail, onSelectEmpresa }) {
-  // Reunião pedida pelo Chat (menu da mensagem): abre o formulário já com a pessoa preenchida
-  useEffect(() => {
-    try {
-      const bruto = localStorage.getItem('rm_reuniao_rascunho');
-      if (!bruto) return;
-      localStorage.removeItem('rm_reuniao_rascunho');
-      const r = JSON.parse(bruto);
-      if (r?.nome && Date.now() - Number(r.em || 0) < 2 * 60 * 1000) setModal({ rascunho: r });
-    } catch {}
-  }, []);
   const [eventos, setEventos] = useState([]);
   const [carregado, setCarregado] = useState(false);
   const [equipe, setEquipe] = useState([]);
@@ -680,7 +670,6 @@ export default function AgendaView({ userEmail, onSelectEmpresa }) {
           carregarDados();
         }}
         evento={modal?.evento || null}
-        rascunho={modal?.rascunho || null}
         dataInicial={modal?.data || null}
         horaInicial={modal?.hora || null}
         equipe={equipe}

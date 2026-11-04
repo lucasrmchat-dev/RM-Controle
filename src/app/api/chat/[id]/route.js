@@ -125,6 +125,18 @@ async function processar(request, params, aviso) {
       return json({ ok: true, mensagem: prepararMensagem(mensagem, perm, canal), conversa: (await juntarDetalhes(db, [data]))[0], evento: meet.evento, link: meet.link });
     }
 
+    // Reunião rápida (menu da mensagem e #meet): cria na hora, em nome da pessoa, e devolve só o link (nada vai ao cliente)
+    if (body.acao === 'reuniao_rapida') {
+      if (!(await consumirLimite(`chat_meet_${perm.email}`, 10, 60))) return json({ ok: false, mensagem: 'Muitas reuniões seguidas. Aguarde um instante.' }, 429);
+      try {
+        const meet = await criarMeetDaConversa({ ctx, perm, conversa, duracao: 30, pessoa: { nome: body.nome, telefone: body.telefone } });
+        await auditarChat(db, perm, 'chat_enviou_meet', conversa, { evento_id: meet.evento.id, rapida: true });
+        return json({ ok: true, evento: meet.evento, link: meet.link, titulo: meet.titulo });
+      } catch (e) {
+        return json({ ok: false, mensagem: e.message }, 400);
+      }
+    }
+
     if (body.acao === 'nota') {
       const texto = String(body.texto || '').trim().slice(0, 4000);
       if (!texto) return json({ ok: false, mensagem: 'Escreva a nota.' }, 400);

@@ -29,7 +29,7 @@ export function textoDoMeet({ link, complemento = '', titulo }) {
  * Cria o evento com Meet e devolve { evento, link, titulo }. Lança Error com mensagem para a pessoa.
  * ctx: contexto da requisição (db da empresa e org); perm: quem está atendendo; conversa: a do chat.
  */
-export async function criarMeetDaConversa({ ctx, perm, conversa, duracao = 30, agora = new Date(), fetchImpl = fetch }) {
+export async function criarMeetDaConversa({ ctx, perm, conversa, duracao = 30, agora = new Date(), fetchImpl = fetch, pessoa = null }) {
   if (!googleConfigurado()) throw new Error('O Google Agenda não está configurado neste servidor. Fale com o administrador do sistema.');
   const org = ctx.org?.legado ? null : ctx.org?.id || null;
   return executarNaEmpresa(org, async () => {
@@ -44,14 +44,18 @@ export async function criarMeetDaConversa({ ctx, perm, conversa, duracao = 30, a
     }
     const grupo = ehGrupo(contato?.telefone);
     const nome = contato?.nome || (grupo ? 'grupo' : 'cliente');
-    const titulo = `Reunião com ${empresa || nome}`;
+    // Reunião rápida pelo menu da mensagem: vai em nome da pessoa (no grupo, quem escreveu) e fica para completar na Agenda
+    const nomePessoa = String(pessoa?.nome || '').trim().slice(0, 200);
+    const telefonePessoa = String(pessoa?.telefone || '').replace(/\D/g, '');
+    const titulo = `Reunião com ${nomePessoa || empresa || nome}`;
     const { data, hora } = partesNoFuso(agora.toISOString());
     const minutos = DURACOES_MEET.includes(Number(duracao)) ? Number(duracao) : 30;
     const linha = {
       titulo,
-      empresa: empresa || nome,
+      empresa: nomePessoa ? empresa : empresa || nome,
       empresa_id: contato?.empresa_id || null,
-      participante_nome: grupo ? null : contato?.nome || null,
+      participante_nome: nomePessoa || (grupo ? null : contato?.nome || null),
+      ...(nomePessoa ? { participante_tipo: 'cliente_novo' } : {}),
       data,
       hora_inicio: hora,
       hora_fim: somarMinutos(hora, minutos),
@@ -59,14 +63,14 @@ export async function criarMeetDaConversa({ ctx, perm, conversa, duracao = 30, a
       responsavel_nome: perm.nome,
       status: 'agendada',
       tipo: 'cliente',
-      observacoes: `Criada pelo Chat (atalho #meet) na conversa com ${nome}.`,
+      observacoes: nomePessoa ? `Criada na hora pelo Chat para ${nomePessoa}${grupo ? ` (grupo ${nome})` : ''}. Falta completar: departamento e empresa.` : `Criada pelo Chat (atalho #meet) na conversa com ${nome}.`,
       criado_por: perm.email,
-      ...(grupo || !contato?.telefone ? {} : { cliente_telefone: contato.telefone }),
+      ...(telefonePessoa ? { cliente_telefone: telefonePessoa } : grupo || !contato?.telefone ? {} : { cliente_telefone: contato.telefone }),
       ...(conversa.departamento ? { departamento: conversa.departamento } : {}),
     };
     // Bancos sem alguma coluna opcional (telefone do cliente, departamento, empresa_id): grava sem ela
     let res = await db.from('agenda_eventos').insert([linha]).select('*').single();
-    for (const coluna of ['cliente_telefone', 'departamento', 'empresa_id', 'participante_nome']) {
+    for (const coluna of ['cliente_telefone', 'departamento', 'empresa_id', 'participante_nome', 'participante_tipo']) {
       if (!res.error || !new RegExp(coluna).test(res.error.message || '')) continue;
       delete linha[coluna];
       res = await db.from('agenda_eventos').insert([linha]).select('*').single();

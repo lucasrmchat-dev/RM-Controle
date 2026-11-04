@@ -602,9 +602,10 @@ const lerAssinar = () => {
 const semAcento = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 /** Comandos do campo de mensagem (digite # e escolha; Enter executa). */
+const PALAVRAS_MEET = ['meet', 'reuniao', 'videochamada', 'chamada', 'call'];
 const COMANDOS_CHAT = [
-  { id: 'meet', duracao: 30, palavras: ['meet', 'reuniao', 'videochamada', 'chamada', 'call'], titulo: 'Criar reunião no Google Meet', descricao: 'Agora, 30 min, na agenda da empresa. O link vai para o cliente nesta conversa.' },
-  { id: 'meet', duracao: 60, palavras: ['meet', 'reuniao', 'videochamada', 'chamada', 'call'], titulo: 'Reunião no Google Meet · 1 hora', descricao: 'Igual, com uma hora reservada na agenda.' },
+  { id: 'meet_abrir', palavras: PALAVRAS_MEET, titulo: 'Criar reunião e abrir o Google Meet', descricao: 'Cria na hora, em nome da pessoa, e abre o Meet numa aba nova.' },
+  { id: 'meet_link', palavras: PALAVRAS_MEET, titulo: 'Criar reunião (só o link)', descricao: 'Cria na hora e copia o link. Os dados você completa na Agenda.' },
 ];
 
 function Compositor({ conversa, eu, respostas, onEnviar, onEscolherArquivo, onEnviarArquivo, onGerenciarRespostas, onComando, bloqueio, resposta, onCancelarResposta, edicao, onCancelarEdicao, nomeContato, participantes = [], pessoasDaEquipe = [], assinaturaObrigatoria = false }) {
@@ -1456,23 +1457,14 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
     });
   };
 
-  // ---- Comandos do campo (#meet): reunião do Google Meet na agenda da empresa, link enviado na conversa ----
-  const executarComandoChat = async ({ id, duracao, complemento, assinar }) => {
-    if (id !== 'meet') return;
-    showToast('Criando a reunião no Google Agenda…', 'info');
-    try {
-      const r = await acaoConversa(conversaId, { acao: 'meet', duracao, complemento, assinar });
-      if (r.mensagem) setMensagens((l) => juntar(l, [r.mensagem]));
-      if (r.conversa) {
-        setConversa(r.conversa);
-        onAtualizada?.(r.conversa);
-      }
-      window.dispatchEvent(new Event('agenda_eventos_updated'));
-      showToast('Reunião criada na agenda e link do Meet enviado.', 'success');
-    } catch (e) {
-      showToast(e.message, 'error');
-      throw e;
-    }
+  // ---- Comandos do campo (#meet): reunião rápida do Google Meet, em nome da pessoa ----
+  const executarComandoChat = async ({ id }) => {
+    if (id !== 'meet_abrir' && id !== 'meet_link') return;
+    // Conversa de grupo: a reunião vai em nome de quem escreveu por último (não do grupo)
+    const ultima = ehConversaDeGrupo(conversa) ? [...mensagens].reverse().find((x) => x.direcao === 'entrada' && x.autor_nome) : null;
+    const nome = (ultima?.autor_nome || '').trim() || nomeDoContato(conversa);
+    const telefone = ultima ? telefoneDoAutor(ultima) : ehConversaDeGrupo(conversa) ? '' : String(conversa.contato?.telefone || '');
+    await criarReuniaoRapida({ nome, telefone, abrir: id === 'meet_abrir' });
   };
 
   // ---- Criar demanda a partir da mensagem (ticket #24) ----
@@ -1485,15 +1477,38 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
     const achado = participantes.find((p) => p.telefone && ((alvo && semAcento(p.nome) === alvo) || (alvo && String(m.autor_nome || '').replace(/\D/g, '') === String(p.telefone).replace(/\D/g, ''))));
     return String(achado?.telefone || '');
   };
-  // Reunião a partir da mensagem: abre a Agenda com a pessoa (e não o nome do grupo) já preenchida
-  const criarReuniaoDaMensagem = (m) => {
+  // Reunião rápida: nasce na hora, em nome da pessoa (no grupo, quem escreveu), sem formulário; o resto se completa na Agenda.
+  // `abrir`: já abre o Google Meet numa aba nova; senão só cria e copia o link.
+  const criarReuniaoRapida = async ({ nome, telefone = '', abrir }) => {
+    // A aba abre ainda no clique (sem bloqueio de pop-up) e só depois recebe o link
+    const janela = abrir ? window.open('about:blank', '_blank') : null;
+    if (janela) janela.opener = null;
+    showToast('Criando a reunião…', 'info');
+    try {
+      const r = await acaoConversa(conversaId, { acao: 'reuniao_rapida', nome, telefone });
+      window.dispatchEvent(new Event('agenda_eventos_updated'));
+      if (abrir) {
+        if (janela) janela.location.href = r.link;
+        else window.open(r.link, '_blank', 'noopener,noreferrer');
+        showToast(`Reunião com ${nome} criada. Complete os dados na Agenda.`, 'success');
+      } else {
+        try {
+          await navigator.clipboard.writeText(r.link);
+          showToast(`Reunião com ${nome} criada e link copiado.`, 'success');
+        } catch {
+          showToast(`Reunião criada. Link: ${r.link}`, 'success');
+        }
+      }
+    } catch (e) {
+      if (janela) janela.close();
+      showToast(e.message, 'error');
+    }
+  };
+  const criarReuniaoDaMensagem = (m, abrir) => {
     const daEquipe = m.direcao !== 'entrada';
     const nome = (daEquipe ? '' : (m.autor_nome || '').trim()) || nomeDoContato(conversa);
     const telefone = daEquipe ? (ehConversaDeGrupo(conversa) ? '' : String(conversa.contato?.telefone || '')) : telefoneDoAutor(m);
-    try {
-      localStorage.setItem('rm_reuniao_rascunho', JSON.stringify({ nome, telefone, obs: `Reunião criada a partir de uma mensagem no Chat${ehConversaDeGrupo(conversa) ? ` (grupo ${nomeDoContato(conversa)})` : ''}.`, em: Date.now() }));
-    } catch {}
-    window.dispatchEvent(new CustomEvent('rm_ir_para_aba', { detail: { aba: 'agenda' } }));
+    return criarReuniaoRapida({ nome, telefone, abrir });
   };
   const abrirCriarDemanda = async (m) => {
     let listas = listasDemanda;
@@ -1562,8 +1577,8 @@ function PainelConversa({ conversaId, conversaInicial, mensagemAlvo, eu, sinal, 
         setDados(m);
       } else if (id === 'criar_demanda') {
         await abrirCriarDemanda(m);
-      } else if (id === 'criar_reuniao') {
-        criarReuniaoDaMensagem(m);
+      } else if (id === 'reuniao_abrir' || id === 'reuniao_link') {
+        await criarReuniaoDaMensagem(m, id === 'reuniao_abrir');
       } else if (id === 'reacao') {
         await acaoConversa(conversaId, { acao: 'reagir', mensagem_id: m.id, emoji: extra });
         recarregar();
