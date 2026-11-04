@@ -285,6 +285,26 @@ export default function ResumoDoDiaView({ userEmail }) {
                 </>
               )}
             </Cartao>
+
+            <Cartao titulo="Seu mês" aside={desempenho.tom === 'sem_dados' ? null : `${desempenho.posicao}º de ${desempenho.participantes}`} atraso={0.2}>
+              <p className={`text-[13px] leading-snug ${tomCor}`}>{desempenho.texto}</p>
+              {rankingMostrado.length > 0 && (
+                <ul className="mt-3 space-y-2">
+                  {rankingMostrado.map((r) => {
+                    const sou = r.i === meuIdx;
+                    return (
+                      <li key={r.chave} className="flex items-center gap-3 text-[12px]">
+                        <span className={`w-[64px] truncate ${sou ? 'font-semibold' : TEXTO2}`}>{sou ? 'Você' : primeiroNome(r.nome) || r.nome}</span>
+                        <span className="flex-1 h-[5px] rounded-full bg-black/[0.07] dark:bg-white/10 overflow-hidden">
+                          <motion.span className={`block h-full rounded-full ${sou ? 'bg-[#1d1d1f] dark:bg-white' : 'bg-black/30 dark:bg-white/35'}`} initial={{ width: 0 }} animate={{ width: `${Math.max(4, (r.total / maiorTotal) * 100)}%` }} transition={{ type: 'spring', bounce: 0, duration: 1, delay: 0.3 + r.i * 0.05 }} />
+                        </span>
+                        <span className="w-6 text-right tabular-nums">{r.total}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Cartao>
           </div>
 
           <div className="space-y-3 sm:space-y-4 min-w-0">
@@ -373,26 +393,6 @@ export default function ResumoDoDiaView({ userEmail }) {
                     </button>
                   </div>
                 </>
-              )}
-            </Cartao>
-
-            <Cartao titulo="Seu mês" aside={desempenho.tom === 'sem_dados' ? null : `${desempenho.posicao}º de ${desempenho.participantes}`} atraso={0.2}>
-              <p className={`text-[13px] leading-snug ${tomCor}`}>{desempenho.texto}</p>
-              {rankingMostrado.length > 0 && (
-                <ul className="mt-3 space-y-2">
-                  {rankingMostrado.map((r) => {
-                    const sou = r.i === meuIdx;
-                    return (
-                      <li key={r.chave} className="flex items-center gap-3 text-[12px]">
-                        <span className={`w-[64px] truncate ${sou ? 'font-semibold' : TEXTO2}`}>{sou ? 'Você' : primeiroNome(r.nome) || r.nome}</span>
-                        <span className="flex-1 h-[5px] rounded-full bg-black/[0.07] dark:bg-white/10 overflow-hidden">
-                          <motion.span className={`block h-full rounded-full ${sou ? 'bg-[#1d1d1f] dark:bg-white' : 'bg-black/30 dark:bg-white/35'}`} initial={{ width: 0 }} animate={{ width: `${Math.max(4, (r.total / maiorTotal) * 100)}%` }} transition={{ type: 'spring', bounce: 0, duration: 1, delay: 0.3 + r.i * 0.05 }} />
-                        </span>
-                        <span className="w-6 text-right tabular-nums">{r.total}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
               )}
             </Cartao>
 
