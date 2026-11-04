@@ -15,6 +15,21 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-04-demandas-visual-premium',
+    data: '2026-11-04',
+    titulo: 'Demandas: tela mais limpa e elegante, em lista, cards e kanban',
+    resumo: 'A tela de Demandas ganhou um visual mais leve: menos caixas e bordas, mais espaço e destaque para o que importa.',
+    itens: [
+      'No topo, uma saudação com o resumo do dia e cinco números grandes (todos ativos, aguardando atendente, em atendimento, aguardando cliente e resolvidos hoje). Clicar em um número filtra a fila.',
+      'Lista: linhas soltas separadas por um fio fino, com o nome da empresa em destaque, o estado e o tempo à direita.',
+      'Cards: fundo suave, sem molduras, e uma barra fina que mostra quanto do tempo combinado já passou (fica vermelha quando está atrasada).',
+      'Kanban: colunas sem caixa, só com o título e a contagem. Arrastar para assumir, retomar ou aguardar o cliente continua igual.',
+      'Todas as ações (assumir, concluir, encerrar, retomar, detalhes) continuam onde estavam.',
+    ],
+    modulo: 'Fila de Demandas',
+    tickets: [],
+  },
+  {
     id: '2026-11-04-entrada-empresa-foco',
     data: '2026-11-04',
     titulo: 'Empresa: a tela inteira agora no visual do Modo foco',

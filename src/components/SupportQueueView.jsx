@@ -58,7 +58,6 @@ import {
   ViewListIcon,
   HourglassIcon,
   SupportQueueIcon, 
-  ClockIcon, 
   CheckIcon, 
   PlayIcon, 
   XMarkIcon, 
@@ -957,6 +956,12 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
   }, [chamados]);
 
   // Tempo Médio de Espera (TME) de hoje
+  // Saudação do topo: hora do dia e primeiro nome de quem está logado
+  const saudacaoFila = useMemo(() => {
+    const h = new Date().getHours();
+    const nome = String(getNomeTecnico(userEmail) || '').replace(/\(.*?\)/g, '').trim().split(/\s+/)[0];
+    return `${h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'}${nome && !nome.includes('@') ? `, ${nome}` : ''}`;
+  }, [userEmail]);
   const tmeHojeMinutos = useMemo(() => {
     const concluidos = resolvidosHoje.filter((c) => c.tempo_espera_segundos > 0);
     if (concluidos.length === 0) return 0;
@@ -1531,52 +1536,18 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
         <div className="min-w-0 w-full space-y-4">
 
           {/* BARRA DE STATUS, VISUALIZAÇÃO E FILTROS */}
-          <div className="relative z-30 rounded-2xl p-2.5 sm:p-3 border border-black/[0.06] dark:border-white/[0.11] bg-white dark:bg-rm-cartao-escuro shadow-sm space-y-3">
-            <div className="flex flex-col xl:flex-row xl:items-center gap-3">
-
-              {/* Status com contagem (substitui o antigo painel lateral de métricas) */}
-              <div className="flex gap-1.5 flex-1 min-w-0 overflow-x-auto -mx-1 px-1 pb-0.5 lg:grid lg:grid-cols-5 lg:overflow-visible lg:mx-0 lg:px-0">
-                {[
-                  { id: 'ativos', label: 'Todos ativos', count: emAndamento.length + emEspera.length + aguardandoCliente.length, dot: 'bg-slate-400' },
-                  { id: 'espera', label: 'Aguardando atendente', count: emEspera.length, dot: 'bg-amber-500', ping: emEspera.length > 0 },
-                  { id: 'em_andamento', label: 'Em atendimento', count: emAndamento.length, dot: 'bg-emerald-500' },
-                  { id: 'cliente', label: 'Aguardando cliente', count: aguardandoCliente.length, dot: 'bg-violet-500' },
-                  { id: 'resolvidos_hoje', label: 'Resolvidos hoje', count: resolvidosHoje.length, dot: 'bg-rm-acento dark:bg-rm-acento-escuro' },
-                ].map((st) => {
-                  const isSelected = filtroStatus === st.id;
-                  return (
-                    <button
-                      key={st.id}
-                      type="button"
-                      onClick={() => setFiltroStatus(st.id)}
-                      aria-pressed={isSelected}
-                      className={`text-left px-3.5 py-2.5 rounded-xl border transition-all cursor-pointer flex-shrink-0 min-w-[148px] lg:min-w-0 ${
-                        isSelected
-                          ? 'bg-[#1d1d1f] dark:bg-white border-transparent text-white dark:text-[#1d1d1f] shadow-sm'
-                          : 'border-black/[0.06] dark:border-white/[0.11] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-600 dark:text-zinc-300'
-                      }`}
-                    >
-                      <span className="flex items-center gap-1.5 text-[11px] font-semibold whitespace-nowrap">
-                        <span className={`relative w-1.5 h-1.5 rounded-full ${st.dot}`}>
-                          {st.ping && <span className={`absolute inset-0 rounded-full ${st.dot} animate-ping`} />}
-                        </span>
-                        {st.label}
-                      </span>
-                      <span className="block mt-0.5 text-xl font-bold tabular-nums leading-tight">{carregado ? st.count : '–'}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Tempo médio + alternador de visualização */}
-              <div className="flex items-center justify-between xl:justify-end gap-3 flex-shrink-0">
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-zinc-400 whitespace-nowrap" title="Tempo médio de espera até o atendimento, hoje">
-                  <ClockIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                  <span>Espera média hoje</span>
-                  <strong className="text-[#1d1d1f] dark:text-white tabular-nums">{tmeHojeMinutos} min</strong>
+          <div className="relative z-30 space-y-4">
+            <div>
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div className="min-w-0">
+                  <h2 className="font-display font-normal text-[32px] sm:text-[38px] leading-[1.1] text-[#1d1d1f] dark:text-white">{saudacaoFila}</h2>
+                  <p className="mt-1.5 text-[14px] text-slate-500 dark:text-zinc-400">
+                    {!carregado ? 'Carregando as demandas…' : emEspera.length === 0 ? 'Nenhuma demanda esperando alguém assumir.' : `${emEspera.length} ${emEspera.length === 1 ? 'demanda espera' : 'demandas esperam'} alguém assumir.`}
+                    {carregado && ` Espera média hoje: ${tmeHojeMinutos} min.`}
+                  </p>
                 </div>
 
-                <div className="flex items-center gap-0.5 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06]" role="group" aria-label="Modo de visualização">
+                <div className="flex items-center gap-0.5 p-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06]" role="group" aria-label="Modo de visualização">
                   {[
                     { id: 'list', label: 'Lista', Icon: ViewListIcon },
                     { id: 'cards', label: 'Cards', Icon: ViewGridIcon },
@@ -1587,7 +1558,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                       type="button"
                       onClick={() => setFilaViewMode(id)}
                       aria-pressed={filaViewMode === id}
-                      className={`h-8 px-2.5 rounded-lg transition-all flex items-center gap-1.5 text-[11px] font-semibold cursor-pointer ${
+                      className={`h-9 px-3.5 rounded-full transition-all flex items-center gap-1.5 text-[12px] font-medium cursor-pointer ${
                         filaViewMode === id
                           ? 'bg-white dark:bg-rm-campo-escuro text-[#1d1d1f] dark:text-white shadow-xs'
                           : 'text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white'
@@ -1599,10 +1570,35 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                   ))}
                 </div>
               </div>
+
+              {/* Números grandes: cada um filtra a fila (o selecionado fica em destaque) */}
+              <div className="mt-6 grid grid-cols-2 sm:grid-cols-5 border-y border-black/[0.08] dark:border-white/[0.1]">
+                {[
+                  { id: 'ativos', label: 'Todos ativos', count: emAndamento.length + emEspera.length + aguardandoCliente.length },
+                  { id: 'espera', label: 'Aguardando atendente', count: emEspera.length },
+                  { id: 'em_andamento', label: 'Em atendimento', count: emAndamento.length },
+                  { id: 'cliente', label: 'Aguardando cliente', count: aguardandoCliente.length },
+                  { id: 'resolvidos_hoje', label: 'Resolvidos hoje', count: resolvidosHoje.length },
+                ].map((st, i) => {
+                  const isSelected = filtroStatus === st.id;
+                  return (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => setFiltroStatus(st.id)}
+                      aria-pressed={isSelected}
+                      className={`text-left py-4 ${i ? 'pl-5 sm:border-l border-black/[0.08] dark:border-white/[0.1]' : ''} cursor-pointer transition-opacity ${isSelected ? '' : 'opacity-50 hover:opacity-80'}`}
+                    >
+                      <span className="block font-display font-normal text-[38px] leading-none tabular-nums text-[#1d1d1f] dark:text-white">{carregado ? st.count : '–'}</span>
+                      <span className={`mt-1.5 block text-[12.5px] ${isSelected ? 'font-semibold text-[#1d1d1f] dark:text-white' : 'text-slate-500 dark:text-zinc-400'}`}>{st.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* BARRA REFINADA DE DEPARTAMENTOS E FILTRO DE TÉCNICO (100% SEM SCROLL HORIZONTAL) */}
-            <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-black/[0.05] dark:border-white/[0.09] text-xs">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
 
               {/* Filtrar demandas já listadas */}
               <div className="relative w-full md:w-64 flex-shrink-0">
