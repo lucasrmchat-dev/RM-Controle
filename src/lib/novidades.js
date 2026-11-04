@@ -15,6 +15,21 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-04-busca-unica-ilha',
+    data: '2026-11-04',
+    titulo: 'Busca única no topo, em qualquer tela',
+    resumo: 'Uma lupa no começo da ilha do cabeçalho abre a busca: a ilha cresce de lado e a lista desce logo abaixo. Vale em todas as telas.',
+    itens: [
+      'Busca empresas, demandas, conversas, contatos, grupos e mensagens, com abas (Tudo, Empresas, Demandas, Conversas e Mensagens). Ela abre já na aba que faz sentido para a tela onde você está.',
+      'Em cada empresa: Abrir demanda, Retroativo (suporte retroativo) e Chat, que leva direto à conversa ou ao grupo ligado à empresa. Clicar no nome abre a empresa.',
+      'Empresas, demandas e conversas aparecem enquanto você digita. As mensagens são procuradas logo depois de uma pausa na digitação, com 3 letras ou mais.',
+      'Atalhos: / ou Ctrl+K abrem a busca, as setas navegam, Enter abre o primeiro resultado e Esc fecha.',
+      'Cadastrar uma empresa nova e abrir a demanda continua disponível quando o nome não existe. A barra de busca grande da tela de Demandas e a saudação do topo saíram.',
+    ],
+    modulo: 'Fila de Demandas',
+    tickets: [],
+  },
+  {
     id: '2026-11-04-demandas-visual-premium',
     data: '2026-11-04',
     titulo: 'Demandas: tela mais limpa e elegante, em lista, cards e kanban',

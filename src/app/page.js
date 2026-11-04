@@ -765,6 +765,51 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
     }
   };
 
+  // Busca única da ilha (vale em todas as telas): o que fazer com o resultado escolhido
+  const handleBuscaAcao = (acao) => {
+    if (!acao) return;
+    const irParaFila = () => {
+      setSelectedEmpresa(null);
+      setActiveTab('fila');
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    };
+    const guardar = (dados) => {
+      try {
+        sessionStorage.setItem('rm_busca_acao', JSON.stringify(dados));
+      } catch {}
+      window.dispatchEvent(new Event('rm_busca_acao'));
+    };
+    if (acao.tipo === 'ver_empresa') return handleSelectEmpresaGlobal(acao.empresa);
+    if (acao.tipo === 'retroativo') {
+      setEmpresaParaRegistrar(acao.empresa || null);
+      setIsRegistrarModalGlobalOpen(true);
+      return;
+    }
+    if (acao.tipo === 'abrir_demanda') {
+      irParaFila();
+      return guardar({ tipo: 'abrir_demanda', empresa: acao.empresa });
+    }
+    if (acao.tipo === 'criar_empresa') {
+      irParaFila();
+      return guardar({ tipo: 'criar_empresa', nome: acao.nome });
+    }
+    if (acao.tipo === 'abrir_demanda_existente') {
+      // Entra na empresa já com a demanda à frente (acesso, relato e botões)
+      const ch = acao.chamado;
+      try {
+        if (ch.empresa_id) sessionStorage.setItem('rm_demanda_empresa', JSON.stringify({ empresa_id: ch.empresa_id, chamado: ch }));
+      } catch {}
+      return handleSelectEmpresaGlobal({ id: ch.empresa_id, nome: ch.empresa_nome });
+    }
+    if (acao.tipo === 'abrir_conversa' && acao.conversaId) {
+      window.__rmChatAbrirPendente = acao.conversaId;
+      setSelectedEmpresa(null);
+      setActiveTab('chat');
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      window.dispatchEvent(new CustomEvent('rm_chat_abrir', { detail: { conversaId: acao.conversaId } }));
+    }
+  };
+
   const carregarEmpresas = async () => {
     if (!isAuthenticated) return;
     setLoadingEmpresas(true);
@@ -1041,6 +1086,7 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
         }}
         userEmail={userEmail}
         onLogout={handleLogout}
+        onBuscaAcao={handleBuscaAcao}
         theme={theme}
         setTheme={handleToggleTheme}
         inactivityTimeLeft={inactivityTimeLeft}

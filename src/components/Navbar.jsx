@@ -6,6 +6,7 @@ import { BrandMark } from './BrandMark';
 import PerfilPainel from './PerfilPainel';
 import CentralNotificacoes from './CentralNotificacoes';
 import AvisosNaTela from './AvisosNaTela';
+import BuscaGlobal from './BuscaGlobal';
 import { EVENTO_NOTIFICACOES, listarNotificacoes } from '@/lib/notificacoes';
 import {
   getFilaChamados,
@@ -114,8 +115,14 @@ export default function Navbar({
   inactivityTimeLeft,
   showMockData,
   setShowMockData,
+  onBuscaAcao,
 }) {
   const [perfilAberto, setPerfilAberto] = useState(false);
+  // Busca única da ilha: aberta, a ilha cresce de lado (os nomes das categorias recolhem para dar lugar ao campo)
+  const [buscaAberta, setBuscaAberta] = useState(false);
+  const buscaAbertaRef = useRef(false);
+  buscaAbertaRef.current = buscaAberta;
+  const conversasBusca = useRef([]);
   const [grupoAberto, setGrupoAberto] = useState(null);
   // Modo foco com cabeçalho recolhido: a ilha sobe e some; encostar o mouse no topo traz de volta
   const [recolhido, setRecolhido] = useState(false);
@@ -147,7 +154,8 @@ export default function Navbar({
     const raiz = document.documentElement;
     const medir = () => {
       raiz.style.setProperty('--rm-cabecalho', window.innerWidth >= 1024 ? '0px' : `${ALTURA_CABECALHO}px`);
-      if (ilhaRef.current?.offsetWidth) raiz.style.setProperty('--rm-ilha-largura', `${ilhaRef.current.offsetWidth}px`);
+      // Com a busca aberta a ilha cresce por cima da tela: a reserva do título não muda (nada dá um pulo)
+      if (!buscaAbertaRef.current && ilhaRef.current?.offsetWidth) raiz.style.setProperty('--rm-ilha-largura', `${ilhaRef.current.offsetWidth}px`);
     };
     medir();
     window.addEventListener('resize', medir);
@@ -198,6 +206,7 @@ export default function Navbar({
     let ultimas = [];
     const processar = (conversas, config) => {
       ultimas = conversas;
+      conversasBusca.current = conversas;
       setTotalChat(contarConversasNovas(conversas, config));
       const grupos = Boolean(getSomDoModulo('chat').grupos);
       const { proximo, avisos } = analisarConversas(vigiaChat.current, conversas, { email, grupos });
@@ -315,7 +324,7 @@ export default function Navbar({
   };
 
   // Nomes nas categorias só pela largura da janela (nunca muda sozinho com a tela aberta)
-  const comNome = largura >= 1180;
+  const comNome = largura >= 1180 && !buscaAberta;
 
 
   const painel = (modo) => (
@@ -364,7 +373,18 @@ export default function Navbar({
           {/* Ilha: marca, categorias, notificações e conta */}
           {/* Avisos na tela (ilha e sino) presos à pílula */}
           <AvisosNaTela local="cabecalho" onAbrirAba={(aba) => (aba === 'fila' || permitidas.includes(aba)) && irPara(aba)} />
-          <div ref={ilhaRef} data-ilha-cabecalho className={`${ILHA} h-[48px] rounded-full flex items-center gap-1 pl-1 pr-1 backdrop-blur-xl`}>
+          <div ref={ilhaRef} data-ilha-cabecalho className={`${ILHA} h-[48px] rounded-full flex items-center gap-1 pl-1 pr-1 backdrop-blur-xl relative`}>
+            <BuscaGlobal
+              aberta={buscaAberta}
+              onAbertaChange={(v) => {
+                setBuscaAberta(v);
+                if (v) setGrupoAberto(null);
+              }}
+              abaAtual={activeTab}
+              userEmail={userEmail}
+              getConversas={() => conversasBusca.current}
+              onAcao={onBuscaAcao}
+            />
             <button
               type="button"
               onClick={() => irPara('fila')}
@@ -584,14 +604,18 @@ function CategoriaCabecalho({ grupo, activeTab, aberto, onAbrir, onIr, comNome }
         aria-haspopup={principal && outras.length ? 'menu' : undefined}
         aria-expanded={principal && outras.length ? aberto : undefined}
         aria-label={comNome || !principal ? undefined : t.label}
-        className={`relative h-10 w-full rounded-full flex items-center gap-2 text-[13.5px] font-medium cursor-pointer transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rm-acento/40 ${comNome || !principal ? 'px-3.5' : 'px-2.5 justify-center'} ${
+        className={`relative h-10 w-full rounded-full flex items-center gap-2 text-[13.5px] font-medium cursor-pointer transition-[color,background-color,padding] duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rm-acento/40 ${comNome || !principal ? 'px-3.5' : 'px-2.5 justify-center'} ${
           aqui ? 'text-[#1d1d1f] dark:text-white' : 'text-slate-500 dark:text-zinc-400 hover:text-[#1d1d1f] dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.07]'
         }`}
       >
         {principal && ativa && <motion.span layoutId="aba-ativa" transition={MOLA} className="absolute inset-0 rounded-full bg-black/[0.06] dark:bg-white/[0.12]" />}
         <span className={`relative ${aqui ? 'text-rm-acento dark:text-rm-acento-vivo' : ''}`}>{t.icon}</span>
         {/* Na lista, o nome aparece sempre (mesmo com a ilha só em ícones) */}
-        {principal ? comNome && nomes : <span className="relative whitespace-nowrap">{t.label}</span>}
+        {principal ? (
+          <motion.span className="relative overflow-hidden inline-flex" initial={false} animate={{ width: comNome ? 'auto' : 0, opacity: comNome ? 1 : 0, marginLeft: comNome ? 0 : -8 }} transition={{ type: 'spring', stiffness: 420, damping: 36 }}>
+            {nomes}
+          </motion.span>
+        ) : <span className="relative whitespace-nowrap">{t.label}</span>}
         {(comNome || !principal) && <span className="flex-1" />}
         <Selo valor={principal ? badge : t.badge} destaque={principal ? destaque : t.id === 'fila'} />
       </button>

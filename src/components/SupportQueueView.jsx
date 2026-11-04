@@ -47,7 +47,6 @@ import SupportCompletionModal from './SupportCompletionModal';
 import ConfirmModal from './ConfirmModal';
 import InternalDemandsKanbanModal from './InternalDemandsKanbanModal';
 import { showToast } from './ToastNotification';
-import QueueCommandBar from './QueueCommandBar';
 import NovaDemandaModal from './NovaDemandaModal';
 import { ListaDemandas, CardsDemandas, KanbanDemandas } from './FilaDemandasVisoes';
 import ModoFoco, { SeletorModoFoco, focoEmAndamento } from './ModoFoco';
@@ -956,12 +955,6 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
   }, [chamados]);
 
   // Tempo Médio de Espera (TME) de hoje
-  // Saudação do topo: hora do dia e primeiro nome de quem está logado
-  const saudacaoFila = useMemo(() => {
-    const h = new Date().getHours();
-    const nome = String(getNomeTecnico(userEmail) || '').replace(/\(.*?\)/g, '').trim().split(/\s+/)[0];
-    return `${h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'}${nome && !nome.includes('@') ? `, ${nome}` : ''}`;
-  }, [userEmail]);
   const tmeHojeMinutos = useMemo(() => {
     const concluidos = resolvidosHoje.filter((c) => c.tempo_espera_segundos > 0);
     if (concluidos.length === 0) return 0;
@@ -1305,6 +1298,22 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
   const handleCriarEmpresaRapida = (nome) =>
     setNovaDemanda({ aberto: true, empresaInicial: { id: 'temp_nova_' + Date.now(), nome: nome.trim(), isNova: true } });
 
+  // Busca única da ilha: "Abrir demanda" e "Cadastrar e abrir demanda" chegam aqui (também quando a Fila acabou de abrir)
+  useEffect(() => {
+    const ler = () => {
+      try {
+        const acao = JSON.parse(sessionStorage.getItem('rm_busca_acao') || 'null');
+        if (!acao) return;
+        sessionStorage.removeItem('rm_busca_acao');
+        if (acao.tipo === 'abrir_demanda' && acao.empresa) handleAbrirDemandaEmpresa(acao.empresa);
+        else if (acao.tipo === 'criar_empresa' && acao.nome) handleCriarEmpresaRapida(acao.nome);
+      } catch {}
+    };
+    ler();
+    window.addEventListener('rm_busca_acao', ler);
+    return () => window.removeEventListener('rm_busca_acao', ler);
+  });
+
   // Cria a demanda com o que veio do formulário. Erros sobem para o formulário mostrar (nada é aberto pela metade).
   // paraMim: a demanda fica com quem está logado, o atendimento começa e a tela da empresa abre.
   // paraMim: começa agora comigo · atribuirA: { email, nome } abre direto para outra pessoa
@@ -1510,17 +1519,6 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
         </div>
       </div>
 
-      {/* Busca unificada: empresas + ações diretas (atender, abrir demanda, cadastrar) */}
-      <QueueCommandBar
-        empresas={empresasLista}
-        chamados={chamados}
-        onAtenderAgora={handleAtenderAgoraEmpresa}
-        onAbrirDemanda={handleAbrirDemandaEmpresa}
-        onVerEmpresa={onSelectEmpresa ? (emp) => onSelectEmpresa(emp) : null}
-        onCriarEmpresa={handleCriarEmpresaRapida}
-        onVerTodas={onVerEmpresas || null}
-      />
-
       {feedback && (
         <motion.div
           initial={{ opacity: 0, y: -6 }}
@@ -1539,13 +1537,10 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
           <div className="relative z-30 space-y-4">
             <div>
               <div className="flex flex-wrap items-end justify-between gap-4">
-                <div className="min-w-0">
-                  <h2 className="text-[28px] sm:text-[32px] font-semibold tracking-tight leading-[1.15] text-[#1d1d1f] dark:text-white">{saudacaoFila}</h2>
-                  <p className="mt-1.5 text-[14px] text-slate-500 dark:text-zinc-400">
-                    {!carregado ? 'Carregando as demandas…' : emEspera.length === 0 ? 'Nenhuma demanda esperando alguém assumir.' : `${emEspera.length} ${emEspera.length === 1 ? 'demanda espera' : 'demandas esperam'} alguém assumir.`}
-                    {carregado && ` Espera média hoje: ${tmeHojeMinutos} min.`}
-                  </p>
-                </div>
+                <p className="text-[13.5px] text-slate-500 dark:text-zinc-400">
+                  {!carregado ? 'Carregando as demandas…' : emEspera.length === 0 ? 'Nenhuma demanda esperando alguém assumir.' : `${emEspera.length} ${emEspera.length === 1 ? 'demanda espera' : 'demandas esperam'} alguém assumir.`}
+                  {carregado && ` Espera média hoje: ${tmeHojeMinutos} min.`}
+                </p>
 
                 <div className="flex items-center gap-0.5 p-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06]" role="group" aria-label="Modo de visualização">
                   {[
