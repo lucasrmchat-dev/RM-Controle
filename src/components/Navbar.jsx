@@ -21,7 +21,9 @@ import {
   getVerComoPerfil,
   setVerComoPerfil,
   fetchConversas,
+  fetchPedidosTratativa,
 } from '@/lib/storage';
+import { chamadoEhDe, STATUS_ABERTOS, textoPrazo } from '@/lib/pedidosTratativa';
 import { contarConversasNovas } from '@/lib/canais';
 import { analisarConversas, chatEsperando } from '@/lib/vigiaChat';
 import { getSomDoModulo, pararSomDoModulo, tocarSomDoModulo } from '@/lib/audioNotifications';
@@ -261,6 +263,32 @@ export default function Navbar({
       pararSomDoModulo('chat');
       window.removeEventListener('rm_chat_conversas', aoReceber);
     };
+  }, [userEmail]);
+
+  // Pedido de tratativa para você: o gestor pediu que você trate uma demanda sua. Avisa no sino (uma vez por pedido);
+  // os botões de resposta ficam na tela de Demandas.
+  useEffect(() => {
+    if (!getAbasPermitidas(userEmail).includes('fila')) return undefined;
+    const consultar = () =>
+      fetchPedidosTratativa()
+        .then((r) => {
+          (r.pedidos || [])
+            .filter((p) => STATUS_ABERTOS.includes(p.status) && p.status === 'aberto' && chamadoEhDe(p.chamado, userEmail))
+            .forEach((p) =>
+              notificar({
+                id: `pedido-tratativa-${p.id}`,
+                tipo: 'demanda',
+                titulo: `${String(p.solicitante_nome || p.solicitante_email || 'O gestor').replace(/\(.*?\)/g, '').trim().split(/\s+/)[0]} pediu a tratativa de ${p.chamado?.empresa_nome || 'uma demanda'}`,
+                detalhe: [p.mensagem, p.prazo_em ? textoPrazo(p.prazo_em) : null].filter(Boolean).join(' · '),
+                aba: 'fila',
+                grupo: `pedido-tratativa-${p.id}`,
+              })
+            );
+        })
+        .catch(() => {});
+    consultar();
+    const t = setInterval(consultar, 45000);
+    return () => clearInterval(t);
   }, [userEmail]);
 
   useEffect(() => {

@@ -3525,6 +3525,11 @@ async function chamarCanais(url, metodo, corpo) {
   return json;
 }
 export const fetchCanais = () => chamarCanais('/api/canais', 'GET');
+// Pedido de tratativa: o gestor pede que o responsável trate uma demanda que está com ele
+export const fetchPedidosTratativa = () => chamarCanais('/api/demandas/pedidos', 'GET');
+export const criarPedidoTratativa = (dados) => chamarCanais('/api/demandas/pedidos', 'POST', dados);
+export const responderPedidoTratativa = (id, texto) => chamarCanais(`/api/demandas/pedidos/${id}`, 'PATCH', { acao: 'responder', texto });
+export const retirarPedidoTratativa = (id) => chamarCanais(`/api/demandas/pedidos/${id}`, 'PATCH', { acao: 'retirar' });
 // Fluxo Inteligente: fluxos da empresa (o servidor confere o módulo e guarda o desenho)
 export const fetchFluxos = () => chamarCanais('/api/fluxos', 'GET');
 export const fetchFluxo = (id) => chamarCanais(`/api/fluxos/${encodeURIComponent(id)}`, 'GET');

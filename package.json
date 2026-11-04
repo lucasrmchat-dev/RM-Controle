@@ -11,7 +11,7 @@
     "security:scan": "node scripts/security-audit.js",
     "biome:check": "npx @biomejs/biome check src/",
     "biome:format": "npx @biomejs/biome format --write src/",
-    "test:sync": "node --import ./tests/mocks/setup.js --test tests/fila-feedbacks-sync.test.js tests/integracao-suporte.test.js tests/permissoes.test.js tests/empresas-servidores.test.js tests/supabase-migracao.test.js tests/google-agenda.test.js tests/perfis.test.js tests/comercial-webhooks.test.js tests/feedbacks.test.js tests/whatsapp-agenda.test.js tests/multiempresa.test.js tests/canais.test.js tests/chat.test.js tests/daily.test.js tests/auditoria.test.js tests/chat-fixadas.test.js tests/fluxos.test.js tests/comissao.test.js tests/meet-chat.test.js tests/erros-chat.test.js tests/documentacao.test.js tests/envios.test.js tests/sugestoes-solucao.test.js",
+    "test:sync": "node --import ./tests/mocks/setup.js --test tests/fila-feedbacks-sync.test.js tests/integracao-suporte.test.js tests/permissoes.test.js tests/empresas-servidores.test.js tests/supabase-migracao.test.js tests/google-agenda.test.js tests/perfis.test.js tests/comercial-webhooks.test.js tests/feedbacks.test.js tests/whatsapp-agenda.test.js tests/multiempresa.test.js tests/canais.test.js tests/chat.test.js tests/daily.test.js tests/auditoria.test.js tests/chat-fixadas.test.js tests/fluxos.test.js tests/comissao.test.js tests/meet-chat.test.js tests/erros-chat.test.js tests/documentacao.test.js tests/envios.test.js tests/sugestoes-solucao.test.js tests/pedidos-tratativa.test.js",
     "test:banco": "node tests/banco/isolamento.mjs && node tests/banco/canais.mjs"
   },
   "dependencies": {

@@ -14,6 +14,8 @@ export const MODULOS = [
   // Sub-módulo do Chat: aba própria no cabeçalho para mandar uma mensagem a vários contatos e grupos
   { id: 'envios', rotulo: 'Chat: envios em massa', descricao: 'Mandar uma mensagem para vários contatos e grupos, na hora ou agendada' },
   { id: 'fila', rotulo: 'Demandas', descricao: 'Ver, assumir e concluir demandas' },
+  // Não é uma aba: libera, dentro das Demandas, pedir a tratativa de uma demanda que está com outra pessoa (gestor)
+  { id: 'demandas_gestao', rotulo: 'Demandas: gestor da equipe', descricao: 'Pede que o responsável conclua, cancele ou explique uma demanda que está com ele, com prazo' },
   { id: 'empresas', rotulo: 'Empresas', descricao: 'Cadastro, acessos e servidores das empresas' },
   { id: 'agenda', rotulo: 'Agenda', descricao: 'Reuniões e Google Agenda' },
   { id: 'daily', rotulo: 'Daily', descricao: 'Metas da semana, resumo das dailies e atualizações' },
@@ -35,8 +37,8 @@ export const ABAS_ADMIN = ['canais', 'servidores', 'auditoria'];
 const ABAS_POR_PAPEL = {
   administrador: [...IDS_MODULOS, ...ABAS_ADMIN],
   // Comercial, Canais, Fluxo e Envios em massa: só administradores por padrão (um perfil pode liberar)
-  suporte: IDS_MODULOS.filter((id) => !['comercial', 'comercial_gestao', 'conexoes', 'fluxos', 'envios'].includes(id)),
-  vendas: IDS_MODULOS.filter((id) => !['comercial', 'comercial_gestao', 'conexoes', 'fluxos', 'envios'].includes(id)),
+  suporte: IDS_MODULOS.filter((id) => !['comercial', 'comercial_gestao', 'demandas_gestao', 'conexoes', 'fluxos', 'envios'].includes(id)),
+  vendas: IDS_MODULOS.filter((id) => !['comercial', 'comercial_gestao', 'demandas_gestao', 'conexoes', 'fluxos', 'envios'].includes(id)),
 };
 
 const norm = (s) => String(s || '').toLowerCase().trim();
@@ -51,7 +53,7 @@ export function permissoesEfetivas(opcoes) {
   const contratados = opcoes?.modulosDaEmpresa;
   if (!Array.isArray(contratados)) return perm;
   // "Comercial: gestor" vem junto com o Comercial contratado; "Chat: envios em massa", com o Chat
-  const SUB_MODULOS = { comercial_gestao: 'comercial', envios: 'chat' };
+  const SUB_MODULOS = { comercial_gestao: 'comercial', demandas_gestao: 'fila', envios: 'chat' };
   const contratado = (m) => contratados.includes(SUB_MODULOS[m] || m);
   return { ...perm, modulos: perm.modulos.filter((m) => m === 'configuracoes' || ABAS_ADMIN.includes(m) || contratado(m)) };
 }
@@ -88,6 +90,9 @@ function permissoesSemContrato({ email, equipe = [], perfis = [], adminsExtras =
     perfil: null,
   };
 }
+
+/** Gestor das demandas: pode pedir a tratativa de uma demanda que está com outra pessoa. */
+export const ehGestorDemandas = (perm) => Boolean(perm?.administrador || perm?.modulos?.includes('demandas_gestao'));
 
 /** Gestor do comercial: vê e lança vendas e comissões de toda a equipe. */
 export const ehGestorComercial = (perm) => Boolean(perm?.administrador || perm?.modulos?.includes('comercial_gestao'));

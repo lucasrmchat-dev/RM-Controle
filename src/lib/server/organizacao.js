@@ -30,7 +30,7 @@ export const TABELAS_DA_EMPRESA = new Set([
   'comercial_integracoes', 'comercial_leads', 'comercial_webhook_eventos',
   'canais', 'contatos', 'conversas', 'mensagens', 'respostas_rapidas', 'participantes_grupo',
   'daily_reunioes', 'daily_metas',
-  'fluxos', 'fluxo_execucoes', 'fluxo_esperas', 'comercial_vendas', 'envios_massa', 'envios_massa_destinos',
+  'fluxos', 'fluxo_execucoes', 'fluxo_esperas', 'comercial_vendas', 'envios_massa', 'envios_massa_destinos', 'demanda_pedidos',
 ]);
 
 // Upserts cuja chave de conflito passou a incluir a empresa

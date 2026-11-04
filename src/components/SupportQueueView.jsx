@@ -41,7 +41,11 @@ import {
   diagnosticarVisibilidadeFila,
 } from '@/lib/storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { podeVerDemanda, departamentosVisiveis } from '@/lib/perfis';
+import { podeVerDemanda, departamentosVisiveis, ehGestorDemandas } from '@/lib/perfis';
+import { chamadoEhDe } from '@/lib/pedidosTratativa';
+import { fetchPedidosTratativa, criarPedidoTratativa, responderPedidoTratativa, retirarPedidoTratativa } from '@/lib/storage';
+import PedidosTratativaFaixa from './PedidosTratativaFaixa';
+import PedirTratativaModal from './PedirTratativaModal';
 import { stopSupportNotificationLoop, playNotificationTone } from '@/lib/audioNotifications';
 import SupportCompletionModal from './SupportCompletionModal';
 import ConfirmModal from './ConfirmModal';
@@ -78,6 +82,20 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
   // Só mostra "fila vazia" depois da primeira carga real; antes disso, esqueleto
   const [carregado, setCarregado] = useState(false);
   const [empresasLista, setEmpresasLista] = useState([]);
+  // Pedidos de tratativa (o gestor pede que o responsável trate uma demanda que está com ele)
+  const [pedidos, setPedidos] = useState([]);
+  const [pedirDe, setPedirDe] = useState(null);
+  const carregarPedidos = () => fetchPedidosTratativa().then((r) => setPedidos(r.pedidos || [])).catch(() => {});
+  useEffect(() => {
+    carregarPedidos();
+    const t = setInterval(carregarPedidos, 30000);
+    window.addEventListener('suporte_updated', carregarPedidos);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener('suporte_updated', carregarPedidos);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [equipeLista, setEquipeLista] = useState([]);
   const [filtroStatus, setFiltroStatus] = useState('ativos'); // 'ativos' | 'em_andamento' | 'espera' | 'resolvidos_hoje'
   const [filtroPrioridade, setFiltroPrioridade] = useState('todas'); // 'todas' | 'urgente' | 'alta' | 'normal'
@@ -172,18 +190,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
 
   const getTecKey = (tec) => (tec?.key || tec?.id || tec?.email || tec?.nome || '');
 
-  const isMeuAtendimento = (ch) => {
-    if (!ch) return false;
-    const myEmail = (userEmail || '').toLowerCase().trim();
-    const chEmail = (ch.tecnico_email || '').toLowerCase().trim();
-    const chNome = (ch.tecnico_nome || ch.atendente || '').toLowerCase().trim();
-    
-    if (chEmail && chEmail === myEmail) return true;
-    if (chEmail.includes('admin') && (myEmail.includes('admin') || myEmail.includes('lucas'))) return true;
-    if (chEmail.includes('lucas') && (myEmail.includes('lucas') || myEmail.includes('admin'))) return true;
-    if (chNome.includes('lucas') && (myEmail.includes('lucas') || myEmail.includes('admin'))) return true;
-    return false;
-  };
+  const isMeuAtendimento = (ch) => chamadoEhDe(ch, userEmail);
 
   const isTecnicoMim = (tec) => {
     if (!tec || !userEmail) return false;
@@ -1376,6 +1383,12 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
 
   const acoesDemanda = {
     abrirDetalhe: (ch) => setDetalheId((atual) => (atual === ch.id ? null : ch.id)),
+    // Gestor: pede a tratativa de uma demanda que está com outra pessoa
+    podePedirTratativa: ehGestorDemandas(getPermissoesAtuais(userEmail)),
+    pedirTratativa: (ch) => {
+      setDetalheId(null);
+      setPedirDe(ch);
+    },
     assumir: async (ch, opcoes = {}) => {
       if (opcoes.abrirEmpresa) setDetalheId(null);
       await handleAceitarSuporte(ch, opcoes);
@@ -1535,6 +1548,31 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
 
           {/* BARRA DE STATUS, VISUALIZAÇÃO E FILTROS */}
           <div className="relative z-30 space-y-4">
+            <PedidosTratativaFaixa
+              pedidos={pedidos}
+              chamados={chamados}
+              souResponsavel={isMeuAtendimento}
+              emailAtual={userEmail}
+              acoes={acoesDemanda}
+              onResponder={async (id, texto) => {
+                try {
+                  await responderPedidoTratativa(id, texto);
+                  showToast('Resposta enviada ao gestor.', 'success');
+                  await carregarPedidos();
+                } catch (err) {
+                  showToast(err.message || 'Não foi possível enviar a resposta.', 'error');
+                  throw err;
+                }
+              }}
+              onRetirar={async (id) => {
+                try {
+                  await retirarPedidoTratativa(id);
+                  await carregarPedidos();
+                } catch (err) {
+                  showToast(err.message || 'Não foi possível retirar o pedido.', 'error');
+                }
+              }}
+            />
             <div>
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <p className="text-[13.5px] text-slate-500 dark:text-zinc-400">
@@ -2197,6 +2235,20 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
       )}
 
       {/* Modal de Conclusão do Chamado */}
+      {pedirDe && (
+        <PedirTratativaModal
+          chamado={pedirDe}
+          responsavel={getNomeTecnico(pedirDe.tecnico_email, pedirDe.tecnico_nome || pedirDe.atendente)}
+          onFechar={() => setPedirDe(null)}
+          onEnviar={async (dados) => {
+            await criarPedidoTratativa({ chamado_id: pedirDe.id, ...dados });
+            setPedirDe(null);
+            showToast('Pedido enviado. O responsável foi avisado.', 'success');
+            await carregarPedidos();
+          }}
+        />
+      )}
+
       {chamadoParaFinalizar && (
         <SupportCompletionModal
           isOpen={true}

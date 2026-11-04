@@ -24,6 +24,9 @@ export const ACOES_AUDITORIA = {
   registrou_suporte_retroativo: A('Registrou suporte retroativo', 'Demandas'),
   integracao_abriu_demanda: A('Demanda aberta pela integração', 'Demandas', 'azul'),
   pediu_acesso_cliente: A('Pediu o acesso ao cliente', 'Demandas', 'ambar'),
+  pediu_tratativa: A('Pediu a tratativa de uma demanda', 'Demandas', 'ambar'),
+  respondeu_tratativa: A('Respondeu ao pedido de tratativa', 'Demandas', 'azul'),
+  tratativa_vencida: A('Prazo do pedido de tratativa venceu', 'Demandas', 'vermelho'),
   // Empresas
   cadastrou_empresa_manual: A('Cadastrou empresa', 'Empresas', 'roxo'),
   cadastrou_empresas_em_massa: A('Importou empresas', 'Empresas', 'roxo'),

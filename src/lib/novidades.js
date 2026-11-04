@@ -15,6 +15,21 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-04-pedir-tratativa',
+    data: '2026-11-04',
+    titulo: 'Demandas: cada um mexe só nas suas e o gestor pede tratativa',
+    resumo: 'Demanda que está com outra pessoa não pode mais ser cancelada, repassada ou encerrada por quem não é o responsável. O gestor agora pede a tratativa, com prazo.',
+    itens: [
+      'Quem não é o responsável não vê mais Cancelar, Repassar, Concluir nem Encerrar numa demanda de outra pessoa, e não consegue arrastá-la no Kanban. Demandas que ninguém assumiu continuam livres.',
+      'Gestor e administrador ganham o botão “Pedir tratativa”: escolhem um recado, o prazo (sem prazo, 30 minutos, 1 hora, 4 horas, 1 dia ou 3 dias) e o que o sistema faz sozinho se o prazo vencer sem resposta (concluir ou cancelar).',
+      'O responsável recebe um aviso no sino e um cartão “Pedidos para você” no topo da tela de Demandas, com o recado e o prazo. Ele pode Concluir, Colocar em espera, Responder com uma explicação ou Cancelar a demanda.',
+      'Quem pediu acompanha em “Pedidos que você fez”: esperando, respondido, concluída, cancelada, em espera ou prazo vencido. Dá para retirar o pedido.',
+      'Quem pode pedir tratativa é definido no perfil de acesso, no módulo “Demandas: gestor da equipe” (administradores já têm). Tudo fica registrado no Histórico.',
+    ],
+    modulo: 'Fila de Demandas',
+    tickets: [],
+  },
+  {
     id: '2026-11-04-busca-unica-ilha',
     data: '2026-11-04',
     titulo: 'Busca única no topo, em qualquer tela',

@@ -100,6 +100,8 @@ export function infoDemanda(ch, { cfg = {}, isMeu = () => false } = {}) {
     prazoMs,
     responsavel: responsavel && !/fila geral/i.test(responsavel) ? responsavel : null,
     meu: (estado === 'atendimento' || estado === 'cliente') && isMeu(ch),
+    // Demanda da pessoa (em qualquer situação): só o dono cancela, repassa ou encerra; os outros pedem a tratativa
+    dono: isMeu(ch),
     solicitante,
     // Quanto do tempo combinado já passou (0 a 1): barra fina nos cards
     progresso: estado === 'espera' || estado === 'atendimento' ? Math.min(1, comPrazo ? Math.max(0, (Date.now() - new Date(ch.tempo_espera_inicio || ch.created_at || Date.now()).getTime()) / Math.max(1, prazoMs - new Date(ch.tempo_espera_inicio || ch.created_at || Date.now()).getTime())) : minRef / critico) : 0,
@@ -237,6 +239,7 @@ function AcaoPrincipal({ ch, info, acoes, assumindoId, rotuloLongo = false, chei
       </button>
     );
   }
+  if (info.estado === 'cliente' && !info.dono) return null;
   if (info.estado === 'cliente') {
     return (
       <span className="inline-flex items-center gap-1.5">
@@ -403,7 +406,7 @@ function AcoesSecundarias({ chamado, info, acoes, assumindoId, compacta = false 
           <KanbanIcon className="w-3.5 h-3.5" /> {!compacta && 'Pipeline'}
         </button>
       )}
-      {info.estado !== 'concluida' && (
+      {info.estado !== 'concluida' && (info.dono || info.estado === 'espera') && (
         <button type="button" onClick={parar(() => acoes.repassar(chamado))} className={acaoTexto} title="Repassar" aria-label="Repassar">
           <UsersIcon className="w-3.5 h-3.5" /> {!compacta && 'Repassar'}
         </button>
@@ -437,6 +440,13 @@ function AcoesSecundarias({ chamado, info, acoes, assumindoId, compacta = false 
           <BellOffIcon className="w-3.5 h-3.5" /> Reativar alerta
         </button>
       )}
+      {/* O gestor pede a tratativa de uma demanda que está com outra pessoa (quem não é dono não cancela) */}
+      {!info.dono && info.estado !== 'espera' && info.estado !== 'concluida' && info.responsavel && acoes.podePedirTratativa && (
+        <button type="button" onClick={parar(() => acoes.pedirTratativa(chamado))} className={`${acaoTexto} !text-amber-700 dark:!text-amber-300`} title="Pedir que o responsável trate esta demanda" aria-label="Pedir tratativa">
+          {compacta ? <UsersIcon className="w-4 h-4" /> : 'Pedir tratativa'}
+        </button>
+      )}
+      {(info.dono || info.estado === 'espera') && (
       <button
         type="button"
         onClick={parar(() => acoes.cancelar(chamado))}
@@ -446,6 +456,7 @@ function AcoesSecundarias({ chamado, info, acoes, assumindoId, compacta = false 
       >
         {compacta ? <XMarkIcon className="w-4 h-4" /> : info.estado === 'concluida' ? 'Excluir' : 'Cancelar'}
       </button>
+      )}
     </div>
   );
 }
@@ -910,6 +921,8 @@ export function KanbanDemandas({ chamados, ctx, acoes, tempos, assumindoId, sele
   const soltar = (estado) => (id) => {
     const ch = porId.get(String(id));
     if (!ch) return;
+    // Demanda de outra pessoa não se move: o gestor usa "Pedir tratativa"
+    if (ch.status !== 'aguardando_visualizacao' && !infoDemanda(ch, ctx).dono) return;
     if (estado === 'atendimento') {
       if (ch.status === 'aguardando_visualizacao') acoes.assumir(ch);
       else if (ch.status === 'pendente') acoes.retomar(ch);
