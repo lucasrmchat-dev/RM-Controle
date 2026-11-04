@@ -308,7 +308,7 @@ function CabecalhoGrupo({ estado, total, aberto, onAlternar }) {
   return (
     <button type="button" onClick={onAlternar} aria-expanded={aberto} className="group/cab w-full flex items-center gap-3 mb-3 cursor-pointer text-left">
       <span className={`w-2 h-2 rounded-full ${v.ponto}`} />
-      <span className="font-display font-normal text-[22px] leading-none text-[#1d1d1f] dark:text-white">{v.rotulo}</span>
+      <span className="font-semibold tracking-tight text-[17px] leading-none text-[#1d1d1f] dark:text-white">{v.rotulo}</span>
       <span className="text-[14px] tabular-nums text-slate-400 dark:text-zinc-400">{total}</span>
       <span className="hidden md:inline text-[13px] text-slate-400 dark:text-zinc-400">{v.dica}</span>
       <span className="flex-1 h-px bg-black/[0.06] dark:bg-white/[0.08]" />
@@ -633,7 +633,7 @@ function LinhaDemanda({ ch, ctx, acoes, tempos, assumindoId, aberta }) {
         <Monograma nome={ch.empresa_nome} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="font-display font-normal text-[21px] leading-tight text-[#1d1d1f] dark:text-white truncate">{ch.empresa_nome}</span>
+            <span className="text-[16px] font-semibold tracking-tight text-[#1d1d1f] dark:text-white truncate">{ch.empresa_nome}</span>
             <span className="hidden sm:flex items-center gap-1.5 flex-shrink-0">
               <Selos ch={ch} info={info} />
             </span>
@@ -745,7 +745,7 @@ function CartaoDemanda({ ch, ctx, acoes, tempos, assumindoId, aberto = false, ka
       <div className={`${pad} pb-0 flex items-start gap-3`}>
         <Monograma nome={ch.empresa_nome} tamanho={kanban ? 'w-9 h-9 text-[12px] rounded-full' : 'w-11 h-11 text-[13px] rounded-full'} />
         <div className="min-w-0 flex-1">
-          <h4 className={`font-display font-normal leading-tight text-[#1d1d1f] dark:text-white truncate ${kanban ? 'text-[19px]' : 'text-[22px]'}`}>{ch.empresa_nome}</h4>
+          <h4 className={`font-semibold tracking-tight text-[#1d1d1f] dark:text-white truncate ${kanban ? 'text-[14px]' : 'text-[15px]'}`}>{ch.empresa_nome}</h4>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <PilulaEstado info={info} />
             {!kanban && !aberto && <Selos ch={ch} info={info} />}
@@ -877,7 +877,7 @@ function ColunaKanban({ titulo, subtitulo, cabecalho, itens, vazio, destaque, on
       <div className="flex items-center gap-2.5 px-1 pb-3 mx-1 mb-3 border-b border-black/[0.07] dark:border-white/[0.09]">
         {cabecalho}
         <div className="min-w-0 flex-1">
-          <p className="font-display font-normal text-[21px] leading-tight text-[#1d1d1f] dark:text-white truncate">{titulo}</p>
+          <p className="text-[16px] font-semibold tracking-tight text-[#1d1d1f] dark:text-white truncate">{titulo}</p>
           {subtitulo && <p className="text-[11.5px] text-slate-500 dark:text-zinc-400 truncate">{subtitulo}</p>}
         </div>
         <span className="text-[14px] tabular-nums text-slate-400 dark:text-zinc-400">{itens.length}</span>

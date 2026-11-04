@@ -1540,7 +1540,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
             <div>
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div className="min-w-0">
-                  <h2 className="font-display font-normal text-[32px] sm:text-[38px] leading-[1.1] text-[#1d1d1f] dark:text-white">{saudacaoFila}</h2>
+                  <h2 className="text-[28px] sm:text-[32px] font-semibold tracking-tight leading-[1.15] text-[#1d1d1f] dark:text-white">{saudacaoFila}</h2>
                   <p className="mt-1.5 text-[14px] text-slate-500 dark:text-zinc-400">
                     {!carregado ? 'Carregando as demandas…' : emEspera.length === 0 ? 'Nenhuma demanda esperando alguém assumir.' : `${emEspera.length} ${emEspera.length === 1 ? 'demanda espera' : 'demandas esperam'} alguém assumir.`}
                     {carregado && ` Espera média hoje: ${tmeHojeMinutos} min.`}
@@ -1589,7 +1589,7 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
                       aria-pressed={isSelected}
                       className={`text-left py-4 ${i ? 'pl-5 sm:border-l border-black/[0.08] dark:border-white/[0.1]' : ''} cursor-pointer transition-opacity ${isSelected ? '' : 'opacity-50 hover:opacity-80'}`}
                     >
-                      <span className="block font-display font-normal text-[38px] leading-none tabular-nums text-[#1d1d1f] dark:text-white">{carregado ? st.count : '–'}</span>
+                      <span className="block text-[34px] font-semibold tracking-tight leading-none tabular-nums text-[#1d1d1f] dark:text-white">{carregado ? st.count : '–'}</span>
                       <span className={`mt-1.5 block text-[12.5px] ${isSelected ? 'font-semibold text-[#1d1d1f] dark:text-white' : 'text-slate-500 dark:text-zinc-400'}`}>{st.label}</span>
                     </button>
                   );
