@@ -38,6 +38,7 @@ const MOLA = { type: 'spring', bounce: 0.2, duration: 0.55 };
 
 /** Ícones das abas: todos no mesmo traço (1,75) e tamanho, no estilo dos símbolos da Apple. */
 const ICONES_ABA = {
+  resumo: ['M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', 'M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4'],
   chat: ['M21 12a8.5 8.5 0 0 1-12.6 7.45L3 21l1.55-5.4A8.5 8.5 0 1 1 21 12z', 'M8.5 10.5h7M8.5 13.5h4.5'],
   fila: ['M3 13.5h4.2l1.6 2.5h6.4l1.6-2.5H21', 'M5.3 5.6L3 13.5V18a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4.5l-2.3-7.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.9 1.6z'],
   agenda: ['M8 2.8v3.4M16 2.8v3.4', 'M5 4.6h14a2 2 0 0 1 2 2V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6.6a2 2 0 0 1 2-2z', 'M3 9.6h18', 'M7.5 13.5h.01M12 13.5h.01M16.5 13.5h.01M7.5 17h.01M12 17h.01'],
@@ -54,6 +55,7 @@ const ILHA =
 
 /** Categorias do cabeçalho: cada uma junta abas parecidas (com uma aba só, vira a própria aba). */
 const GRUPOS = [
+  { id: 'inicio', label: 'Início', icone: 'resumo', itens: ['resumo'] },
   { id: 'atendimento', label: 'Atendimento', icone: 'chat', itens: ['chat'] },
   { id: 'automacao', label: 'Automação', icone: 'fluxos', itens: ['fluxos', 'envios', 'conexoes'] },
   { id: 'demandas', label: 'Demandas', icone: 'fila', itens: ['fila', 'agenda'] },
@@ -321,6 +323,7 @@ export default function Navbar({
     .toUpperCase();
 
   const todasAsAbas = [
+    { id: 'resumo', label: 'Início', curto: 'Início', descricao: 'O resumo do seu dia', icon: <IconeAba d={ICONES_ABA.resumo} /> },
     { id: 'chat', label: 'Chat', curto: 'Chat', descricao: 'Conversas do WhatsApp', badge: totalChat || null, icon: <IconeAba d={ICONES_ABA.chat} /> },
     { id: 'conexoes', label: 'Canais', curto: 'Canais', descricao: 'Números de WhatsApp conectados', icon: <IconeAba d={ICONES_ABA.canais} /> },
     { id: 'fluxos', label: 'Fluxo Inteligente', curto: 'Fluxos', descricao: 'Automações com gatilhos, regras e ações', icon: <IconeAba d={ICONES_ABA.fluxos} /> },
@@ -345,6 +348,7 @@ export default function Navbar({
   const podeConfigurar = permitidas.includes('configuracoes');
 
   const irPara = (tabId) => {
+    setBuscaAberta(false);
     setPerfilAberto(false);
     setGrupoAberto(null);
     setActiveTab(tabId);
@@ -418,8 +422,8 @@ export default function Navbar({
             />
             <button
               type="button"
-              onClick={() => irPara('fila')}
-              aria-label="RM Controle — ir para Demandas"
+              onClick={() => irPara('resumo')}
+              aria-label="RM Controle — ir para o Início"
               className="h-10 w-10 flex items-center justify-center rounded-full cursor-pointer flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rm-acento/40"
             >
               <BrandMark size={34} />
@@ -438,7 +442,10 @@ export default function Navbar({
             <div className="relative" ref={perfilRef}>
               <button
                 type="button"
-                onClick={() => setPerfilAberto((v) => !v)}
+                onClick={() => {
+                  setBuscaAberta(false);
+                  setPerfilAberto((v) => !v);
+                }}
                 aria-expanded={perfilAberto}
                 aria-label="Sua conta"
                 className={`h-10 flex items-center gap-2 rounded-full cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rm-acento/40 ${

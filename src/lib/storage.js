@@ -3457,7 +3457,8 @@ export function getPermissoesAtuais(email = null) {
 }
 
 export function getAbasPermitidas(email = null) {
-  const modulos = getPermissoesAtuais(email).modulos;
+  // O Início (resumo do dia) é de todos: não depende de perfil
+  const modulos = ['resumo', ...getPermissoesAtuais(email).modulos];
   // Painel da plataforma: só para quem gerencia outras empresas (dono da plataforma ou revenda)
   return getGestaoAtual() ? [...modulos, 'plataforma'] : modulos;
 }

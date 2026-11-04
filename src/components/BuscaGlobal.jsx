@@ -119,7 +119,9 @@ export default function BuscaGlobal({ aberta, onAbertaChange, abaAtual, userEmai
   useEffect(() => {
     if (!aberta) return undefined;
     const fora = (e) => {
-      if (caixa.current?.contains(e.target) || painel.current?.contains(e.target)) return;
+      // Clicar em qualquer botão da própria ilha (Chat, Fluxo, conta…) não fecha antes da hora: a ilha encolheria
+      // por baixo do clique e o botão sairia do lugar. Quem navega fecha a busca depois.
+      if (caixa.current?.contains(e.target) || painel.current?.contains(e.target) || e.target.closest?.('[data-ilha-cabecalho]')) return;
       fechar();
     };
     document.addEventListener('mousedown', fora);

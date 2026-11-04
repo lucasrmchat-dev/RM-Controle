@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { ACOES_PRAZO, PRAZOS_PEDIDO } from '@/lib/pedidosTratativa';
 
@@ -14,6 +15,19 @@ export default function PedirTratativaModal({ chamado, responsavel, onFechar, on
   const [acao, setAcao] = useState('cancelar');
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState('');
+  // Sobre a tela toda, no centro (fora da página, que rola), sem rolagem por trás; Esc fecha
+  useEffect(() => {
+    const html = document.documentElement;
+    const antes = [html.style.overflow, document.body.style.overflow];
+    html.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    const esc = (e) => e.key === 'Escape' && onFechar();
+    window.addEventListener('keydown', esc);
+    return () => {
+      [html.style.overflow, document.body.style.overflow] = antes;
+      window.removeEventListener('keydown', esc);
+    };
+  }, [onFechar]);
   const minutos = PRAZOS_PEDIDO.find((p) => p.id === prazo)?.minutos || null;
 
   const enviar = async (e) => {
@@ -30,14 +44,14 @@ export default function PedirTratativaModal({ chamado, responsavel, onFechar, on
 
   const pilula = (ativa) => `h-9 px-3.5 rounded-full text-[13px] font-medium cursor-pointer transition-colors ${ativa ? 'bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]' : 'bg-black/[0.05] hover:bg-black/[0.08] dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-zinc-200'}`;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onMouseDown={(e) => e.target === e.currentTarget && onFechar()} role="dialog" aria-modal="true" aria-label="Pedir tratativa">
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md overflow-y-auto" onMouseDown={(e) => e.target === e.currentTarget && onFechar()} role="dialog" aria-modal="true" aria-label="Pedir tratativa">
       <motion.form
         onSubmit={enviar}
         initial={{ opacity: 0, scale: 0.97, y: 8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-        className="w-full max-w-lg rounded-[28px] bg-white dark:bg-rm-elevado-escuro ring-1 ring-black/[0.06] dark:ring-white/10 shadow-2xl p-6 sm:p-7 text-[#1d1d1f] dark:text-white"
+        className="w-full max-w-lg my-auto rounded-[28px] bg-white dark:bg-rm-elevado-escuro ring-1 ring-black/[0.06] dark:ring-white/10 shadow-2xl p-6 sm:p-7 text-[#1d1d1f] dark:text-white"
       >
         <h3 className="text-[19px] font-semibold tracking-tight">Pedir tratativa</h3>
         <p className="mt-1 text-[13.5px] text-slate-500 dark:text-zinc-400">
@@ -88,6 +102,7 @@ export default function PedirTratativaModal({ chamado, responsavel, onFechar, on
           </button>
         </div>
       </motion.form>
-    </div>
+    </div>,
+    document.body
   );
 }

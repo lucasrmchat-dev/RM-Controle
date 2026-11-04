@@ -48,6 +48,7 @@ import Navbar from '@/components/Navbar';
 import SplashCarregamento from '@/components/SplashCarregamento';
 import CompanyModal from '@/components/CompanyModal';
 import CompanyManagementView from '@/components/CompanyManagementView';
+import ResumoDoDiaView from '@/components/ResumoDoDiaView';
 import AuditLogsView from '@/components/AuditLogsView';
 import ServerConfigView from '@/components/ServerConfigView';
 import DashboardView from '@/components/DashboardView';
@@ -151,7 +152,7 @@ export default function Home() {
 
   // Navegação Principal por Abas
   // Empresas virou subpágina da Fila de Demandas: a Fila é a tela inicial
-  const [activeTab, setActiveTab] = useState('fila');
+  const [activeTab, setActiveTab] = useState('resumo');
   // Módulos liberados pelo perfil de acesso (atualiza quando perfil/equipe mudam)
   const [abasPermitidas, setAbasPermitidas] = useState([]);
   // Outras telas pedem para trocar de aba (ex.: demanda aberta do Chat leva de volta à conversa)
@@ -1734,6 +1735,9 @@ Solicitante: ${novoItem.solicitante_nome || 'Colaborador'}`,
                   initialSubTab={activeTab === 'configuracoes' ? settingsSubTab : activeTab}
                 />
               )}
+
+              {/* INÍCIO: resumo do dia */}
+              {activeTab === 'resumo' && <ResumoDoDiaView userEmail={userEmail} />}
 
               {/* ABA 6: FILA DE SUPORTE */}
               {activeTab === 'fila' && (

@@ -15,6 +15,22 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-04-inicio-resumo-do-dia',
+    data: '2026-11-04',
+    titulo: 'Novo Início: o resumo do seu dia',
+    resumo: 'A RM Controle agora abre numa tela de Início: cumprimenta você pelo nome e mostra, num só lugar, o que importa hoje.',
+    itens: [
+      'Bom dia, boa tarde ou boa noite com o seu nome e uma frase que resume o dia (demandas com você, conversas esperando, reuniões e fila).',
+      'Quatro números grandes: demandas com você, fila, conversas esperando resposta há mais de 15 minutos e reuniões de hoje. Clicar em um leva direto à tela.',
+      'Seu foco agora, demandas esperando alguém assumir, conversas esperando resposta (com botão para responder no Chat), pedidos de tratativa e a agenda de hoje com o botão Entrar.',
+      'Metas da semana do Daily e o seu desempenho no mês: em que posição você está entre a equipe em demandas concluídas, com um recado de incentivo ou um lembrete de registrar os atendimentos quando estiver bem abaixo dos colegas.',
+      'O logo da RM Controle e o novo botão Início, no cabeçalho, levam sempre para essa tela.',
+      'Também corrigido: com a busca aberta, clicar em Chat, Fluxo Inteligente ou na sua conta agora leva à tela escolhida.',
+    ],
+    modulo: 'Fila de Demandas',
+    tickets: [],
+  },
+  {
     id: '2026-11-04-pedir-tratativa',
     data: '2026-11-04',
     titulo: 'Demandas: cada um mexe só nas suas e o gestor pede tratativa',
