@@ -2016,7 +2016,11 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
           userEmail={userEmail}
           onSair={() => setEntradaEmpresa(null)}
           onContinuar={() => {
-            const emp = entradaEmpresa.empresa;
+            const { empresa: emp, chamado } = entradaEmpresa;
+            // O Cockpit da empresa mostra a demanda de onde a pessoa veio
+            try {
+              sessionStorage.setItem('rm_demanda_foco', JSON.stringify({ id: chamado.id, empresa_id: emp.id }));
+            } catch {}
             setEntradaEmpresa(null);
             onSelectEmpresa(emp);
           }}
