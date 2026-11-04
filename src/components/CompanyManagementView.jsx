@@ -918,12 +918,8 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                   onClick={() => setActiveTab(tab.id)}
                   className={`py-2 px-3.5 text-xs font-semibold rounded-xl transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer ${
                     isActive
-                      ? tab.highlight 
-                        ? 'bg-amber-500 text-white dark:bg-amber-500 dark:text-zinc-950 shadow-xs font-bold'
-                        : 'bg-black text-white dark:bg-white dark:text-black shadow-xs font-bold'
-                      : tab.highlight
-                        ? 'text-amber-800 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20'
-                        : 'text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
+                      ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs font-bold'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
                   }`}
                 >
                   {tab.highlight && <LightBulbIcon className="w-3.5 h-3.5" />}
@@ -953,68 +949,70 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
         </div>
       )}
 
-      {/* Cartão da empresa: quem é, onde entrar, acesso à mão, números e avisos fixos */}
-      <div className="rounded-3xl p-5 border border-black/10 dark:border-white/12 bg-white dark:bg-rm-cartao-escuro shadow-sm space-y-4">
-        <div className="flex flex-col xl:flex-row xl:items-center gap-4">
-          <div className="flex items-start gap-4 min-w-0 flex-1">
-            <div className="w-14 h-14 rounded-2xl bg-rm-acento/15 text-rm-acento dark:text-rm-acento-escuro font-bold text-xl flex items-center justify-center border border-rm-acento/30 flex-shrink-0">
-              {empresa.nome.charAt(0)}
-            </div>
-            <div className="min-w-0 flex-1">
-              {isEditingNomeInline ? (
-                <form onSubmit={handleSalvarNomeInline} className="space-y-2 max-w-sm">
-                  <input
-                    type="text"
-                    value={empresaNomeEditInput}
-                    onChange={(e) => setEmpresaNomeEditInput(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-xl border border-black/15 dark:border-white/20 bg-white dark:bg-rm-campo-escuro text-sm font-bold text-[#0a0a0c] dark:text-white focus:outline-none focus:ring-2 focus:ring-rm-acento"
-                    autoFocus
-                  />
-                  <div className="flex items-center gap-1.5">
-                    <button type="submit" disabled={salvandoEmpresaServidor} className="px-3 py-1 rounded-lg bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 text-xs font-bold shadow-xs hover:opacity-95 cursor-pointer">
-                      Salvar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmpresaNomeEditInput(empresa.nome);
-                        setIsEditingNomeInline(false);
-                      }}
-                      className="px-3 py-1 rounded-lg border border-black/10 dark:border-white/10 text-xs text-slate-500 hover:bg-black/5 cursor-pointer"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-xl font-bold tracking-tight text-[#0a0a0c] dark:text-white truncate">{empresaNomeEditInput || empresa.nome}</h1>
+      {/* Cartão da empresa: quem é, onde entrar, resumo em uma linha, acesso recolhido e avisos fixos */}
+      <div className="rounded-2xl p-5 border border-black/10 dark:border-white/12 bg-white dark:bg-rm-cartao-escuro shadow-sm space-y-3">
+        <div className="flex flex-col md:flex-row md:items-center gap-4">
+          <div className="min-w-0 flex-1">
+            {isEditingNomeInline ? (
+              <form onSubmit={handleSalvarNomeInline} className="space-y-2 max-w-sm">
+                <input
+                  type="text"
+                  value={empresaNomeEditInput}
+                  onChange={(e) => setEmpresaNomeEditInput(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-lg border border-black/15 dark:border-white/20 bg-white dark:bg-rm-campo-escuro text-sm font-bold text-[#0a0a0c] dark:text-white focus:outline-none focus:ring-2 focus:ring-rm-acento"
+                  autoFocus
+                />
+                <div className="flex items-center gap-1.5">
+                  <button type="submit" disabled={salvandoEmpresaServidor} className="px-3 py-1 rounded-lg bg-black text-white dark:bg-white dark:text-black text-xs font-bold hover:opacity-90 cursor-pointer">
+                    Salvar
+                  </button>
                   <button
                     type="button"
-                    onClick={() => setIsEditingNomeInline(true)}
-                    className="p-1 rounded-lg text-slate-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
-                    title="Editar nome da empresa"
+                    onClick={() => {
+                      setEmpresaNomeEditInput(empresa.nome);
+                      setIsEditingNomeInline(false);
+                    }}
+                    className="px-3 py-1 rounded-lg text-xs text-slate-500 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
                   >
-                    <EditIcon className="w-4 h-4" />
+                    Cancelar
                   </button>
                 </div>
-              )}
-              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap text-[11px]">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 font-semibold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  Empresa ativa
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-slate-600 dark:text-zinc-300 font-semibold">{nomeServidorDaEmpresa}</span>
-                {empresa.tipo_cliente ? (
-                  <span className="px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-semibold">{TIPOS_CLIENTE[empresa.tipo_cliente]}</span>
-                ) : (
-                  <span className="text-amber-700 dark:text-amber-400 font-semibold">Tipo de cliente não informado</span>
-                )}
-                <button type="button" onClick={() => setActiveTab('servidor')} className="text-rm-acento dark:text-rm-acento-escuro font-semibold hover:underline cursor-pointer">
-                  Alterar
+              </form>
+            ) : (
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl font-bold tracking-tight text-[#0a0a0c] dark:text-white truncate">{empresaNomeEditInput || empresa.nome}</h1>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingNomeInline(true)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                  title="Editar nome da empresa"
+                >
+                  <EditIcon className="w-4 h-4" />
                 </button>
-                {empresa.is_mock && <span className="text-[9px] uppercase font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300">Mock Dev</span>}
               </div>
+            )}
+            <div className="flex items-center gap-x-2 gap-y-1 mt-1 flex-wrap text-xs text-slate-500 dark:text-zinc-400">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                Empresa ativa
+              </span>
+              <span>·</span>
+              <span>{nomeServidorDaEmpresa}</span>
+              {empresa.tipo_cliente ? (
+                <>
+                  <span>·</span>
+                  <span>{TIPOS_CLIENTE[empresa.tipo_cliente]}</span>
+                </>
+              ) : (
+                <>
+                  <span>·</span>
+                  <span>Tipo de cliente não informado</span>
+                </>
+              )}
+              <button type="button" onClick={() => setActiveTab('servidor')} className="font-semibold text-slate-700 dark:text-zinc-200 hover:underline cursor-pointer">
+                Alterar
+              </button>
+              {empresa.is_mock && <span className="text-[10px] font-mono text-slate-400">Mock Dev</span>}
             </div>
           </div>
 
@@ -1022,115 +1020,106 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
             <button
               type="button"
               onClick={abrirServidorDaEmpresa}
-              className="xl:w-72 px-4 py-3 rounded-2xl bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-sm flex items-center justify-between gap-3 shadow-md shadow-rm-acento/20 hover:opacity-95 transition-all cursor-pointer flex-shrink-0"
+              className="md:w-64 px-4 py-2.5 rounded-xl bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-sm flex items-center justify-between gap-3 hover:opacity-95 transition-all cursor-pointer flex-shrink-0"
             >
               <span className="text-left leading-tight">
-                Entrar no {nomeServidorDaEmpresa}
-                <span className="block text-[11px] font-medium opacity-80">{acessoPrincipal?.senha ? 'Copia a senha e abre o servidor' : 'Abre o servidor do cliente'}</span>
+                Entrar no servidor
+                <span className="block text-[11px] font-medium opacity-80">{acessoPrincipal?.senha ? 'Copia a senha e abre' : 'Abre o servidor do cliente'}</span>
               </span>
               <ExternalLinkIcon className="w-4 h-4 flex-shrink-0" />
             </button>
           ) : (
-            <div className="xl:w-72 px-3.5 py-2.5 rounded-2xl border border-dashed border-amber-500/40 bg-amber-500/[0.06] text-amber-800 dark:text-amber-300 text-[11px] leading-snug flex-shrink-0">
+            <p className="md:w-64 text-[11px] leading-snug text-slate-500 dark:text-zinc-400 flex-shrink-0">
               Link do {nomeServidorDaEmpresa} ainda não configurado. Um administrador pode definir em Configurações Gerais › Servidores.
-            </div>
+            </p>
           )}
         </div>
 
-        {/* Acesso principal sempre à vista */}
-        {acessoPrincipal && (acessoPrincipal.usuario_email || acessoPrincipal.senha) && (
-          <div className="flex flex-col md:flex-row gap-2 text-xs">
-            {acessoPrincipal.usuario_email && (
-              <div className="flex-1 min-w-0 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/5 dark:border-white/[0.09]">
-                <span className="min-w-0 truncate"><span className="text-slate-500 dark:text-zinc-400 mr-2">Usuário</span><span className="font-mono">{acessoPrincipal.usuario_email}</span></span>
-                <button type="button" onClick={() => handleCopiarTexto(acessoPrincipal.usuario_email, 'topo_u')} className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer" title="Copiar usuário">
-                  {copiadoId === 'topo_u' ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <CopyIcon className="w-3.5 h-3.5" />}
-                </button>
+        {/* Os números e o último atendimento, em uma linha de texto */}
+        <p className="text-xs text-slate-500 dark:text-zinc-400">
+          {empresa.canais?.length || 0} canais ativos · {credenciaisList.length} acessos técnicos · {chamadosEmpresa.length} chamados ·{' '}
+          {totalChecklist > 0 ? `servidor ${pctChecklist}% configurado` : 'servidor sem lista de configuração'} ·{' '}
+          {ultimoAtendimento
+            ? `último atendimento em ${new Date(ultimoAtendimento.finalizado_em || ultimoAtendimento.iniciado_em || ultimoAtendimento.created_at).toLocaleDateString('pt-BR')} (${ultimoAtendimento.motivo || ultimoAtendimento.observacao_inicial || 'sem motivo registrado'})`
+            : 'ainda sem atendimento'}
+        </p>
+
+        {/* Acesso principal recolhido: usuário e senha só aparecem quando precisar */}
+        {acessoPrincipal && (acessoPrincipal.usuario_email || acessoPrincipal.senha) ? (
+          <details className="text-xs">
+            <summary className="cursor-pointer select-none font-semibold text-slate-700 dark:text-zinc-200 hover:underline w-fit">Ver acesso</summary>
+            <div className="mt-2 space-y-2">
+              <div className="flex flex-col md:flex-row gap-2">
+                {acessoPrincipal.usuario_email && (
+                  <div className="flex-1 min-w-0 flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-black/[0.03] dark:bg-white/[0.04]">
+                    <span className="min-w-0 truncate"><span className="text-slate-500 dark:text-zinc-400 mr-2">Usuário</span><span className="font-mono">{acessoPrincipal.usuario_email}</span></span>
+                    <button type="button" onClick={() => handleCopiarTexto(acessoPrincipal.usuario_email, 'topo_u')} className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer" title="Copiar usuário">
+                      {copiadoId === 'topo_u' ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <CopyIcon className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                )}
+                {acessoPrincipal.senha && (
+                  <div className="flex-1 min-w-0 flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-black/[0.03] dark:bg-white/[0.04]">
+                    <span className="min-w-0 truncate"><span className="text-slate-500 dark:text-zinc-400 mr-2">Senha</span><span className="font-mono">{senhasReveladas[acessoPrincipal.id] ? acessoPrincipal.senha : '••••••••••••'}</span></span>
+                    <span className="flex items-center gap-1">
+                      <button type="button" onClick={() => handleToggleVerSenha(acessoPrincipal)} className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer" title={senhasReveladas[acessoPrincipal.id] ? 'Ocultar' : 'Visualizar'}>
+                        {senhasReveladas[acessoPrincipal.id] ? <EyeOffIcon className="w-3.5 h-3.5" /> : <EyeIcon className="w-3.5 h-3.5" />}
+                      </button>
+                      <button type="button" onClick={() => handleCopiarTexto(acessoPrincipal.senha, 'topo_s')} className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer" title="Copiar senha">
+                        {copiadoId === 'topo_s' ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <CopyIcon className="w-3.5 h-3.5" />}
+                      </button>
+                    </span>
+                  </div>
+                )}
               </div>
-            )}
-            {acessoPrincipal.senha && (
-              <div className="flex-1 min-w-0 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/5 dark:border-white/[0.09]">
-                <span className="min-w-0 truncate"><span className="text-slate-500 dark:text-zinc-400 mr-2">Senha</span><span className="font-mono">{senhasReveladas[acessoPrincipal.id] ? acessoPrincipal.senha : '••••••••••••'}</span></span>
-                <span className="flex items-center gap-1">
-                  <button type="button" onClick={() => handleToggleVerSenha(acessoPrincipal)} className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer" title={senhasReveladas[acessoPrincipal.id] ? 'Ocultar' : 'Visualizar'}>
-                    {senhasReveladas[acessoPrincipal.id] ? <EyeOffIcon className="w-3.5 h-3.5" /> : <EyeIcon className="w-3.5 h-3.5" />}
-                  </button>
-                  <button type="button" onClick={() => handleCopiarTexto(acessoPrincipal.senha, 'topo_s')} className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer" title="Copiar senha">
-                    {copiadoId === 'topo_s' ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <CopyIcon className="w-3.5 h-3.5" />}
-                  </button>
-                </span>
-              </div>
-            )}
-          </div>
+              <button type="button" onClick={() => setActiveTab('credenciais')} className="text-slate-500 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:underline cursor-pointer">
+                Ver todos os acessos e senhas
+              </button>
+            </div>
+          </details>
+        ) : (
+          <p className="text-xs text-slate-500 dark:text-zinc-400">
+            Nenhum acesso cadastrado.{' '}
+            <button type="button" onClick={() => setActiveTab('credenciais')} className="font-semibold text-slate-700 dark:text-zinc-200 hover:underline cursor-pointer">Cadastrar acesso</button>
+          </p>
         )}
 
-        {/* Números e último atendimento */}
-        <div className="flex flex-wrap gap-2 text-xs">
-          <div className="px-3 py-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] min-w-[96px]"><span className="block text-[11px] text-slate-500 dark:text-zinc-400">Canais ativos</span><b className="text-base">{empresa.canais?.length || 0}</b></div>
-          <div className="px-3 py-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] min-w-[96px]"><span className="block text-[11px] text-slate-500 dark:text-zinc-400">Acessos técnicos</span><b className="text-base">{credenciaisList.length}</b></div>
-          <div className="px-3 py-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] min-w-[96px]"><span className="block text-[11px] text-slate-500 dark:text-zinc-400">Chamados</span><b className="text-base">{chamadosEmpresa.length}</b></div>
-          <div className="px-3 py-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] min-w-[140px] flex-1 max-w-[220px]">
-            <span className="block text-[11px] text-slate-500 dark:text-zinc-400">Configuração do servidor</span>
-            {totalChecklist > 0 ? (
-              <>
-                <b className="text-base tabular-nums">{pctChecklist}%</b>
-                <div className="w-full h-1.5 mt-1 rounded-full bg-black/5 dark:bg-white/10 overflow-hidden"><div className="h-full rounded-full bg-rm-acento transition-all" style={{ width: `${pctChecklist}%` }} /></div>
-              </>
-            ) : (
-              <b className="text-sm font-semibold text-slate-500 dark:text-zinc-400">Sem lista</b>
-            )}
-          </div>
-          <div className="px-3 py-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] flex-1 min-w-[200px]">
-            <span className="block text-[11px] text-slate-500 dark:text-zinc-400">Último atendimento</span>
-            {ultimoAtendimento ? (
-              <span className="block text-xs font-semibold truncate">
-                {new Date(ultimoAtendimento.finalizado_em || ultimoAtendimento.iniciado_em || ultimoAtendimento.created_at).toLocaleDateString('pt-BR')} · {ultimoAtendimento.motivo || ultimoAtendimento.observacao_inicial || 'Sem motivo registrado'}
-              </span>
-            ) : (
-              <span className="block text-xs text-slate-500 dark:text-zinc-400">Ainda não houve atendimento</span>
-            )}
-          </div>
-        </div>
-
-        {/* Notas fixas da empresa */}
-        <div className="rounded-2xl bg-amber-500/[0.07] border border-amber-500/20 px-3.5 py-2.5 text-xs space-y-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-semibold text-amber-900 dark:text-amber-200">Avisos fixos desta empresa</span>
-            {!mostrandoNotaFixa && (
-              <button type="button" onClick={() => setMostrandoNotaFixa(true)} className="text-[11px] font-semibold text-amber-800 dark:text-amber-300 hover:underline cursor-pointer">+ Aviso</button>
-            )}
-          </div>
-          {notasFixas.length === 0 && !mostrandoNotaFixa && <p className="text-slate-500 dark:text-zinc-400">Nenhum aviso. Use para lembrar algo importante, como “ligar antes das 9h”.</p>}
-          {notasFixas.map((n) => (
-            <div key={n.id} className="flex items-start justify-between gap-2">
-              <span className="whitespace-pre-wrap">{n.conteudo}</span>
-              <button type="button" onClick={() => handleRemoverObservacao(n.id)} className="text-slate-400 hover:text-red-500 cursor-pointer flex-shrink-0" title="Remover aviso">×</button>
-            </div>
-          ))}
-          {mostrandoNotaFixa && (
-            <form onSubmit={handleSalvarNotaFixa} className="flex items-center gap-2">
-              <input
-                autoFocus
-                value={novaNotaFixa}
-                onChange={(e) => setNovaNotaFixa(e.target.value)}
-                placeholder="Ligar antes das 9h"
-                className="flex-1 min-w-0 px-3 py-1.5 rounded-lg border border-black/15 dark:border-white/20 bg-white dark:bg-rm-campo-escuro text-xs focus:outline-none focus:ring-2 focus:ring-rm-acento"
-              />
-              <button type="submit" className="px-3 py-1.5 rounded-lg bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold cursor-pointer">Salvar</button>
-              <button type="button" onClick={() => { setMostrandoNotaFixa(false); setNovaNotaFixa(''); }} className="px-2 py-1.5 text-slate-500 cursor-pointer">Cancelar</button>
-            </form>
-          )}
-        </div>
+        {/* Avisos fixos: a lista só aparece quando existe aviso; sem aviso, fica só o "+ Aviso" */}
+        {notasFixas.length > 0 && (
+          <ul className="text-xs space-y-1.5 border-l-2 border-black/15 dark:border-white/20 pl-3">
+            {notasFixas.map((n) => (
+              <li key={n.id} className="flex items-start justify-between gap-2">
+                <span className="whitespace-pre-wrap">{n.conteudo}</span>
+                <button type="button" onClick={() => handleRemoverObservacao(n.id)} className="text-slate-400 hover:text-red-500 cursor-pointer flex-shrink-0" title="Remover aviso">×</button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {mostrandoNotaFixa ? (
+          <form onSubmit={handleSalvarNotaFixa} className="flex items-center gap-2 text-xs">
+            <input
+              autoFocus
+              value={novaNotaFixa}
+              onChange={(e) => setNovaNotaFixa(e.target.value)}
+              placeholder="Ligar antes das 9h"
+              className="flex-1 min-w-0 px-3 py-1.5 rounded-lg border border-black/15 dark:border-white/20 bg-white dark:bg-rm-campo-escuro focus:outline-none focus:ring-2 focus:ring-rm-acento"
+            />
+            <button type="submit" className="px-3 py-1.5 rounded-lg bg-black text-white dark:bg-white dark:text-black font-bold hover:opacity-90 cursor-pointer">Salvar</button>
+            <button type="button" onClick={() => { setMostrandoNotaFixa(false); setNovaNotaFixa(''); }} className="px-2 py-1.5 text-slate-500 cursor-pointer">Cancelar</button>
+          </form>
+        ) : (
+          <button type="button" onClick={() => setMostrandoNotaFixa(true)} className="block text-xs font-semibold text-slate-500 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:underline cursor-pointer">+ Aviso</button>
+        )}
       </div>
 
-      {/* Suporte em aberto: o cronômetro e os botões acompanham a rolagem; o relato fica logo abaixo */}
+      {/* Suporte em aberto: um bloco só; o cronômetro e os botões (parte de cima) acompanham a rolagem */}
       {chamadoAtivo && (
-        <div className="space-y-3">
-          <div className="sticky top-20 z-40 rounded-2xl border-2 border-amber-500/40 bg-amber-50 dark:bg-[#2a2111] px-4 py-3 flex flex-wrap items-center gap-3 shadow-md">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+        <div className="rounded-2xl border border-black/10 dark:border-white/12 bg-white dark:bg-rm-cartao-escuro">
+          <div className="sticky top-20 z-40 rounded-t-2xl bg-white dark:bg-rm-cartao-escuro border-b border-black/[0.06] dark:border-white/[0.11] px-4 py-3 flex flex-wrap items-center gap-3 shadow-sm">
+            <span className="w-2 h-2 rounded-full bg-slate-500 dark:bg-zinc-400 animate-pulse"></span>
             <div className="min-w-0 flex-1">
-              <span className="block text-xs font-bold text-amber-900 dark:text-amber-200">Suporte em aberto · <span className="font-mono tabular-nums">{formatarTempo(tempoSuporteSegundos)}</span></span>
-              <span className="block text-[11px] text-slate-600 dark:text-zinc-300">Responsável: <strong>{getNomeTecnico(chamadoAtivo.tecnico_email, chamadoAtivo.tecnico_nome)}</strong></span>
+              <span className="block text-xs font-bold text-[#0a0a0c] dark:text-white">Suporte em aberto · <span className="font-mono tabular-nums">{formatarTempo(tempoSuporteSegundos)}</span></span>
+              <span className="block text-[11px] text-slate-500 dark:text-zinc-400">Responsável: <strong className="text-slate-700 dark:text-zinc-200">{getNomeTecnico(chamadoAtivo.tecnico_email, chamadoAtivo.tecnico_nome)}</strong></span>
             </div>
             <button type="button" onClick={handleCancelarChamado} className="text-xs font-medium text-slate-500 hover:text-red-500 dark:text-zinc-400 dark:hover:text-red-400 px-2 py-1.5 cursor-pointer">
               Cancelar atendimento
@@ -1142,14 +1131,14 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 verificarChamadoAtivo();
                 setIsFinalizarModalOpen(true);
               }}
-              className="px-4 py-2 rounded-xl bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-md shadow-rm-acento/20 hover:opacity-95 flex items-center gap-2 cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs hover:opacity-95 flex items-center gap-2 cursor-pointer"
             >
               <CheckIcon className="w-4 h-4 stroke-[2.5]" />
               <span>Concluir chamado</span>
             </button>
           </div>
 
-          <div className="rounded-2xl border border-black/10 dark:border-white/12 bg-white dark:bg-rm-cartao-escuro px-4 py-3 text-xs space-y-2">
+          <div className="px-4 py-3 text-xs space-y-2">
             <div className="flex flex-wrap gap-x-5 gap-y-1 text-slate-500 dark:text-zinc-400">
               {Array.isArray(chamadoAtivo.categorias) && chamadoAtivo.categorias.length > 0 && (
                 <span>Categoria: <strong className="text-slate-700 dark:text-zinc-200">{chamadoAtivo.categorias.join(', ')}</strong></span>
@@ -2397,18 +2386,17 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
           {/* ABA 5: COMO RESOLVER CHAMADO (BASE DE CONHECIMENTO OPERACIONAL) */}
           {/* ============================================================================== */}
           {/* ============================================================================== */}
-          {/* COCKPIT TRIPARTIDO: CENTRO (COMO RESOLVER) E DIREITA (ACESSOS E SENHAS) */}
+          {/* COCKPIT: UMA COLUNA SÓ, "COMO RESOLVER CHAMADOS" (SUGESTÕES DO RELATO NO TOPO)  */}
+          {/* A lista completa de acessos e senhas fica na aba de credenciais.                */}
           {/* ============================================================================== */}
           {(activeTab === 'como_resolver' || activeTab === 'cockpit') && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-              
-              {/* COLUNA 1: COMO RESOLVER CHAMADOS (50% IGUALITÁRIO) */}
-              <div className="w-full space-y-4">
-                {sugestoesDoRelato.length > 0 && (
-                  <div className="rounded-3xl p-5 border border-amber-500/30 bg-amber-500/[0.06] space-y-3">
-                    <h3 className="text-sm font-bold text-amber-900 dark:text-amber-200">Sugestões para esta demanda</h3>
+            <div className="w-full space-y-4">
+              {sugestoesDoRelato.length > 0 && (
+                <div className="rounded-2xl p-4 border border-black/10 dark:border-white/12 bg-white dark:bg-rm-cartao-escuro">
+                  <h3 className="text-sm font-bold text-[#0a0a0c] dark:text-white mb-1">Sugestões para esta demanda</h3>
+                  <div className="divide-y divide-black/[0.06] dark:divide-white/[0.11]">
                     {sugestoesDoRelato.map((sol) => (
-                      <div key={sol.id} className="rounded-2xl bg-white dark:bg-rm-cartao-escuro border border-black/5 dark:border-white/[0.09] p-3 text-xs space-y-1">
+                      <div key={sol.id} className="py-2.5 text-xs space-y-1">
                         <div className="flex items-center justify-between gap-2">
                           <strong className="text-[#0a0a0c] dark:text-white">{sol.titulo}</strong>
                           <button type="button" onClick={() => handleCopiarTexto(sol.solucao_passos, `sug_${sol.id}`)} className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer flex-shrink-0" title="Copiar passos">
@@ -2419,166 +2407,13 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                       </div>
                     ))}
                   </div>
-                )}
-                <KnowledgeBaseTab
-                  empresa={empresa}
-                  userEmail={userEmail}
-                  hideListWhenEmpty={true}
-                />
-              </div>
-
-              {/* COLUNA 2: ACESSOS E SENHAS TÉCNICAS (50% IGUALITÁRIO) */}
-              <div className="w-full space-y-4">
-                <div className="rounded-3xl p-5 border border-black/8 dark:border-white/10 bg-white dark:bg-rm-cartao-escuro shadow-sm space-y-4">
-                  <div className="flex items-center justify-between pb-3 border-b border-black/6 dark:border-white/[0.11]">
-                    <div>
-                      <h2 className="text-lg font-bold tracking-tight text-[#0a0a0c] dark:text-white flex items-center gap-2">
-                        <span>Acessos & Senhas Técnicas</span>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-slate-600 dark:text-zinc-300">
-                          {credenciaisList.length}
-                        </span>
-                      </h2>
-                      <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-0.5">
-                        Acesso principal e credenciais de colaboradores
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditandoCredId(null);
-                        setCredRotulo('');
-                        setCredNomeUsuario('');
-                        setCredUsuario('');
-                        setCredSenha('');
-                        setCredObs('');
-                        setIsAddCredOpen(true);
-                      }}
-                      className="px-3 py-1.5 rounded-full bg-black text-white dark:bg-white dark:text-black font-semibold text-[11px] hover:opacity-90 transition-all cursor-pointer shadow-xs"
-                    >
-                      + Novo
-                    </button>
-                  </div>
-
-                  {/* Lista de Acessos com Destaque para o Principal */}
-                  {credenciaisList.length === 0 ? (
-                    <div className="p-8 text-center rounded-2xl border border-dashed border-black/10 dark:border-white/10 text-xs text-slate-400 space-y-2">
-                      <p>Nenhuma credencial cadastrada ainda para esta empresa.</p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditandoCredId(null);
-                          setCredRotulo('Acesso Principal');
-                          setCredNomeUsuario('');
-                          setCredUsuario('');
-                          setCredSenha('');
-                          setCredObs('');
-                          setIsAddCredOpen(true);
-                        }}
-                        className="px-3.5 py-1.5 rounded-full bg-rm-acento dark:bg-rm-acento-escuro text-white dark:text-zinc-950 font-bold text-xs shadow-xs hover:opacity-95 transition-all cursor-pointer inline-flex items-center gap-1.5"
-                      >
-                        + Cadastrar Acesso Principal
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
-                      {credenciaisList.map((cred) => {
-                        const isRevelada = Boolean(senhasReveladas[cred.id]);
-                        return (
-                          <div
-                            key={cred.id}
-                            className={`p-3.5 rounded-2xl border transition-all space-y-2.5 ${
-                              cred.is_principal
-                                ? 'border-rm-acento/40 dark:border-rm-acento-escuro/40 bg-rm-acento/[0.03] dark:bg-rm-acento-escuro/[0.04]'
-                                : 'border-black/6 dark:border-white/[0.11] bg-black/[0.015] dark:bg-white/[0.02]'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-bold text-[#0a0a0c] dark:text-white truncate">
-                                  {cred.rotulo}
-                                </span>
-                                {cred.nome_usuario && (
-                                  <span className="text-[10px] text-slate-400 font-medium truncate max-w-[120px]">
-                                    ({cred.nome_usuario})
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                {cred.is_principal ? (
-                                  <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rm-acento/15 dark:bg-rm-acento-escuro/20 text-rm-acento dark:text-rm-acento-escuro">
-                                    Principal
-                                  </span>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleTornarCredencialPrincipal(cred.id)}
-                                    className="text-[9px] font-semibold text-slate-400 hover:text-rm-acento dark:hover:text-rm-acento-escuro underline cursor-pointer"
-                                  >
-                                    Tornar Principal
-                                  </button>
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={() => handleEditarCredencial(cred)}
-                                  className="text-slate-400 hover:text-black dark:hover:text-white p-1"
-                                  title="Editar"
-                                >
-                                  <EditIcon className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Email / Usuário */}
-                            {cred.usuario_email && (
-                              <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white dark:bg-rm-cartao-escuro border border-black/5 dark:border-white/[0.09] text-xs">
-                                <span className="text-[11px] font-mono text-slate-600 dark:text-zinc-300 truncate">
-                                  {cred.usuario_email}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleCopiarTexto(cred.usuario_email, cred.id + '_u')}
-                                  className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer"
-                                  title="Copiar e-mail"
-                                >
-                                  {copiadoId === cred.id + '_u' ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <CopyIcon className="w-3.5 h-3.5" />}
-                                </button>
-                              </div>
-                            )}
-
-                            {/* Senha */}
-                            {cred.senha && (
-                              <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white dark:bg-rm-cartao-escuro border border-black/5 dark:border-white/[0.09] text-xs">
-                                <span className="text-[11px] font-mono text-slate-800 dark:text-zinc-200">
-                                  {isRevelada ? cred.senha : '••••••••••••'}
-                                </span>
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleVerSenha(cred)}
-                                    className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer"
-                                    title={isRevelada ? 'Ocultar' : 'Visualizar'}
-                                  >
-                                    {isRevelada ? <EyeOffIcon className="w-3.5 h-3.5" /> : <EyeIcon className="w-3.5 h-3.5" />}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleCopiarTexto(cred.senha, cred.id + '_s')}
-                                    className="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer"
-                                    title="Copiar senha"
-                                  >
-                                    {copiadoId === cred.id + '_s' ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <CopyIcon className="w-3.5 h-3.5" />}
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
-              </div>
-
+              )}
+              <KnowledgeBaseTab
+                empresa={empresa}
+                userEmail={userEmail}
+                hideListWhenEmpty={true}
+              />
             </div>
           )}
 

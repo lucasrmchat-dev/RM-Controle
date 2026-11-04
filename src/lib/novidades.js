@@ -15,6 +15,21 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-04-cockpit-mais-limpo',
+    data: '2026-11-04',
+    titulo: 'Tela da empresa: Cockpit mais limpo',
+    resumo: 'O Cockpit ficou com menos blocos e menos cor, para você achar o que precisa sem ruído.',
+    itens: [
+      'O cartão da empresa mostra só nome, situação, servidor e “Entrar no servidor”. Usuário e senha ficam em “Ver acesso”, e os números viraram uma linha de texto.',
+      'Avisos fixos só ocupam espaço quando existem; sem aviso, fica só o “+ Aviso”.',
+      'O suporte em aberto virou um bloco só: cronômetro e botões em cima (acompanham a rolagem) e o relato embaixo.',
+      'A lista de acessos e senhas saiu do Cockpit, que agora tem só “Como resolver chamados”, com as sugestões do relato no topo. A lista completa continua em “Ver todos os acessos e senhas”.',
+      'Menos cor: só os botões principais são coloridos, e o resto ficou em tons neutros.',
+    ],
+    modulo: 'Empresas',
+    tickets: [],
+  },
+  {
     id: '2026-11-04-chat-conexao-caiu',
     data: '2026-11-04',
     titulo: 'Chat: aviso claro quando a conexão do número cai',
