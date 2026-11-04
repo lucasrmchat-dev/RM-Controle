@@ -15,6 +15,19 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-04-historico-com-descricao',
+    data: '2026-11-04',
+    titulo: 'Histórico: toda ação agora mostra a empresa ou a descrição',
+    resumo: 'No histórico de ações, registros como “Abriu conversa”, “Resolveu conversa” e “Cadastrou empresa” apareciam como “Sem descrição”. Agora dizem de qual contato, canal ou empresa se trata.',
+    itens: [
+      'Ações do Chat mostram o contato e o canal da conversa.',
+      'Cadastro e alteração de empresa mostram o nome da empresa.',
+      'Os registros antigos também passam a mostrar essas informações.',
+    ],
+    modulo: 'Configurações',
+    tickets: [],
+  },
+  {
     id: '2026-11-04-cockpit-mais-limpo',
     data: '2026-11-04',
     titulo: 'Tela da empresa: Cockpit mais limpo',

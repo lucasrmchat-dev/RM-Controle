@@ -109,3 +109,34 @@ test('GET: só administradores, por dia, com busca e paginação; outra empresa 
   const resumo = await ler(await lerAuditoria(await como('ana@a.com', '/api/auditoria?resumo=1&ate=2026-10-28&dias=3&fuso=180')));
   assert.deepEqual(resumo.dias, { '2026-10-26': 0, '2026-10-27': 1, '2026-10-28': 3 });
 });
+
+test('histórico: toda ação mostra empresa ou descrição (chat, empresa cadastrada, plataforma)', () => {
+  const chat = descreverLog({ acao: 'chat_resolveu', detalhes: { contato_nome: 'Maria Souza', canal: 'Lucas' } });
+  assert.equal(chat.descricao, 'Contato: Maria Souza · Canal: Lucas');
+  const cadastro = descreverLog({ acao: 'cadastrou_empresa_manual', detalhes: { nome: 'Mefa Construções', tipo_cliente: 'existente' } });
+  assert.equal(cadastro.empresa, 'Mefa Construções');
+  const plataforma = descreverLog({ acao: 'plataforma_criou_empresa', detalhes: { empresa: 'Hanilton Advocacia', tipo: 'assinante' } });
+  assert.equal(plataforma.empresa, 'Hanilton Advocacia');
+  const colaborador = descreverLog({ acao: 'adicionou_colaborador_empresa', detalhes: { nome: 'Felipe', cargo: 'Solicitante' } });
+  assert.match(colaborador.descricao, /Nome: Felipe/);
+});
+
+test('histórico: completa conversa e empresa antigas só na hora de mostrar', async () => {
+  const { enriquecerRegistros } = await import('../src/lib/server/auditoriaEnriquecer.js');
+  const tabelas = {
+    conversas: [{ id: 'c1', contato_id: 'p1', canal_id: 'k1' }],
+    contatos: [{ id: 'p1', nome: 'Maria Souza', telefone: '5585' }],
+    canais: [{ id: 'k1', nome: 'Lucas' }],
+    empresas: [{ id: 'e1', nome: 'Polysite' }],
+  };
+  const db = { from: (t) => ({ select: () => ({ in: async () => ({ data: tabelas[t] }) }) }) };
+  const r = await enriquecerRegistros(db, [
+    { acao: 'chat_visualizou', detalhes: { conversa_id: 'c1' } },
+    { acao: 'atualizou_dados_empresa', empresa_id: 'e1', detalhes: {} },
+    { acao: 'chat_resolveu', detalhes: { conversa_id: 'c1', contato_nome: 'Já gravado' } },
+  ]);
+  assert.equal(r[0].detalhes.contato_nome, 'Maria Souza');
+  assert.equal(r[0].detalhes.canal, 'Lucas');
+  assert.equal(r[1].detalhes.empresa_nome, 'Polysite');
+  assert.equal(r[2].detalhes.contato_nome, 'Já gravado');
+});

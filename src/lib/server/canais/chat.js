@@ -250,9 +250,20 @@ export const ACOES_AUDITORIA_CHAT = ['chat_iniciou', 'chat_visualizou', 'chat_as
 const JANELA_VISUALIZACAO_MS = 10 * 60 * 1000;
 
 export async function auditarChat(db, perm, acao, conversa, extra = {}) {
+  // Quem é o contato e por qual canal: o histórico precisa dizer de que conversa se trata
+  const quem = await db
+    .from('contatos')
+    .select('nome, telefone')
+    .eq('id', conversa.contato_id)
+    .maybeSingle()
+    .then((r) => r.data, () => null);
+  const canal = conversa.canal_id
+    ? await db.from('canais').select('nome').eq('id', conversa.canal_id).maybeSingle().then((r) => r.data, () => null)
+    : null;
+  const nomes = { ...(quem?.nome || quem?.telefone ? { contato_nome: quem.nome || quem.telefone } : {}), ...(canal?.nome ? { canal: canal.nome } : {}) };
   await db
     .from('auditoria_logs')
-    .insert([{ usuario_email: perm.email, usuario_nome: perm.nome, operador_nome: perm.nome, acao, detalhes: { modulo: 'Chat', conversa_id: conversa.id, contato_id: conversa.contato_id, ...extra } }])
+    .insert([{ usuario_email: perm.email, usuario_nome: perm.nome, operador_nome: perm.nome, acao, detalhes: { modulo: 'Chat', conversa_id: conversa.id, contato_id: conversa.contato_id, ...nomes, ...extra } }])
     .then(
       () => {},
       () => {}

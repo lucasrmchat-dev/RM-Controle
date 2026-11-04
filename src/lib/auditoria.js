@@ -90,6 +90,8 @@ const MODULOS_ANTIGOS = { 'Fila de Suporte': 'Demandas', 'Suporte em Tempo Real'
 /** Campos de detalhes que viram a descrição (na ordem), com o rótulo de cada um. */
 const CAMPOS_DESCRICAO = [
   ['descricao', null],
+  ['contato_nome', 'Contato'],
+  ['canal', 'Canal'],
   ['motivo', 'Motivo'],
   ['status_resolucao', 'Desfecho'],
   ['atribuido_a', 'Para'],
@@ -97,9 +99,14 @@ const CAMPOS_DESCRICAO = [
   ['de', 'De'],
   ['rotulo', 'Acesso'],
   ['titulo', 'Título'],
-  ['canal', 'Canal'],
+  ['nome', 'Nome'],
+  ['cargo', 'Cargo'],
+  ['papel', 'Papel'],
+  ['novo_status', 'Novo status'],
   ['quantidade', 'Quantidade'],
 ];
+// Nestas ações o "nome" guardado é o da própria empresa
+const ACOES_COM_NOME_DA_EMPRESA = new Set(['cadastrou_empresa_manual', 'atualizou_dados_empresa', 'excluiu_empresa']);
 const DESFECHOS = { resolvido: 'resolvido', nao_resolvido: 'não resolvido', sem_resposta: 'sem retorno do cliente' };
 
 /** Como mostrar um registro: ação, módulo, descrição, empresa, IP, navegador e tom do selo. */
@@ -109,6 +116,7 @@ export function descreverLog(log) {
   const modulo = conhecida?.modulo || MODULOS_ANTIGOS[d.modulo] || d.modulo || 'Sistema';
   const partes = [];
   for (const [campo, rotulo] of CAMPOS_DESCRICAO) {
+    if (campo === 'nome' && ACOES_COM_NOME_DA_EMPRESA.has(log?.acao)) continue;
     let v = d[campo];
     if (v === undefined || v === null || v === '' || typeof v === 'object') continue;
     if (campo === 'status_resolucao') v = DESFECHOS[v] || v;
@@ -120,7 +128,7 @@ export function descreverLog(log) {
     modulo,
     tom: conhecida?.tom || 'neutro',
     descricao: partes.join(' · '),
-    empresa: log?.empresa_nome || d.empresa_nome || '',
+    empresa: log?.empresa_nome || d.empresa_nome || d.empresa || (ACOES_COM_NOME_DA_EMPRESA.has(log?.acao) ? d.nome : '') || '',
     ip: log?.ip_origem && !/rede local|cliente seguro/i.test(log.ip_origem) ? log.ip_origem : d.ip || '',
     navegador: d.navegador || '',
     nome: log?.usuario_nome || log?.operador_nome || '',

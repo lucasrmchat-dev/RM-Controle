@@ -1,5 +1,6 @@
 import { contextoDaRequisicao } from '@/lib/server/organizacao';
 import { consumirLimite } from '@/lib/server/protecao';
+import { enriquecerRegistros } from '@/lib/server/auditoriaEnriquecer';
 import { limitesDoDia, termoDeBusca, validarEventoAuditoria } from '@/lib/auditoria';
 
 export const dynamic = 'force-dynamic';
@@ -79,7 +80,8 @@ export async function GET(request) {
     }
     const { data, count, error } = await consulta.order('created_at', { ascending: false }).range((pagina - 1) * porPagina, pagina * porPagina - 1);
     if (error) return json({ ok: false, mensagem: error.message }, 500);
-    return json({ ok: true, registros: data || [], total: count || 0, pagina, porPagina });
+    const registros = await enriquecerRegistros(ctx.db, data || []).catch(() => data || []);
+    return json({ ok: true, registros, total: count || 0, pagina, porPagina });
   } catch (e) {
     return json({ ok: false, mensagem: e.message }, 400);
   }
