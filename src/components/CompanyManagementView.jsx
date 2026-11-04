@@ -98,7 +98,22 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
   // Garante que ao abrir a tela de suporte de uma empresa, a aba padrão seja sempre "Como Resolver Chamado"
   useEffect(() => {
     setActiveTab('cockpit');
+    // Vindo da Linha do atendimento (Demandas): já abre na aba ou na ação escolhida lá
+    try {
+      const destino = JSON.parse(sessionStorage.getItem('rm_destino_empresa') || 'null');
+      if (!destino) return;
+      sessionStorage.removeItem('rm_destino_empresa');
+      if (destino.empresa_id !== empresa?.id) return;
+      if (destino.aba) setActiveTab(destino.aba);
+      if (destino.acao === 'nova_demanda') setTimeout(() => window.dispatchEvent(new Event('rm_empresa_nova_demanda')), 0);
+      if (destino.acao === 'registrar') setTimeout(() => setIsRegistrarModalOpen(true), 0);
+    } catch {}
   }, [empresa?.id]);
+  useEffect(() => {
+    const abrir = () => handleAbrirModalIniciarSuporte();
+    window.addEventListener('rm_empresa_nova_demanda', abrir);
+    return () => window.removeEventListener('rm_empresa_nova_demanda', abrir);
+  });
 
   useEffect(() => {
     const carregarContagemSolucoes = () => {

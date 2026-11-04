@@ -24,7 +24,7 @@ export const NOVIDADES = [
       'Se não conseguiu: pede o acesso ao cliente com uma mensagem pronta, enviada na hora no grupo de WhatsApp ligado à empresa, ou troca o e-mail e a senha ali mesmo.',
       'Passo 2, Atender: o relato da demanda em destaque, “Assumir e começar”, cronômetro, soluções parecidas com o relato (com pesquisa) e o acesso à mão.',
       'Passo 3, Concluir: abre o formulário para registrar a solução e encerrar.',
-      '“Abrir a empresa completa” leva à tela com as abas (canais, servidor, contrato e histórico).',
+      'Em “Ir para”, os atalhos de sempre continuam à mão: entrar no servidor, Canais, Servidor, Acessos e senhas, Problemas recorrentes, Contrato, Histórico, + Nova demanda, + Registrar suporte e Cancelar atendimento. Cada um abre a empresa já na aba ou na ação escolhida.',
     ],
     modulo: 'Fila de Demandas',
     tickets: [],

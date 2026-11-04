@@ -2018,8 +2018,13 @@ export default function SupportQueueView({ onSelectEmpresa, onRegistrarRetroativ
           onSair={() => setEntradaEmpresa(null)}
           onAssumir={(ch) => assumirSuporte({ chamado_id: ch.id, userEmail: userEmail || 'admin@rmcontrole.com' }).then(() => stopSupportNotificationLoop())}
           onConcluir={(ch) => acoesDemanda.concluir(ch)}
-          onAbrirEmpresa={() => {
+          onCancelar={(ch) => acoesDemanda.cancelar(ch)}
+          onAbrirEmpresa={(destino = {}) => {
             const emp = entradaEmpresa.empresa;
+            // A empresa abre já na aba (ou ação) pedida na Linha do atendimento
+            try {
+              if (destino.aba || destino.acao) sessionStorage.setItem('rm_destino_empresa', JSON.stringify({ ...destino, empresa_id: emp.id }));
+            } catch {}
             setEntradaEmpresa(null);
             onSelectEmpresa(emp);
           }}

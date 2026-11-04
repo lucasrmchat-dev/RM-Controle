@@ -58,9 +58,9 @@ function Segredo({ rotulo, valor, oculto, visivel, onVer, onCopiar }) {
 
 /**
  * chamado: a demanda (já atualizada pela fila); onAssumir(chamado): assume e começa; onConcluir(chamado): abre o formulário de conclusão;
- * onAbrirEmpresa(): a tela completa da empresa (abas).
+ * onCancelar(chamado): cancela o atendimento; onAbrirEmpresa({ aba?, acao? }): a tela completa da empresa, já na aba ou ação pedida.
  */
-export default function EntradaEmpresaFoco({ chamado, empresa, userEmail, onSair, onAssumir, onConcluir, onAbrirEmpresa }) {
+export default function EntradaEmpresaFoco({ chamado, empresa, userEmail, onSair, onAssumir, onConcluir, onCancelar, onAbrirEmpresa }) {
   const [passo, setPasso] = useState(1); // 1 Entrar · 2 Atender · 3 Concluir
   const [tela1, setTela1] = useState('acesso'); // acesso | sem_acesso | editar
   const [credenciais, setCredenciais] = useState(() => getEmpresaCredenciais(empresa?.id));
@@ -341,8 +341,21 @@ export default function EntradaEmpresaFoco({ chamado, empresa, userEmail, onSair
             <LinhaDoPasso n={3} titulo="Concluir e registrar solução" estado="futuro" />
           )}
 
-          <div className="mt-6">
-            <button type="button" onClick={onAbrirEmpresa} className="text-[13px] font-medium text-black/50 dark:text-white/55 hover:text-black dark:hover:text-white hover:underline cursor-pointer">Abrir a empresa completa (canais, servidor, contrato, histórico) →</button>
+          {/* Atalhos: tudo o que a tela da empresa tinha continua à mão */}
+          <div className="mt-7 pt-5 border-t border-black/[0.07] dark:border-white/10">
+            <p className="text-[11.5px] font-semibold uppercase tracking-wide text-black/40 dark:text-white/45">Ir para</p>
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              {urlServidor && <button type="button" onClick={acessar} className={`h-9 px-4 rounded-full ${SUAVE} text-[13px] font-medium cursor-pointer`}>Entrar no servidor ↗</button>}
+              {[['canais', 'Canais'], ['servidor', 'Servidor'], ['credenciais', 'Acessos e senhas'], ['recorrencias', 'Problemas recorrentes'], ['contrato', 'Contrato'], ['chamados', 'Histórico']].map(([aba, nome]) => (
+                <button key={aba} type="button" onClick={() => onAbrirEmpresa({ aba })} className={`h-9 px-4 rounded-full ${SUAVE} text-[13px] font-medium cursor-pointer`}>{nome}</button>
+              ))}
+            </div>
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => onAbrirEmpresa({ acao: 'nova_demanda' })} className="h-9 px-4 rounded-full text-[13px] font-semibold ring-1 ring-black/15 dark:ring-white/20 hover:bg-black/[0.04] dark:hover:bg-white/10 cursor-pointer">+ Nova demanda</button>
+              <button type="button" onClick={() => onAbrirEmpresa({ acao: 'registrar' })} className="h-9 px-4 rounded-full text-[13px] font-semibold ring-1 ring-black/15 dark:ring-white/20 hover:bg-black/[0.04] dark:hover:bg-white/10 cursor-pointer">+ Registrar suporte</button>
+              {emAtendimento && onCancelar && <button type="button" onClick={() => onCancelar(chamado)} className="h-9 px-4 rounded-full text-[13px] font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 cursor-pointer ml-auto">Cancelar atendimento</button>}
+              <button type="button" onClick={() => onAbrirEmpresa({})} className={`h-9 px-3 rounded-full text-[13px] font-medium text-black/50 dark:text-white/55 hover:text-black dark:hover:text-white hover:underline cursor-pointer ${emAtendimento && onCancelar ? '' : 'ml-auto'}`}>Empresa completa →</button>
+            </div>
           </div>
         </div>
       </div>
