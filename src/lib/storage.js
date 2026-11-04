@@ -510,6 +510,10 @@ async function inserirChamadoNuvem(payloadBase, extras = {}, localId = null) {
   const execucao = (async () => {
     const r = await inserirChamadoNuvemBruto(payloadBase, extras);
     if (localId && r.data?.id) registrarIdMigrado(localId, r.data.id);
+    if (r.data?.id) {
+      avisarFluxosDemanda('demanda_criada', r.data.id);
+      if (r.data.status === 'em_andamento') avisarFluxosDemanda('demanda_andamento', r.data.id);
+    }
     return r;
   })();
   if (localId) insercoesEmAndamento.set(localId, execucao.then((r) => r.data?.id || null, () => null));
@@ -640,7 +644,11 @@ async function atualizarChamadoNuvem(id, campos, colunasOpcionais = [], statusPe
     // Atualização condicional: só aplica se a demanda ainda estiver no status esperado
     if (statusPermitidos) consulta = consulta.in('status', statusPermitidos);
     const { data, error } = await consulta.select('id');
-    if (!error && Array.isArray(data) && data.length > 0) return { ok: true, cloudId };
+    if (!error && Array.isArray(data) && data.length > 0) {
+      if (payload.status === 'em_andamento') avisarFluxosDemanda('demanda_andamento', cloudId);
+      else if (payload.status === 'finalizado' || payload.status === 'cancelado') avisarFluxosDemanda('demanda_fechada', cloudId);
+      return { ok: true, cloudId };
+    }
     if (error && isErroColunaInexistente(error) && colunasOpcionais.some((c) => c in payload)) {
       payload = Object.fromEntries(Object.entries(payload).filter(([k]) => !colunasOpcionais.includes(k)));
       continue;
@@ -2302,6 +2310,7 @@ export async function cancelarSuporte({ chamado_id, userEmail = 'admin@rmcontrol
       .select('id');
     if (!upd.error && Array.isArray(upd.data) && upd.data.length > 0) {
       confirmado = true;
+      avisarFluxosDemanda('demanda_fechada', cloudId);
     } else {
       ultimoErro = upd.error;
       const del = await supabase.from('suporte_chamados').delete().eq('id', cloudId).select('id');
@@ -6108,6 +6117,18 @@ const mensagemErroAgenda = (error, acao) =>
     : `Não foi possível ${acao}: ${error?.message || 'sem permissão'}`;
 
 // Fluxo Inteligente: avisa o servidor que uma reunião foi marcada ou mudou de status (ele confere no banco)
+// Fluxo Inteligente: avisa que uma demanda foi criada, começou a ser atendida ou foi fechada (o servidor confere no banco)
+function avisarFluxosDemanda(tipo, chamadoId) {
+  if (typeof window === 'undefined' || !isCloudId(chamadoId)) return;
+  fetch('/api/fluxos/disparar', {
+    method: 'POST',
+    credentials: 'same-origin',
+    keepalive: true,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tipo, chamado_id: chamadoId }),
+  }).catch(() => {});
+}
+
 function avisarFluxos(tipo, eventoId) {
   if (typeof window === 'undefined' || !isCloudId(eventoId)) return;
   fetch('/api/fluxos/disparar', {

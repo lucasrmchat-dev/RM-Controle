@@ -1,12 +1,28 @@
 import { after } from 'next/server';
 import { contextoDaRequisicao } from '@/lib/server/organizacao';
 import { consumirLimite } from '@/lib/server/protecao';
-import { dispararFluxos } from '@/lib/server/fluxos';
+import { dispararFluxos, dispararFluxosDeDemanda } from '@/lib/server/fluxos';
 import { dadosDaReuniao } from '@/lib/fluxos';
 import { json } from '@/lib/server/fluxosApi';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
+
+/** Uma demanda mudou: POST { tipo: 'demanda_criada' | 'demanda_andamento' | 'demanda_fechada', chamado_id }. O servidor confere no banco. */
+async function avisoDeDemanda(ctx, body) {
+  const id = String(body.chamado_id || '').slice(0, 80);
+  if (!id) return json({ ok: false, mensagem: 'Demanda inválida.' }, 400);
+  const { data: chamado } = await ctx.db.from('suporte_chamados').select('*').eq('id', id).maybeSingle();
+  if (!chamado) return json({ ok: false, mensagem: 'Demanda não encontrada.' }, 404);
+  if (!(await consumirLimite(`fluxo_evento_${body.tipo}_${chamado.id}_${chamado.status}`, 1, 30))) return json({ ok: true, ignorado: true });
+  const tarefa = () => dispararFluxosDeDemanda(ctx.db, body.tipo, chamado).catch((e) => console.error('[fluxos] demanda', e.message));
+  try {
+    after(tarefa);
+  } catch {
+    await tarefa();
+  }
+  return json({ ok: true });
+}
 
 /**
  * A agenda avisa que algo mudou numa reunião: POST { tipo: 'reuniao_agendada' | 'reuniao_status', evento_id }.
@@ -17,6 +33,7 @@ export async function POST(request) {
   const ctx = await contextoDaRequisicao(request);
   if (ctx.erro) return ctx.erro;
   const body = (await request.json().catch(() => null)) || {};
+  if (['demanda_criada', 'demanda_andamento', 'demanda_fechada'].includes(body.tipo)) return avisoDeDemanda(ctx, body);
   if (!['reuniao_agendada', 'reuniao_status'].includes(body.tipo)) return json({ ok: false, mensagem: 'Evento desconhecido.' }, 400);
   const id = String(body.evento_id || '').slice(0, 80);
   if (!id) return json({ ok: false, mensagem: 'Reunião inválida.' }, 400);

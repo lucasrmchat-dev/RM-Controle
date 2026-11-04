@@ -15,6 +15,24 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-04-fluxo-gatilhos-demandas',
+    data: '2026-11-04',
+    titulo: 'Fluxo Inteligente: gatilhos de demandas e editor mais organizado',
+    resumo: 'Agora dá para automatizar o que acontece com as demandas: avisar quando uma demanda é criada, começa a ser atendida, é fechada ou passa do prazo (SLA).',
+    itens: [
+      'Quatro gatilhos novos: Demanda criada, Demanda em andamento, Demanda fechada (concluída ou cancelada) e Demanda passou do prazo (SLA), cada um com filtro por departamento.',
+      'No prazo (SLA) você escolhe se a demanda está esperando alguém assumir ou já em atendimento, e depois de quantos minutos o fluxo age. O sistema confere a cada minuto e avisa uma vez por demanda.',
+      'Dá para usar as informações da demanda na mensagem: empresa, relato, departamento, solicitante e responsável.',
+      'A lista de blocos separa “Gatilhos · Demandas” de “Gatilhos · WhatsApp e agenda”, para ficar mais fácil de achar.',
+      'Em “Enviar mensagem”, as opções de destino explicam o que fazem, e fica claro por qual número (canal) a mensagem sai.',
+      'As informações que podem ser inseridas no texto aparecem com nomes simples, e Duplicar e Excluir ficam no topo do painel do bloco.',
+      'Os botões do topo (Ativo/Inativo, Execuções, Exportar) não ficam mais por baixo da ilha do cabeçalho.',
+      'Em “Testar fluxo” há uma aba Demandas para simular cada situação.',
+    ],
+    modulo: 'Geral',
+    tickets: [],
+  },
+  {
     id: '2026-11-04-historico-com-descricao',
     data: '2026-11-04',
     titulo: 'Histórico: toda ação agora mostra a empresa ou a descrição',

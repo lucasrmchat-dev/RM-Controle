@@ -10,7 +10,8 @@
  */
 
 export const CATEGORIAS_FLUXO = [
-  { id: 'gatilhos', rotulo: 'Gatilhos' },
+  { id: 'gatilhos', rotulo: 'Gatilhos · WhatsApp e agenda' },
+  { id: 'gatilhos_demandas', rotulo: 'Gatilhos · Demandas' },
   { id: 'mensagens', rotulo: 'Mensagens' },
   { id: 'logica', rotulo: 'Lógica' },
   { id: 'agenda', rotulo: 'Agenda' },
@@ -63,6 +64,26 @@ export const BLOCOS = {
     categoria: 'gatilhos', rotulo: 'Status da reunião', descricao: 'Quando a reunião é realizada, cancelada ou vai para remarcar',
     cor: 'sky', gatilho: true, saidas: ['proximo'],
     padrao: { status: 'concluida' },
+  },
+  gatilho_demanda_criada: {
+    categoria: 'gatilhos_demandas', rotulo: 'Demanda criada', descricao: 'Quando uma demanda nova entra na fila',
+    cor: 'orange', gatilho: true, saidas: ['proximo'],
+    padrao: { departamento: '' },
+  },
+  gatilho_demanda_andamento: {
+    categoria: 'gatilhos_demandas', rotulo: 'Demanda em andamento', descricao: 'Quando alguém começa a atender a demanda',
+    cor: 'orange', gatilho: true, saidas: ['proximo'],
+    padrao: { departamento: '' },
+  },
+  gatilho_demanda_fechada: {
+    categoria: 'gatilhos_demandas', rotulo: 'Demanda fechada', descricao: 'Quando a demanda é concluída ou cancelada',
+    cor: 'orange', gatilho: true, saidas: ['proximo'],
+    padrao: { resultado: 'qualquer', departamento: '' },
+  },
+  gatilho_demanda_sla: {
+    categoria: 'gatilhos_demandas', rotulo: 'Demanda passou do prazo (SLA)', descricao: 'Quando a demanda passa de X minutos parada',
+    cor: 'orange', gatilho: true, saidas: ['proximo'],
+    padrao: { em: 'aguardando', minutos: 30, departamento: '' },
   },
   enviar_mensagem: {
     categoria: 'mensagens', rotulo: 'Enviar mensagem', descricao: 'Texto no WhatsApp, com variáveis',
@@ -155,6 +176,19 @@ export const VARIAVEIS_GATILHO = {
   ],
 };
 VARIAVEIS_GATILHO.gatilho_reuniao_status = VARIAVEIS_GATILHO.gatilho_reuniao_agendada;
+VARIAVEIS_GATILHO.gatilho_demanda_criada = [
+  ['demanda.empresa', 'Empresa da demanda'],
+  ['demanda.relato', 'O que a pessoa relatou'],
+  ['demanda.departamento', 'Departamento'],
+  ['demanda.solicitante', 'Quem pediu (solicitante)'],
+  ['demanda.responsavel', 'Responsável'],
+  ['demanda.status', 'Situação'],
+  ['demanda.minutos', 'Minutos desde que ficou nesta situação'],
+  ['demanda.motivo', 'Motivo informado ao concluir'],
+];
+VARIAVEIS_GATILHO.gatilho_demanda_andamento = VARIAVEIS_GATILHO.gatilho_demanda_criada;
+VARIAVEIS_GATILHO.gatilho_demanda_fechada = VARIAVEIS_GATILHO.gatilho_demanda_criada;
+VARIAVEIS_GATILHO.gatilho_demanda_sla = VARIAVEIS_GATILHO.gatilho_demanda_criada;
 export const VARIAVEIS_SEMPRE = [
   ['agora.data', 'Data de hoje'],
   ['agora.hora', 'Hora agora'],
@@ -370,11 +404,25 @@ export function avaliarGatilho(no, evento) {
   return gatilhoOutros(no, evento) ? { casa: true } : nao('O evento não combina com o gatilho.');
 }
 
+// Gatilhos de demanda: o departamento do gatilho (vazio = qualquer) está entre os da demanda?
+function departamentoCasa(c, d) {
+  const alvo = semAcento(c.departamento);
+  if (!alvo) return true;
+  return (d.demanda?.departamentos || []).some((x) => semAcento(x) === alvo);
+}
+
 function gatilhoOutros(no, evento) {
   const c = no.config || {};
   const d = evento?.dados || {};
   if (no.tipo === 'gatilho_reuniao_agendada') return evento.tipo === 'reuniao_agendada' && (!c.tipo || c.tipo === 'todos' || c.tipo === d.reuniao?.tipo);
   if (no.tipo === 'gatilho_reuniao_status') return evento.tipo === 'reuniao_status' && (!c.status || c.status === 'qualquer' || c.status === d.reuniao?.status);
+  if (no.tipo === 'gatilho_demanda_criada') return evento.tipo === 'demanda_criada' && departamentoCasa(c, d);
+  if (no.tipo === 'gatilho_demanda_andamento') return evento.tipo === 'demanda_andamento' && departamentoCasa(c, d);
+  if (no.tipo === 'gatilho_demanda_fechada') return evento.tipo === 'demanda_fechada' && departamentoCasa(c, d) && (!c.resultado || c.resultado === 'qualquer' || c.resultado === d.demanda?.resultado);
+  if (no.tipo === 'gatilho_demanda_sla') {
+    const limite = Math.max(1, Number(c.minutos) || 30);
+    return evento.tipo === 'demanda_sla' && departamentoCasa(c, d) && (c.em || 'aguardando') === d.demanda?.estado && Number(d.demanda?.minutos) >= limite;
+  }
   return false;
 }
 
@@ -383,6 +431,10 @@ export const GATILHOS_DO_EVENTO = {
   mensagem_recebida: ['gatilho_mensagem'],
   reuniao_agendada: ['gatilho_reuniao_agendada'],
   reuniao_status: ['gatilho_reuniao_status'],
+  demanda_criada: ['gatilho_demanda_criada'],
+  demanda_andamento: ['gatilho_demanda_andamento'],
+  demanda_fechada: ['gatilho_demanda_fechada'],
+  demanda_sla: ['gatilho_demanda_sla'],
 };
 
 // ------------------------------------------------------------------------------
@@ -603,5 +655,33 @@ export function dadosDaReuniao(e) {
       status: e.status || '',
     },
     contato: { telefone: e.cliente_telefone || '', nome: e.participante_nome || e.empresa || '' },
+  };
+}
+
+/**
+ * Dados de uma demanda (linha de suporte_chamados) para os fluxos.
+ * `estado`: em que situação ela está parada (aguardando alguém assumir ou em andamento) e há quantos `minutos`.
+ */
+export function dadosDaDemanda(c, { responsavelNome = '', agora = Date.now() } = {}) {
+  const departamentos = (Array.isArray(c.categorias) && c.categorias.length ? c.categorias : String(c.motivo || '').split(',')).map((x) => String(x).trim()).filter(Boolean);
+  const emAndamento = c.status === 'em_andamento';
+  const desde = new Date((emAndamento ? c.iniciado_em : c.created_at) || c.created_at || agora).getTime();
+  const fechada = c.status === 'finalizado' || c.status === 'cancelado';
+  return {
+    demanda: {
+      id: c.id,
+      empresa: c.empresa_nome || '',
+      relato: String(c.observacao_inicial || c.observacoes || '').trim(),
+      departamento: departamentos.join(', '),
+      departamentos,
+      solicitante: c.colaborador_solicitante || '',
+      responsavel: c.tecnico_email && c.tecnico_email !== 'geral' ? responsavelNome || c.atendente || c.tecnico_email : '',
+      responsavel_email: c.tecnico_email && c.tecnico_email !== 'geral' ? c.tecnico_email : '',
+      status: c.status || '',
+      estado: emAndamento ? 'andamento' : fechada ? 'fechada' : 'aguardando',
+      resultado: c.status === 'cancelado' ? 'cancelada' : fechada ? 'concluida' : '',
+      minutos: Math.max(0, Math.floor((agora - desde) / 60000)),
+      motivo: fechada ? String(c.motivo || '') : '',
+    },
   };
 }

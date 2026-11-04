@@ -49,8 +49,18 @@ function resumoBloco(no, canaisPorId) {
       return [{ todos: 'Qualquer reunião', cliente: 'Reunião com cliente', interna: 'Reunião interna' }[c.tipo || 'todos']];
     case 'gatilho_reuniao_status':
       return [`Quando ficar ${rotuloStatus(c.status)}`];
-    case 'enviar_mensagem':
-      return [c.texto ? c.texto : 'Sem texto', { conversa: '→ na conversa', cliente_reuniao: '→ cliente da reunião', numero: `→ ${c.telefone || 'número'}` }[c.destino || 'conversa']];
+    case 'gatilho_demanda_criada':
+    case 'gatilho_demanda_andamento':
+      return [c.departamento ? `Departamento: ${c.departamento}` : 'Todos os departamentos'];
+    case 'gatilho_demanda_fechada':
+      return [{ qualquer: 'Concluída ou cancelada', concluida: 'Só concluídas', cancelada: 'Só canceladas' }[c.resultado || 'qualquer'], c.departamento ? `Departamento: ${c.departamento}` : 'Todos os departamentos'];
+    case 'gatilho_demanda_sla':
+      return [`${(c.em || 'aguardando') === 'aguardando' ? 'Esperando alguém assumir' : 'Em atendimento'} há mais de ${c.minutos ?? 30} min`, c.departamento ? `Departamento: ${c.departamento}` : 'Todos os departamentos'];
+    case 'enviar_mensagem': {
+      const canal = c.canal_id ? canaisPorId.get(c.canal_id)?.nome || 'canal removido' : null;
+      const para = { conversa: '→ na conversa', cliente_reuniao: '→ cliente da reunião', numero: `→ ${c.telefone || 'número'}` }[c.destino || 'conversa'];
+      return [c.texto ? c.texto : 'Sem texto', c.destino === 'conversa' ? para : `${para} · pelo canal ${canal || 'padrão'}`];
+    }
     case 'pergunta': {
       const min = Number(c.minutos) || 60;
       return [c.texto ? c.texto : 'Sem texto', `Espera ${min >= 60 ? `${Math.round(min / 6) / 10} h` : `${min} min`} · {{var.${c.variavel || 'resposta'}}}`];
@@ -599,22 +609,22 @@ export default function EditorFluxo({ fluxo: inicial, onVoltar, onMudou }) {
             <span className={`relative w-9 h-5 rounded-full transition-colors ${fluxo.ativo ? 'bg-emerald-500' : 'bg-black/15 dark:bg-white/20'}`}>
               <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${fluxo.ativo ? 'translate-x-4' : ''}`} />
             </span>
-            <span className="hidden xl:inline">{fluxo.ativo ? 'Ativo' : 'Inativo'}</span>
+            <span className="hidden min-[2300px]:inline">{fluxo.ativo ? 'Ativo' : 'Inativo'}</span>
           </button>
           {/* Em telas médias viram só ícones: o cabeçalho ocupa o meio da barra */}
-          <button type="button" onClick={() => setPainel(painel === 'execucoes' ? null : 'execucoes')} title="Execuções reais deste fluxo" aria-label="Execuções" className={`h-9 px-2.5 2xl:px-3 rounded-full text-[12.5px] font-medium cursor-pointer flex items-center gap-1.5 ${painel === 'execucoes' ? 'bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]' : 'hover:bg-black/[0.05] dark:hover:bg-white/[0.08]'}`}>
+          <button type="button" onClick={() => setPainel(painel === 'execucoes' ? null : 'execucoes')} title="Execuções reais deste fluxo" aria-label="Execuções" className={`h-9 px-2.5 min-[2300px]:px-3 rounded-full text-[12.5px] font-medium cursor-pointer flex items-center gap-1.5 ${painel === 'execucoes' ? 'bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]' : 'hover:bg-black/[0.05] dark:hover:bg-white/[0.08]'}`}>
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
               <path d="M3 3v5h5M12 7v5l3 2" />
             </svg>
-            <span className="hidden 2xl:inline">Execuções</span>
+            <span className="hidden min-[2300px]:inline">Execuções</span>
           </button>
-          <button type="button" onClick={exportar} title="Exportar JSON (para importar em outra empresa)" aria-label="Exportar JSON" className="h-9 px-2.5 2xl:px-3 rounded-full text-[12.5px] font-medium hover:bg-black/[0.05] dark:hover:bg-white/[0.08] cursor-pointer flex items-center gap-1.5">
+          <button type="button" onClick={exportar} title="Exportar JSON (para importar em outra empresa)" aria-label="Exportar JSON" className="h-9 px-2.5 min-[2300px]:px-3 rounded-full text-[12.5px] font-medium hover:bg-black/[0.05] dark:hover:bg-white/[0.08] cursor-pointer flex items-center gap-1.5">
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 4v11M7 10l5 5 5-5" />
               <path d="M5 20h14" />
             </svg>
-            <span className="hidden 2xl:inline">Exportar</span>
+            <span className="hidden min-[2300px]:inline">Exportar</span>
           </button>
           <button
             type="button"
@@ -627,8 +637,8 @@ export default function EditorFluxo({ fluxo: inicial, onVoltar, onMudou }) {
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
               <path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z" />
             </svg>
-            <span className="2xl:hidden">Testar</span>
-            <span className="hidden 2xl:inline">Testar fluxo</span>
+            <span className="min-[2300px]:hidden">Testar</span>
+            <span className="hidden min-[2300px]:inline">Testar fluxo</span>
           </button>
         </div>
       </div>

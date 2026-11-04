@@ -11,7 +11,8 @@
  * do grupo) na conversa continua o fluxo pela saída "Respondeu"; vencido o prazo, pela "Sem resposta"
  * (conferido a cada aviso do WhatsApp da empresa, no máximo uma vez por minuto).
  */
-import { GATILHOS_DO_EVENTO, executarFluxo, gatilhoCasa } from '@/lib/fluxos';
+import { GATILHOS_DO_EVENTO, dadosDaDemanda, executarFluxo, gatilhoCasa } from '@/lib/fluxos';
+import { escopoDoRegistro } from '@/lib/server/organizacao';
 import { DESFECHOS_COMERCIAIS } from '@/lib/comercial';
 import { consumirLimite } from '@/lib/server/protecao';
 import { enviarTextoNaConversa, enviarTextoParaNumero, mensagemDoCanal } from '@/lib/server/canais/index';
@@ -168,7 +169,7 @@ export async function dispararFluxos(db, evento, opcoes = {}) {
   for (const fluxo of await fluxosDoEvento(db, evento.tipo)) {
     if (opcoes.ignorar?.has(fluxo.id)) continue;
     try {
-      const alvo = evento.dados?.conversa?.id || evento.dados?.reuniao?.id || 'geral';
+      const alvo = evento.dados?.conversa?.id || evento.dados?.reuniao?.id || evento.dados?.demanda?.id || 'geral';
       if (!(await consumirLimite(`fluxo_${fluxo.id}_${alvo}`, 10, 60))) {
         if (evento.tipo === 'mensagem_recebida') await registrarNaoDisparou(db, fluxo, evento, 'Mais de 10 execuções em 1 minuto nesta conversa: pausado por segurança (evita repetição sem fim).');
         continue;
@@ -277,4 +278,71 @@ export async function registrarMensagensDaEquipe(db, lista) {
       await registrarNaoDisparou(db, fluxo, evento, 'A mensagem foi enviada pelo próprio número do canal (pelo RM Controle ou pelo celular conectado). Mensagens da equipe não disparam o fluxo; para testar, escreva de outro número.');
     }
   }
+}
+
+// ------------------------------------------------------------------------------
+// Demandas
+// ------------------------------------------------------------------------------
+/** Nome da pessoa responsável (e-mail da equipe → nome). */
+async function nomeDoResponsavel(db, email) {
+  if (!email || email === 'geral') return '';
+  const { data } = await db.from('equipe_usuarios').select('nome').eq('email', email).maybeSingle();
+  return data?.nome || '';
+}
+
+/**
+ * Dispara os fluxos de uma demanda (criada, em andamento, fechada). Confere a situação NO BANCO:
+ * o aviso do navegador só diz qual demanda mudou, nunca o que aconteceu.
+ */
+export async function dispararFluxosDeDemanda(db, tipo, chamado, opcoes = {}) {
+  const fechada = chamado.status === 'finalizado' || chamado.status === 'cancelado';
+  if (tipo === 'demanda_criada' && fechada) return [];
+  if (tipo === 'demanda_andamento' && chamado.status !== 'em_andamento') return [];
+  if (tipo === 'demanda_fechada' && !fechada) return [];
+  const dados = dadosDaDemanda(chamado, { responsavelNome: await nomeDoResponsavel(db, chamado.tecnico_email) });
+  return dispararFluxos(db, { tipo, dados }, opcoes);
+}
+
+const ESTADOS_ABERTOS = { aguardando: ['aguardando_visualizacao', 'pendente'], andamento: ['em_andamento'] };
+const UMA_SEMANA_S = 7 * 24 * 3600;
+
+/**
+ * SLA: chamado a cada minuto pelo agendador. Para cada fluxo ativo com o gatilho “Demanda passou do prazo”
+ * (em qualquer empresa), vê as demandas abertas da empresa dele e dispara uma vez por demanda quando passa
+ * dos minutos. Nunca lança.
+ */
+export async function verificarSlaDemandas(dbGlobal, opcoes = {}) {
+  let disparos = 0;
+  const { data: todos, error } = await dbGlobal.from('fluxos').select('id, nome, definicao, gatilhos, organizacao_id').eq('ativo', true);
+  const fluxos = (todos || []).filter((f) => (f.gatilhos || []).includes('gatilho_demanda_sla'));
+  if (error || !fluxos.length) return { disparos };
+  for (const fluxo of fluxos) {
+    try {
+      const db = escopoDoRegistro(dbGlobal, fluxo);
+      const nos = (fluxo.definicao?.nos || []).filter((n) => n.tipo === 'gatilho_demanda_sla');
+      const estados = [...new Set(nos.map((n) => n.config?.em || 'aguardando'))];
+      const status = estados.flatMap((e) => ESTADOS_ABERTOS[e] || []);
+      if (!status.length) continue;
+      const { data: chamados } = await db.from('suporte_chamados').select('*').in('status', status).limit(300);
+      for (const chamado of chamados || []) {
+        const evento = { tipo: 'demanda_sla', dados: dadosDaDemanda(chamado, { responsavelNome: await nomeDoResponsavel(db, chamado.tecnico_email) }) };
+        for (const no of nos) {
+          if (!gatilhoCasa(no, evento)) continue;
+          // Demanda que já passou muito do limite (ex.: antiga, de antes do fluxo existir) não dispara: evita uma enxurrada
+          if (evento.dados.demanda.minutos > (Number(no.config?.minutos) || 30) + 120) continue;
+          // Uma vez só por fluxo, demanda e gatilho (se a demanda mudar de situação, vale de novo na nova)
+          if (!(await consumirLimite(`fluxo_sla_${fluxo.id}_${no.id}_${chamado.id}_${chamado.status}`, 1, UMA_SEMANA_S))) continue;
+          const r = await executarFluxo({ definicao: fluxo.definicao, evento, efeitos: efeitosReais(db, fluxo, opcoes) });
+          if (r.casou) {
+            await registrarExecucao(db, fluxo, evento, r);
+            disparos += 1;
+          }
+          break;
+        }
+      }
+    } catch (e) {
+      console.error('[fluxos] SLA', fluxo.id, e.message);
+    }
+  }
+  return { disparos };
 }

@@ -11,9 +11,10 @@ import { cifrarSegredos, hashToken } from '../src/lib/server/canais/cofre.js';
 import { GET as listarFluxos, POST as criarFluxos } from '../src/app/api/fluxos/route.js';
 import { GET as lerFluxo, PATCH as salvarFluxo, DELETE as excluirFluxo } from '../src/app/api/fluxos/[id]/route.js';
 import { POST as disparar } from '../src/app/api/fluxos/disparar/route.js';
+import { verificarSlaDemandas } from '../src/lib/server/fluxos.js';
 import { POST as receberWebhook } from '../src/app/api/canais/webhook/[id]/route.js';
 import {
-  ajustarCanais, efeitosSimulados, executarFluxo, exportarFluxo, gatilhoCasa, gatilhosDe, lerArquivoFluxo, novoBloco, preencher, problemasDoFluxo, validarDefinicao,
+  ajustarCanais, dadosDaDemanda, efeitosSimulados, executarFluxo, exportarFluxo, gatilhoCasa, gatilhosDe, lerArquivoFluxo, novoBloco, preencher, problemasDoFluxo, validarDefinicao,
 } from '../src/lib/fluxos.js';
 
 __definirSupabaseAdmin(mockSupabase);
@@ -356,4 +357,54 @@ test('Pergunta: pergunta na conversa, espera, continua pela resposta (sem recome
   assert.equal(textos().at(-1), 'Como ninguém respondeu, encerro por aqui.');
   assert.equal(db.tables.fluxo_esperas.length, 0);
   assert.ok(db.tables.fluxo_execucoes.some((e) => e.gatilho === 'pergunta_sem_resposta'));
+});
+
+test('Demandas: criada, em andamento, fechada (o servidor confere no banco) e SLA a cada minuto, uma vez por demanda', async () => {
+  const agora = Date.now();
+  const chamado = { id: crypto.randomUUID(), organizacao_id: A, empresa_nome: 'Polysite', status: 'aguardando_visualizacao', categorias: ['Suporte'], motivo: 'Suporte', observacao_inicial: 'Impressora parada', colaborador_solicitante: 'Felipe', tecnico_email: 'geral', created_at: new Date(agora - 45 * 60000).toISOString(), iniciado_em: null };
+  const velho = { ...chamado, id: crypto.randomUUID(), created_at: new Date(agora - 30 * 3600000).toISOString() };
+  const outroDepto = { ...chamado, id: crypto.randomUUID(), categorias: ['Financeiro'], motivo: 'Financeiro' };
+  db.tables.suporte_chamados = [chamado, velho, outroDepto];
+  const aviso = (texto) => ({ tipo: 'enviar_mensagem', config: { destino: 'numero', telefone: '5585911112222', texto } });
+  const def = validarDefinicao({
+    nos: [
+      { id: 'g1', tipo: 'gatilho_demanda_criada', config: { departamento: 'Suporte' } },
+      { id: 'm1', ...aviso('Nova de {{demanda.empresa}}: {{demanda.relato}}') },
+      { id: 'g2', tipo: 'gatilho_demanda_sla', config: { em: 'aguardando', minutos: 30, departamento: 'Suporte' } },
+      { id: 'm2', ...aviso('Parada há {{demanda.minutos}} min: {{demanda.empresa}}') },
+      { id: 'g3', tipo: 'gatilho_demanda_fechada', config: { resultado: 'cancelada' } },
+      { id: 'm3', ...aviso('Cancelada: {{demanda.empresa}}') },
+    ],
+    ligacoes: [{ de: 'g1', para: 'm1' }, { de: 'g2', para: 'm2' }, { de: 'g3', para: 'm3' }],
+  });
+  db.tables.fluxos = [{ id: crypto.randomUUID(), organizacao_id: A, nome: 'Avisos de demanda', ativo: true, definicao: def, gatilhos: gatilhosDe(def) }];
+  const textos = () => enviados.filter((e) => e.url.includes('sendText')).map((e) => e.corpo.text);
+  const avisar = async (email, corpo) => ler(await disparar(await como(email, '/api/fluxos/disparar', 'POST', corpo)));
+
+  // dados da demanda
+  const d = dadosDaDemanda(chamado, { agora }).demanda;
+  assert.deepEqual([d.estado, d.minutos, d.departamento, d.responsavel], ['aguardando', 45, 'Suporte', '']);
+
+  // criada: confere no banco e respeita o departamento do gatilho
+  assert.equal((await avisar('caio@b.com', { tipo: 'demanda_criada', chamado_id: chamado.id })).status, 404, 'demanda de outra empresa');
+  assert.equal((await avisar('bia@a.com', { tipo: 'demanda_criada', chamado_id: outroDepto.id })).ok, true);
+  assert.deepEqual(textos(), [], 'outro departamento não dispara');
+  assert.equal((await avisar('bia@a.com', { tipo: 'demanda_criada', chamado_id: chamado.id })).ok, true);
+  assert.deepEqual(textos(), ['Nova de Polysite: Impressora parada']);
+  // aviso de "em andamento" para demanda que não está em andamento não faz nada
+  await avisar('bia@a.com', { tipo: 'demanda_andamento', chamado_id: chamado.id });
+  assert.equal(textos().length, 1);
+
+  // SLA: dispara só a demanda que passou de 30 min no departamento certo (a antiga demais e a de outro departamento ficam de fora), uma vez
+  assert.equal((await verificarSlaDemandas(mockSupabase)).disparos, 1);
+  assert.match(textos()[1], /^Parada há 45 min: Polysite$/);
+  assert.equal((await verificarSlaDemandas(mockSupabase)).disparos, 0, 'não repete a cada minuto');
+
+  // fechada: só cancelada (o gatilho pede isso) e só se o banco confirma
+  chamado.status = 'finalizado';
+  await avisar('bia@a.com', { tipo: 'demanda_fechada', chamado_id: chamado.id });
+  assert.equal(textos().length, 2, 'concluída não casa com “só canceladas”');
+  chamado.status = 'cancelado';
+  await avisar('ana@a.com', { tipo: 'demanda_fechada', chamado_id: chamado.id });
+  assert.equal(textos().at(-1), 'Cancelada: Polysite');
 });

@@ -7,6 +7,7 @@ import React from 'react';
 // ------------------------------------------------------------------------------
 export const CORES_BLOCO = {
   emerald: { faixa: 'bg-emerald-500', suave: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300', anel: 'ring-emerald-500' },
+  orange: { faixa: 'bg-orange-500', suave: 'bg-orange-500/12 text-orange-700 dark:text-orange-300', anel: 'ring-orange-500' },
   sky: { faixa: 'bg-sky-500', suave: 'bg-sky-500/12 text-sky-700 dark:text-sky-300', anel: 'ring-sky-500' },
   blue: { faixa: 'bg-blue-500', suave: 'bg-blue-500/12 text-blue-700 dark:text-blue-300', anel: 'ring-blue-500' },
   violet: { faixa: 'bg-violet-500', suave: 'bg-violet-500/12 text-violet-700 dark:text-violet-300', anel: 'ring-violet-500' },
@@ -21,6 +22,10 @@ const ICONES = {
   gatilho_mensagem: ['M21 12a8.5 8.5 0 0 1-12.6 7.45L3 21l1.55-5.4A8.5 8.5 0 1 1 21 12z', 'M8.5 10.5h7M8.5 13.5h4.5'],
   gatilho_reuniao_agendada: ['M8 2.8v3.4M16 2.8v3.4', 'M5 4.6h14a2 2 0 0 1 2 2V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6.6a2 2 0 0 1 2-2z', 'M3 9.6h18', 'M12 13v5M9.5 15.5h5'],
   gatilho_reuniao_status: ['M8 2.8v3.4M16 2.8v3.4', 'M5 4.6h14a2 2 0 0 1 2 2V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6.6a2 2 0 0 1 2-2z', 'M3 9.6h18', 'M9 15l2 2 4-4'],
+  gatilho_demanda_criada: ['M6 3h9l4 4v14H6z', 'M14 3v5h5', 'M12 12v6M9 15h6'],
+  gatilho_demanda_andamento: ['M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z', 'M10 8.5v7l6-3.5z'],
+  gatilho_demanda_fechada: ['M6 3h9l4 4v14H6z', 'M14 3v5h5', 'M9 14l2 2 4-4'],
+  gatilho_demanda_sla: ['M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z', 'M12 7v5l3 2'],
   enviar_mensagem: ['M21 3L10 14', 'M21 3l-7 18-4-7-7-4 18-7z'],
   condicao: ['M6 3v6a6 6 0 0 0 6 6h6', 'M6 21v-4', 'M15 12l3 3-3 3'],
   espera: ['M7 3h10M7 21h10', 'M8 3c0 4 8 5 8 9s-8 5-8 9', 'M16 3c0 4-8 5-8 9'],

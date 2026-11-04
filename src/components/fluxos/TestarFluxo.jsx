@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BLOCOS, STATUS_REUNIAO, dadosDaReuniao, efeitosSimulados, executarFluxo } from '@/lib/fluxos';
+import { BLOCOS, STATUS_REUNIAO, dadosDaDemanda, dadosDaReuniao, efeitosSimulados, executarFluxo } from '@/lib/fluxos';
 import { campoClasse, rotuloClasse } from './visual';
 
 /**
@@ -12,7 +12,7 @@ import { campoClasse, rotuloClasse } from './visual';
  */
 export default function TestarFluxo({ definicao, canais = [], onResultado, onFechar }) {
   const tipos = useMemo(() => new Set((definicao?.nos || []).filter((n) => BLOCOS[n.tipo]?.gatilho).map((n) => n.tipo)), [definicao]);
-  const modos = [tipos.has('gatilho_mensagem') && ['whatsapp', 'WhatsApp'], (tipos.has('gatilho_reuniao_agendada') || tipos.has('gatilho_reuniao_status')) && ['agenda', 'Agenda']].filter(Boolean);
+  const modos = [tipos.has('gatilho_mensagem') && ['whatsapp', 'WhatsApp'], (tipos.has('gatilho_reuniao_agendada') || tipos.has('gatilho_reuniao_status')) && ['agenda', 'Agenda'], [...tipos].some((t) => t.startsWith('gatilho_demanda')) && ['demanda', 'Demandas']].filter(Boolean);
   const [modo, setModo] = useState(modos[0]?.[0] || 'whatsapp');
   useEffect(() => {
     if (modos.length && !modos.some(([id]) => id === modo)) setModo(modos[0][0]);
@@ -26,6 +26,7 @@ export default function TestarFluxo({ definicao, canais = [], onResultado, onFec
   const [rodando, setRodando] = useState(false);
   const [passos, setPassos] = useState([]);
   const [reuniao, setReuniao] = useState({ titulo: 'Apresentação da plataforma', empresa: 'Empresa Teste', status: 'concluida', tipo: 'cliente', cliente_telefone: '5585999990000' });
+  const [demanda, setDemanda] = useState({ empresa: 'Empresa Teste', departamento: 'Suporte', relato: 'A impressora não imprime.', minutos: 45 });
   const fim = useRef(null);
   useEffect(() => {
     fim.current?.scrollIntoView({ block: 'end' });
@@ -73,6 +74,26 @@ export default function TestarFluxo({ definicao, canais = [], onResultado, onFec
   const simularReuniao = (tipo) => {
     const e = { id: 'reuniao-teste', data: new Date().toISOString().slice(0, 10), hora_inicio: '14:00', responsavel_nome: 'Você', ...reuniao, status: tipo === 'reuniao_agendada' ? 'agendada' : reuniao.status };
     rodar({ tipo, dados: dadosDaReuniao(e) }, tipo === 'reuniao_agendada' ? `📅 Reunião agendada: ${e.titulo}` : `📅 Reunião ficou ${STATUS_REUNIAO.find((s) => s.id === e.status)?.rotulo.toLowerCase()}: ${e.titulo}`);
+  };
+
+  // Demanda de exemplo: cada botão simula uma situação (criada, em andamento, fechada ou parada há X minutos)
+  const simularDemanda = (tipo, extra = {}) => {
+    const minutos = Math.max(0, Number(demanda.minutos) || 0);
+    const antes = new Date(Date.now() - minutos * 60000).toISOString();
+    const chamado = {
+      id: 'demanda-teste',
+      empresa_nome: demanda.empresa,
+      categorias: demanda.departamento ? [demanda.departamento] : [],
+      observacao_inicial: demanda.relato,
+      colaborador_solicitante: 'Colaborador Teste',
+      tecnico_email: 'geral',
+      created_at: antes,
+      iniciado_em: antes,
+      status: 'aguardando_visualizacao',
+      ...extra,
+    };
+    const rotulos = { demanda_criada: 'criada', demanda_andamento: 'em andamento', demanda_fechada: 'fechada', demanda_sla: `parada há ${minutos} min` };
+    rodar({ tipo, dados: dadosDaDemanda(chamado) }, `🗂 Demanda ${rotulos[tipo]}: ${demanda.empresa}`);
   };
 
   const limpar = () => {
@@ -162,6 +183,34 @@ export default function TestarFluxo({ definicao, canais = [], onResultado, onFec
             </div>
           )}
 
+          {modo === 'demanda' && (
+            <div className="px-4 pt-3 space-y-2">
+              <span className={rotuloClasse}>Demanda de exemplo</span>
+              <div className="grid grid-cols-2 gap-2">
+                <input value={demanda.empresa} onChange={(e) => setDemanda({ ...demanda, empresa: e.target.value })} placeholder="Empresa" className={campoClasse} />
+                <input value={demanda.departamento} onChange={(e) => setDemanda({ ...demanda, departamento: e.target.value })} placeholder="Departamento" className={campoClasse} />
+              </div>
+              <input value={demanda.relato} onChange={(e) => setDemanda({ ...demanda, relato: e.target.value })} placeholder="O que a pessoa relatou" className={campoClasse} />
+              <div className="flex flex-wrap gap-2">
+                {tipos.has('gatilho_demanda_criada') && <button type="button" disabled={rodando} onClick={() => simularDemanda('demanda_criada')} className="h-9 px-3 rounded-full text-[12.5px] font-semibold bg-orange-500/12 text-orange-700 dark:text-orange-300 cursor-pointer disabled:opacity-50">Criada</button>}
+                {tipos.has('gatilho_demanda_andamento') && <button type="button" disabled={rodando} onClick={() => simularDemanda('demanda_andamento', { status: 'em_andamento', tecnico_email: 'voce@empresa.com' })} className="h-9 px-3 rounded-full text-[12.5px] font-semibold bg-orange-500/12 text-orange-700 dark:text-orange-300 cursor-pointer disabled:opacity-50">Em andamento</button>}
+                {tipos.has('gatilho_demanda_fechada') && (
+                  <>
+                    <button type="button" disabled={rodando} onClick={() => simularDemanda('demanda_fechada', { status: 'finalizado' })} className="h-9 px-3 rounded-full text-[12.5px] font-semibold bg-orange-500/12 text-orange-700 dark:text-orange-300 cursor-pointer disabled:opacity-50">Concluída</button>
+                    <button type="button" disabled={rodando} onClick={() => simularDemanda('demanda_fechada', { status: 'cancelado' })} className="h-9 px-3 rounded-full text-[12.5px] font-semibold bg-orange-500/12 text-orange-700 dark:text-orange-300 cursor-pointer disabled:opacity-50">Cancelada</button>
+                  </>
+                )}
+              </div>
+              {tipos.has('gatilho_demanda_sla') && (
+                <div className="flex items-center gap-2">
+                  <input type="number" min="0" value={demanda.minutos} onChange={(e) => setDemanda({ ...demanda, minutos: e.target.value })} className={`${campoClasse} w-24`} aria-label="Minutos parada" />
+                  <span className="text-[12.5px] text-slate-500">minutos parada</span>
+                  <button type="button" disabled={rodando} onClick={() => simularDemanda('demanda_sla')} className="ml-auto h-9 px-3 rounded-full text-[12.5px] font-semibold bg-orange-500/12 text-orange-700 dark:text-orange-300 cursor-pointer disabled:opacity-50 whitespace-nowrap">Simular prazo (SLA)</button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Conversa simulada */}
           <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-2 bg-[#efeae2] dark:bg-[#0b141a] mt-3">
             {itens.length === 0 && (
@@ -169,7 +218,7 @@ export default function TestarFluxo({ definicao, canais = [], onResultado, onFec
                 <svg className="w-10 h-10 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 12a8.5 8.5 0 0 1-12.6 7.45L3 21l1.55-5.4A8.5 8.5 0 1 1 21 12z" />
                 </svg>
-                <p className="text-[14px] font-medium">{modo === 'whatsapp' ? 'Envie uma mensagem para começar' : 'Simule a reunião acima'}</p>
+                <p className="text-[14px] font-medium">{modo === 'whatsapp' ? 'Envie uma mensagem para começar' : modo === 'demanda' ? 'Simule a demanda acima' : 'Simule a reunião acima'}</p>
                 <p className="text-[12px]">O fluxo responde como faria de verdade, sem enviar nada.</p>
               </div>
             )}

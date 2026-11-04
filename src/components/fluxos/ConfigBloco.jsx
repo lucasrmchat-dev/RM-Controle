@@ -56,12 +56,15 @@ function TextoComVariaveis({ valor, onMudar, variaveis, linhas = 4, placeholder 
     <div>
       <textarea ref={ref} value={valor} onChange={(e) => onMudar(e.target.value)} rows={linhas} placeholder={placeholder} className={`${campoClasse} h-auto py-2 leading-relaxed resize-y`} />
       {variaveis.length > 0 && (
-        <div className="mt-1.5 flex flex-wrap gap-1">
-          {variaveis.map(([k, r]) => (
-            <button key={k} type="button" onClick={() => inserir(k)} title={r} className="h-6 px-2 rounded-full text-[11px] font-mono bg-black/[0.04] dark:bg-white/[0.07] text-slate-600 dark:text-zinc-300 hover:bg-rm-acento-medio hover:text-white cursor-pointer">
-              {`{{${k}}}`}
-            </button>
-          ))}
+        <div className="mt-2">
+          <p className="text-[11.5px] text-slate-500 dark:text-zinc-400 mb-1">Toque para inserir uma informação no texto:</p>
+          <div className="flex flex-wrap gap-1.5">
+            {variaveis.map(([k, r]) => (
+              <button key={k} type="button" onClick={() => inserir(k)} title={`{{${k}}}`} className="h-7 px-2.5 rounded-lg text-[12px] font-medium bg-white dark:bg-rm-campo-escuro ring-1 ring-black/[0.1] dark:ring-white/[0.12] text-slate-700 dark:text-zinc-200 hover:ring-rm-acento-medio hover:text-rm-acento-medio cursor-pointer">
+                {r}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -142,6 +145,43 @@ export default function ConfigBloco({ no, definicao, canais = [], equipe = [], d
       );
       break;
     }
+    case 'gatilho_demanda_criada':
+    case 'gatilho_demanda_andamento':
+    case 'gatilho_demanda_fechada':
+    case 'gatilho_demanda_sla':
+      corpo = (
+        <>
+          {no.tipo === 'gatilho_demanda_sla' && (
+            <>
+              <Campo rotulo="Situação da demanda">
+                <Segmentos valor={c.em || 'aguardando'} onMudar={(v) => mudar({ em: v })} opcoes={[['aguardando', 'Esperando alguém assumir'], ['andamento', 'Em atendimento']]} />
+              </Campo>
+              <Campo rotulo="Passou de quantos minutos?" dica="O sistema confere a cada minuto e avisa uma vez por demanda.">
+                <input type="number" min="1" max="10080" value={c.minutos ?? 30} onChange={(e) => mudar({ minutos: Math.max(1, Number(e.target.value) || 1) })} className={campoClasse} />
+              </Campo>
+            </>
+          )}
+          {no.tipo === 'gatilho_demanda_fechada' && (
+            <Campo rotulo="Como foi fechada">
+              <Segmentos valor={c.resultado || 'qualquer'} onMudar={(v) => mudar({ resultado: v })} opcoes={[['qualquer', 'Qualquer'], ['concluida', 'Concluída'], ['cancelada', 'Cancelada']]} />
+            </Campo>
+          )}
+          <Campo rotulo="Departamento" dica="Deixe em “Todos” para valer para qualquer departamento.">
+            <select value={c.departamento || ''} onChange={(e) => mudar({ departamento: e.target.value })} className={campoClasse}>
+              <option value="">Todos os departamentos</option>
+              {departamentos.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </Campo>
+          <p className="text-[11.5px] leading-relaxed text-slate-500 dark:text-zinc-400 rounded-xl bg-black/[0.035] dark:bg-white/[0.06] px-3 py-2">
+            Demandas não têm conversa de WhatsApp. Para avisar alguém, use “Enviar mensagem” com a opção “Número” e escolha o canal que vai enviar. Use as informações da demanda (empresa, relato, departamento…) no texto.
+          </p>
+        </>
+      );
+      break;
     case 'gatilho_reuniao_agendada':
       corpo = (
         <Campo rotulo="Tipo de reunião">
@@ -163,24 +203,53 @@ export default function ConfigBloco({ no, definicao, canais = [], equipe = [], d
         </Campo>
       );
       break;
-    case 'enviar_mensagem':
+    case 'enviar_mensagem': {
+      const temConversa = definicao?.nos?.some((n) => ['gatilho_mensagem'].includes(n.tipo));
+      const temReuniao = definicao?.nos?.some((n) => ['gatilho_reuniao_agendada', 'gatilho_reuniao_status'].includes(n.tipo));
+      const destino = c.destino || 'conversa';
+      const opcoesDestino = [
+        ['conversa', 'Na própria conversa', 'Responde a quem escreveu. Só com o gatilho “Mensagem no WhatsApp”.', temConversa],
+        ['cliente_reuniao', 'Ao cliente da reunião', 'Usa o telefone cadastrado na reunião. Só com gatilhos de reunião.', temReuniao],
+        ['numero', 'A um número específico', 'Você escolhe o número. Serve para avisar a equipe, por exemplo.', true],
+      ];
+      const canalEscolhido = canais.find((k) => k.id === c.canal_id);
       corpo = (
         <>
-          <Campo rotulo="Enviar para">
-            <Segmentos valor={c.destino || 'conversa'} onMudar={(v) => mudar({ destino: v })} opcoes={[['conversa', 'Conversa'], ['cliente_reuniao', 'Cliente da reunião'], ['numero', 'Número']]} />
+          <Campo rotulo="Para quem enviar">
+            <div className="space-y-1.5">
+              {opcoesDestino.map(([id, titulo, ajuda, disponivel]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => mudar({ destino: id })}
+                  className={`w-full text-left rounded-xl px-3 py-2 ring-1 transition-colors cursor-pointer ${destino === id ? 'ring-2 ring-rm-acento-medio bg-rm-acento-medio/[0.06]' : 'ring-black/[0.1] dark:ring-white/[0.12] hover:ring-black/25'}`}
+                >
+                  <span className="block text-[13px] font-semibold text-[#1d1d1f] dark:text-white">{titulo}</span>
+                  <span className="block text-[11.5px] leading-snug text-slate-500 dark:text-zinc-400">{ajuda}</span>
+                  {!disponivel && destino === id && <span className="block text-[11.5px] font-medium text-amber-700 dark:text-amber-300 mt-0.5">Não funciona com os gatilhos deste fluxo: escolha outra opção.</span>}
+                </button>
+              ))}
+            </div>
           </Campo>
-          {c.destino === 'numero' && (
+          {destino === 'numero' && (
             <Campo rotulo="Número (DDD + número)">
               <input value={c.telefone || ''} onChange={(e) => mudar({ telefone: e.target.value })} placeholder="85 99999-0000 ou {{contato.telefone}}" className={campoClasse} />
             </Campo>
           )}
-          {c.destino !== 'conversa' && <Campo rotulo="Canal">{canalSelect}</Campo>}
-          <Campo rotulo="Mensagem" dica="*negrito*, _itálico_ e as variáveis abaixo funcionam como no WhatsApp.">
+          {destino !== 'conversa' ? (
+            <Campo rotulo="Enviar pelo número (canal)" dica={canalEscolhido ? `A mensagem sai pelo WhatsApp ${canalEscolhido.numero || canalEscolhido.nome}.` : 'Sem escolha, usa o primeiro canal conectado. Escolha um para ter certeza de por onde sai.'}>
+              {canalSelect}
+            </Campo>
+          ) : (
+            <p className="text-[11.5px] text-slate-500 dark:text-zinc-400 rounded-xl bg-black/[0.035] dark:bg-white/[0.06] px-3 py-2">Na conversa, a mensagem sai pelo mesmo número (canal) em que o cliente escreveu.</p>
+          )}
+          <Campo rotulo="Mensagem" dica="*negrito* e _itálico_ funcionam como no WhatsApp.">
             <TextoComVariaveis valor={c.texto || ''} onMudar={(v) => mudar({ texto: v })} variaveis={variaveis} linhas={6} placeholder="Olá {{contato.nome}}! Como posso ajudar?" />
           </Campo>
         </>
       );
       break;
+    }
     case 'pergunta':
       corpo = (
         <>
@@ -414,19 +483,24 @@ export default function ConfigBloco({ no, definicao, canais = [], equipe = [], d
           <p className="text-[14.5px] font-semibold text-[#1d1d1f] dark:text-white">{b.rotulo}</p>
           <p className="text-[12px] text-slate-500 dark:text-zinc-400 leading-snug">{b.descricao}</p>
         </div>
-        <button type="button" onClick={onFechar} aria-label="Fechar" className="w-8 h-8 rounded-full text-slate-400 hover:text-[#1d1d1f] dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.08] cursor-pointer flex items-center justify-center">
-          ×
-        </button>
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          <button type="button" onClick={onDuplicar} title="Duplicar bloco" aria-label="Duplicar bloco" className="w-8 h-8 rounded-full text-slate-500 hover:text-[#1d1d1f] dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.08] cursor-pointer flex items-center justify-center">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="9" width="11" height="11" rx="2" />
+              <path d="M5 15V6a2 2 0 0 1 2-2h9" />
+            </svg>
+          </button>
+          <button type="button" onClick={onExcluir} title="Excluir bloco (⌘Z desfaz)" aria-label="Excluir bloco" className="w-8 h-8 rounded-full text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 cursor-pointer flex items-center justify-center">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />
+            </svg>
+          </button>
+          <button type="button" onClick={onFechar} aria-label="Fechar" className="w-8 h-8 rounded-full text-slate-400 hover:text-[#1d1d1f] dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.08] cursor-pointer flex items-center justify-center text-[18px]">
+            ×
+          </button>
+        </div>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">{corpo}</div>
-      <div className="p-3 border-t border-black/[0.06] dark:border-white/[0.08] flex gap-2">
-        <button type="button" onClick={onDuplicar} className="flex-1 h-9 rounded-full text-[12.5px] font-medium bg-black/[0.05] dark:bg-white/[0.08] hover:bg-black/[0.08] cursor-pointer">
-          Duplicar
-        </button>
-        <button type="button" onClick={onExcluir} className="flex-1 h-9 rounded-full text-[12.5px] font-medium text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/15 cursor-pointer">
-          Excluir bloco
-        </button>
-      </div>
     </div>
   );
 }

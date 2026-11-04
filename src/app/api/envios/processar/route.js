@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { processarEnvios } from '@/lib/server/envios';
+import { verificarSlaDemandas } from '@/lib/server/fluxos';
 import { getSupabaseAdmin } from '@/lib/server/integracaoSuporte';
 
 export const dynamic = 'force-dynamic';
@@ -27,7 +28,10 @@ async function executar(request) {
       { status: 503 },
     );
   try {
-    return Response.json({ ok: true, ...(await processarEnvios(db, { prazoMs: 50_000 })) });
+    const envios = await processarEnvios(db, { prazoMs: 50_000 });
+    // Aproveita o mesmo agendador de cada minuto para os gatilhos de SLA das demandas (Fluxo Inteligente)
+    const sla = await verificarSlaDemandas(db).catch((e) => ({ erro: e.message }));
+    return Response.json({ ok: true, ...envios, sla });
   } catch (e) {
     return Response.json({ ok: false, mensagem: e.message }, { status: 500 });
   }
