@@ -21,10 +21,10 @@ export const NOVIDADES = [
     resumo: 'Ao abrir a empresa de uma demanda, você cai direto numa tela só, no mesmo clima do Modo foco: a empresa, o relato e os botões de sempre, sem passos nem telas extras.',
     itens: [
       'A empresa aparece num cartão grande, com o nome em destaque, o relato da demanda e o botão principal da vez: “Assumir e começar”, “Concluir chamado” ou “Iniciar atendimento”.',
-      'Entrar na empresa fica dentro do cartão: e-mail e senha à vista, “Acessar a empresa”, “Consegui acessar” ou “Não consegui”. Se não conseguiu, pede o acesso ao cliente no grupo (mensagem pronta) ou troca o e-mail e a senha ali mesmo.',
+      'Em etapas: 1 Entrar, 2 Atender, 3 Concluir. Na etapa 1 só aparece o acesso: e-mail e senha, “Acessar a empresa” (copia a senha e abre o servidor), “Consegui acessar” ou “Não consegui”. O resto só é liberado depois de confirmar que conseguiu entrar. Se não conseguiu, pede o acesso ao cliente no grupo (mensagem pronta) ou troca o e-mail e a senha ali mesmo.',
       'Os botões de sempre voltaram: Entrar no servidor, Acesso e senha, + Nova demanda, + Registrar suporte e Cancelar atendimento.',
       'As seções (Atendimento, Canais, Acessos e senhas, Servidor, Problemas recorrentes, Contrato e Histórico) viraram pílulas logo abaixo e abrem na mesma tela, sem sair do foco. “+ Nova solução” está em Atendimento.',
-      'Esc volta para as demandas, como no Modo foco.',
+      'Na etapa 2, “Concluir chamado” leva direto ao formulário de fechar (etapa 3). Esc volta para as demandas, como no Modo foco.',
     ],
     modulo: 'Fila de Demandas',
     tickets: [],

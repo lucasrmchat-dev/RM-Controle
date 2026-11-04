@@ -112,6 +112,9 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
   });
   const [painelAcesso, setPainelAcesso] = useState(Boolean(demandaAlvo));
   const [assumindoAlvo, setAssumindoAlvo] = useState(false);
+  // Vindo de uma demanda, o atendimento anda em etapas: 1 Entrar (só o acesso) · 2 Atender · 3 Concluir (o formulário de fechar)
+  const [comEtapas] = useState(Boolean(demandaAlvo));
+  const [etapa, setEtapa] = useState(demandaAlvo ? 1 : 2);
 
   // Garante que ao abrir a tela de suporte de uma empresa, a aba padrão seja sempre "Como Resolver Chamado"
   useEffect(() => {
@@ -985,6 +988,24 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
 
             {/* A empresa e a demanda da vez, como o cartão do Modo foco */}
             <motion.article initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', bounce: 0.2, duration: 0.5 }} className="mt-4 rounded-[32px] bg-white/80 dark:bg-white/[0.06] backdrop-blur-2xl ring-1 ring-black/[0.06] dark:ring-white/10 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.35)] dark:shadow-[0_40px_120px_-40px_rgba(0,0,0,0.8)] p-6 sm:p-10">
+              {comEtapas && (
+                <div className="mb-5 flex items-center gap-2 sm:gap-3 text-[13px]">
+                  {[['Entrar', 1], ['Atender', 2], ['Concluir', 3]].map(([nome, n], i) => {
+                    const atual = isFinalizarModalOpen ? 3 : etapa;
+                    const feita = n < atual;
+                    const ativa = n === atual;
+                    return (
+                      <React.Fragment key={n}>
+                        {i > 0 && <span className="w-6 sm:w-10 h-px bg-black/15 dark:bg-white/20" />}
+                        <span className={`inline-flex items-center gap-2 ${ativa ? 'font-semibold text-[#1d1d1f] dark:text-white' : 'text-black/40 dark:text-white/45'}`}>
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-semibold ${feita ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : ativa ? 'bg-[#1d1d1f] text-white dark:bg-white dark:text-[#1d1d1f]' : 'ring-1 ring-black/20 dark:ring-white/25'}`}>{feita ? '✓' : n}</span>
+                          {nome}
+                        </span>
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+              )}
               <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
                 <span className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-black/[0.05] dark:bg-white/10">
                   <span className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -1024,12 +1045,14 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
                 <p className="mt-4 text-[17px] text-black/45 dark:text-white/50">Nenhum atendimento em andamento nesta empresa.</p>
               )}
 
-              {painelAcesso && (
+              {(painelAcesso || etapa === 1) && (
                 <div className="mt-6">
-                  <AcessoEmpresaFoco empresa={empresa} chamado={demandaEmFoco} userEmail={userEmail} onConsegui={() => setPainelAcesso(false)} onFechar={() => setPainelAcesso(false)} />
+                  <AcessoEmpresaFoco empresa={empresa} chamado={demandaEmFoco} userEmail={userEmail} onConsegui={() => { setPainelAcesso(false); setEtapa(2); }} onFechar={() => { setPainelAcesso(false); setEtapa(2); }} />
                 </div>
               )}
 
+              {/* Etapa 2: só depois de confirmar o acesso aparecem os botões e o resto da empresa */}
+              <div className={etapa === 1 ? 'hidden' : ''}>
               {/* Botões: um principal e o resto em pílulas suaves */}
               <div className="mt-6 sm:mt-8 flex flex-wrap items-center gap-2.5">
                 {chamadoAtivo ? (
@@ -1083,8 +1106,10 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
               ) : (
                 <button type="button" onClick={() => setMostrandoNotaFixa(true)} className="mt-3 block text-[13px] font-medium text-black/45 dark:text-white/50 hover:text-black dark:hover:text-white hover:underline cursor-pointer">+ Aviso</button>
               )}
+              </div>
             </motion.article>
 
+            <div className={etapa === 1 ? 'hidden' : ''}>
             {/* Seções da empresa: pílulas suaves, a ativa em preto (como o seletor do Modo foco) */}
             <div className="mt-5 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
               {abasFoco.map((tab) => {
@@ -2360,6 +2385,7 @@ export default function CompanyManagementView({ empresa, onBack, onUpdated, user
 
         </div>
 
+            </div>
             </div>
           </div>
         </div>,
