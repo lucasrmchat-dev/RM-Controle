@@ -36,7 +36,12 @@ export async function GET(request, contexto) {
   return new Response(p.get('hub.challenge') || '', { status: 200, headers: { 'Content-Type': 'text/plain' } });
 }
 
+// PAUSA DE EMERGÊNCIA (2026-11-05): uma enxurrada de avisos travou a API do banco. Responde na hora, sem tocar no banco.
+// Para voltar ao normal, apague este bloco (e a constante) e publique de novo.
+const PAUSA_EMERGENCIAL = true;
+
 export async function POST(request, contexto) {
+  if (PAUSA_EMERGENCIAL) return new Response(null, { status: 503, headers: { 'Retry-After': '300' } });
   const params = await contexto.params;
   const r = await carregarCanal(params.id);
   if (!r) return new Response(null, { status: 404 });
