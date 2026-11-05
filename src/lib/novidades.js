@@ -21,8 +21,9 @@ export const NOVIDADES = [
     resumo: 'A RM Controle agora abre numa tela de Início: cumprimenta você pelo nome e mostra, num só lugar, o que importa hoje.',
     itens: [
       'Bom dia, boa tarde ou boa noite com o seu nome e uma frase que resume o dia (demandas com você, conversas esperando, reuniões e fila).',
-      'Quatro números grandes (com você, conversas esperando, na fila e reuniões pela frente): a cor diz o que precisa de atenção, vermelho para conversas esperando e âmbar para a fila. Clicar em um leva direto à tela.',
-      'Em telas largas, três colunas: o que é urgente, a fila e as conversas, e o contexto (agenda, avisos, seu mês). Cada lista mostra só os 3 primeiros itens, para caber sem rolar.',
+      'O Início agora orienta: no topo, “Sua prioridade agora” mostra a demanda com você que está há mais tempo em atendimento, com um botão grande para abrir, e as próximas logo abaixo. Pedidos de tratativa vêm antes de tudo.',
+      'As metas da semana do Daily ganharam destaque (anel grande e as metas pendentes), e a agenda de hoje mostra primeiro as reuniões pelas quais você é o responsável.',
+      'Conversas sem resposta, fila, avisos e o seu mês ficam na faixa “Também no radar”, mais discretos, porque outras pessoas também podem cuidar deles. Os números do dia viraram uma linha enxuta.',
       'Os avisos do sino também aparecem no Início, com “Marcar todos como lidos”.',
       'Seu foco agora, demandas esperando alguém assumir, conversas esperando resposta (com botão para responder no Chat), pedidos de tratativa e a agenda de hoje com o botão Entrar.',
       'Metas da semana do Daily e o seu desempenho no mês: em que posição você está entre a equipe em demandas concluídas, com um recado de incentivo ou um lembrete de registrar os atendimentos quando estiver bem abaixo dos colegas.',

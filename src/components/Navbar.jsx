@@ -57,9 +57,9 @@ const ILHA =
 const GRUPOS = [
   { id: 'inicio', label: 'Início', icone: 'resumo', itens: ['resumo'] },
   { id: 'atendimento', label: 'Atendimento', icone: 'chat', itens: ['chat'] },
-  { id: 'automacao', label: 'Automação', icone: 'fluxos', itens: ['fluxos', 'envios', 'conexoes'] },
   { id: 'demandas', label: 'Demandas', icone: 'fila', itens: ['fila', 'agenda'] },
   { id: 'gestao', label: 'Gestão', icone: 'dashboard', itens: ['dashboard', 'daily', 'comercial'] },
+  { id: 'automacao', label: 'Automação', icone: 'fluxos', itens: ['fluxos', 'envios', 'conexoes'] },
 ];
 // Feedbacks fica no menu da conta (entre Configurações gerais e Sair)
 
