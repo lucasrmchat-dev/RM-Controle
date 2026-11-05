@@ -26,7 +26,7 @@ export const NOVIDADES = [
       'Os avisos do sino também aparecem no Início, com “Marcar todos como lidos”.',
       'Seu foco agora, demandas esperando alguém assumir, conversas esperando resposta (com botão para responder no Chat), pedidos de tratativa e a agenda de hoje com o botão Entrar.',
       'Metas da semana do Daily e o seu desempenho no mês: em que posição você está entre a equipe em demandas concluídas, com um recado de incentivo ou um lembrete de registrar os atendimentos quando estiver bem abaixo dos colegas.',
-      'No cabeçalho, a própria logo da RM Controle é o botão Início. Um anel verde em volta dela mostra quanto das demandas de hoje já foi resolvido (por exemplo, 89%), em qualquer tela. Nas outras telas o botão cumprimenta você pelo nome; dentro do Início, que já cumprimenta, ele diz “Início”.',
+      'No cabeçalho, o botão Início leva para essa tela, e o logo da RM Controle também.',
       'O fundo com luzes do Início agora cobre a janela inteira.',
       'Também corrigido: com a busca aberta, clicar em Chat, Fluxo Inteligente ou na sua conta agora leva à tela escolhida.',
     ],
