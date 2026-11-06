@@ -49,6 +49,7 @@ import SplashCarregamento from '@/components/SplashCarregamento';
 import CompanyModal from '@/components/CompanyModal';
 import CompanyManagementView from '@/components/CompanyManagementView';
 import ResumoDoDiaView from '@/components/ResumoDoDiaView';
+import { iniciarSincronizacaoDePreferencias } from '@/lib/sincronizarPreferencias';
 import AuditLogsView from '@/components/AuditLogsView';
 import ServerConfigView from '@/components/ServerConfigView';
 import DashboardView from '@/components/DashboardView';
@@ -155,6 +156,11 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('resumo');
   // Módulos liberados pelo perfil de acesso (atualiza quando perfil/equipe mudam)
   const [abasPermitidas, setAbasPermitidas] = useState([]);
+  // Preferências da pessoa (cor, tema, avisos, visualização, sons) guardadas na conta: valem em qualquer dispositivo
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    return iniciarSincronizacaoDePreferencias();
+  }, [isAuthenticated]);
   // Outras telas pedem para trocar de aba (ex.: demanda aberta do Chat leva de volta à conversa)
   useEffect(() => {
     const ir = (e) => {

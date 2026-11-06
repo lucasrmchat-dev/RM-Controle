@@ -4,7 +4,7 @@ import { novoBanco } from './base.mjs';
 import assert from 'node:assert/strict';
 process.on('uncaughtException', (e) => { console.log('FALHOU:', e.message, '| consulta:', e.query || ''); process.exit(1); });
 
-const db = await novoBanco(['schema.sql', 'setup_secure_rls.sql', 'migration_feedbacks_e_departamentos.sql', 'migration_supabase_completa.sql', 'migration_perfis_acesso.sql', 'migration_google_agenda.sql', 'migration_descricao_historico.sql', 'migration_agenda_departamento.sql', 'migration_comercial_pipeline.sql', 'migration_comercial_webhooks.sql', 'migration_relato_atendimentos.sql', 'migration_feedbacks_subtarefas.sql', 'migration_descricao_demandas.sql', 'migration_whatsapp_agenda.sql', 'migration_multiempresa.sql', 'migration_canais_chat.sql', 'migration_canais_chat.sql', 'migration_chat_acoes.sql', 'migration_chat_acoes.sql', 'migration_chat_grupos.sql', 'migration_chat_grupos.sql', 'migration_desempenho.sql', 'migration_desempenho.sql', 'migration_daily.sql', 'migration_daily.sql', 'migration_equipe_protege_acesso.sql', 'migration_equipe_protege_acesso.sql', 'migration_auditoria_autor.sql', 'migration_auditoria_autor.sql', 'migration_fluxos.sql', 'migration_fluxo_esperas.sql', 'migration_fluxo_esperas.sql', 'migration_chat_massa.sql', 'migration_chat_massa.sql', 'migration_envios_massa.sql', 'migration_envios_massa.sql', 'migration_mensagens_codigo_por_conversa.sql', 'migration_demanda_pedidos.sql', 'migration_demanda_pedidos.sql']);
+const db = await novoBanco(['schema.sql', 'setup_secure_rls.sql', 'migration_feedbacks_e_departamentos.sql', 'migration_supabase_completa.sql', 'migration_perfis_acesso.sql', 'migration_google_agenda.sql', 'migration_descricao_historico.sql', 'migration_agenda_departamento.sql', 'migration_comercial_pipeline.sql', 'migration_comercial_webhooks.sql', 'migration_relato_atendimentos.sql', 'migration_feedbacks_subtarefas.sql', 'migration_descricao_demandas.sql', 'migration_whatsapp_agenda.sql', 'migration_multiempresa.sql', 'migration_canais_chat.sql', 'migration_canais_chat.sql', 'migration_chat_acoes.sql', 'migration_chat_acoes.sql', 'migration_chat_grupos.sql', 'migration_chat_grupos.sql', 'migration_desempenho.sql', 'migration_desempenho.sql', 'migration_daily.sql', 'migration_daily.sql', 'migration_equipe_protege_acesso.sql', 'migration_equipe_protege_acesso.sql', 'migration_auditoria_autor.sql', 'migration_auditoria_autor.sql', 'migration_fluxos.sql', 'migration_fluxo_esperas.sql', 'migration_fluxo_esperas.sql', 'migration_chat_massa.sql', 'migration_chat_massa.sql', 'migration_envios_massa.sql', 'migration_envios_massa.sql', 'migration_mensagens_codigo_por_conversa.sql', 'migration_demanda_pedidos.sql', 'migration_demanda_pedidos.sql', 'migration_usuario_preferencias.sql', 'migration_usuario_preferencias.sql']);
 console.log('✔ migração aplicada (duas vezes, sem erro)');
 const RMCHAT = '00000000-0000-4000-8000-000000000002';
 
@@ -150,6 +150,14 @@ await assert.rejects(servidor(`UPDATE demanda_pedidos SET organizacao_id = $1`, 
 await falha('ana@rmchat.com', `SELECT * FROM demanda_pedidos`);
 await falha('ana@rmchat.com', `DELETE FROM demanda_pedidos`);
 console.log('✔ Pedido de tratativa: preso à empresa da demanda, sem acesso do navegador');
+
+// Preferências da pessoa: uma linha por e-mail; o navegador não lê nem grava
+await servidor(`INSERT INTO usuario_preferencias (email, preferencias) VALUES ('ana@rmchat.com', '{"rm_paleta":"rosa"}')`);
+await servidor(`INSERT INTO usuario_preferencias (email, preferencias) VALUES ('ana@rmchat.com', '{}') ON CONFLICT (email) DO UPDATE SET preferencias = EXCLUDED.preferencias`);
+assert.equal((await servidor(`SELECT count(*)::int AS n FROM usuario_preferencias`))[0].n, 1, 'uma linha por pessoa');
+await falha('ana@rmchat.com', `SELECT * FROM usuario_preferencias`);
+await falha('ana@rmchat.com', `UPDATE usuario_preferencias SET preferencias = '{}'`);
+console.log('✔ Preferências da pessoa: uma por e-mail, sem acesso do navegador');
 console.log('✔ Envios em massa: presos à empresa do canal e do contato, navegador sem acesso');
 
 console.log('\nTODOS OS TESTES DE CANAIS PASSARAM');

@@ -7,6 +7,7 @@ import PerfilPainel from './PerfilPainel';
 import CentralNotificacoes from './CentralNotificacoes';
 import AvisosNaTela from './AvisosNaTela';
 import BuscaGlobal from './BuscaGlobal';
+import { atrasarComLimite } from '@/lib/atrasar';
 import { EVENTO_NOTIFICACOES, listarNotificacoes } from '@/lib/notificacoes';
 import {
   getFilaChamados,
@@ -236,8 +237,8 @@ export default function Navbar({
         .channel(topico)
         .on('broadcast', { event: 'mudou' }, () => {
           window.dispatchEvent(new Event('rm_chat_mudou'));
-          clearTimeout(espera);
-          espera = setTimeout(consultar, 400);
+          // Rajada de avisos: consulta a cada 3 s no máximo (em vez de esperar a rajada acabar)
+          espera?.();
         })
         .subscribe();
     };
@@ -256,11 +257,12 @@ export default function Navbar({
           inscrever(r.aoVivo);
         })
         .catch(() => {});
+    espera = atrasarComLimite(consultar, 400, 3000);
     consultar();
     const t = setInterval(consultar, 20000);
     return () => {
       clearInterval(t);
-      clearTimeout(espera);
+      espera?.cancelar?.();
       if (aoVivo) supabase.removeChannel(aoVivo);
       pararSomDoModulo('chat');
       window.removeEventListener('rm_chat_conversas', aoReceber);

@@ -15,6 +15,19 @@
  */
 export const NOVIDADES = [
   {
+    id: '2026-11-06-preferencias-na-conta',
+    data: '2026-11-06',
+    titulo: 'Suas preferências agora ficam na sua conta',
+    resumo: 'Cor do sistema, tema claro ou escuro, avisos na tela, modo de visualização e sons passam a valer em qualquer computador em que você entrar, e não voltam mais ao padrão sozinhos.',
+    itens: [
+      'Ao entrar, o sistema aplica as suas escolhas; ao mudar qualquer uma, ela é guardada na conta em poucos segundos.',
+      'Antes elas ficavam só no navegador e eram apagadas quando o sistema trocava de empresa (por exemplo, no modo suporte).',
+      'Também corrigido: a lista do Chat e os avisos da ilha do topo deixaram de piscar quando muitas mensagens chegam de uma vez.',
+    ],
+    modulo: 'Configurações',
+    tickets: [],
+  },
+  {
     id: '2026-11-04-inicio-resumo-do-dia',
     data: '2026-11-04',
     titulo: 'Novo Início: o resumo do seu dia',

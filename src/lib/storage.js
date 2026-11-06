@@ -3467,7 +3467,8 @@ export function getAbasPermitidas(email = null) {
 // MULTIEMPRESA: o navegador guarda dados de UMA empresa por vez
 // ==============================================================================
 // Preferências visuais sobrevivem à troca; todo o resto (demandas, empresas, equipe, agenda...) é apagado
-const PRESERVAR_AO_TROCAR_EMPRESA = new Set(['rm_theme', 'rm_paleta', 'rm_last_active_timestamp', 'rm_feedbacks_visao', 'rm_feedbacks_modo_dev', 'rm_organizacao_atual']);
+// As preferências da pessoa (cor, tema, avisos na tela, modo de visualização, sons) são dela e não da empresa: ficam
+const PRESERVAR_AO_TROCAR_EMPRESA = new Set(['rm_theme', 'rm_paleta', 'rm_avisos_tela', 'rm_default_view_mode', 'rm_last_active_timestamp', 'rm_feedbacks_visao', 'rm_feedbacks_modo_dev', 'rm_organizacao_atual']);
 
 /**
  * Registra a empresa em que a pessoa está (vinda de /api/auth/session). Se mudou desde a última vez
@@ -3483,7 +3484,7 @@ export function definirOrganizacaoAtual(organizacao, gestao) {
     const anterior = localStorage.getItem('rm_organizacao_atual');
     if (anterior !== id) {
       Object.keys(localStorage).forEach((k) => {
-        if (k.startsWith('rm_') && !PRESERVAR_AO_TROCAR_EMPRESA.has(k)) {
+        if (k.startsWith('rm_') && !PRESERVAR_AO_TROCAR_EMPRESA.has(k) && !k.startsWith('rm_som_')) {
           localStorage.removeItem(k);
           trocou = true;
         }

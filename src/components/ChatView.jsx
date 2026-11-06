@@ -44,6 +44,7 @@ import { removerGrupo } from '@/lib/notificacoes';
 import { BotaoErroEnvio, ResumoErroEnvio } from './ChatErroEnvio';
 import ChatAcoesEmMassa from './ChatAcoesEmMassa';
 import NovaDemandaModal from './NovaDemandaModal';
+import { atrasarComLimite } from '@/lib/atrasar';
 
 // ------------------------------------------------------------------------------
 // Visual
@@ -2190,13 +2191,13 @@ export default function ChatView() {
     let espera = null;
     if (isSupabaseConfigured && supabase) {
       // Tempo real: qualquer mudança vira um aviso; a tela busca de novo pelo servidor (que confere a permissão)
-      const avisar = () => {
-        clearTimeout(espera);
-        espera = setTimeout(() => {
-          carregar();
-          setSinal((n) => n + 1);
-        }, 350);
-      };
+      // Rajada de mensagens (ex.: a Evolution entregando o que ficou pendente): atualiza a cada 2 s no máximo, sem ficar
+      // esperando a rajada acabar (a lista ficava com o "carregando" girando e piscando)
+      const avisar = atrasarComLimite(() => {
+        carregar();
+        setSinal((n) => n + 1);
+      }, 350, 2000);
+      espera = avisar;
       canal = supabase
         .channel('chat_ao_vivo')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'mensagens' }, avisar)
@@ -2206,7 +2207,7 @@ export default function ChatView() {
     const t = setInterval(() => document.visibilityState === 'visible' && carregar(), 20000);
     return () => {
       clearInterval(t);
-      clearTimeout(espera);
+      espera?.cancelar?.();
       if (canal) supabase.removeChannel(canal);
     };
   }, [carregar, carregarRespostas]);
@@ -2214,17 +2215,13 @@ export default function ChatView() {
   // Aviso do servidor (mensagem recebida pelo WhatsApp ou ação da equipe), repassado pelo cabeçalho:
   // atualiza na hora, sem esperar a consulta periódica
   useEffect(() => {
-    let espera = null;
-    const aoMudar = () => {
-      clearTimeout(espera);
-      espera = setTimeout(() => {
-        carregar();
-        setSinal((n) => n + 1);
-      }, 250);
-    };
+    const aoMudar = atrasarComLimite(() => {
+      carregar();
+      setSinal((n) => n + 1);
+    }, 250, 2000);
     window.addEventListener('rm_chat_mudou', aoMudar);
     return () => {
-      clearTimeout(espera);
+      aoMudar.cancelar();
       window.removeEventListener('rm_chat_mudou', aoMudar);
     };
   }, [carregar]);

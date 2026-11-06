@@ -241,12 +241,18 @@ export default function AvisosNaTela({ local, onAbrirAba, larguraIlha = 0 }) {
               role="status"
               aria-live="polite"
             >
-              <div className="space-y-2.5">
-                {visiveis.map((n) => (
-                  <motion.div key={n.id} layout initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                    <Cartao n={n} onAbrir={abrir} onFechar={fechar} onPausar={pausar} onRetomar={retomar} compacto />
-                  </motion.div>
-                ))}
+              <div>
+                {/* Cada aviso entra abrindo e sai recolhendo a própria altura: assim um não passa por cima do outro
+                    (antes, com avisos chegando em sequência, os textos se sobrepunham e a ilha parecia piscar) */}
+                <AnimatePresence initial={false}>
+                  {visiveis.map((n) => (
+                    <motion.div key={n.id} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ type: 'spring', stiffness: 380, damping: 36 }} style={{ overflow: 'hidden' }}>
+                      <div className="pb-2.5">
+                        <Cartao n={n} onAbrir={abrir} onFechar={fechar} onPausar={pausar} onRetomar={retomar} compacto />
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
                 <Mais extras={extras} onSino={abrirSino} />
               </div>
             </motion.div>
