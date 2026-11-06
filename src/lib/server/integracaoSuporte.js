@@ -37,7 +37,9 @@ export function getSupabaseAdmin() {
   const chave = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !chave) return null;
   if (!clienteAdmin) {
-    clienteAdmin = createClient(url, chave, { auth: { persistSession: false, autoRefreshToken: false } });
+    // Nenhuma chamada ao banco fica pendurada para sempre: com o banco lento, falha em 25 s (e não segura a função por 60 s)
+    const comTempoLimite = (entrada, opcoes = {}) => fetch(entrada, { ...opcoes, signal: opcoes.signal || AbortSignal.timeout(25000) });
+    clienteAdmin = createClient(url, chave, { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: comTempoLimite } });
   }
   return clienteAdmin;
 }

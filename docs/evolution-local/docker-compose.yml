@@ -24,6 +24,14 @@ services:
       QRCODE_LIMIT: "30"
       LOG_LEVEL: ERROR,WARN
       DEL_INSTANCE: "false"
+      # Reenvio dos avisos ao RM Controle: poucas tentativas, com espera crescente (evita enxurrada se o servidor engasgar)
+      WEBHOOK_REQUEST_TIMEOUT_MS: "10000"
+      WEBHOOK_RETRY_MAX_ATTEMPTS: "3"
+      WEBHOOK_RETRY_INITIAL_DELAY_SECONDS: "10"
+      WEBHOOK_RETRY_USE_EXPONENTIAL_BACKOFF: "true"
+      WEBHOOK_RETRY_MAX_DELAY_SECONDS: "120"
+      WEBHOOK_RETRY_JITTER_FACTOR: "0.3"
+      WEBHOOK_RETRY_NON_RETRYABLE_STATUS_CODES: "400,401,403,404,413,422"
     volumes:
       - evolution_instancias:/evolution/instances
     depends_on:

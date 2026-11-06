@@ -351,9 +351,10 @@ export default function Home() {
 
         // 1. Validação prioritária por Cookie HTTP-Only seguro (/api/auth/session)
         try {
+          // Com limite de tempo: se o banco estiver lento, a tela abre mesmo assim (a equipe chega depois)
           const [res] = await Promise.all([
-            fetch('/api/auth/session', { cache: 'no-store' }),
-            fetchEquipeUsuarios().catch(() => {}),
+            fetch('/api/auth/session', { cache: 'no-store', signal: AbortSignal.timeout(12000) }),
+            Promise.race([fetchEquipeUsuarios().catch(() => {}), new Promise((resolver) => setTimeout(resolver, 4000))]),
           ]);
           if (res.status === 403) {
             // Fora da equipe: encerra também a sessão do Supabase e explica o motivo no login
@@ -399,7 +400,7 @@ export default function Home() {
                 localStorage.removeItem('rm_user_role');
               } catch (e) {}
 
-              const pendente = await isPrimeiroAcessoPendente(data.user.email);
+              const pendente = await Promise.race([isPrimeiroAcessoPendente(data.user.email), new Promise((resolver) => setTimeout(() => resolver(false), 4000))]);
               setPrimeiroAcessoPendente(pendente);
               setAuthLoading(false);
               return;
